@@ -1,0 +1,166 @@
+[
+  {
+    "id": "openrouter-pollinations-cover-regen-2026-05-05",
+    "date": "2026-05-05",
+    "title": {
+      "en": "🎨 OpenRouter for lyrics + Pollinations covers + manual cover regen",
+      "ru": "🎨 OpenRouter для лирики + обложки Pollinations + ручная перегенерация",
+      "zh": "🎨 OpenRouter 歌词 + Pollinations 封面 + 手动重新生成封面",
+      "ja": "🎨 OpenRouter で歌詞 + Pollinations カバー + 手動カバー再生成",
+      "ko": "🎨 OpenRouter 가사 + Pollinations 커버 + 수동 커버 재생성"
+    },
+    "body": {
+      "en": "Three optional cloud features. All three are off by default, all three have a free tier, the local pipeline still works unchanged if you ignore them.\n\n• Lyrics & metadata via OpenRouter — instead of running the local LM you can plug in any of 200+ cloud models (Claude, GPT-4o, DeepSeek, Llama, Gemini, Mistral, …). Many are fully free — filter the model picker by ':free'. From your one-line song description the model writes lyrics, caption, BPM, key, duration, and a short visual prompt for the cover.\n\n• Auto cover generation via Pollinations.ai — once the LLM has the visual cover prompt, Pollinations renders the album cover in parallel with the audio. No watermark, no account required for the anonymous tier; a free token at auth.pollinations.ai unlocks the full model catalogue (FLUX, Qwen-Image, GPT-Image, Z-Image and others) and a faster rate.\n\n• Manual cover regeneration — picture-with-pencil button on every owned song row. Pick any Pollinations model, write your own prompt, hit 'Try again' until you like the result, or upload your own image from disk (JPEG/PNG/WEBP, up to 10 MB). The picked image is saved as the cover and is also embedded into the MP3, so any external player shows it when you download the file.\n\nWhere to enter the keys: Create panel → Advanced → the corresponding panel → paste the key, pick a model, Test. Keys are stored only in your browser; nothing is sent anywhere except the provider's own API.",
+      "ru": "Три опциональных облачных фичи. Все три по умолчанию выключены, у всех трёх есть бесплатный тариф, локальный пайплайн без них работает как и раньше.\n\n• Лирика и метаданные через OpenRouter — вместо локального LM можно подключить любую из 200+ облачных моделей (Claude, GPT-4o, DeepSeek, Llama, Gemini, Mistral, …). Много полностью бесплатных — отфильтруй модели по ':free'. По одному описанию песни модель пишет лирику, caption, BPM, тональность, длительность и короткий визуальный промпт для обложки.\n\n• Автогенерация обложек через Pollinations.ai — как только LLM выдаст визуальный промпт обложки, Pollinations рисует её параллельно с аудио. Без водяных знаков и без аккаунта на анонимном тарифе; бесплатный токен с auth.pollinations.ai открывает полный каталог моделей (FLUX, Qwen-Image, GPT-Image, Z-Image и другие) и быстрее лимиты.\n\n• Ручная перегенерация обложки — иконка «картинка с карандашиком» в каждой своей песне. Выбираешь любую модель Pollinations, пишешь свой промпт, жмёшь «Ещё раз» пока не понравится, либо загружаешь готовую картинку с диска (JPEG/PNG/WEBP, до 10 МБ). Выбранное изображение сохраняется как обложка и зашивается в MP3, так что любой внешний плеер при скачивании увидит именно его.\n\nГде вводить ключи: панель «Создать» → «Дополнительно» → соответствующая панель → вставь ключ, выбери модель, «Тест». Ключи лежат только в твоём браузере, никуда не уходят кроме API самих провайдеров.",
+      "zh": "三项可选的云端功能。三者默认都是关闭的,三者都有免费层级,不使用它们时本地流程保持不变。\n\n• 通过 OpenRouter 生成歌词和元数据 — 不用本地 LM,改为接入 200+ 云端模型中的任意一款(Claude、GPT-4o、DeepSeek、Llama、Gemini、Mistral 等)。许多完全免费 — 在模型选择器中按 ':free' 过滤即可。模型从你一行的歌曲描述中写出歌词、caption、BPM、调性、时长以及一段简短的封面视觉提示词。\n\n• 通过 Pollinations.ai 自动生成封面 — LLM 给出封面提示词后,Pollinations 与音频并行渲染封面。匿名层级无水印且无需账号;auth.pollinations.ai 的免费 token 解锁完整模型目录(FLUX、Qwen-Image、GPT-Image、Z-Image 等)和更快的速率。\n\n• 手动重新生成封面 — 每首自己的歌曲行上的「图片+铅笔」按钮。选择任何 Pollinations 模型、写自己的提示词、点击「再试一次」直到满意,或者从硬盘上传自己的图片(JPEG/PNG/WEBP,最大 10 MB)。选中的图片保存为封面,并嵌入到 MP3 中,因此你下载文件时任何外部播放器都会显示它。\n\n密钥输入位置:创建面板 → 高级 → 对应面板 → 粘贴密钥、选择模型、测试。密钥仅存在于你的浏览器中,除了供应商自己的 API 外不发送到任何地方。",
+      "ja": "3 つのオプションクラウド機能。3 つともデフォルトでオフ、3 つとも無料ティアあり、使わなければローカルパイプラインは従来どおり動作。\n\n• OpenRouter による歌詞とメタデータ — ローカル LM の代わりに 200+ クラウドモデル(Claude、GPT-4o、DeepSeek、Llama、Gemini、Mistral など)を接続できます。多くは完全無料 — モデルピッカーで ':free' でフィルタするだけ。曲の 1 行の説明からモデルが歌詞、caption、BPM、キー、長さ、そしてカバー用の短いビジュアルプロンプトを生成します。\n\n• Pollinations.ai による自動カバー生成 — LLM がカバープロンプトを出すと、Pollinations がオーディオと並行してカバーをレンダリング。匿名ティアは透かしなし・アカウント不要、auth.pollinations.ai の無料トークンでフルモデルカタログ(FLUX、Qwen-Image、GPT-Image、Z-Image など)と高速レートを解放。\n\n• 手動カバー再生成 — 自分の各曲行の「画像 + 鉛筆」ボタン。任意の Pollinations モデルを選び、独自のプロンプトを書き、「もう一度」で気に入るまで再生成、またはディスクから自分の画像をアップロード(JPEG/PNG/WEBP、最大 10 MB)。選んだ画像はカバーとして保存され、MP3 にも埋め込まれるため、ダウンロードしたファイルを再生する外部プレイヤーでも表示されます。\n\nキーの入力場所:作成パネル → 詳細 → 対応するパネル → キーを貼り付け、モデルを選択、テスト。キーはブラウザ内にのみ保存され、プロバイダ自身の API 以外には送信されません。",
+      "ko": "세 가지 선택적 클라우드 기능. 셋 다 기본값은 꺼져 있고, 셋 다 무료 티어가 있으며, 사용하지 않으면 로컬 파이프라인은 그대로 동작합니다.\n\n• OpenRouter 로 가사와 메타데이터 — 로컬 LM 대신 200+ 클라우드 모델(Claude、GPT-4o、DeepSeek、Llama、Gemini、Mistral 등) 중 하나를 연결할 수 있습니다. 다수는 완전 무료 — 모델 선택기에서 ':free' 로 필터링만 하면 됩니다. 한 줄 설명에서 모델이 가사, caption, BPM, 키, 길이, 그리고 커버용 짧은 비주얼 프롬프트를 작성합니다.\n\n• Pollinations.ai 로 자동 커버 생성 — LLM 이 커버 프롬프트를 만들면 Pollinations 가 오디오와 병렬로 커버를 렌더링합니다. 익명 티어는 워터마크 없이 계정 없이 동작하며, auth.pollinations.ai 의 무료 토큰으로 전체 모델 카탈로그(FLUX、Qwen-Image、GPT-Image、Z-Image 등)와 더 빠른 레이트를 해제합니다.\n\n• 수동 커버 재생성 — 자신의 각 곡 행에 있는 «이미지+연필» 버튼. 임의의 Pollinations 모델을 선택하고, 자신의 프롬프트를 작성하고, 마음에 들 때까지 «다시 시도», 또는 디스크에서 자신의 이미지를 업로드 (JPEG/PNG/WEBP, 최대 10 MB) 합니다. 선택한 이미지는 커버로 저장되고 MP3 에도 포함되므로, 파일을 다운로드해서 외부 플레이어로 재생해도 같은 이미지가 표시됩니다.\n\n키 입력 위치: 생성 패널 → 고급 → 해당 패널 → 키 붙여넣기, 모델 선택, 테스트. 키는 브라우저에만 저장되며 공급자의 자체 API 외에는 어디에도 전송되지 않습니다."
+    },
+    "tags": ["update", "feature", "cloud", "covers"],
+    "links": [
+      { "label": "🤖 OpenRouter — get a free API key", "url": "https://openrouter.ai/keys" },
+      { "label": "🎨 Pollinations.ai — get a free token", "url": "https://auth.pollinations.ai" },
+      { "label": "📦 ACE-Step Studio repo", "url": "https://github.com/timoncool/ACE-Step-Studio" }
+    ]
+  },
+  {
+    "id": "support-open-source-ai",
+    "date": "2026-04-23",
+    "title": {
+      "en": "💖 Support open-source AI — Donation info",
+      "ru": "💖 Поддержать опенсорс AI — реквизиты для донатов",
+      "zh": "💖 支持开源 AI — 捐赠信息",
+      "ja": "💖 オープンソース AI を応援 — 寄付情報",
+      "ko": "💖 오픈소스 AI 후원하기 — 기부 정보"
+    },
+    "body": {
+      "en": "ACE-Step Studio is 100% free and local. If it saved you from paying $10+/month to Suno or Udio — please consider supporting the project.\n\nEasiest ways:\n• Card / PayPal / Apple Pay (any currency) — dalink.to/nerual_dreming\n• Boosty (monthly / Patreon alternative) — boosty.to/neuro_art\n\nCrypto:\n• BTC — 1E7dHL22RpyhJGVpcvKdbyZgksSYkYeEBC\n• ETH (ERC20) — 0xb5db65adf478983186d4897ba92fe2c25c594a0c\n• USDT (TRC20) — TQST9Lp2TjK6FiVkn4fwfGUee7NmkxEE7C\n\nYour support funds hosting, test hardware and development time. Every star, share and donation matters. Thanks!",
+      "ru": "ACE-Step Studio полностью бесплатен и работает локально. Если он сэкономил вам $10+/мес на Suno или Udio — поддержите проект донатом.\n\nСамые простые способы:\n• Карта / PayPal / Apple Pay (любая валюта) — dalink.to/nerual_dreming\n• Boosty (ежемесячная подписка, аналог Patreon) — boosty.to/neuro_art\n\nКрипта:\n• BTC — 1E7dHL22RpyhJGVpcvKdbyZgksSYkYeEBC\n• ETH (ERC20) — 0xb5db65adf478983186d4897ba92fe2c25c594a0c\n• USDT (TRC20) — TQST9Lp2TjK6FiVkn4fwfGUee7NmkxEE7C\n\nДонаты идут на серверы, домены, железо для тестов и время разработки. Каждая звезда, репост и донат имеют значение. Спасибо!",
+      "zh": "ACE-Step Studio 100% 免费且本地运行。如果它为您节省了每月 $10+ 的 Suno/Udio 订阅费 — 欢迎支持本项目。\n\n最简单的方式：\n• 信用卡 / PayPal / Apple Pay（任意货币）— dalink.to/nerual_dreming\n• Boosty（月度订阅 / Patreon 替代）— boosty.to/neuro_art\n\n加密货币：\n• BTC — 1E7dHL22RpyhJGVpcvKdbyZgksSYkYeEBC\n• ETH (ERC20) — 0xb5db65adf478983186d4897ba92fe2c25c594a0c\n• USDT (TRC20) — TQST9Lp2TjK6FiVkn4fwfGUee7NmkxEE7C\n\n您的支持将用于托管、测试硬件和开发时间。每一个 star、分享和捐赠都很重要。谢谢！",
+      "ja": "ACE-Step Studio は 100% 無料でローカル動作します。Suno や Udio の月額 $10+ を節約できたなら — プロジェクトのサポートをご検討ください。\n\n最も簡単な方法：\n• カード / PayPal / Apple Pay（任意の通貨）— dalink.to/nerual_dreming\n• Boosty（月額サポート / Patreon 代替）— boosty.to/neuro_art\n\n暗号通貨：\n• BTC — 1E7dHL22RpyhJGVpcvKdbyZgksSYkYeEBC\n• ETH (ERC20) — 0xb5db65adf478983186d4897ba92fe2c25c594a0c\n• USDT (TRC20) — TQST9Lp2TjK6FiVkn4fwfGUee7NmkxEE7C\n\nサポートはホスティング、テスト用ハードウェア、開発時間に使われます。スター、シェア、寄付はすべて大切です。ありがとうございます！",
+      "ko": "ACE-Step Studio는 100% 무료이며 로컬에서 실행됩니다. Suno/Udio 월 $10+ 구독료를 아껴주었다면 — 프로젝트 후원을 고려해 주세요.\n\n가장 쉬운 방법:\n• 카드 / PayPal / Apple Pay (모든 통화) — dalink.to/nerual_dreming\n• Boosty (월간 후원 / Patreon 대안) — boosty.to/neuro_art\n\n암호화폐:\n• BTC — 1E7dHL22RpyhJGVpcvKdbyZgksSYkYeEBC\n• ETH (ERC20) — 0xb5db65adf478983186d4897ba92fe2c25c594a0c\n• USDT (TRC20) — TQST9Lp2TjK6FiVkn4fwfGUee7NmkxEE7C\n\n후원은 호스팅, 테스트 하드웨어, 개발 시간에 사용됩니다. 모든 별표, 공유, 기부가 중요합니다. 감사합니다!"
+    },
+    "tags": ["donate", "support"],
+    "links": [
+      { "label": "💳 Card / PayPal / Apple Pay — dalink.to", "url": "https://dalink.to/nerual_dreming" },
+      { "label": "🎨 Boosty — monthly support",             "url": "https://boosty.to/neuro_art" },
+      { "label": "📖 Full donation guide (EN / RU)",         "url": "https://github.com/timoncool/ACE-Step-Studio/blob/master/DONATE.md" },
+      { "label": "Nerual Dreming — Telegram",                "url": "https://t.me/nerual_dreming" },
+      { "label": "@timoncool on GitHub",                     "url": "https://github.com/timoncool" }
+    ]
+  },
+  {
+    "id": "upstream-sync-v0-1-7-dcw-retake",
+    "date": "2026-05-04",
+    "title": {
+      "en": "🎛️ Upstream sync — DCW quality boost, Retake, MLX & infer-steps fix",
+      "ru": "🎛️ Sync с upstream — DCW буст качества, Retake, MLX и fix infer-steps",
+      "zh": "🎛️ 上游同步 — DCW 质量提升、Retake、MLX 和 infer-steps 修复",
+      "ja": "🎛️ Upstream 同期 — DCW 品質向上、Retake、MLX、infer-steps 修正",
+      "ko": "🎛️ Upstream 동기화 — DCW 품질 향상, Retake, MLX, infer-steps 수정"
+    },
+    "body": {
+      "en": "Synced with upstream ACE-Step v0.1.7 + post-release fixes (May 1). Big quality update.\n\nNew features:\n• DCW (Differential Correction in Wavelet domain) — CVPR 2026 paper, training-free quality boost on every sampler step. Default ON. New panel in Custom mode: Mode (low/high/double/pix) + Wavelet (haar/db4/sym8/...) + 2 strength sliders.\n• Retake — variation seed with Variance slider. Generate the same song with subtle differences (vocals, arrangement) without losing the main motif.\n• Flow-edit (#1156) — text-edit overlay morphing source caption+lyrics toward target prompt on text2music + cover + cover-nofsq tasks. Full UI panel in Custom mode (source caption + source lyrics + n_min/n_max + n_avg).\n• ScragVAE — alternative community VAE, swap via ACESTEP_VAE_CHECKPOINT env.\n• Repaint Most Natural — 4th mode option (next to Conservative/Balanced/Aggressive) for max source preservation, useful for iterative repaint refinement.\n• 7 schedulers (linear/karras/cosine/beta/sway/logit_normal/laplace) — preserved from our fork.\n\nFixes:\n• infer_steps on turbo/xl-turbo — was silently clamped to 8 steps, now respects UI value (1–20).\n• LM CFG uncond prompt aligned with training dropout format (#1127, #1128) — better lyrics quality.\n• MLX DiT static buffers fix on Apple Silicon (#1166).\n• Many smaller bug fixes from upstream.\n\nDeps update: pip install pytorch-wavelets PyWavelets (auto-installed by install.bat / Pinokio).",
+      "ru": "Синхронизация с upstream ACE-Step v0.1.7 + post-release fixes (1 мая). Большое обновление качества.\n\nНовые фичи:\n• DCW (Differential Correction in Wavelet domain) — paper CVPR 2026, бесплатный буст качества на каждом шаге сэмплера. По дефолту ВКЛ. Новая панель в Custom mode: Режим (low/high/double/pix) + Вейвлет (haar/db4/sym8/...) + 2 слайдера силы.\n• Retake — seed вариаций со слайдером Variance. Получить ту же песню с лёгкими отличиями (вокал, аранжировка) сохранив основной мотив.\n• Flow-edit (#1156) — text-edit overlay для text2music + cover. Берёт source caption+lyrics + целевой prompt и плавно морфит одну песню в другую сохраняя структуру. Полная UI панель в Custom mode.\n• ScragVAE — альтернативный community VAE, переключается через env ACESTEP_VAE_CHECKPOINT.\n• Repaint Most Natural — 4-я опция режима (рядом с Conservative/Balanced/Aggressive) для максимального сохранения источника, полезно для итеративной правки repaint.\n• 7 шедулеров (linear/karras/cosine/beta/sway/logit_normal/laplace) — сохранены из нашего форка.\n\nФиксы:\n• infer_steps на turbo/xl-turbo — раньше молча клампился до 8 шагов, теперь уважает значение из UI (1–20).\n• LM CFG uncond prompt выровнен с training dropout (#1127, #1128) — лучше качество лирики.\n• MLX DiT static buffers fix на Apple Silicon (#1166).\n• Куча мелких багфиксов из upstream.\n\nЗависимости: pip install pytorch-wavelets PyWavelets (автоматом ставится в install.bat / Pinokio).",
+      "zh": "与上游 ACE-Step v0.1.7 + 后续修复同步(5 月 1 日)。重大质量更新。\n\n新功能:\n• DCW (Differential Correction in Wavelet domain) — CVPR 2026 论文,每个采样器步骤的免费质量提升。默认开启。Custom 模式新面板:Mode (low/high/double/pix) + Wavelet (haar/db4/sym8/...) + 2 个强度滑块。\n• Retake — 带 Variance 滑块的变化种子。生成同一首歌但有细微差异(人声、编曲),保留主旋律。\n• Flow-edit (#1156) — text2music + cover + cover-nofsq 任务的文本编辑叠加,将源 caption+lyrics 朝目标 prompt 平滑morph。Custom 模式中完整 UI 面板 (source caption + source lyrics + n_min/n_max + n_avg)。\n• ScragVAE — 备选社区 VAE,通过环境变量 ACESTEP_VAE_CHECKPOINT 切换。\n• Repaint Most Natural — 第 4 种模式选项 (Conservative/Balanced/Aggressive 之外),最大化源保留,适用于迭代式 repaint 精修。\n• 7 种调度器 (linear/karras/cosine/beta/sway/logit_normal/laplace) — 来自我们 fork。\n\n修复:\n• turbo/xl-turbo 上的 infer_steps — 之前静默限制为 8 步,现在尊重 UI 值 (1–20)。\n• LM CFG uncond prompt 与训练 dropout 对齐 (#1127, #1128) — 更好的歌词质量。\n• Apple Silicon MLX DiT static buffers 修复 (#1166)。\n• 许多上游小 bug 修复。\n\n依赖:pip install pytorch-wavelets PyWavelets (install.bat / Pinokio 自动安装)。",
+      "ja": "Upstream ACE-Step v0.1.7 + post-release fixes (5/1) と同期。大規模な品質アップデート。\n\n新機能:\n• DCW (Differential Correction in Wavelet domain) — CVPR 2026 論文、各サンプラーステップで無料の品質向上。デフォルトオン。Custom モードに新パネル: Mode (low/high/double/pix) + Wavelet (haar/db4/sym8/...) + 2 つの強度スライダー。\n• Retake — Variance スライダー付きバリエーションシード。メインモチーフを保ちながら微妙な違い(ボーカル、編曲)で同じ曲を生成。\n• Flow-edit (#1156) — text2music + cover + cover-nofsq タスク用テキスト編集オーバーレイ。ソース caption+lyrics をターゲットプロンプトに向かってモーフ。Custom モードに完全 UI パネル (source caption + source lyrics + n_min/n_max + n_avg)。\n• ScragVAE — 代替コミュニティ VAE、ACESTEP_VAE_CHECKPOINT 環境変数で切り替え。\n• Repaint Most Natural — 4 番目のモードオプション (Conservative/Balanced/Aggressive に加えて)、最大ソース保持、反復的な repaint リファインメントに有用。\n• 7 スケジューラ (linear/karras/cosine/beta/sway/logit_normal/laplace) — 当 fork から保持。\n\n修正:\n• turbo/xl-turbo の infer_steps — 以前は黙って 8 ステップにクランプされていた、UI 値 (1–20) を尊重するように。\n• LM CFG uncond prompt をトレーニング dropout 形式に整合 (#1127, #1128) — 歌詞品質向上。\n• Apple Silicon の MLX DiT static buffers 修正 (#1166)。\n• 多数の上流からの小さなバグ修正。\n\n依存関係: pip install pytorch-wavelets PyWavelets (install.bat / Pinokio が自動インストール)。",
+      "ko": "Upstream ACE-Step v0.1.7 + post-release fixes (5/1) 와 동기화. 대규모 품질 업데이트.\n\n새 기능:\n• DCW (Differential Correction in Wavelet domain) — CVPR 2026 논문, 각 샘플러 단계에서 무료 품질 향상. 기본 ON. Custom 모드에 새 패널: Mode (low/high/double/pix) + Wavelet (haar/db4/sym8/...) + 2 개 강도 슬라이더.\n• Retake — Variance 슬라이더가 있는 변형 시드. 메인 모티브를 유지하면서 미묘한 차이(보컬, 편곡)로 같은 곡 생성.\n• Flow-edit (#1156) — text2music + cover + cover-nofsq 작업용 텍스트 편집 오버레이. 소스 caption+lyrics를 타겟 prompt로 모핑. Custom 모드에 완전한 UI 패널 (source caption + source lyrics + n_min/n_max + n_avg).\n• ScragVAE — 대체 커뮤니티 VAE, ACESTEP_VAE_CHECKPOINT 환경 변수로 전환.\n• Repaint Most Natural — 4 번째 모드 옵션 (Conservative/Balanced/Aggressive 외에), 최대 소스 보존, 반복적인 repaint 다듬기에 유용.\n• 7 스케줄러 (linear/karras/cosine/beta/sway/logit_normal/laplace) — 우리 fork 에서 유지.\n\n수정사항:\n• turbo/xl-turbo 의 infer_steps — 이전에는 8 단계로 무음 클램프, 이제 UI 값 (1–20) 존중.\n• LM CFG uncond prompt 를 훈련 dropout 형식과 정렬 (#1127, #1128) — 가사 품질 향상.\n• Apple Silicon MLX DiT static buffers 수정 (#1166).\n• 다수의 upstream 작은 버그 수정.\n\n의존성: pip install pytorch-wavelets PyWavelets (install.bat / Pinokio 자동 설치)."
+    },
+    "tags": ["update", "quality", "upstream-sync"],
+    "links": [
+      { "label": "📄 DCW paper (arXiv 2604.16044)", "url": "https://arxiv.org/abs/2604.16044" },
+      { "label": "🔬 Upstream ACE-Step v0.1.7 release", "url": "https://github.com/ace-step/ACE-Step-1.5/releases/tag/v0.1.7" },
+      { "label": "📦 ACE-Step Studio repo", "url": "https://github.com/timoncool/ACE-Step-Studio" }
+    ]
+  },
+  {
+    "id": "pinokio-launcher",
+    "date": "2026-04-23",
+    "title": {
+      "en": "🎉 ACE-Step Studio is now on Pinokio — cross-platform 1-click install",
+      "ru": "🎉 ACE-Step Studio теперь на Pinokio — 1-click установка на всех ОС",
+      "zh": "🎉 ACE-Step Studio 登陆 Pinokio —— 跨平台一键安装",
+      "ja": "🎉 ACE-Step Studio が Pinokio に対応 — クロスプラットフォーム 1-click インストール",
+      "ko": "🎉 ACE-Step Studio가 Pinokio에 출시 — 크로스 플랫폼 원클릭 설치"
+    },
+    "body": {
+      "en": "ACE-Step Studio is now available as a one-click Pinokio launcher. Pinokio bundles Python 3.12, Node.js, ffmpeg, venv, torch, triton and flash-attention — no more install.bat.\n\nSupported platforms:\n• Windows 10/11 — NVIDIA RTX 20xx–50xx, AMD via DirectML\n• Linux x64 — NVIDIA CUDA 12.8, AMD ROCm 6.3\n• Linux aarch64 — NVIDIA DGX Spark / Jetson (CUDA 13.0)\n• macOS Apple Silicon — MPS + MLX native acceleration\n• macOS Intel / CPU-only — slow but works\n\nInstall Pinokio at pinokio.co and find 'ACE-Step Studio' in the Discover tab.",
+      "ru": "ACE-Step Studio теперь доступен как Pinokio launcher в один клик. Pinokio сам ставит Python 3.12, Node.js, ffmpeg, venv, torch, triton и flash-attention — install.bat больше не нужен.\n\nПоддерживаемые платформы:\n• Windows 10/11 — NVIDIA RTX 20xx–50xx, AMD через DirectML\n• Linux x64 — NVIDIA CUDA 12.8, AMD ROCm 6.3\n• Linux aarch64 — NVIDIA DGX Spark / Jetson (CUDA 13.0)\n• macOS Apple Silicon — MPS + нативное ускорение MLX\n• macOS Intel / только CPU — медленно, но работает\n\nСкачайте Pinokio с https://pinokio.co и найдите 'ACE-Step Studio' во вкладке Discover.",
+      "zh": "ACE-Step Studio 现已作为 Pinokio 一键启动器提供。Pinokio 自动安装 Python 3.12、Node.js、ffmpeg、venv、torch、triton 和 flash-attention——不再需要 install.bat。\n\n支持的平台：\n• Windows 10/11 — NVIDIA RTX 20xx–50xx, AMD (DirectML)\n• Linux x64 — NVIDIA CUDA 12.8, AMD ROCm 6.3\n• Linux aarch64 — NVIDIA DGX Spark / Jetson (CUDA 13.0)\n• macOS Apple Silicon — MPS + MLX 原生加速\n• macOS Intel / 纯 CPU — 速度较慢但可用\n\n访问 https://pinokio.co 下载 Pinokio,在 Discover 中搜索 'ACE-Step Studio'。",
+      "ja": "ACE-Step Studio が Pinokio の 1-click ランチャーとして利用可能になりました。Pinokio が Python 3.12、Node.js、ffmpeg、venv、torch、triton、flash-attention をすべて同梱 — install.bat はもう不要です。\n\n対応プラットフォーム:\n• Windows 10/11 — NVIDIA RTX 20xx–50xx、AMD (DirectML)\n• Linux x64 — NVIDIA CUDA 12.8、AMD ROCm 6.3\n• Linux aarch64 — NVIDIA DGX Spark / Jetson (CUDA 13.0)\n• macOS Apple Silicon — MPS + MLX ネイティブアクセラレーション\n• macOS Intel / CPU のみ — 遅いが動作\n\nhttps://pinokio.co から Pinokio をインストールし、Discover タブで 'ACE-Step Studio' を検索してください。",
+      "ko": "ACE-Step Studio가 이제 Pinokio 원클릭 런처로 제공됩니다. Pinokio는 Python 3.12, Node.js, ffmpeg, venv, torch, triton, flash-attention을 모두 번들 — install.bat 불필요.\n\n지원 플랫폼:\n• Windows 10/11 — NVIDIA RTX 20xx–50xx, AMD (DirectML)\n• Linux x64 — NVIDIA CUDA 12.8, AMD ROCm 6.3\n• Linux aarch64 — NVIDIA DGX Spark / Jetson (CUDA 13.0)\n• macOS Apple Silicon — MPS + MLX 네이티브 가속\n• macOS Intel / CPU 전용 — 느리지만 작동\n\nhttps://pinokio.co 에서 Pinokio를 설치하고 Discover 탭에서 'ACE-Step Studio'를 검색하세요."
+    },
+    "tags": ["release", "pinokio"],
+    "links": [
+      { "label": "🚀 Install on Pinokio (1-click)",   "url": "https://pinokio.co/item?uri=https://github.com/timoncool/ACE-Step-Studio-pinokio" },
+      { "label": "📂 Open in Pinokio (app page)",     "url": "https://beta.pinokio.co/apps/github-com-timoncool-ace-step-studio-pinokio" },
+      { "label": "Pinokio launcher repo (GitHub)",    "url": "https://github.com/timoncool/ACE-Step-Studio-pinokio" },
+      { "label": "Pinokio — download app",            "url": "https://pinokio.co" },
+      { "label": "ACE-Step Studio repo (GitHub)",     "url": "https://github.com/timoncool/ACE-Step-Studio" }
+    ]
+  },
+  {
+    "id": "v2-ace-step-studio",
+    "date": "2026-04-12",
+    "title": {
+      "en": "ACE-Step Studio — Major Update by Nerual Dreming",
+      "ru": "ACE-Step Studio — Большое обновление от Nerual Dreming",
+      "zh": "ACE-Step Studio — Nerual Dreming 重大更新",
+      "ja": "ACE-Step Studio — Nerual Dreamingによる大型アップデート",
+      "ko": "ACE-Step Studio — Nerual Dreming의 대규모 업데이트"
+    },
+    "body": {
+      "en": "The project has been forked and massively upgraded into ACE-Step Studio — a full-featured portable music generation app for Windows. New features: XL model support (4B DiT) with BF16, single-terminal mode, model hot-swap via API, LRC timestamped lyrics with karaoke video overlay, Video Studio with WYSIWYG editor, server-side FFmpeg rendering with GPU acceleration, ID3 tags in MP3, internationalization (5 languages), Flash Attention 2 + Triton acceleration, and a one-click portable installer.",
+      "ru": "Проект форкнут и полностью переработан в ACE-Step Studio — портативное приложение для генерации музыки под Windows. Что нового: поддержка XL моделей (4B DiT) с BF16, единый терминал, горячая замена моделей через API, LRC-субтитры с караоке-видео, Video Studio с WYSIWYG-редактором, серверный рендеринг FFmpeg с GPU-ускорением, ID3-теги в MP3, интернационализация (5 языков), Flash Attention 2 + Triton, портативный установщик в один клик.",
+      "zh": "该项目已被 fork 并全面升级为 ACE-Step Studio——一款功能齐全的 Windows 便携式音乐生成应用。新功能：XL 模型支持（4B DiT）含 BF16、单终端模式、API 热切换模型、LRC 时间戳歌词卡拉OK视频叠加、Video Studio WYSIWYG 编辑器、服务端 FFmpeg GPU 加速渲染、MP3 ID3 标签、国际化（5种语言）、Flash Attention 2 + Triton 加速、一键便携安装器。",
+      "ja": "プロジェクトをフォークし、ACE-Step Studio として大幅にアップグレードしました。Windows 向けのフル機能ポータブル音楽生成アプリです。新機能：XL モデル対応（4B DiT）BF16、シングルターミナルモード、API によるモデルホットスワップ、LRC タイムスタンプ歌詞カラオケビデオオーバーレイ、WYSIWYG エディター付き Video Studio、GPU 加速 FFmpeg サーバーサイドレンダリング、MP3 ID3 タグ、国際化（5言語）、Flash Attention 2 + Triton 高速化、ワンクリックポータブルインストーラー。",
+      "ko": "프로젝트를 포크하여 ACE-Step Studio로 대폭 업그레이드했습니다 — Windows용 풀기능 포터블 음악 생성 앱입니다. 새 기능: XL 모델 지원 (4B DiT) BF16, 단일 터미널 모드, API 모델 핫스왑, LRC 타임스탬프 가사 노래방 비디오 오버레이, WYSIWYG 편집기 Video Studio, GPU 가속 FFmpeg 서버 렌더링, MP3 ID3 태그, 국제화 (5개 언어), Flash Attention 2 + Triton 가속, 원클릭 포터블 설치."
+    },
+    "tags": ["release", "feature"],
+    "links": [
+      { "label": "ACE-Step Studio on GitHub", "url": "https://github.com/timoncool/ACE-Step-Studio" },
+      { "label": "Nerual Dreming — Telegram", "url": "https://t.me/nerual_dreming" },
+      { "label": "neuro-cartel.com", "url": "https://neuro-cartel.com" },
+      { "label": "ArtGeneration.me", "url": "https://artgeneration.me" },
+      { "label": "Neiro-Soft — Telegram", "url": "https://t.me/neiro_soft" }
+    ]
+  },
+  {
+    "id": "v1-gradio-migration",
+    "date": "2025-02-09",
+    "title": {
+      "en": "Switched to Gradio API Backend",
+      "ru": "Переход на Gradio API Backend",
+      "zh": "切换到 Gradio API 后端",
+      "ja": "Gradio API バックエンドに切り替え",
+      "ko": "Gradio API 백엔드로 전환"
+    },
+    "body": {
+      "en": "We migrated the backend from REST API to Gradio API for direct communication with ACE-Step. This version is experimental — if you encounter any bugs, please report them or open a PR on our GitHub repo.",
+      "ru": "Бэкенд переведён с REST API на Gradio API для прямого взаимодействия с ACE-Step. Версия экспериментальная — если найдёте баги, создайте issue или PR в нашем GitHub-репозитории.",
+      "zh": "我们将后端从 REST API 迁移到 Gradio API，以直接与 ACE-Step 通信。此版本为实验性版本——如遇到任何错误，请在 GitHub 上提交 issue 或 PR。",
+      "ja": "バックエンドを REST API から Gradio API に移行し、ACE-Step と直接通信できるようになりました。このバージョンは実験的です — バグを見つけた場合は GitHub で issue または PR を作成してください。",
+      "ko": "백엔드를 REST API에서 Gradio API로 마이그레이션하여 ACE-Step과 직접 통신합니다. 이 버전은 실험적입니다 — 버그를 발견하면 GitHub에서 issue 또는 PR을 생성해 주세요."
+    },
+    "tags": ["backend", "experimental"]
+  },
+  {
+    "id": "v1-training-experimental",
+    "date": "2025-02-09",
+    "title": {
+      "en": "LoRA Training (Experimental)",
+      "ru": "LoRA-обучение (экспериментально)",
+      "zh": "LoRA 训练（实验性）",
+      "ja": "LoRA トレーニング（実験的）",
+      "ko": "LoRA 훈련 (실험적)"
+    },
+    "body": {
+      "en": "The training feature is now available but still experimental. You may encounter bugs during dataset building, preprocessing, or training. Bug reports and PRs are welcome!",
+      "ru": "Функция обучения теперь доступна, но пока экспериментальная. Возможны баги при создании датасета, предобработке или обучении. Баг-репорты и PR приветствуются!",
+      "zh": "训练功能现已可用，但仍处于实验阶段。在数据集构建、预处理或训练过程中可能会遇到错误。欢迎提交 bug 报告和 PR！",
+      "ja": "トレーニング機能が利用可能になりましたが、まだ実験的です。データセット構築、前処理、トレーニング中にバグが発生する可能性があります。バグレポートと PR を歓迎します！",
+      "ko": "훈련 기능이 사용 가능하지만 아직 실험적입니다. 데이터셋 구축, 전처리, 훈련 중 버그가 발생할 수 있습니다. 버그 리포트와 PR을 환영합니다!"
+    },
+    "tags": ["training", "experimental"]
+  }
+]
