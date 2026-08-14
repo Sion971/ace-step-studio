@@ -77,6 +77,7 @@ export const fr = {
     resumeCheckpoint: 'Reprendre depuis un checkpoint',
     initializingModel: 'Initialisation du modèle...',
     export: 'Exporter',
+    
     // CFG Presets
     presetDefault: 'Par défaut',
     presetDefaultDesc: 'CFG standard sur toutes les étapes. Qualité équilibrée. Valeur sûre.',
@@ -783,6 +784,34 @@ export const fr = {
     loadingTracks: 'Chargement des pistes...',
     noTracksYet: 'Aucune piste pour le moment',
     uploadAudioFilesAsReferences: 'Importez des fichiers audio pour les utiliser comme références',
+
+    // --- Onglet Entraînement LoRA (CLI Side-Step) ---
+    baseModel: 'Modèle de base',
+    modelVariant: 'Variante',
+    checkpointDir: 'Dossier des checkpoints',
+    adapterType: 'Type d\'adaptateur',
+    rankHint: 'Rang faible (8–16) = moins de surapprentissage sur un petit jeu de données. Alpha ≈ 2× le rang.',
+    memorySettings: 'Mémoire et performance',
+    optimizer: 'Optimiseur',
+    precision: 'Précision',
+    gradientCheckpointing: 'Gradient checkpointing',
+    offloadEncoder: 'Décharger l\'encodeur',
+    freeVram: 'Libérer la VRAM pendant l\'entraînement',
+    freeVramHint: 'Le serveur de génération garde le modèle en VRAM. Sur une carte de 8 Go, l\'entraînement échoue si on ne l\'arrête pas.',
+    copyPath: 'Copier le chemin',
+    restartPipeline: 'Relancer le serveur',
+    trainingLoss: 'Perte',
+    elapsed: 'Écoulé',
+    waitingForMetrics: 'En attente des premières époques...',
+    pipelineProgress: 'Progression du pipeline',
+    stepUpload: 'Import',
+    stepEdit: 'Édition',
+    stepSave: 'Enregistrement',
+    stepPreprocess: 'Prétraitement',
+    stepTrain: 'Entraînement',
+    stepExport: 'Export',
+    transcribeLyrics: 'Transcrire les paroles',
+    samplesLoaded: 'échantillons chargés',
 
     // Training Module
     loraTraining: 'Entraînement LoRA',

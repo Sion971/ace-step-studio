@@ -30,6 +30,7 @@ class PipelineManager {
   private isShuttingDown = false;
   private isSwitchingModel = false;
   private isStoppedForTraining = false;
+  private wasStoppedForTraining = false;
   private readyResolve: (() => void) | null = null;
   private readyReject: ((err: Error) => void) | null = null;
   private onRestartCallbacks: Array<() => void> = [];
@@ -198,7 +199,7 @@ class PipelineManager {
 
     // Open browser only on first start, not on restarts.
     // Skip when NO_AUTO_BROWSER is set (Pinokio launcher handles tab opening itself).
-    if (this.restartCount === 0 && process.env.NO_AUTO_BROWSER !== 'true') {
+    if (this.restartCount === 0 && !this.wasStoppedForTraining && process.env.NO_AUTO_BROWSER !== 'true') {
       const url = `http://localhost:${config.port}`;
       console.log(`[Pipeline] Opening browser: ${url}`);
       if (process.platform === 'win32') {
@@ -322,6 +323,7 @@ class PipelineManager {
 /** Arrêt temporaire (entraînement LoRA) : libère la VRAM, restart possible. */
   async stopForTraining(): Promise<void> {
     this.isStoppedForTraining = true;
+    this.wasStoppedForTraining = true;
     this.stopHealthCheck();
     console.log('[Pipeline] Stopping to free VRAM for training...');
     this.killProcess();
