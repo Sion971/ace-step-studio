@@ -264,7 +264,14 @@ router.post('/build-dataset', authMiddleware, async (req: AuthenticatedRequest, 
 });
 
 // GET /api/training/audio — Proxy audio files from datasets directory
-router.get('/audio', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+// Les balises <audio> et <img> ne peuvent pas envoyer d'en-tête Authorization :
+// on accepte donc le token en query string, uniquement pour cette route.
+router.get('/audio', (req, _res, next) => {
+  if (req.query.token && !req.headers.authorization) {
+    req.headers.authorization = `Bearer ${req.query.token}`;
+  }
+  next();
+}, authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     let filePath: string;
     const aceStepDir = getAceStepDir();
@@ -279,10 +286,23 @@ router.get('/audio', authMiddleware, async (req: AuthenticatedRequest, res: Resp
       return;
     }
 
-    // Path traversal protection
+// Protection contre la traversée de chemin.
+    // Gradio copie les fichiers uploadés dans <studio>/temp/gradio/, soit un
+    // niveau au-dessus d'ACE-Step-1.5 : les deux racines sont autorisées.
     const resolved = path.resolve(filePath);
-    if (resolved.includes('..') || !resolved.startsWith(aceStepDir)) {
-      res.status(403).json({ error: 'Access denied: path outside ACE-Step directory' });
+    const studioRoot = path.resolve(aceStepDir, '..');
+    const allowedRoots = [
+      aceStepDir,
+      path.join(studioRoot, 'temp'),
+      path.join(studioRoot, 'output'),
+    ];
+
+    if (!allowedRoots.some(root => resolved.startsWith(root + path.sep) || resolved === root)) {
+      console.warn(`[Training] Accès refusé : ${resolved}`);
+      res.status(403).json({
+        error: 'Access denied: path outside allowed directories',
+        allowedRoots,
+      });
       return;
     }
 

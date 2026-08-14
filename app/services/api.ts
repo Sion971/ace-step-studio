@@ -802,25 +802,34 @@ export interface TrainingStatus {
 export function getTrainingAudioUrl(audioPath: unknown, token?: string): string | undefined {
   if (!audioPath) return undefined;
 
-  // Handle Gradio FileData objects
+  // Une balise <audio src> ne peut pas porter d'en-tête Authorization :
+  // le token passe donc en query string pour cette route.
+  const auth = token ? `&token=${encodeURIComponent(token)}` : '';
+
   if (typeof audioPath === 'object' && audioPath !== null) {
     const fd = audioPath as Record<string, unknown>;
-    if (fd.url && typeof fd.url === 'string') return fd.url;
     if (fd.path && typeof fd.path === 'string') {
-      return `${API_BASE}/api/training/audio?path=${encodeURIComponent(fd.path)}`;
+      return `${API_BASE}/api/training/audio?path=${encodeURIComponent(fd.path)}${auth}`;
     }
     return undefined;
   }
 
-  // Handle absolute path string
-  if (typeof audioPath === 'string') {
-    if (audioPath.startsWith('http://') || audioPath.startsWith('https://') || audioPath.startsWith('/audio/')) {
+if (typeof audioPath === 'string') {
+    // Les URL Gradio (port 8001) sont bloquées par la CSP de la page : on
+    // extrait le chemin disque et on repasse par le proxy local.
+    const gradioMatch = audioPath.match(/[?&]?file=(.+)$/);
+    if (gradioMatch) {
+      return `${API_BASE}/api/training/audio?path=${encodeURIComponent(decodeURIComponent(gradioMatch[1]))}${auth}`;
+    }
+    if (audioPath.startsWith('/audio/')) {
       return audioPath;
     }
-    return `${API_BASE}/api/training/audio?path=${encodeURIComponent(audioPath)}`;
+    if (audioPath.startsWith('http://') || audioPath.startsWith('https://')) {
+      return audioPath;
+    }
+    return `${API_BASE}/api/training/audio?path=${encodeURIComponent(audioPath)}${auth}`;
   }
-
-  return undefined;
+   return undefined;
 }
 
 export const trainingApi = {

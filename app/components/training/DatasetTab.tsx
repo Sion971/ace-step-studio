@@ -127,8 +127,8 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
 
   const audioPreviewUrl = useMemo(() => {
     if (!currentSample?.audio) return undefined;
-    return getTrainingAudioUrl(currentSample.audio);
-  }, [currentSample?.audio]);
+    return getTrainingAudioUrl(currentSample.audio, token ?? undefined);
+  }, [currentSample?.audio, token]);
 
   const populateSampleFields = (sample?: TrainingSample | null) => {
     if (!sample) return;
