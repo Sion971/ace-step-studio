@@ -2,7 +2,7 @@
 set -e
 
 # Pointer vers les .so et executables logés dans le .venv
-#export LD_LIBRARY_PATH="/home/studio/ACE-Step-Studio-master/.venv/lib:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="/home/studio/ACE-Step-Studio-master/.venv/lib:$LD_LIBRARY_PATH"
 export PATH="/home/studio/ACE-Step-Studio-master/.venv/bin:$PATH"
 
 # === Gestion propre de l'arrêt (Ctrl+C) ===
@@ -65,29 +65,19 @@ fi
 
 export PYTHONIOENCODING=utf-8
 export PYTHONUNBUFFERED=1
-export PYTORCH_ALLOC_CONF=expandable_segments:True
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # === 5. Configuration globale du Pipeline ACE-Step ===
 export PYTHON_PATH="$SCRIPT_DIR/.venv/bin/python"
-
 # Racine du Studio
 export ACESTEP_PATH="$SCRIPT_DIR/ACE-Step-1.5"
-export DEFAULT_MODEL="acestep-v15-base"
+export DEFAULT_MODEL="marcorez8/acestep-v15-xl-turbo-bf16"
 export MANAGE_PIPELINE="true"
 
-# Chemins absolus explicites pour les datasets
-export DATASETS_DIR="$SCRIPT_DIR/ACE-Step-1.5/datasets"
-export DATASETS_UPLOADS_DIR="$SCRIPT_DIR/ACE-Step-1.5/datasets/uploads"
-export PREPROCESSED_TENSORS_DIR="$SCRIPT_DIR/ACE-Step-1.5/datasets/preprocessed_tensors"
-export TENSOR_DIR="$SCRIPT_DIR/ACE-Step-1.5/datasets/preprocessed_tensors"
-
-# Autoriser les répertoires pour Gradio
-export GRADIO_ALLOWED_PATHS="$SCRIPT_DIR/ACE-Step-1.5/datasets,$SCRIPT_DIR/ACE-Step-1.5"
-
-# Création physique immédiate des dossiers (évite les erreurs de permission)
-mkdir -p "$SCRIPT_DIR/ACE-Step-1.5/datasets/preprocessed_tensors"
-mkdir -p "$SCRIPT_DIR/ACE-Step-1.5/datasets/uploads"
+# Réalignement complet de la racine de l'application
+# export DATASETS_DIR="$SCRIPT_DIR/datasets"
+# export DATASETS_UPLOADS_DIR="$SCRIPT_DIR/datasets/uploads"
+# export GRADIO_ALLOWED_PATHS="$SCRIPT_DIR/dataset"
 
 # === 6. Chargement du fichier .env du moteur ACE-Step 1.5 ===
 if [ -f "$SCRIPT_DIR/ACE-Step-1.5/.env" ]; then
@@ -96,8 +86,7 @@ if [ -f "$SCRIPT_DIR/ACE-Step-1.5/.env" ]; then
     source "$SCRIPT_DIR/ACE-Step-1.5/.env"
     set +a
 fi
-# export INIT_LLM="false"
-# export ACESTEP_INIT_LLM="false"
+
 if [ -f "cuda_version.txt" ]; then
     CUDA_VERSION=$(cat cuda_version.txt)
     echo "Configuration GPU/CUDA : $CUDA_VERSION"
