@@ -1501,6 +1501,11 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>, target: 'reference' | 'source') => {
     e.preventDefault();
+    // Le listener global sur window ne recevra pas cet événement à cause du
+    // stopPropagation() des zones de dépôt : on réinitialise l'état ici.
+    dragDepthRef.current = 0;
+    setIsDraggingFile(false);
+    setDragKind(null);
     const file = e.dataTransfer.files?.[0];
     if (file) {
       void uploadReferenceTrack(file, target);
@@ -2411,7 +2416,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                   </div>
                 </div>
               ) : (
-                <div className="px-3 py-3 text-center text-[10px] text-zinc-400">{t('dropAudioForCover') || 'Drop audio for Cover / Remix'}</div>
+                <div className={`px-3 text-center text-[10px] text-zinc-400 transition-all ${isDraggingFile ? 'py-8 text-zinc-300 border-2 border-dashed border-zinc-600 rounded-lg mx-2 mb-2' : 'py-3'}`}>{isDraggingFile ? '↓ ' + (t('cover') || 'Cover') : (t('dropAudioForCover') || 'Drop audio for Cover / Remix')}</div>
               )}
             </div>
 
