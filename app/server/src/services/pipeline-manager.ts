@@ -316,6 +316,15 @@ class PipelineManager {
     this.process = null;
   }
 
+/** Arrêt temporaire (entraînement LoRA) : libère la VRAM, restart possible. */
+  async stopForTraining(): Promise<void> {
+    this.stopHealthCheck();
+    console.log('[Pipeline] Stopping to free VRAM for training...');
+    this.killProcess();
+    this.state = 'stopped';
+    this.message = 'Stopped (training)';
+  }
+
   async shutdown(): Promise<void> {
     this.isShuttingDown = true;
     this.stopHealthCheck();
