@@ -736,20 +736,66 @@ export interface DatasetSettings {
   genreRatio: number;
 }
 
+/**
+ * Paramètres d'entraînement — alignés sur le CLI Side-Step (`train.py fixed`).
+ * Voir app/server/src/services/training-runner.ts : buildArgs() fait la
+ * traduction vers les arguments de ligne de commande.
+ */
 export interface TrainingParams {
+  // Données / modèle
+  checkpointDir?: string;
+  /** base | sft | turbo | xl_base | xl_sft | xl_turbo, ou nom de dossier */
+  modelVariant?: string;
   tensorDir?: string;
+  outputDir?: string;
+
+  // Adaptateur
+  adapterType?: 'lora' | 'lokr';
   rank?: number;
   alpha?: number;
   dropout?: number;
+
+  // Entraînement
   learningRate?: number;
-  epochs?: number;
   batchSize?: number;
   gradientAccumulation?: number;
-  saveEvery?: number;
-  shift?: number;
+  epochs?: number;
   seed?: number;
-  outputDir?: string;
+  shift?: number;
+  saveEvery?: number;
   resumeCheckpoint?: string | null;
+
+  // Mémoire / performance
+  precision?: string;
+  optimizerType?: string;
+  gradientCheckpointing?: boolean;
+  offloadEncoder?: boolean;
+  numWorkers?: number;
+  /** Fréquence des lignes de log (1 = une par époque). Requis pour la progression. */
+  logEvery?: number;
+
+  /** Arrête le serveur Gradio pendant l'entraînement pour libérer la VRAM. */
+  freeVram?: boolean;
+}
+
+/** État renvoyé par GET /api/training/status (interrogé en polling). */
+export interface TrainingStatus {
+  state: 'idle' | 'starting' | 'running' | 'completed' | 'error' | 'stopped';
+  message: string;
+  pid: number | null;
+  epoch: number;
+  totalEpochs: number;
+  loss: number | null;
+  bestLoss: number | null;
+  lastEpochSec: number | null;
+  etaSec: number | null;
+  lastCheckpoint: string | null;
+  trainableParams: number | null;
+  elapsedSec: number | null;
+  metrics: { epoch: number; loss: number }[];
+  log: string;
+  lastError: string | null;
+  outputPath: string | null;
 }
 
 // Helper: build proxy URL for training audio files
@@ -931,14 +977,20 @@ export const trainingApi = {
   loadTensors: (tensorDir: string, token: string): Promise<{ status: string }> =>
     api('/api/training/load-tensors', { method: 'POST', body: { tensorDir }, token }),
 
-  startTraining: (params: TrainingParams, token: string): Promise<{
-    progress: string;
-    log: string;
-    metrics: unknown;
-  }> => api('/api/training/start', { method: 'POST', body: params, token }),
+   startTraining: (params: TrainingParams, token: string): Promise<{
+     status: string;
+     pipelineStopped: boolean;
+     command: string;
+   }> => api('/api/training/start', { method: 'POST', body: params, token }),
 
-  stopTraining: (token: string): Promise<{ status: string }> =>
-    api('/api/training/stop', { method: 'POST', token }),
+   trainingStatus: (token: string): Promise<TrainingStatus> =>
+     api('/api/training/status', { method: 'GET', token }),
+
+   stopTraining: (token: string): Promise<{ status: string; stopped: boolean }> =>
+     api('/api/training/stop', { method: 'POST', token }),
+
+   restartPipeline: (token: string): Promise<{ status: string }> =>
+     api('/api/training/restart-pipeline', { method: 'POST', token }),
 
   exportLora: (params: {
     exportPath?: string;

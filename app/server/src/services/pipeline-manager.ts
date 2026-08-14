@@ -29,6 +29,7 @@ class PipelineManager {
   private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
   private isShuttingDown = false;
   private isSwitchingModel = false;
+  private isStoppedForTraining = false;
   private readyResolve: (() => void) | null = null;
   private readyReject: ((err: Error) => void) | null = null;
   private onRestartCallbacks: Array<() => void> = [];
@@ -56,6 +57,7 @@ class PipelineManager {
   /** Spawn Python pipeline and wait for readiness. */
   async start(): Promise<void> {
     if (this.state === 'ready' || this.state === 'starting') return;
+    this.isStoppedForTraining = false;
 
     const { pythonPath, aceStepDir, defaultModel, port, startupTimeout } = config.pipeline;
 
@@ -122,7 +124,7 @@ class PipelineManager {
         this.readyReject = null;
       }
 
-      if (!this.isShuttingDown) {
+      if (!this.isShuttingDown && !this.isStoppedForTraining) {
         this.state = 'error';
         this.lastError = `Process exited with code ${code}`;
         this.message = `Crashed (code ${code}). Restarting...`;
@@ -301,13 +303,14 @@ class PipelineManager {
 
   private killProcess() {
     if (!this.process?.pid) return;
+    const proc = this.process;          // capture : évite de tuer un futur process
     try {
       if (process.platform === 'win32') {
-        execSync(`taskkill /pid ${this.process.pid} /T /F`, { stdio: 'ignore' });
+        execSync(`taskkill /pid ${proc.pid} /T /F`, { stdio: 'ignore' });
       } else {
-        this.process.kill('SIGTERM');
+        proc.kill('SIGTERM');
         setTimeout(() => {
-          try { this.process?.kill('SIGKILL'); } catch { /* already dead */ }
+          try { proc.kill('SIGKILL'); } catch { /* already dead */ }
         }, 5000);
       }
     } catch {
@@ -318,6 +321,7 @@ class PipelineManager {
 
 /** Arrêt temporaire (entraînement LoRA) : libère la VRAM, restart possible. */
   async stopForTraining(): Promise<void> {
+    this.isStoppedForTraining = true;
     this.stopHealthCheck();
     console.log('[Pipeline] Stopping to free VRAM for training...');
     this.killProcess();

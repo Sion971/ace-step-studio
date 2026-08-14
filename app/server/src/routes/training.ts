@@ -1,3 +1,6 @@
+import { trainingRunner, TrainingParams } from '../services/training-runner.js';
+import { pipelineManager } from '../services/pipeline-manager.js';
+
 import { Router, Request, Response } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { getGradioClient } from '../services/gradio-client.js';
@@ -785,56 +788,82 @@ router.post('/load-tensors', authMiddleware, async (req: AuthenticatedRequest, r
   }
 });
 
-// POST /api/training/start — Start LoRA training
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/training/start — lance l'entraînement
+// ═══════════════════════════════════════════════════════════════════════════
 router.post('/start', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const {
-      tensorDir, rank, alpha, dropout, learningRate,
-      epochs, batchSize, gradientAccumulation, saveEvery,
-      shift, seed, outputDir, resumeCheckpoint,
-    } = req.body;
+    if (trainingRunner.isRunning()) {
+      res.status(409).json({ error: 'Un entraînement est déjà en cours' });
+      return;
+    }
 
-    const client = await getGradioClient();
-    const result = await client.predict('/training_wrapper', [
-      tensorDir ?? './datasets/preprocessed_tensors',
-      rank ?? 64,
-      alpha ?? 128,
-      dropout ?? 0.1,
-      learningRate ?? 0.0003,
-      epochs ?? 1000,
-      batchSize ?? 1,
-      gradientAccumulation ?? 1,
-      saveEvery ?? 200,
-      shift ?? 3.0,
-      seed ?? 42,
-      outputDir ?? './lora_output',
-      resumeCheckpoint ?? null,
-    ]);
-    const data = result.data as unknown[];
+    const params = req.body as TrainingParams;
+    const aceStepDir = getAceStepDir();
+    const pythonPath = resolvePythonPath(aceStepDir);
 
-    // Returns: [trainingProgress, trainingLog, lineplotData]
+    // Libération de la VRAM : le serveur Gradio garde le DiT résident (~6,8 Go).
+    // Sur une carte 8 Go, l'entraînement ne passe pas sans l'arrêter.
+    let pipelineStopped = false;
+    if (params.freeVram !== false) {
+      try {
+        await pipelineManager.stopForTraining();
+        pipelineStopped = true;
+      } catch (err) {
+        console.warn('[Training] Arrêt du pipeline impossible :', err);
+      }
+    }
+
+    trainingRunner.start(params, pythonPath, aceStepDir);
+
     res.json({
-      progress: data[0],
-      log: data[1],
-      metrics: data[2],
+      status: 'started',
+      pipelineStopped,
+      command: `train.py ${trainingRunner.buildArgs(params).join(' ')}`,
     });
   } catch (error) {
-    console.error('[Training] Start training error:', error);
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to start training' });
+    console.error('[Training] Start error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to start training',
+    });
   }
 });
 
-// POST /api/training/stop — Stop current training
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/training/stop — arrêt propre (SIGTERM puis SIGKILL après 8 s)
+// ═══════════════════════════════════════════════════════════════════════════
 router.post('/stop', authMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    const client = await getGradioClient();
-    const result = await client.predict('/stop_training', []);
-    const data = result.data as unknown[];
-
-    res.json({ status: data[0] });
+    const stopped = trainingRunner.stop();
+    res.json({
+      status: stopped ? 'Arrêt demandé' : 'Aucun entraînement en cours',
+      stopped,
+    });
   } catch (error) {
-    console.error('[Training] Stop training error:', error);
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to stop training' });
+    console.error('[Training] Stop error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to stop training',
+    });
+  }
+});
+
+// GET /api/training/status — état courant (polling depuis le front)
+router.get('/status', authMiddleware, (_req: AuthenticatedRequest, res: Response) => {
+  res.json(trainingRunner.getStatus());
+});
+
+// POST /api/training/restart-pipeline — relance Gradio après l'entraînement
+router.post('/restart-pipeline', authMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (trainingRunner.isRunning()) {
+      res.status(409).json({ error: 'Entraînement en cours — arrêtez-le avant de relancer le pipeline' });
+      return;
+    }
+    await pipelineManager.start();
+    res.json({ status: 'Pipeline relancé', pipeline: pipelineManager.getStatus() });
+  } catch (error) {
+    console.error('[Training] Restart pipeline error:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to restart pipeline' });
   }
 });
 
