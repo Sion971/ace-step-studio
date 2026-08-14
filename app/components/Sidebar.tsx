@@ -18,9 +18,46 @@ interface SidebarProps {
   onToggle?: () => void;
 }
 
+/** Données renvoyées par /api/generate/system-info et /model-status. */
+interface SystemInfo {
+  gpu?: string;
+  gpu_temp?: number;
+  gpu_util?: number;
+  cpu_util?: number;
+  vram_used?: number;
+  vram_total?: number;
+  ram_used?: number;
+  ram_total?: number;
+  activeModel?: string;
+  activeLmModel?: string;
+  activeLmBackend?: string;
+  /** 'loading' | 'unloading' pendant un changement de modèle */
+  state?: string;
+  connected?: boolean;
+  backendDown?: boolean;
+}
+
+/**
+ * Couleur du voyant d'état, partagée par les trois indicateurs (widget replié,
+ * ligne de connexion, ligne LM) — une seule source de vérité.
+ */
+const dotColor = (info: SystemInfo): string =>
+  info.backendDown ? 'bg-red-500' :
+  info.state === 'loading' || info.state === 'unloading' ? 'bg-orange-400 animate-pulse' :
+  info.connected ? 'bg-green-600' :
+  'bg-yellow-500 animate-pulse';
+
+/** Texte explicatif au survol, cohérent avec dotColor(). */
+const stateLabel = (info: SystemInfo): string =>
+  info.backendDown ? 'Backend arrêté' :
+  info.state === 'loading' ? 'Chargement du modèle...' :
+  info.state === 'unloading' ? 'Déchargement du modèle...' :
+  info.connected ? 'Service prêt' :
+  'Serveur Gradio en cours de démarrage';
+
 const SystemWidget: React.FC<{ isOpen?: boolean }> = ({ isOpen }) => {
   const { t } = useI18n();
-  const [info, setInfo] = useState<any>({});
+  const [info, setInfo] = useState<SystemInfo>({});
   const [hidden, setHidden] = useState(() => localStorage.getItem('hide-system-widget') === '1');
 
   useEffect(() => {
@@ -35,7 +72,7 @@ const SystemWidget: React.FC<{ isOpen?: boolean }> = ({ isOpen }) => {
         const backendDown = !sysRes?.ok && !statusRes?.ok;
         setInfo({ ...sys, ...status, backendDown });
       } catch {
-        setInfo((prev: any) => ({ ...prev, backendDown: true, connected: false }));
+        setInfo(prev => ({ ...prev, backendDown: true, connected: false }));
       }
     };
     poll();
@@ -69,12 +106,7 @@ const SystemWidget: React.FC<{ isOpen?: boolean }> = ({ isOpen }) => {
       <button onClick={() => { setHidden(!hidden); localStorage.setItem('hide-system-widget', hidden ? '0' : '1'); }}
         className="flex flex-col items-center gap-1 py-2 w-full hover:bg-white/5 rounded-lg transition-colors"
         title={`${info.gpu || 'GPU'} | VRAM ${vramPct}% | ${modelShort}`}>
-        <div className={`w-2 h-2 rounded-full ${
-          info.state === 'loading' || info.state === 'unloading' ? 'bg-orange-400 animate-pulse' :
-          info.backendDown ? 'bg-red-500' :
-          info.connected ? 'bg-green-600' :
-          'bg-yellow-500 animate-pulse'
-        }`}></div>
+        <div className={`w-2 h-2 rounded-full ${dotColor(info)}`}></div>
         <div className="w-6 h-1 bg-zinc-700 rounded-full overflow-hidden">
           <div className="h-full bg-zinc-500 rounded-full" style={{ width: `${vramPct}%` }}></div>
         </div>
@@ -136,12 +168,7 @@ const SystemWidget: React.FC<{ isOpen?: boolean }> = ({ isOpen }) => {
       {/* Connection + Model */}
       <div className="flex items-center justify-between text-zinc-600 pt-1 border-t border-zinc-800">
         <span className="flex items-center gap-1">
-          <span className={`w-1.5 h-1.5 rounded-full ${
-            info.state === 'loading' || info.state === 'unloading' ? 'bg-orange-400 animate-pulse' :
-            info.backendDown ? 'bg-red-500' :
-            info.connected ? 'bg-green-600' :
-            'bg-yellow-500 animate-pulse'
-          }`}></span>
+          <span className={`w-1.5 h-1.5 rounded-full ${dotColor(info)}`}></span>
           <span className="text-[9px]">{
             info.backendDown ? (t('backendOff') || 'Backend off') :
             info.state === 'loading' ? (t('modelLoading') || 'Loading...') :
@@ -153,15 +180,23 @@ const SystemWidget: React.FC<{ isOpen?: boolean }> = ({ isOpen }) => {
         <span className="truncate text-zinc-500">{modelShort || '—'}</span>
       </div>
 
-      {/* LM Model — hidden entirely when OpenRouter is the active text
-          provider OR when no local LM is loaded (run-no-lm.bat). The OR
-          row right below already covers the "where text comes from" question
-          so showing 'LM: off' next to a green OR row is just noise. */}
-      {lmShort && !orReady && (
-        <div className="flex items-center justify-between text-zinc-600">
-          <span className="text-[9px] text-zinc-600">LM</span>
+      {/* Modèle de langue local. Masqué uniquement quand OpenRouter fournit le
+          texte (la ligne OR juste en dessous répond alors à la question).
+          Sans LM local (INIT_LLM=false) on affiche 'off' en gris plutôt que de
+          masquer la ligne : l'absence de LM est une information utile. */}
+      {!orReady && (
+        <div
+          className="flex items-center justify-between text-zinc-600"
+          title={lmShort
+            ? `${stateLabel(info)} — LM ${lmShort}${lmBackend ? ` (${lmBackend})` : ''}`
+            : 'Aucun modèle de langue local (INIT_LLM=false)'}
+        >
+          <span className="flex items-center gap-1">
+            <span className={`w-1.5 h-1.5 rounded-full ${lmShort ? dotColor(info) : 'bg-zinc-700'}`}></span>
+            <span className="text-[9px] text-zinc-600">LM</span>
+          </span>
           <span className="text-[9px] truncate text-zinc-500">
-            {`${lmShort}${lmBackend ? ` (${lmBackend})` : ''}`}
+            {lmShort ? `${lmShort}${lmBackend ? ` (${lmBackend})` : ''}` : 'off'}
           </span>
         </div>
       )}

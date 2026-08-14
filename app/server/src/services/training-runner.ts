@@ -265,17 +265,9 @@ class TrainingRunner {
     });
 
     console.log(`[Training] spawn pid=${this.process.pid ?? 'AUCUN'}`);
-    console.log(`[Training] cwd=${aceStepDir}`);
-    console.log(`[Training] cmd=${pythonPath} ${args.join(' ')}`);
 
-    this.process.stdout?.on('data', (d: Buffer) => {
-      process.stdout.write(`[Train] ${d.toString()}`);
-      this.consume(d.toString());
-    });
-    this.process.stderr?.on('data', (d: Buffer) => {
-      process.stdout.write(`[Train] ${d.toString()}`);
-      this.consume(d.toString());
-    });
+    this.process.stdout?.on('data', (d: Buffer) => this.consume(d.toString()));
+    this.process.stderr?.on('data', (d: Buffer) => this.consume(d.toString()));
 
     this.process.on('error', (err: Error) => {
       console.error('[Training] spawn error:', err);
