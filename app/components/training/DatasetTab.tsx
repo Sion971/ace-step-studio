@@ -605,8 +605,8 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
                  {t('transcribeLyrics') || 'Transcrire les paroles'}
                 </label>
                 <label className="flex items-center gap-1.5 text-[10px] text-zinc-400">
-                  <input type="checkbox" checked={formatLyrics} onChange={t('formatLyrics')} className="w-3 h-3 accent-pink-500" />
-                  Transcribe Lyrics
+                  <input type="checkbox" checked={formatLyrics} onChange={handleFormatLyricsToggle} className="w-3 h-3 accent-pink-500" />
+                  {t('formatLyrics') || 'Format du des paroles'}
                 </label>
                 <label className="flex items-center gap-1.5 text-[10px] text-zinc-400">
                   <input type="checkbox" checked={onlyUnlabeled} onChange={e => setOnlyUnlabeled(e.target.checked)} className="w-3 h-3 accent-pink-500" />
