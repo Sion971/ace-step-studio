@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
-import { existsSync, readdirSync } from 'fs';
+import { existsSync, readdirSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { pool } from '../db/pool.js';
 import { generateUUID } from '../db/sqlite.js';
@@ -29,6 +29,9 @@ import {
   getCoverState,
 } from '../services/cover-jobs.js';
 
+// Le serveur tourne en ESM : `__dirname` n'existe pas. On le reconstruit
+// depuis l'URL du module courant.
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
 
 // Auto-generate a song title from lyrics or style when none is provided
@@ -1460,9 +1463,26 @@ router.get('/models', async (_req, res: Response) => {
   }
 });
 
-// GET /api/generate/random-description — random sample (upstream renamed → /create_random_sample HTTP)
+// GET /api/generate/random-description
+// Les exemples du moteur (ACE-Step-1.5/.../examples/example_*.json) sont
+// multilingues : un tirage peut renvoyer une description en chinois ou en
+// japonais, inutilisable pour qui ne lit pas ces langues. On lit d'abord un
+// fichier local ; le moteur ne sert plus que de repli.
 router.get('/random-description', authMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
   try {
+    const localPath = path.join(moduleDir, '../../data/random-descriptions.json');
+    if (existsSync(localPath)) {
+      const list = JSON.parse(readFileSync(localPath, 'utf-8'));
+      if (Array.isArray(list) && list.length) {
+        const pick = list[Math.floor(Math.random() * list.length)];
+        return res.json({
+          description: pick.description || '',
+          instrumental: pick.instrumental ?? false,
+          vocalLanguage: pick.vocal_language || 'unknown',
+        });
+      }
+    }
+
     const r = await fetch(`${config.acestep.apiUrl}/create_random_sample`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1478,82 +1498,6 @@ router.get('/random-description', authMiddleware, async (_req: AuthenticatedRequ
     });
   } catch (error) {
     console.error('Random description error:', error);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-router.get('/health', async (_req, res: Response) => {
-  try {
-    const healthy = await checkSpaceHealth();
-    res.json({ healthy, aceStepUrl: config.acestep.apiUrl });
-  } catch (error) {
-    res.json({ healthy: false, aceStepUrl: config.acestep.apiUrl, error: (error as Error).message });
-  }
-});
-
-router.get('/limits', async (_req, res: Response) => {
-  try {
-    const { spawn } = await import('child_process');
-    const ACESTEP_DIR = process.env.ACESTEP_PATH || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../ACE-Step-1.5');
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    const SCRIPTS_DIR = path.join(__dirname, '../../scripts');
-    const LIMITS_SCRIPT = path.join(SCRIPTS_DIR, 'get_limits.py');
-    const pythonPath = resolvePythonPath(ACESTEP_DIR);
-
-    const result = await new Promise<{ success: boolean; data?: any; error?: string }>((resolve) => {
-      const proc = spawn(pythonPath, [LIMITS_SCRIPT], {
-        cwd: ACESTEP_DIR,
-        env: {
-          ...process.env,
-          ACESTEP_PATH: ACESTEP_DIR,
-        },
-      });
-
-      let stdout = '';
-      let stderr = '';
-
-      proc.stdout.on('data', (data) => { stdout += data.toString(); });
-      proc.stderr.on('data', (data) => { stderr += data.toString(); });
-
-      proc.on('close', (code) => {
-        if (code === 0 && stdout) {
-          try {
-            const parsed = JSON.parse(stdout);
-            resolve({ success: true, data: parsed });
-          } catch {
-            resolve({ success: false, error: 'Failed to parse limits result' });
-          }
-        } else {
-          resolve({ success: false, error: stderr || 'Failed to read limits' });
-        }
-      });
-
-      proc.on('error', (err) => {
-        resolve({ success: false, error: err.message });
-      });
-    });
-
-    if (result.success && result.data) {
-      res.json(result.data);
-    } else {
-      res.status(500).json({ error: result.error || 'Failed to load limits' });
-    }
-  } catch (error) {
-    console.error('Limits error:', error);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-router.get('/debug/:taskId', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const rawResponse = getJobRawResponse(req.params.taskId);
-    if (!rawResponse) {
-      res.status(404).json({ error: 'Job not found or no raw response available' });
-      return;
-    }
-    res.json({ rawResponse });
-  } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
 });

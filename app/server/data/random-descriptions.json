@@ -1,0 +1,507 @@
+[
+  {
+    "description": "hazy chillwave sunset track with lo-fi textures and dreamy pads",
+    "instrumental": true,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Électropop française énergique avec hooks accrocheurs",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "Dunkler deutscher Industrial-Rock mit verzerrten Gitarren",
+    "instrumental": false,
+    "vocal_language": "de"
+  },
+  {
+    "description": "Melancholischer deutscher Indie-Folk",
+    "instrumental": false,
+    "vocal_language": "de"
+  },
+  {
+    "description": "energetic new wave dance track with punchy synths and catchy hooks",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "ethereal dream pop with shimmering guitars and whispered vocals",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "powerful gospel choir anthem with soaring harmonies and uplifting spirit",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "laid-back reggae summer vibes with offbeat guitar and warm organ",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Berliner Techno mit treibenden Beats und hypnotischen Synth-Mustern",
+    "instrumental": true,
+    "vocal_language": "de"
+  },
+  {
+    "description": "deep dub reggae with heavy bass drops and spacey echo effects",
+    "instrumental": true,
+    "vocal_language": "en"
+  },
+  {
+    "description": "raw delta blues with slide guitar and gritty harmonica",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Entspannter deutscher Hip-Hop mit lässigem Flow und jazzigen Samples",
+    "instrumental": false,
+    "vocal_language": "de"
+  },
+  {
+    "description": "a melancholic indie rock ballad with atmospheric guitars and dreamy reverb",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Style yé-yé rétro avec rythme entraînant et voix enjouées",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "epic orchestral cinematic music for a movie trailer",
+    "instrumental": true,
+    "vocal_language": "unknown"
+  },
+  {
+    "description": "Japanese city pop with nostalgic 80s vibes",
+    "instrumental": false,
+    "vocal_language": "ja"
+  },
+  {
+    "description": "intimate acoustic singer-songwriter piece with gentle strumming and poetic lyrics",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "gritty grunge revival with fuzzy riffs and angst-filled screams",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "warm acoustic folk ballad with fingerpicked guitar and heartfelt vocals",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "groovy funk jam with slap bass and wah-wah guitar riffs",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Anthemic heartland rock song with ringing guitars, driving rhythm, and earnest vocals celebrating blue-collar values and the American working-class spirit",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Dark industrial techno with pounding kicks, hypnotic synth loops, and relentless mechanical rhythms",
+    "instrumental": true,
+    "vocal_language": "en"
+  },
+  {
+    "description": "smooth R&B love song with soulful vocals and silky piano chords",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Hardstyle banger with distorted kicks, reverse bass, and anthemic vocals that ignite the crowd",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Kraftvoller deutscher Hip-Hop mit tiefem Bass",
+    "instrumental": false,
+    "vocal_language": "de"
+  },
+  {
+    "description": "ethereal ambient soundscape with floating pads and gentle textures",
+    "instrumental": true,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Sophisticated chamber pop piece with piano, woodwinds, and sweeping strings, featuring intimate vocals exploring themes of existential wonder and quiet introspection",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "uplifting country road trip anthem with acoustic guitar and harmonica",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Epischer deutscher Symphonic Metal",
+    "instrumental": true,
+    "vocal_language": "de"
+  },
+  {
+    "description": "Romantischer deutscher Pop mit sanfter Melodie",
+    "instrumental": false,
+    "vocal_language": "de"
+  },
+  {
+    "description": "Experimental IDM with complex polyrhythms, glitchy textures, and intricate sound design",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Colorful future bass with lush synth chords, pitched vocal samples, and emotional melodic drops",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Aggressive dubstep track with heavy wobble bass, distorted synths, and intense drops that shake the speakers",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "soulful gospel-influenced R&B with powerful vocal runs and spiritual depth",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "lo-fi hip hop beats for studying and relaxing",
+    "instrumental": true,
+    "vocal_language": "unknown"
+  },
+  {
+    "description": "Chanson d'amour française douce et romantique",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "smoky jazz club ballad with brushed drums and mellow saxophone",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Classic house music with four-on-the-floor beats, soulful piano chords, and uplifting female vocals",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "heartfelt acoustic folk storytelling with fingerpicked guitar and soft harmonies",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Uplifting trance with soaring melodies, ethereal pads, and emotional breakdowns that build to euphoric climaxes",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Vintage electro swing with jazzy brass samples, swinging rhythms, and playful retro vocals",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "a soft Bengali love song for a quiet evening",
+    "instrumental": false,
+    "vocal_language": "bn"
+  },
+  {
+    "description": "Rock français alternatif avec paroles poétiques",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "Chanson française romantique avec accordéon et cordes nostalgiques",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "Britpop anthem with jangly guitars, catchy hooks, and witty lyrics about working-class life in modern Britain, featuring a driving rhythm section and melodic vocal harmonies",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Jazz manouche avec guitare acoustique",
+    "instrumental": true,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "Sunny tropical house with steel drums, marimba melodies, and breezy summer vocals",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "raw punk rock anthem with aggressive energy and rebellious attitude",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "complex progressive rock epic with shifting time signatures and virtuoso solos",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Entspannter deutscher Reggae mit Sommergefühl",
+    "instrumental": false,
+    "vocal_language": "de"
+  },
+  {
+    "description": "Soulful southern rock ballad with slide guitar, Hammond organ, and heartfelt vocals telling stories of small-town life and lost love in the American South",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "expansive post-rock soundscape with crescendoing guitars and cinematic atmosphere",
+    "instrumental": true,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Melancholischer deutscher Indie-Pop mit nachdenklichen Texten",
+    "instrumental": false,
+    "vocal_language": "de"
+  },
+  {
+    "description": "vintage disco groove with funky bassline and shimmering strings",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Chilled downtempo with ambient textures, slow grooves, and dreamy atmospheric soundscapes",
+    "instrumental": true,
+    "vocal_language": "en"
+  },
+  {
+    "description": "energetic EDM festival anthem with heavy bass drops and euphoric synth leads",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "moody alternative rock with introspective lyrics and dynamic builds",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "peaceful piano melody for meditation and relaxation",
+    "instrumental": true,
+    "vocal_language": "unknown"
+  },
+  {
+    "description": "an upbeat summer pop song with catchy hooks",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Energiegeladener deutscher Punk-Rock",
+    "instrumental": false,
+    "vocal_language": "de"
+  },
+  {
+    "description": "Ballade française mélancolique avec piano et émotion",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "upbeat ska punk with bouncy brass section and infectious energy",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Infectious power pop track with crunchy guitars, tight harmonies, and an irresistible chorus about summer romance and youthful optimism",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Funky breakbeat track with chopped drum breaks, funky basslines, and energetic vocal hooks",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "aggressive thrash metal with shredding guitar solos and double bass drums",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Variété française nostalgique avec accordéon",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "French house groovy avec samples disco et ligne de basse funky",
+    "instrumental": true,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "Kraftvoller deutscher Metal-Anthem mit aggressivem Gesang und Double-Bass-Drums",
+    "instrumental": false,
+    "vocal_language": "de"
+  },
+  {
+    "description": "Atmosphärische deutsche Elektronik mit Ambient-Texturen und sanftem Gesang",
+    "instrumental": false,
+    "vocal_language": "de"
+  },
+  {
+    "description": "Électro française moderne avec beats énergiques",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "Heavy stoner rock groove with thick fuzzy riffs, slow hypnotic tempo, and hazy vocals singing about desert highways and transcendental experiences",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "energetic K-pop dance track with powerful vocals",
+    "instrumental": false,
+    "vocal_language": "ko"
+  },
+  {
+    "description": "Complex math rock instrumental with intricate time signatures, angular guitar riffs, and precise polyrhythmic drumming creating a technically demanding sonic puzzle",
+    "instrumental": true,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Fröhlicher deutscher Schlager mit eingängiger Melodie und mitreißendem Refrain",
+    "instrumental": false,
+    "vocal_language": "de"
+  },
+  {
+    "description": "driving synthwave chase theme with pulsing bass and dramatic tension",
+    "instrumental": true,
+    "vocal_language": "en"
+  },
+  {
+    "description": "chill lo-fi hip-hop beats for late night studying",
+    "instrumental": true,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Smooth deep house groove with warm basslines, subtle percussion, and hypnotic late-night atmosphere",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Energiegeladene Neue Deutsche Welle mit Retro-Synths und punkiger Attitüde",
+    "instrumental": false,
+    "vocal_language": "de"
+  },
+  {
+    "description": "classic Motown soul with rich brass section and driving rhythm",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Deutscher Schlager mit fröhlichem Rhythmus",
+    "instrumental": false,
+    "vocal_language": "de"
+  },
+  {
+    "description": "melancholic dream pop lullaby with soft synths and ethereal harmonies",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Flamboyant glam rock anthem with stomping beats, glittery guitar riffs, and theatrical vocals celebrating self-expression and rock and roll excess",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Pop française contemporaine avec synthétiseurs",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "High-energy drum and bass anthem with rolling breakbeats, deep sub-bass, and euphoric vocal chops",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "nostalgic synthwave journey with retro 80s arpeggios and neon vibes",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Pop française rêveuse avec voix éthérées et synthés luxuriants",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "dark grunge track with heavy distorted guitars and melancholic vocals",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "romantic Spanish guitar ballad with heartfelt lyrics",
+    "instrumental": false,
+    "vocal_language": "es"
+  },
+  {
+    "description": "Shimmering jangle pop tune with chiming arpeggiated guitars, upbeat tempo, and breezy vocals singing about nostalgic memories and bittersweet longing",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Experimental art rock composition with unconventional song structures, avant-garde instrumentation, and introspective vocals exploring themes of identity and alienation",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Ornate baroque pop arrangement with harpsichord, string quartet, and lush orchestration, featuring elegant vocals weaving tales of aristocratic romance and melancholy",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "dreamy shoegaze wall of sound with layered reverb guitars and distant vocals",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Chaotic glitch hop with stuttering beats, digital artifacts, and fragmented vocal samples",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "dark trap beat with haunting melodies and 808 bass",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Psychedelic rock journey with swirling organ, phased guitars, and trippy effects, featuring dreamy vocals singing about cosmic exploration and altered consciousness",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Abrasive noise rock track with dissonant guitar feedback, pounding bass, and shouted vocals expressing frustration and chaos in an industrial urban landscape",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Rap français poétique avec samples jazz et flow smooth",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "Epic progressive house journey with layered synths, gradual builds, and massive festival-ready drops",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "emotional emo ballad with confessional lyrics and soaring chorus",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Raw garage rock track with fuzzy distorted guitars, primal drumming, and aggressive vocals delivering rebellious lyrics about teenage angst and urban decay",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Energetic surf rock instrumental with reverb-drenched twangy guitars, driving drums, and a catchy melody evoking sun-soaked beaches and crashing waves",
+    "instrumental": true,
+    "vocal_language": "en"
+  }
+]

@@ -113,6 +113,16 @@ export interface Song {
   generationTime?: number;
   lrcContent?: string;
   openrouterModel?: string;
+  // Le serveur renvoie les colonnes SQL telles quelles (voir
+  // app/server/src/routes/songs.ts). `transformSongs()` ajoute ensuite les
+  // équivalents camelCase — d'où les deux formes dans ce type : il décrit à la
+  // fois la réponse brute et l'objet transformé.
+  dit_model?: string;
+  lm_model?: string;
+  lm_backend?: string;
+  generation_time?: number;
+  lrc_content?: string;
+  openrouter_model?: string;
   generation_params?: any;
 }
 

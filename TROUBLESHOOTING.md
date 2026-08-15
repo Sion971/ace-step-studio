@@ -321,8 +321,11 @@ longs sont tronqués silencieusement.
 
 ## 11. Son dégradé après changement de modèle — DCW
 
-**Symptôme.** Audio saturé, écrêté, sans dynamique. Dans les logs, `Peak=1.0000`
-systématiquement avant normalisation.
+**Symptôme.** Audio saturé, écrêté, sans dynamique.
+
+Un `Peak=1.0000` avant normalisation est un indice, **pas une preuve** : le
+modèle produit aussi ce pic sans DCW. Seule l'absence de la ligne
+`[DCW] Active` dans les logs confirme la désactivation.
 
 **Cause.** La correction DCW s'applique à *chaque* pas de diffusion. Le réglage
 par défaut (`mode=double`, `scaler=0.05`, `high_scaler=0.02`, `wavelet=haar`)
