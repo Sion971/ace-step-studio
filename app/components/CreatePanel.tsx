@@ -1,3 +1,4 @@
+import { LoraPanel } from './create/LoraPanel';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Sparkles, ChevronDown, Settings2, Trash2, Music2, Sliders, Dices, Hash, RefreshCw, Plus, Upload, Play, Pause, Loader2, Disc3, Undo2, Wand2, Square } from 'lucide-react';
 import { AudioWaveform } from './AudioWaveform';
@@ -341,16 +342,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const [maxDurationWithLm, setMaxDurationWithLm] = useState(240);
   const [maxDurationWithoutLm, setMaxDurationWithoutLm] = useState(240);
 
-  // LoRA Parameters
-  const [showLoraPanel, setShowLoraPanel] = useState(false);
-  const [loraPath, setLoraPath] = useState('./lora_output/final/adapter');
+  // LoRA — l'état complet vit dans <LoraPanel />, seul loraLoaded remonte ici
+  // (paramètres de génération + désactivation de thinking/useAdg).
   const [loraLoaded, setLoraLoaded] = useState(false);
-  const [loraEnabled, setLoraEnabled] = useState(true);
-  const [loraScale, setLoraScale] = useState(1.0);
-  const [loraError, setLoraError] = useState<string | null>(null);
-  const [isLoraLoading, setIsLoraLoading] = useState(false);
-
-  // Load settings from server on mount
   const settingsLoadedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const saveSettingsToServer = useCallback((overrides?: Record<string, unknown>) => {
@@ -716,14 +710,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     }
   }, [selectedModel]);
 
-  // Auto-unload LoRA when model changes
-  useEffect(() => {
-    if (previousModelRef.current !== selectedModel && loraLoaded) {
-      void handleLoraUnload();
-    }
-    previousModelRef.current = selectedModel;
-  }, [selectedModel, loraLoaded]);
-
   // Auto-disable thinking and ADG when LoRA is loaded
   useEffect(() => {
     if (loraLoaded) {
@@ -731,80 +717,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       if (useAdg) setUseAdg(false);
     }
   }, [loraLoaded]);
-
-  // LoRA API handlers
-  const handleLoraToggle = async () => {
-    if (!token) {
-      setLoraError('Please sign in to use LoRA');
-      return;
-    }
-    if (!loraPath.trim()) {
-      setLoraError('Please enter a LoRA path');
-      return;
-    }
-
-    setIsLoraLoading(true);
-    setLoraError(null);
-
-    try {
-      if (loraLoaded) {
-        await handleLoraUnload();
-      } else {
-        const result = await generateApi.loadLora({ lora_path: loraPath }, token);
-        setLoraLoaded(true);
-        console.log('LoRA loaded:', result?.message);
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'LoRA operation failed';
-      setLoraError(message);
-      console.error('LoRA error:', err);
-    } finally {
-      setIsLoraLoading(false);
-    }
-  };
-
-  const handleLoraUnload = async () => {
-    if (!token) return;
-    
-    setIsLoraLoading(true);
-    setLoraError(null);
-
-    try {
-      const result = await generateApi.unloadLora(token);
-      setLoraLoaded(false);
-      console.log('LoRA unloaded:', result?.message);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to unload LoRA';
-      setLoraError(message);
-      console.error('Unload error:', err);
-    } finally {
-      setIsLoraLoading(false);
-    }
-  };
-
-  const handleLoraScaleChange = async (newScale: number) => {
-    setLoraScale(newScale);
-
-    if (!token || !loraLoaded) return;
-
-    try {
-      await generateApi.setLoraScale({ scale: newScale }, token);
-    } catch (err) {
-      console.error('Failed to set LoRA scale:', err);
-    }
-  };
-
-  const handleLoraEnabledToggle = async () => {
-    if (!token || !loraLoaded) return;
-    const newEnabled = !loraEnabled;
-    setLoraEnabled(newEnabled);
-    try {
-      await generateApi.toggleLora({ enabled: newEnabled }, token);
-    } catch (err) {
-      console.error('Failed to toggle LoRA:', err);
-      setLoraEnabled(!newEnabled); // revert on error
-    }
-  };
 
   // Load generation parameters from JSON file
   const handleLoadParamsFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2721,96 +2633,15 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
           />
         </div>
 
-        {/* LORA CONTROL PANEL */}
+{/* LORA CONTROL PANEL */}
         {customMode && (
-          <>
-            <button
-              onClick={() => setShowLoraPanel(!showLoraPanel)}
-              className="w-full flex items-center justify-between px-4 py-3 bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <Sliders size={16} className="text-zinc-500" />
-                <span>LoRA</span>
-              </div>
-              <ChevronDown size={16} className={`text-zinc-500 transition-transform ${showLoraPanel ? 'rotate-180' : ''}`} />
-            </button>
-
-            {showLoraPanel && (
-              <div className="bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 p-4 space-y-4">
-                {/* LoRA Path Input */}
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('loraPath')}</label>
-                  <input
-                    type="text"
-                    value={loraPath}
-                    onChange={(e) => setLoraPath(e.target.value)}
-                    placeholder={t('loraPathPlaceholder')}
-                    className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 transition-colors"
-                  />
-                </div>
-
-                {/* LoRA Load/Unload Toggle */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between py-2 border-t border-zinc-100 dark:border-white/5">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${
-                        loraLoaded ? 'bg-green-500 animate-pulse' : 'bg-red-500'
-                      }`}></div>
-                      <span className={`text-xs font-medium ${
-                        loraLoaded ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                      }`}>
-                        {loraLoaded ? t('loraLoaded') : t('loraUnloaded')}
-                      </span>
-                    </div>
-                    <button
-                      onClick={handleLoraToggle}
-                      disabled={!loraPath.trim() || isLoraLoading}
-                      className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                        loraLoaded
-                          ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg shadow-green-500/20 hover:from-green-600 hover:to-emerald-700'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
-                      }`}
-                    >
-                      {isLoraLoading ? '...' : (loraLoaded ? t('loraUnload') : t('loraLoad'))}
-                    </button>
-                  </div>
-                  {loraError && (
-                    <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
-                      {loraError}
-                    </div>
-                  )}
-                </div>
-
-                {/* Use LoRA Checkbox (enable/disable without unloading) */}
-                <div className={`flex items-center justify-between py-2 border-t border-zinc-100 dark:border-white/5 ${!loraLoaded ? 'opacity-40 pointer-events-none' : ''}`}>
-                  <label className="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={loraEnabled}
-                      onChange={handleLoraEnabledToggle}
-                      disabled={!loraLoaded}
-                      className="accent-pink-600"
-                    />
-                    Use LoRA
-                  </label>
-                </div>
-
-                {/* LoRA Scale Slider */}
-                <div className={!loraLoaded || !loraEnabled ? 'opacity-40 pointer-events-none' : ''}>
-                  <EditableSlider
-                    label={t('loraScale')}
-                    value={loraScale}
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    onChange={handleLoraScaleChange}
-                    formatDisplay={(val) => val.toFixed(2)}
-                    helpText={t('loraScaleDescription')}
-                  />
-                </div>
-              </div>
-            )}
-          </>
+          <LoraPanel
+            token={token}
+            t={t}
+            selectedModel={selectedModel}
+            loraLoaded={loraLoaded}
+            onLoadedChange={setLoraLoaded}
+          />
         )}
 
         {/* ADVANCED SETTINGS */}
