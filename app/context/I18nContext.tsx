@@ -13,7 +13,7 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [language, setLanguage] = useState<Language>(() => {
     const stored = localStorage.getItem('language') as Language;
     if (stored === 'zh' || stored === 'en' || stored === 'ja' || stored === 'fr' || stored === 'ko' || stored === 'ru') return stored;
-    if (typeof navigator !== 'undefined' && navigator.language?.startsWith('fr')) return 'ru';
+    if (typeof navigator !== 'undefined' && navigator.language?.startsWith('fr')) return 'fr';
     return 'en';
   });
 
@@ -22,8 +22,12 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.setItem('language', lang);
   };
 
-  const t = (key: TranslationKey): string => {
-    return translations[language][key] || key;
+   const t = (key: TranslationKey): string => {
+    // Repli en cascade : langue courante → anglais → clé brute. Sans le maillon
+    // anglais, une clé absente d'une traduction remontait telle quelle ; comme
+    // une chaîne non vide est truthy, les `|| fallback` des composants ne se
+    // déclenchaient jamais et l'identifiant technique s'affichait à l'écran.
+    return translations[language][key] || translations.en[key] || key;
   };
 
   return (
