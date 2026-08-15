@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Song } from '../types';
-import { Play, MoreHorizontal, Heart, ThumbsDown, ListPlus, Pause, Search, Filter, Check, Globe, Lock, Loader2, ThumbsUp, Share2, Video, Info, Clock, Timer, ImagePlus } from 'lucide-react';
+import { Play, MoreHorizontal, Heart, ListPlus, Pause, Search, Filter, Check, Globe, Lock, Loader2, ThumbsUp, Share2, Video, Info, Clock, Timer, ImagePlus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useI18n } from '../context/I18nContext';
 import { SongDropdownMenu } from './SongDropdownMenu';
@@ -532,6 +532,12 @@ const SongItem: React.FC<SongItemProps> = ({
     const [editedTitle, setEditedTitle] = useState(song.title);
     const titleInputRef = useRef<HTMLInputElement>(null);
 
+    // Firefox émet `dragstart` sur l'élément glissable (la carte), pas sur le
+    // nœud réellement sous le curseur — `e.target.closest()` y est donc
+    // inutilisable. On note au mousedown, où `e.target` est correct, si le
+    // geste a démarré dans une zone marquée `data-no-drag`.
+    const noDragRef = useRef(false);
+
     useEffect(() => {
         if (isEditingTitle && titleInputRef.current) {
             titleInputRef.current.focus();
@@ -573,9 +579,17 @@ const SongItem: React.FC<SongItemProps> = ({
         <>
         <div
             onClick={onSelect}
+            onMouseDownCapture={(e) => {
+                noDragRef.current = Boolean((e.target as HTMLElement).closest('[data-no-drag]'));
+    }}
             draggable={Boolean(song.audioUrl) && !song.isGenerating}
             onDragStart={(e) => {
-                if (!song.audioUrl || song.isGenerating) return;
+                if (noDragRef.current || (e.target as HTMLElement).closest('[data-no-drag]')) {
+                    e.preventDefault();
+                    return;
+                }
+                 
+               if (!song.audioUrl || song.isGenerating) return;
                 e.dataTransfer.effectAllowed = 'copy';
                 e.dataTransfer.setData('application/x-ace-audio', JSON.stringify({
                     url: song.audioUrl,
@@ -764,7 +778,7 @@ const SongItem: React.FC<SongItemProps> = ({
 
                 {/* Actions Row - Hidden while generating */}
                 {!song.isGenerating && (
-                    <div className="flex items-center gap-1 pt-2">
+                    <div className="flex items-center gap-1 pt-2" data-no-drag>
                         <button
                             className={`flex items-center gap-1 px-3 py-1.5 rounded-full hover:bg-white/5 transition-colors ${isLiked ? 'text-pink-600 dark:text-pink-500 bg-pink-100 dark:bg-pink-500/10' : 'text-zinc-400 hover:text-black dark:hover:text-white'}`}
                             onClick={(e) => { e.stopPropagation(); onToggleLike(); }}
@@ -773,13 +787,6 @@ const SongItem: React.FC<SongItemProps> = ({
                             {(song.likeCount || 0) > 0 && (
                                 <span className="text-xs font-bold">{song.likeCount}</span>
                             )}
-                        </button>
-
-                        <button
-                            className="p-2 rounded-full hover:bg-zinc-200 dark:hover:bg-white/5 text-zinc-400 hover:text-black dark:hover:text-white transition-colors"
-                            onClick={(e) => { e.stopPropagation(); }}
-                        >
-                            <ThumbsDown size={16} />
                         </button>
 
                         <button

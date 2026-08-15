@@ -913,6 +913,7 @@ export const fr = {
     hintTranscribeCodes: 'Transcrire les codes audio en métadonnées (nécessite des codes audio)',
     hintTaskType: 'Choisissez entre le mode texte-vers-musique ou basé sur l audio.',
     hintAudioCoverStrength: "A quel point l audio source façonne le résultat.",
+    hintRepaintStrength: "A quel point la retouche de l'audio source façonne le résultat.",
     hintRepaintingStart: 'Heure de début pour la zone à repeindre (en secondes).',
     hintRepaintingEnd: 'Heure de fin pour la zone à repeindre (en secondes).',
     hintInstruction: 'Directives supplémentaires pour guider la génération.',

@@ -953,7 +953,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       const kind = getDragKind(e);
       if (!kind) return;
       setDragKind(kind);
-      e.preventDefault();
     };
 
     const handleDragLeave = (e: DragEvent) => {
@@ -1440,18 +1439,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     e.preventDefault();
   };
 
-  const handleWorkspaceDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    if (e.dataTransfer.files?.length || e.dataTransfer.types.includes('application/x-ace-audio')) {
-      handleDrop(e, audioTab);
-    }
-  };
-
-  const handleWorkspaceDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/x-ace-audio')) {
-      e.preventDefault();
-    }
-  };
-
   const handleGenerate = async () => {
     // Per-click LLM draft from pre-flight (used to populate effStyle/effLyrics/etc
     // and the Pollinations cover prompt). null = pre-flight either didn't run
@@ -1619,6 +1606,13 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       return trimmed ? `${trimmed}\n${genderHint}` : genderHint;
     })();
 
+// Le moteur ignore le drapeau `instrumental` de la charge utile : seul le
+    // contenu du champ paroles est interprété. On force donc le marqueur qu'il
+    // reconnaît, et on neutralise l'indice de genre vocal, qui pousserait le
+    // modèle vers du chant.
+    const finalLyrics = instrumental ? '[Instrumental]' : effLyrics;
+    const finalStyle = instrumental ? effStyle : styleWithGender;
+
     // Bulk generation: loop bulkCount times
     for (let i = 0; i < bulkCount; i++) {
       // Seed handling: first job uses user's seed, rest get random seeds
@@ -1638,6 +1632,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       onGenerate(effectiveCustomMode ? {
         _tempId: tempIdForThisJob,
         customMode: true,
+        prompt: finalLyrics,
+        lyrics: finalLyrics,
+        style: finalStyle,
         prompt: effLyrics,
         lyrics: effLyrics,
         style: styleWithGender,
@@ -1759,12 +1756,20 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         customMode: false,
         songDescription,
         prompt: songDescription,
-        lyrics: '',
+        lyrics: instrumental ? '[Instrumental]' : '',
         style: '',
         title: '',
         ditModel: selectedModel,
         instrumental,
         vocalLanguage,
+        // Le serveur active DCW par défaut. Sans ces champs, le mode Simple
+        // l'appliquait quel que soit l'état de l'interrupteur, qui n'existe
+        // que dans les réglages avancés du mode Personnalisé.
+        dcwEnabled,
+        dcwMode,
+        dcwScaler,
+        dcwHighScaler,
+        dcwWavelet,
         bpm: 0,
         keyScale: '',
         timeSignature: '',
@@ -2304,7 +2309,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                         <input type="range" min="0" max="1" step="0.01" value={audioCoverStrength} onChange={(e) => setAudioCoverStrength(Number(e.target.value))} className="flex-1 h-1 accent-pink-500 cursor-pointer" />
                         <span className="text-[10px] text-zinc-500 tabular-nums w-8 text-right">{Math.round(audioCoverStrength * 100)}%</span>
                       </div>
-                      <p className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-12">{t('audioCoverStrengthHint') || '0% — model freedom, 100% — closest to the original'}</p>
+                      <p className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-12">{t('hintAudioCoverStrength') || '0% — model freedom, 100% — closest to the original'}</p>
                     </div>
                     {taskType === 'repaint' && (<>
                       <div className="space-y-0.5">
@@ -2313,7 +2318,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                           <input type="range" min="0" max="1" step="0.05" value={repaintStrength} onChange={(e) => setRepaintStrength(Number(e.target.value))} className="flex-1 h-1 accent-purple-500 cursor-pointer" />
                           <span className="text-[10px] text-zinc-500 tabular-nums w-8 text-right">{Math.round(repaintStrength * 100)}%</span>
                         </div>
-                        <p className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-12">{t('repaintStrengthHint') || '0% — fully regenerate the region, 100% — leave it almost unchanged'}</p>
+                        <p className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-12">{t('hintRepaintStrength') || '0% — fully regenerate the region, 100% — leave it almost unchanged'}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 w-10">{t('region') || 'Region'}</span>
