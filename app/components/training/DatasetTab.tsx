@@ -601,12 +601,12 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
                   {t('skipMetas')}
                 </label>
                 <label className="flex items-center gap-1.5 text-[10px] text-zinc-400">
-                  <input type="checkbox" checked={transcribeLyrics} onChange={handleTranscribeLyricsToggle} className="w-3 h-3 accent-pink-500" />
-                 {t('transcribeLyrics') || 'Transcrire les paroles'}
+                  <input type="checkbox" checked={formatLyrics} onChange={handleFormatLyricsToggle} className="w-3 h-3 accent-pink-500" />
+                 {t('formatLyrics')}
                 </label>
                 <label className="flex items-center gap-1.5 text-[10px] text-zinc-400">
-                  <input type="checkbox" checked={formatLyrics} onChange={handleFormatLyricsToggle} className="w-3 h-3 accent-pink-500" />
-                  {t('formatLyrics') || ('Format des paroles')}
+                  <input type="checkbox" checked={transcribeLyrics} onChange={handleTranscribeLyricsToggle} className="w-3 h-3 accent-pink-500" />
+                  {t('transcribeLyrics')}
                 </label>
                 <label className="flex items-center gap-1.5 text-[10px] text-zinc-400">
                   <input type="checkbox" checked={onlyUnlabeled} onChange={e => setOnlyUnlabeled(e.target.checked)} className="w-3 h-3 accent-pink-500" />

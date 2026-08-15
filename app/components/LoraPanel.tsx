@@ -13,8 +13,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Sliders, ChevronDown } from 'lucide-react';
-import { generateApi } from '../../services/api';
-import { EditableSlider } from '../EditableSlider';
+import { generateApi } from '../services/api';
+import { EditableSlider } from './EditableSlider';
 
 interface LoraPanelProps {
   token: string | null;

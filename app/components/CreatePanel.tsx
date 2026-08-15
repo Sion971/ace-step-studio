@@ -1,4 +1,4 @@
-import { LoraPanel } from './create/LoraPanel';
+import { LoraPanel } from './LoraPanel';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Sparkles, ChevronDown, Settings2, Trash2, Music2, Sliders, Dices, Hash, RefreshCw, Plus, Upload, Play, Pause, Loader2, Disc3, Undo2, Wand2, Square } from 'lucide-react';
 import { AudioWaveform } from './AudioWaveform';
