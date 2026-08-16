@@ -286,6 +286,11 @@ export const fr = {
     modelDescSft: '4B, qualité max',
     modelDescBf16: '4B BF16, compact',
     modelDescMerge: '4B Fusion SFT+Turbo, communauté',
+    // Famille 2B — les seuls modèles confortables sous 8 Go de VRAM
+    modelDescBase: '2B, polyvalent',
+    modelDescSft2b: '2B, affiné',
+    modelDescTurbo2b: '2B, rapide',
+    modelDescXlBase: '4B, polyvalent',
     inQueue: 'en attente',
     uploadForCover: 'Importer un fichier audio pour Reprise / Remix',
     samplerMode: 'Échantillonneur (Sampler)',

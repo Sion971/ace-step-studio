@@ -22,7 +22,7 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.setItem('language', lang);
   };
 
-   const t = (key: TranslationKey): string => {
+  const t = (key: TranslationKey): string => {
     // Repli en cascade : langue courante → anglais → clé brute. Sans le maillon
     // anglais, une clé absente d'une traduction remontait telle quelle ; comme
     // une chaîne non vide est truthy, les `|| fallback` des composants ne se

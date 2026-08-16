@@ -449,11 +449,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     return localStorage.getItem('ace-model') || 'marcorez8/acestep-v15-xl-turbo-bf16';
   });
-  const [showModelMenu, setShowModelMenu] = useState(false);
   const [modelSwitchStatus, setModelSwitchStatus] = useState<string | null>(null);
-  const [modelSwitchProgress, setModelSwitchProgress] = useState<number>(0);
   const [modelLoadingState, setModelLoadingState] = useState<{ state: string; model: string; connected?: boolean; activeModel?: string; backendDown?: boolean }>({ state: 'ready', model: '', connected: false, backendDown: true });
-  const modelMenuRef = useRef<HTMLDivElement>(null);
   const previousModelRef = useRef<string>(selectedModel);
   // When true, user is editing LM settings — don't overwrite with server values
   const lmEditingRef = useRef(false);
@@ -525,67 +522,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const [fetchedModels, setFetchedModels] = useState<{ name: string; is_active: boolean; is_preloaded: boolean }[]>([]);
 
   // Fallback model list when backend is unavailable
-  const availableModels = useMemo(() => {
-    // Known models in preferred display order
-    const FIXED_ORDER = [
-      'acestep-v15-xl-turbo',
-      'acestep-v15-xl-sft',
-      'marcorez8/acestep-v15-xl-turbo-bf16',
-      'acestep-v15-xl-merge-sft-turbo',
-    ];
-    if (fetchedModels.length > 0) {
-      const ordered = FIXED_ORDER.filter(id => fetchedModels.some(m => m.name === id));
-      // Add any server models not in fixed order (custom/converted/merged)
-      for (const m of fetchedModels) {
-        if (!ordered.includes(m.name)) ordered.push(m.name);
-      }
-      return ordered.map(id => ({ id, name: id }));
-    }
-    return FIXED_ORDER.map(id => ({ id, name: id }));
-  }, [fetchedModels]);
-
   // Model metadata
-  const MODEL_INFO: Record<string, { size: string; steps: number; descKey: string; descFallback: string }> = {
-    'acestep-v15-xl-turbo': { size: '18.8 GB', steps: 8, descKey: 'modelDescTurbo', descFallback: '4B, fast' },
-    'acestep-v15-xl-sft': { size: '18.8 GB', steps: 50, descKey: 'modelDescSft', descFallback: '4B, max quality' },
-    'marcorez8/acestep-v15-xl-turbo-bf16': { size: '7.5 GB', steps: 8, descKey: 'modelDescBf16', descFallback: '4B BF16, compact' },
-    'acestep-v15-xl-merge-sft-turbo': { size: '19.9 GB', steps: 50, descKey: 'modelDescMerge', descFallback: '4B SFT+Turbo merge' },
-  };
-
   // Map model ID to short display name
-  const getModelDisplayName = (modelId: string): string => {
-    const mapping: Record<string, string> = {
-      'acestep-v15-xl-turbo': 'XL Turbo',
-      'acestep-v15-xl-sft': 'XL SFT',
-      'marcorez8/acestep-v15-xl-turbo-bf16': 'XL Turbo BF16',
-      'acestep-v15-xl-merge-sft-turbo': 'XL Merge SFT+Turbo',
-    };
-    if (mapping[modelId]) return mapping[modelId];
-    // Auto-generate display name for custom models
-    let name = modelId.includes('/') ? modelId.split('/').pop()! : modelId;
-    name = name
-      .replace(/^acestep-v15-/i, '')
-      .replace(/-/g, ' ')
-      .replace(/\b\w/g, c => c.toUpperCase())
-      // Fix abbreviations
-      .replace(/\bXl\b/g, 'XL')
-      .replace(/\bBf16\b/g, 'BF16')
-      .replace(/\bFp16\b/g, 'FP16')
-      .replace(/\bFp32\b/g, 'FP32')
-      .replace(/\bLora\b/g, 'LoRA')
-      // SFT+Turbo combo (must be before individual SFT/Turbo)
-      .replace(/Sft Turbo/gi, 'SFT+Turbo')
-      .replace(/\bSft\b/g, 'SFT');
-    return name;
-  };
-
   // Check if model is a turbo variant (no CFG, max ~20 steps, euler only)
-  const isTurboModel = (modelId: string): boolean => {
-    // Merge SFT+Turbo behaves like SFT (50 steps, uses CFG)
-    if (modelId.includes('merge')) return false;
-    return modelId.includes('turbo');
-  };
-
   const turboActive = isTurboModel(selectedModel);
 
   const [isUploadingReference, setIsUploadingReference] = useState(false);
@@ -660,21 +599,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // captured when the drag started.
   const lyricsHeightRef = useRef(lyricsHeight);
 
-
-  // Close model menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (modelMenuRef.current && !modelMenuRef.current.contains(event.target as Node)) {
-        setShowModelMenu(false);
-      }
-    };
-
-    if (showModelMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [showModelMenu]);
-
   // Auto-adjust LM backend and params when model changes (including initial load)
   // Auto-adjust ALL model-dependent settings (including initial load)
   //
@@ -688,7 +612,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       skipNextModelAdjustRef.current = false;
       return;
     }
-    const turbo = isTurboModel(selectedModel);
+
     // Steps & guidance
     if (turbo) {
       setInferenceSteps(8);
@@ -1889,168 +1813,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
           onLoadedMetadata={(e) => setSourceDuration(e.currentTarget.duration || 0)}
         />
 
-        {/* Header Row 1 - ACE-Step + Model Selection */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${
-              modelLoadingState.state === 'loading' || modelLoadingState.state === 'unloading' ? 'bg-orange-400 animate-pulse' :
-              modelLoadingState.backendDown ? 'bg-red-500' :
-              modelLoadingState.connected ? 'bg-green-500' :
-              'bg-yellow-500 animate-pulse'
-            }`}></div>
-            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              {modelLoadingState.backendDown ? t('backendOff') || 'Backend off' :
-               modelLoadingState.state === 'loading' ? t('modelLoading') || 'Loading model...' :
-               modelLoadingState.state === 'unloading' ? t('modelUnloading') || 'Unloading...' :
-               modelLoadingState.connected ? 'ACE-Step v1.5' :
-               t('gradioStarting') || 'Gradio starting...'}
-            </span>
-          </div>
-
-          {/* Model Selection */}
-          <div className="relative" ref={modelMenuRef}>
-            <button
-              onClick={() => setShowModelMenu(!showModelMenu)}
-              className="bg-zinc-200 dark:bg-black/40 border border-zinc-300 dark:border-white/5 rounded-md px-3 py-1.5 text-[11px] font-medium text-zinc-900 dark:text-white hover:bg-zinc-300 dark:hover:bg-black/50 transition-colors flex items-center gap-2 whitespace-nowrap"
-              disabled={availableModels.length === 0}
-            >
-              {modelLoadingState.state === 'loading' ? (
-                <><span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse"></span> {getModelDisplayName(modelLoadingState.model)}...</>
-              ) : modelLoadingState.state === 'unloading' ? (
-                <><span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse"></span> {t('modelUnloading') || 'Unloading...'}</>
-              ) : (
-                <><span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> {getModelDisplayName(selectedModel)}</>
-              )}
-              <ChevronDown size={10} className="text-zinc-600 dark:text-zinc-400" />
-            </button>
-              
-              {/* Floating Model Menu */}
-              {showModelMenu && availableModels.length > 0 && (
-                <div className="absolute top-full right-0 mt-1 w-72 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl z-50 overflow-hidden">
-                  <div className="max-h-96 overflow-y-auto custom-scrollbar">
-                    {availableModels.map(model => (
-                      <button
-                        key={model.id}
-                        onClick={async () => {
-                          if (model.id === selectedModel) {
-                            setShowModelMenu(false);
-                            return;
-                          }
-                          const prevModel = selectedModel;
-                          setSelectedModel(model.id);
-                          localStorage.setItem('ace-model', model.id);
-                          setShowModelMenu(false);
-
-                          // All model-dependent settings auto-switch via useEffect on selectedModel
-
-                          // Download if not on disk, switch model via backend
-                          if (model.id !== prevModel && token) {
-                            const modelInfo = fetchedModels.find(m => m.name === model.id);
-
-                            // Download first if not on disk
-                            if (modelInfo && !modelInfo.is_preloaded) {
-                              setModelSwitchStatus(`${t('downloadingModel') || 'Downloading'} ${getModelDisplayName(model.id)}...`);
-                              try {
-                                const dlRes = await fetch(`/api/generate/download-model?model=${encodeURIComponent(model.id)}`, { headers: { Authorization: `Bearer ${token}` } });
-                                const reader = dlRes.body?.getReader();
-                                if (reader) {
-                                  while (true) {
-                                    const { done, value } = await reader.read();
-                                    if (done) break;
-                                    const text = new TextDecoder().decode(value);
-                                    if (text.includes('"done"')) break;
-                                    if (text.includes('"error"')) { setModelSwitchStatus(null); return; }
-                                    const pctMatch = text.match(/(\d+)%/);
-                                    if (pctMatch) setModelSwitchStatus(`⬇ ${pctMatch[1]}%`);
-                                  }
-                                }
-                                setModelSwitchStatus(null);
-                                fetch('/api/generate/models').then(r => r.json()).then(d => {
-                                  if (d.models) setFetchedModels(d.models);
-                                });
-                              } catch { setModelSwitchStatus(null); return; }
-                            }
-
-                            // Switch Gradio to new model
-                            if (!modelInfo?.is_active) {
-                              setModelSwitchStatus(`${t('loadingModelStatus') || 'Loading'} ${getModelDisplayName(model.id)}...`);
-                              try {
-                                const switchRes = await fetch('/api/generate/switch-model', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                                  body: JSON.stringify({ model: model.id, lmModel, lmBackend }),
-                                });
-                                const switchData = await switchRes.json();
-                                if (switchData.success) {
-                                  lmEditingRef.current = false;
-                                  fetch('/api/generate/models').then(r => r.json()).then(d => {
-                                    if (d.models) setFetchedModels(d.models);
-                                  });
-                                }
-                              } catch {}
-                              setModelSwitchStatus(null);
-                            }
-                          }
-                        }}
-                        className={`w-full px-4 py-3 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors border-b border-zinc-100 dark:border-zinc-800 last:border-b-0 ${
-                          selectedModel === model.id ? 'bg-zinc-50 dark:bg-zinc-800/50' : ''
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-zinc-900 dark:text-white">
-                              {getModelDisplayName(model.id)}
-                            </span>
-                            {modelLoadingState.model === model.id && modelLoadingState.state === 'loading' ? (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 animate-pulse">
-                                {t('modelLoadingBadge') || 'loading...'}
-                              </span>
-                            ) : modelLoadingState.model === model.id && modelLoadingState.state === 'unloading' ? (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 animate-pulse">
-                                {t('modelUnloadingBadge') || 'unloading...'}
-                              </span>
-                            ) : fetchedModels.find(m => m.name === model.id)?.is_active ? (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-                                {t('modelInMemory') || 'in memory'}
-                              </span>
-                            ) : fetchedModels.find(m => m.name === model.id)?.is_preloaded ? (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] text-zinc-500 dark:text-zinc-500">
-                                {t('modelDownloaded') || 'downloaded'}
-                              </span>
-                            ) : (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] text-zinc-600 dark:text-zinc-600">
-                                {t('modelNotDownloaded') || 'not downloaded'}
-                              </span>
-                            )}
-                          </div>
-                          {selectedModel === model.id && (
-                            <div className="w-4 h-4 rounded-full bg-pink-500 flex items-center justify-center">
-                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                            {MODEL_INFO[model.id]
-                              ? `${MODEL_INFO[model.id].size} · ${MODEL_INFO[model.id].steps} ${t('steps') || 'steps'} · ${t(MODEL_INFO[model.id].descKey) || MODEL_INFO[model.id].descFallback}`
-                              : model.id}
-                          </p>
-                          {(fetchedModels.find(m => m.name === model.id) as any)?.is_custom && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
-                              {t('modelCustom')}
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-        </div>
-
         {/* Header Row 2 - Simple / Custom toggle */}
         <div className="flex items-center bg-zinc-200 dark:bg-black/40 rounded-lg p-1 border border-zinc-300 dark:border-white/5">
           <button
@@ -2728,7 +2490,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               label={t('inferenceSteps')}
               value={inferenceSteps}
               min={1}
-              max={isTurboModel(selectedModel) ? 20 : 200}
               step={1}
               onChange={setInferenceSteps}
               helpText={t('moreStepsBetterQuality')}
