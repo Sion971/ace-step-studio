@@ -1,4 +1,6 @@
 import { LoraPanel } from './LoraPanel';
+import { ModelMenu } from './ModelMenu';
+import { isTurboModel } from '../utils/modelNames';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Sparkles, ChevronDown, Settings2, Trash2, Music2, Sliders, Dices, Hash, RefreshCw, Plus, Upload, Play, Pause, Loader2, Disc3, Undo2, Wand2, Square } from 'lucide-react';
 import { AudioWaveform } from './AudioWaveform';
@@ -450,6 +452,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     return localStorage.getItem('ace-model') || 'marcorez8/acestep-v15-xl-turbo-bf16';
   });
   const [modelSwitchStatus, setModelSwitchStatus] = useState<string | null>(null);
+  const [modelSwitchProgress, setModelSwitchProgress] = useState<number>(0);
   const [modelLoadingState, setModelLoadingState] = useState<{ state: string; model: string; connected?: boolean; activeModel?: string; backendDown?: boolean }>({ state: 'ready', model: '', connected: false, backendDown: true });
   const previousModelRef = useRef<string>(selectedModel);
   // When true, user is editing LM settings — don't overwrite with server values
@@ -612,7 +615,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       skipNextModelAdjustRef.current = false;
       return;
     }
-
+    const turbo = isTurboModel(selectedModel);
     // Steps & guidance
     if (turbo) {
       setInferenceSteps(8);
@@ -1813,6 +1816,20 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
           onLoadedMetadata={(e) => setSourceDuration(e.currentTarget.duration || 0)}
         />
 
+        {/* Header Row 1 - ACE-Step + Model Selection */}
+        <ModelMenu
+          selectedModel={selectedModel}
+          setSelectedModel={setSelectedModel}
+          modelLoadingState={modelLoadingState}
+          fetchedModels={fetchedModels}
+          setFetchedModels={setFetchedModels}
+          setModelSwitchStatus={setModelSwitchStatus}
+          token={token}
+          lmModel={lmModel}
+          lmBackend={lmBackend}
+          lmEditingRef={lmEditingRef}
+        />
+
         {/* Header Row 2 - Simple / Custom toggle */}
         <div className="flex items-center bg-zinc-200 dark:bg-black/40 rounded-lg p-1 border border-zinc-300 dark:border-white/5">
           <button
@@ -2490,6 +2507,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               label={t('inferenceSteps')}
               value={inferenceSteps}
               min={1}
+              max={isTurboModel(selectedModel) ? 20 : 200}
               step={1}
               onChange={setInferenceSteps}
               helpText={t('moreStepsBetterQuality')}
