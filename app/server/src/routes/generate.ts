@@ -1435,9 +1435,20 @@ router.get('/models', async (_req, res: Response) => {
       }
     } catch { /* checkpoints dir may not exist */ }
 
+    // Modèles officiels du Model Zoo amont (github.com/ace-step/ACE-Step-1.5).
+    // Tout ce qui n'y figure pas est marqué « personnalisé » dans l'UI : la
+    // liste ne connaissait que la famille XL, d'où le badge sur des modèles
+    // officiels comme acestep-v15-base.
     const KNOWN_MODELS = new Set([
-      'acestep-v15-xl-turbo',
+      // Famille 2B
+      'acestep-v15-base',
+      'acestep-v15-sft',
+      'acestep-v15-turbo',
+      // Famille XL (DiT 4B)
+      'acestep-v15-xl-base',
       'acestep-v15-xl-sft',
+      'acestep-v15-xl-turbo',
+      'acestep-v15-xl-turbo-bf16',
       'marcorez8/acestep-v15-xl-turbo-bf16',
       'acestep-v15-xl-merge-sft-turbo',
     ]);
