@@ -116,11 +116,18 @@ router.post('/build-dataset', authMiddleware, async (req: AuthenticatedRequest, 
       customTag = '',
       tagPosition = 'prepend',
       allInstrumental = true,
+      sourceDir,
     } = req.body;
 
-    const audioDir = path.join(config.datasets.uploadsDir, datasetName);
+    // `sourceDir` (renvoyé par /scan-directory) permet de construire un dataset
+    // depuis n'importe quel dossier, sans copier les fichiers dans uploads/.
+    // Sans lui, on retombe sur le dossier des fichiers importés.
+    const audioDir = sourceDir
+      ? (path.isAbsolute(sourceDir) ? sourceDir : path.resolve(getAceStepDir(), sourceDir))
+      : path.join(config.datasets.uploadsDir, datasetName);
+
     if (!existsSync(audioDir)) {
-      res.status(400).json({ error: `Audio directory not found: uploads/${datasetName}` });
+      res.status(400).json({ error: `Audio directory not found: ${audioDir}` });
       return;
     }
 
@@ -131,7 +138,6 @@ router.post('/build-dataset', authMiddleware, async (req: AuthenticatedRequest, 
       res.status(400).json({ error: 'No audio files found in directory' });
       return;
     }
-
     // Build samples in Gradio's exact format
     const samples = audioFiles.map(filename => {
       const audioPath = path.join(audioDir, filename);
@@ -752,37 +758,24 @@ router.post('/update-settings', authMiddleware, (_req: AuthenticatedRequest, res
 // POST /api/training/save-dataset — Save the dataset to a JSON file
 router.post('/save-dataset', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { savePath, datasetName, customTag, tagPosition, allInstrumental, genreRatio } = req.body;
-
+    const { savePath, datasetName } = req.body;
     const resolvedPath = (savePath ?? `./datasets/${datasetName ?? 'my_lora_dataset'}.json`).trim();
 
-    // Use REST API to avoid @gradio/client Radio serialization issues
-    const apiUrl = config.acestep.apiUrl;
-    const body: Record<string, unknown> = {
-      save_path: resolvedPath,
-      dataset_name: datasetName ?? 'my_lora_dataset',
-    };
-    if (customTag !== undefined) body.custom_tag = customTag;
-    if (tagPosition !== undefined) body.tag_position = tagPosition;
-    if (allInstrumental !== undefined) body.all_instrumental = allInstrumental;
-    if (genreRatio !== undefined) body.genre_ratio = genreRatio;
+    // Passe par la session Gradio d'Express : c'est elle qui détient le
+    // builder_state avec les étiquettes produites par /auto_label_all.
+    // Une écriture côté Express perdrait ces données, qui n'existent qu'en
+    // mémoire côté Python. L'ancienne version appelait /v1/dataset/save,
+    // endpoint REST qui n'existe pas (d'où le 500: Not Found).
+    const client = await getGradioClient();
+    const result = await client.predict('/save_dataset', [
+      resolvedPath,
+      datasetName ?? 'my_lora_dataset',
+    ]);
+    const data = result.data as unknown[];
 
-    const apiRes = await fetch(`${apiUrl}/v1/dataset/save`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(30_000),
-    });
-
-    if (!apiRes.ok) {
-      const err = await apiRes.json().catch(() => ({})) as any;
-      throw new Error(err?.detail || err?.error || `Save failed: ${apiRes.status}`);
-    }
-
-    const data = await apiRes.json() as any;
     res.json({
-      status: data.status ?? 'Saved',
-      path: data.save_path ?? resolvedPath,
+      status: data[0],
+      path: resolvedPath,
     });
   } catch (error) {
     console.error('[Training] Save dataset error:', error);

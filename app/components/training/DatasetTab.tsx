@@ -267,6 +267,29 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
       setScanStatus(safeString(result.status));
       setSampleCount(result.sampleCount || 0);
       if (result.dataframe) parseDataframe(result.dataframe);
+    // Le scan n'affiche qu'un tableau : on enchaîne sur buildDataset pour
+      // écrire réellement le JSON, comme le fait le parcours d'import.
+      const built = await trainingApi.buildDataset({
+        datasetName: datasetSettings.datasetName || 'my_lora_dataset',
+        customTag: datasetSettings.customTag,
+        tagPosition: datasetSettings.tagPosition,
+        allInstrumental: datasetSettings.allInstrumental,
+        sourceDir: result.audioDir,
+      }, token);
+      setDatasetLoaded(true);
+      setSampleCount(built.sampleCount || 0);
+      setCurrentSampleIdx(0);
+      if (built.sample) {
+        setCurrentSample(built.sample);
+        populateSampleFields(built.sample);
+      }
+      if (built.settings) setDatasetSettings(sanitizeSettings(built.settings));
+      if (built.dataframe) parseDataframe(built.dataframe);
+      const dp = built.datasetPath || `./datasets/${datasetSettings.datasetName || 'my_lora_dataset'}.json`;
+      setDatasetPath(dp);
+      setSavePath(dp);
+      setScanStatus(safeString(built.status));
+      markStep('upload');
     } catch (error) {
       setScanStatus(`Error: ${error instanceof Error ? error.message : safeString(error)}`);
     } finally {

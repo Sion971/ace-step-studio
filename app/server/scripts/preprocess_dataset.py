@@ -71,7 +71,9 @@ def init_handler(AceStepHandler, args, ace_root: str):
     """
     handler = AceStepHandler()
 
-    candidates = ["init_service", "initialize", "init_models", "init"]
+    # `initialize_service` est le nom effectif dans ACE-Step 1.5 ; les autres
+    # sont conservés pour les versions antérieures.
+    candidates = ["initialize_service", "init_service", "initialize", "init_models", "init"]
     method = next(
         (getattr(handler, n) for n in candidates if hasattr(handler, n)),
         None,
@@ -84,6 +86,8 @@ def init_handler(AceStepHandler, args, ace_root: str):
         )
 
     wanted = {
+        "project_root": ace_root,
+        "checkpoint_path": args.checkpoint,
         "checkpoint_path": args.checkpoint,
         "checkpoint": args.checkpoint,
         "config_path": args.config,
@@ -127,7 +131,18 @@ def main() -> int:
     parser.add_argument("--config", default=None)
     parser.add_argument("--offload", action="store_true",
                         help="Offload CPU : un seul modèle en VRAM à la fois")
-    parser.add_argument("--quantization", action="store_true")
+    # Le handler attend une chaîne de mode, pas un booléen : `False` déclenche
+    # « Unsupported quantization type ». Sans valeur, le modèle charge en
+    # pleine précision — int8_weight_only est ce que le pipeline utilise sur
+    # une carte 8 Go (voir les logs de démarrage).
+    parser.add_argument(
+        "--quantization",
+        nargs="?",
+        const="int8_weight_only",
+        default=None,
+        choices=["int8_weight_only", "fp8_weight_only", "w8a8_dynamic"],
+        help="Mode de quantification torchao ; sans valeur : int8_weight_only",
+    )
     parser.add_argument("--skip-existing", action="store_true")
     parser.add_argument("--json", action="store_true",
                         help="Émet une dernière ligne JSON (lue par Express)")

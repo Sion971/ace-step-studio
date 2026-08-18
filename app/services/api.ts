@@ -872,6 +872,8 @@ export const trainingApi = {
     customTag?: string;
     tagPosition?: string;
     allInstrumental?: boolean;
+    /** Dossier source arbitraire ; sans lui, uploads/<datasetName>/ */
+    sourceDir?: string;
   }, token: string): Promise<{
     status: string;
     dataframe: unknown;

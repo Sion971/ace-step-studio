@@ -174,4 +174,5 @@ def register_training_dataset_builder_handlers(context: TrainingWiringContext) -
             training_section["save_status"],
             training_section["save_path"],
         ],
+        api_name="save_dataset",  # Express calls via @gradio/client by this name
     )
