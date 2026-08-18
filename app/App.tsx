@@ -1,4 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+
+// Vue affichée au lancement, quand aucune route n'est demandée.
+// `true` : le profil de l'utilisateur. `false` : le panneau Créer.
+const OPEN_ON_PROFILE = true;
 import { Sidebar } from './components/Sidebar';
 import { CreatePanel } from './components/CreatePanel'; // <-- Ajout des accolades {}
 import { SongList } from './components/SongList';
@@ -130,7 +134,7 @@ function AppContent() {
   // user sees a card in the list IMMEDIATELY, then it's promoted with real
   // data when LLM pre-flight + POST complete. Returns the tempId so the
   // caller can stash it on the eventual `onGenerate` payload (`_tempId`).
-  const createTempSongForClick = useCallback((descriptionPreview: string): string => {
+const createTempSongForClick = useCallback((descriptionPreview: string, ditModel?: string): string => {
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const tempSong: Song = {
       id: tempId,
@@ -141,6 +145,12 @@ function AppContent() {
       duration: '--:--',
       createdAt: new Date(),
       isGenerating: true,
+      // Renseigné dès la création : sans lui la carte affiche « Unknown »
+      // alors que l'utilisateur est connu côté client.
+      creator: user?.username,
+      // Le modèle est connu de CreatePanel au moment du clic ; sans lui la
+      // carte affiche le repli « XL » de getModelDisplayName.
+      ditModel,
       // Use the i18n key — SongList renders via t(song.stage) || song.stage.
       stage: 'stageWaitingInQueue',
       tags: ['queued'],
@@ -148,7 +158,7 @@ function AppContent() {
     };
     setSongs(prev => [tempSong, ...prev]);
     return tempId;
-  }, [t]);
+  }, [t, user]);
 
   // Update placeholder fields as LLM streams data, e.g. style/lyrics.
   const updateTempSongForClick = useCallback((tempId: string, patch: Partial<Song>) => {
@@ -430,6 +440,27 @@ function AppContent() {
     window.addEventListener('popstate', handleUrlChange);
     return () => window.removeEventListener('popstate', handleUrlChange);
   }, []);
+
+  // Ouverture par défaut sur le profil de l'utilisateur.
+  //
+  // Ne s'applique QU'À la racine (`/`) : toute autre route a été demandée
+  // explicitement — lien partagé, rechargement sur /library — et doit être
+  // respectée. Attend la fin du chargement de l'auth, sinon le nom
+  // d'utilisateur n'est pas encore connu et la redirection viserait `/@`.
+  // Le drapeau évite de ramener l'utilisateur au profil s'il navigue ailleurs
+  // pendant que l'auth se résout.
+  const landedOnProfileRef = useRef(false);
+  useEffect(() => {
+    if (!OPEN_ON_PROFILE) return;
+    if (landedOnProfileRef.current) return;
+    if (authLoading) return;
+    if (window.location.pathname !== '/') return;
+    if (!user?.username) return;   // non connecté : on reste sur Créer
+    landedOnProfileRef.current = true;
+    setViewingUsername(user.username);
+    setCurrentView('profile');
+    window.history.replaceState({}, '', `/@${user.username}`);
+  }, [authLoading, user]);
 
   // Load Songs Effect
   useEffect(() => {

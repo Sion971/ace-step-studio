@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Song, Playlist } from '../types';
 import { usersApi, getAudioUrl, UserProfile as UserProfileType, songsApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { ArrowLeft, Play, Pause, Heart, Eye, Users, Music as MusicIcon, ChevronRight, Share2, MoreHorizontal, Edit3, X, Camera, Image as ImageIcon, Upload, Loader2 } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Heart, Eye, Users, Music as MusicIcon, ChevronRight, Share2, MoreHorizontal, Edit3, X, Camera, Image as ImageIcon, Upload, Loader2, Move } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
 
 interface UserProfileProps {
@@ -25,6 +25,44 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
     const [publicPlaylists, setPublicPlaylists] = useState<Playlist[]>([]);
     const [songsTab, setSongsTab] = useState<'recent' | 'top'>('recent');
     const [loading, setLoading] = useState(true);
+
+    // Cadrage vertical de la banniere, en pourcentage.
+    // `backgroundPosition: center` coupait systematiquement les portraits au
+    // milieu du visage. 30 % cadre correctement une photo de personne ; la
+    // valeur reste ajustable par le proprietaire et persiste par profil.
+    const BANNER_POS_DEFAULT = 30;
+    const bannerPosKey = `ace-bannerPos:${username}`;
+    const [bannerPosY, setBannerPosY] = useState<number>(() => {
+        const stored = Number(localStorage.getItem(`ace-bannerPos:${username}`));
+        return Number.isFinite(stored) && stored > 0 ? stored : 30;
+    });
+    const [isFramingBanner, setIsFramingBanner] = useState(false);
+    const bannerDragRef = useRef<{ startY: number; startPos: number; height: number } | null>(null);
+
+    useEffect(() => {
+        const stored = Number(localStorage.getItem(bannerPosKey));
+        setBannerPosY(Number.isFinite(stored) && stored > 0 ? stored : BANNER_POS_DEFAULT);
+        setIsFramingBanner(false);
+    }, [bannerPosKey]);
+
+    // Glisser verticalement pour recadrer. Un deplacement d'une hauteur de
+    // banniere parcourt toute la plage 0-100 %, ce qui donne un geste direct.
+    useEffect(() => {
+        if (!isFramingBanner) return;
+        const onMove = (e: MouseEvent) => {
+            const d = bannerDragRef.current;
+            if (!d) return;
+            const delta = ((e.clientY - d.startY) / Math.max(d.height, 1)) * 100;
+            setBannerPosY(Math.min(100, Math.max(0, d.startPos - delta)));
+        };
+        const onUp = () => { bannerDragRef.current = null; };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        return () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+        };
+    }, [isFramingBanner]);
 
     // Edit State
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -225,7 +263,12 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
 
     // Banner Style
     const bannerStyle = profileUser.banner_url
-        ? { backgroundImage: `url(${profileUser.banner_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+        ? {
+            backgroundImage: `url(${profileUser.banner_url})`,
+            backgroundSize: 'cover',
+            backgroundPosition: `center ${bannerPosY}%`,
+            backgroundRepeat: 'no-repeat' as const,
+          }
         : {};
     const bannerClass = profileUser.banner_url
         ? `h-48 md:h-64 relative overflow-hidden bg-zinc-200 dark:bg-zinc-900`
@@ -243,7 +286,32 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
                     {!profileUser.banner_url && (
                         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZ3JpZCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNIDQwIDAgTCAwIDAgMCA0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLW9wYWNpdHk9IjAuMSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-30"></div>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-50 dark:from-black via-zinc-50/20 dark:via-black/20 to-transparent"></div>
+                    {/* Raccord avec le fond de page, limite a 64 px et sans palier
+                        intermediaire. L'image choisie par l'utilisateur doit
+                        s'afficher telle quelle : le degrade ne sert qu'a eviter
+                        une arete franche en bas de banniere. */}
+                    <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-zinc-50 dark:from-black to-transparent"></div>
+
+                    {/* Surface de recadrage : active uniquement en mode cadrage,
+                        pour ne pas capturer les clics le reste du temps. */}
+                    {isFramingBanner && profileUser.banner_url && (
+                        <div
+                            className="absolute inset-0 z-20 cursor-ns-resize"
+                            onMouseDown={(e) => {
+                                bannerDragRef.current = {
+                                    startY: e.clientY,
+                                    startPos: bannerPosY,
+                                    height: e.currentTarget.clientHeight,
+                                };
+                            }}
+                        >
+                            <div className="absolute inset-x-0 top-0 flex justify-center pt-3 pointer-events-none">
+                                <span className="px-3 py-1 rounded-full bg-black/60 text-white text-xs backdrop-blur-sm">
+                                    {t('dragToReframe') || 'Glisse verticalement pour recadrer'} — {Math.round(bannerPosY)}%
+                                </span>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Back Button */}
@@ -257,21 +325,56 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
 
                 {/* Edit Banner Button (Owner Only) - Visual Cue */}
                 {isOwner && (
-                    <button
-                        onClick={() => setIsEditModalOpen(true)}
-                        className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full opacity-0 group-hover/banner:opacity-100 transition-opacity"
-                        title={t('editBanner')}
-                    >
-                        <ImageIcon size={20} />
-                    </button>
+                    <div className={`absolute top-4 right-4 z-30 flex items-center gap-2 transition-opacity ${isFramingBanner ? 'opacity-100' : 'opacity-0 group-hover/banner:opacity-100'}`}>
+                        {profileUser.banner_url && (
+                            isFramingBanner ? (
+                                <>
+                                    <button
+                                        onClick={() => {
+                                            localStorage.setItem(bannerPosKey, String(Math.round(bannerPosY)));
+                                            setIsFramingBanner(false);
+                                        }}
+                                        className="bg-pink-600 hover:bg-pink-500 text-white text-xs font-semibold px-3 py-2 rounded-full shadow-lg"
+                                    >
+                                        {t('save') || 'Enregistrer'}
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const stored = Number(localStorage.getItem(bannerPosKey));
+                                            setBannerPosY(Number.isFinite(stored) && stored > 0 ? stored : BANNER_POS_DEFAULT);
+                                            setIsFramingBanner(false);
+                                        }}
+                                        className="bg-black/60 hover:bg-black/80 text-white text-xs px-3 py-2 rounded-full"
+                                    >
+                                        {t('cancel') || 'Annuler'}
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    onClick={() => setIsFramingBanner(true)}
+                                    className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full"
+                                    title={t('reframeBanner') || 'Recadrer la bannière'}
+                                >
+                                    <Move size={20} />
+                                </button>
+                            )
+                        )}
+                        <button
+                            onClick={() => setIsEditModalOpen(true)}
+                            className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full"
+                            title={t('editBanner')}
+                        >
+                            <ImageIcon size={20} />
+                        </button>
+                    </div>
                 )}
 
                 {/* Profile Info */}
-                <div className="max-w-7xl mx-auto px-4 md:px-8 -mt-16 md:-mt-20 relative z-10 w-full">
+                <div className="max-w-7xl mx-auto px-4 md:px-8 mt-2 md:mt-3 relative z-10 w-full">
                     <div className="flex flex-col md:flex-row items-start md:items-end gap-4 md:gap-6">
                         {/* Avatar */}
                         <div className="group/avatar relative">
-                            <div className={`w-24 h-24 md:w-40 md:h-40 rounded-full border-4 border-zinc-50 dark:border-black bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center overflow-hidden shadow-2xl ring-4 ${badgeRing} transition-transform ${paidPulse}`}>
+                            <div className={`w-20 h-20 md:w-32 md:h-32 rounded-full border-4 border-zinc-50 dark:border-black bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center overflow-hidden shadow-2xl ring-4 ${badgeRing} transition-transform ${paidPulse}`}>
                                 {profileUser.avatar_url && !avatarFailed ? (
                                     <img
                                         src={profileUser.avatar_url}
@@ -281,7 +384,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
                                         onError={() => setAvatarFailed(true)}
                                     />
                                 ) : (
-                                    <div className={`w-full h-full bg-gradient-to-br ${bannerGradient} flex items-center justify-center text-4xl md:text-6xl font-bold text-white`}>
+                                    <div className={`w-full h-full bg-gradient-to-br ${bannerGradient} flex items-center justify-center text-3xl md:text-5xl font-bold text-white`}>
                                         {profileUser.username[0].toUpperCase()}
                                     </div>
                                 )}
@@ -300,7 +403,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
                         <div className="flex-1 pb-2 w-full">
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                                 <div>
-                                    <h1 className={`text-2xl md:text-5xl font-bold mb-1 ${paidNameStyle || 'text-zinc-900 dark:text-white'}`}>
+                                    <h1 className={`text-xl md:text-4xl font-bold mb-1 ${paidNameStyle || 'text-zinc-900 dark:text-white'}`}>
                                         {profileUser.username}
                                     </h1>
                                     {profileUser.badges && profileUser.badges.length > 0 && (
