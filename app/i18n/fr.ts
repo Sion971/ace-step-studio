@@ -361,6 +361,9 @@ export const fr = {
 
     // CreatePanel - Sections
     audio: 'AUDIO',
+    remix: 'REMIX',
+    modification: 'modification',
+    soon: 'Bientôt',
     lyrics: 'PAROLES',
     styleOfMusic: 'STYLE MUSICAL',
     title: 'Titre',

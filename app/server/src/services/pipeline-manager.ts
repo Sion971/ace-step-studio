@@ -76,7 +76,16 @@ class PipelineManager {
     const initLlm = process.env.INIT_LLM !== 'false';
     const lmModel = process.env.LM_MODEL || 'acestep-5Hz-lm-0.6B';
     const lmBackend = process.env.LM_BACKEND || 'pt';
-
+    // Gradio ne sert que les fichiers de son répertoire de travail. Sans ce
+    // chemin, construire un dataset depuis un dossier personnel échoue avec
+    // InvalidPathError. GRADIO_ALLOWED_PATHS est inopérant ici : le pipeline
+    // passe toujours allowed_paths à launch(), ce qui court-circuite la
+    // variable d'environnement (gradio/blocks.py l. 2625).
+    // Plusieurs dossiers : séparés par des virgules dans le .env.
+    const extraAllowedPaths = (process.env.EXTRA_ALLOWED_PATHS || '')
+      .split(',')
+      .map(p => p.trim())
+      .filter(Boolean);
     const args = [
       '-u',
       '-m', 'acestep.acestep_v15_pipeline',
@@ -86,6 +95,7 @@ class PipelineManager {
       '--init_llm', String(initLlm),
       ...(initLlm ? ['--lm_model_path', lmModel, '--backend', lmBackend] : []),
       '--enable-api',
+      ...extraAllowedPaths.flatMap(p => ['--allowed-path', p]),
       '--offload_to_cpu', 'true',
     ];
 

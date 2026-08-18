@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { getModelDisplayName } from '../utils/modelNames';
 import { Song } from '../types';
 import { Play, MoreHorizontal, Heart, ListPlus, Pause, Search, Filter, Check, Globe, Lock, Loader2, ThumbsUp, Share2, Video, Info, Clock, Timer, ImagePlus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -44,18 +45,6 @@ interface SongListProps {
 
 // Define Filter Types
 type FilterType = 'liked' | 'public' | 'private' | 'generating';
-
-// Map model ID to short display name
-const getModelDisplayName = (modelId?: string): string => {
-    if (!modelId) return 'XL';
-
-    const mapping: Record<string, string> = {
-        'acestep-v15-xl-turbo': 'XL Turbo',
-        'acestep-v15-xl-sft': 'XL SFT',
-        'marcorez8/acestep-v15-xl-turbo-bf16': 'XL Turbo BF16',
-    };
-    return mapping[modelId] || 'XL';
-};
 
 const createDragPreview = (element: HTMLElement) => {
     const clone = element.cloneNode(true) as HTMLElement;

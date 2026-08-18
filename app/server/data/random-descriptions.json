@@ -10,9 +10,9 @@
     "vocal_language": "fr"
   },
   {
-    "description": "Dunkler deutscher Industrial-Rock mit verzerrten Gitarren",
+    "description": "Rock industriel allemand sombre avec des guitares déformées",
     "instrumental": false,
-    "vocal_language": "de"
+    "vocal_language": "fr"
   },
   {
     "description": "Melancholischer deutscher Indie-Folk",
@@ -40,9 +40,9 @@
     "vocal_language": "en"
   },
   {
-    "description": "Berliner Techno mit treibenden Beats und hypnotischen Synth-Mustern",
+    "description": "Berlin techno with driving beats and hypnotic synth patterns",
     "instrumental": true,
-    "vocal_language": "de"
+    "vocal_language": "en"
   },
   {
     "description": "deep dub reggae with heavy bass drops and spacey echo effects",
@@ -72,12 +72,12 @@
   {
     "description": "epic orchestral cinematic music for a movie trailer",
     "instrumental": true,
-    "vocal_language": "unknown"
+    "vocal_language": "en"
   },
   {
     "description": "Japanese city pop with nostalgic 80s vibes",
     "instrumental": false,
-    "vocal_language": "ja"
+    "vocal_language": "en"
   },
   {
     "description": "intimate acoustic singer-songwriter piece with gentle strumming and poetic lyrics",
@@ -120,9 +120,9 @@
     "vocal_language": "en"
   },
   {
-    "description": "Kraftvoller deutscher Hip-Hop mit tiefem Bass",
+    "description": "Hip-hop allemand puissant avec une basse profonde",
     "instrumental": false,
-    "vocal_language": "de"
+    "vocal_language": "fr"
   },
   {
     "description": "ethereal ambient soundscape with floating pads and gentle textures",
@@ -140,14 +140,14 @@
     "vocal_language": "en"
   },
   {
-    "description": "Epischer deutscher Symphonic Metal",
+    "description": "Metal symphonique allemand épique",
     "instrumental": true,
-    "vocal_language": "de"
+    "vocal_language": "fr"
   },
   {
-    "description": "Romantischer deutscher Pop mit sanfter Melodie",
+    "description": "Pop allemand romantique avec une mélodie douce",
     "instrumental": false,
-    "vocal_language": "de"
+    "vocal_language": "fr"
   },
   {
     "description": "Experimental IDM with complex polyrhythms, glitchy textures, and intricate sound design",
@@ -172,7 +172,7 @@
   {
     "description": "lo-fi hip hop beats for studying and relaxing",
     "instrumental": true,
-    "vocal_language": "unknown"
+    "vocal_language": "en"
   },
   {
     "description": "Chanson d'amour française douce et romantique",
@@ -207,7 +207,7 @@
   {
     "description": "a soft Bengali love song for a quiet evening",
     "instrumental": false,
-    "vocal_language": "bn"
+    "vocal_language": "en"
   },
   {
     "description": "Rock français alternatif avec paroles poétiques",
@@ -245,9 +245,9 @@
     "vocal_language": "en"
   },
   {
-    "description": "Entspannter deutscher Reggae mit Sommergefühl",
+    "description": "Reggae allemand décontracté avec une ambiance estivale",
     "instrumental": false,
-    "vocal_language": "de"
+    "vocal_language": "fr"
   },
   {
     "description": "Soulful southern rock ballad with slide guitar, Hammond organ, and heartfelt vocals telling stories of small-town life and lost love in the American South",
@@ -260,9 +260,9 @@
     "vocal_language": "en"
   },
   {
-    "description": "Melancholischer deutscher Indie-Pop mit nachdenklichen Texten",
+    "description": "Indie-pop allemande mélancolique avec des textes pensifs",
     "instrumental": false,
-    "vocal_language": "de"
+    "vocal_language": "fr"
   },
   {
     "description": "vintage disco groove with funky bassline and shimmering strings",
@@ -287,7 +287,7 @@
   {
     "description": "peaceful piano melody for meditation and relaxation",
     "instrumental": true,
-    "vocal_language": "unknown"
+    "vocal_language": "en"
   },
   {
     "description": "an upbeat summer pop song with catchy hooks",
@@ -295,9 +295,9 @@
     "vocal_language": "en"
   },
   {
-    "description": "Energiegeladener deutscher Punk-Rock",
+    "description": "Punk rock allemand énergique",
     "instrumental": false,
-    "vocal_language": "de"
+    "vocal_language": "en"
   },
   {
     "description": "Ballade française mélancolique avec piano et émotion",
@@ -332,12 +332,7 @@
   {
     "description": "French house groovy avec samples disco et ligne de basse funky",
     "instrumental": true,
-    "vocal_language": "fr"
-  },
-  {
-    "description": "Kraftvoller deutscher Metal-Anthem mit aggressivem Gesang und Double-Bass-Drums",
-    "instrumental": false,
-    "vocal_language": "de"
+    "vocal_language": "en"
   },
   {
     "description": "Atmosphärische deutsche Elektronik mit Ambient-Texturen und sanftem Gesang",
@@ -357,7 +352,7 @@
   {
     "description": "energetic K-pop dance track with powerful vocals",
     "instrumental": false,
-    "vocal_language": "ko"
+    "vocal_language": "en"
   },
   {
     "description": "Complex math rock instrumental with intricate time signatures, angular guitar riffs, and precise polyrhythmic drumming creating a technically demanding sonic puzzle",
@@ -365,9 +360,9 @@
     "vocal_language": "en"
   },
   {
-    "description": "Fröhlicher deutscher Schlager mit eingängiger Melodie und mitreißendem Refrain",
+    "description": "Happy German hit with a catchy melody and captivating chorus",
     "instrumental": false,
-    "vocal_language": "de"
+    "vocal_language": "en"
   },
   {
     "description": "driving synthwave chase theme with pulsing bass and dramatic tension",
@@ -385,9 +380,9 @@
     "vocal_language": "en"
   },
   {
-    "description": "Energiegeladene Neue Deutsche Welle mit Retro-Synths und punkiger Attitüde",
+    "description": "Energetic Neue Deutsche Welle with retro synths and punk attitude",
     "instrumental": false,
-    "vocal_language": "de"
+    "vocal_language": "en"
   },
   {
     "description": "classic Motown soul with rich brass section and driving rhythm",
@@ -395,9 +390,9 @@
     "vocal_language": "en"
   },
   {
-    "description": "Deutscher Schlager mit fröhlichem Rhythmus",
+    "description": "German Schlager with a cheerful rhythm",
     "instrumental": false,
-    "vocal_language": "de"
+    "vocal_language": "en"
   },
   {
     "description": "melancholic dream pop lullaby with soft synths and ethereal harmonies",
@@ -437,7 +432,7 @@
   {
     "description": "romantic Spanish guitar ballad with heartfelt lyrics",
     "instrumental": false,
-    "vocal_language": "es"
+    "vocal_language": "en"
   },
   {
     "description": "Shimmering jangle pop tune with chiming arpeggiated guitars, upbeat tempo, and breezy vocals singing about nostalgic memories and bittersweet longing",
@@ -502,6 +497,151 @@
   {
     "description": "Energetic surf rock instrumental with reverb-drenched twangy guitars, driving drums, and a catchy melody evoking sun-soaked beaches and crashing waves",
     "instrumental": true,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Gospel-R&B français, confession empreinte de prière, passage du repentir à la joie, témoignage dialogué, chœur angélique, voix soliste féminine, a cappella avec battements de mains, piano acoustique, violoncelle joué à l'archet, violon legato, caisse claire jouée aux balais, guitare rythmique épurée, texture intimiste, pulsation régulière, louange portée par le piano, structure « appel et réponse », tempo modéré à lent, saturation chaleureuse.",
+    "instrumental": true,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "Folk cinématographique, 92 BPM, ostinato de cithare, tambourin sur les temps faibles, accents de tambour sur cadre, refrains ponctués de claquements de mains, contre-chant de violon modal, pédale de basse en bourdon, réverbération naturelle, saturation de bande, introduction parlée, structure « appel et réponse », transition du mineur vers le majeur, urgence fébrile, progression vers une révélation",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "French contemporary Indie pop with elements of synth-pop and soft rock, female vocals lead with clean, centered delivery and light reverb, The arrangement features a rhythmic acoustic guitar strumming sixteenth-note patterns, a syncopated electric bass, and a steady drum kit with a prominent snare on 2 and 4, Polished synth pads and occasional arpeggiated synth leads provide harmonic texture, The bridge features a breakdown with piano and atmospheric pads before a final build, Key of E Major, 115 BPM, 4/4 time signature",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "Ballade gospel francophone, atmosphère ondulante, introduction parlée, voix masculine soliste (inspirée de Jean 21:1-14) exprimant la joie des retrouvailles, battements de mains en réponse, caisse claire jouée aux balais, ostinato de contrebasse, accords de piano Rhodes, interludes au piano électrique, accents de percussions manuelles, débit rap fluide, 84 BPM, swing, réverbération à plaque, saturation de bande, intimité d'une prise de voix de proximité, refrain aux allures de témoignage, espoir collectif.",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "Percussions vocales, rythmique juive, Musique a cappella juive, niggun de yeshiva, musique juive, Cinématographique, Urgent, Ethnique, Stomps and Claps, Sons respiratoires",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "Une pièce instrumentale au tempo lent, en tonalité mineure, portée par une mélodie de piano prédominante à la sonorité mélancolique et introspective, évoquant une ambiance cinématographique. Le piano joue une progression d'accords en arpèges avec un effet de pédale de sustain, créant une atmosphère aérienne et spacieuse. Une section de cordes soutient le piano par une nappe sonore chaude et continue, apportant profondeur et résonance émotionnelle. L'intensité du morceau croît progressivement avec l'introduction d'une percussion subtile et réverbérée — peut-être une grosse caisse douce ou une timbale — marquant des temps lents et posés. La production globale est épurée et aérée, privilégiant l'interaction entre le piano et les cordes. La dynamique reste généralement douce, ponctuée de quelques montées en intensité au sein de la section des cordes. Le morceau conserve un tempo lent et régulier tout du long, soulignant son caractère contemplatif. Il ne comporte aucune partie vocale.",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "piano minimaliste, cinématographique, mélancolique",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "cinematic folk, cinematic, modal folk",
+    "instrumental": true,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Un morceau de pop chrétienne contemporaine en fa majeur à 115 BPM. L'arrangement met en vedette une guitare acoustique au son brillant jouant des motifs de doubles-croches et une guitare électrique au son clair exécutant des arpèges mélodiques avec un léger effet de delay. Un chanteur au registre médium assure la partie vocale avec un timbre clair et soigné. La section rythmique se compose d'une grosse caisse percutante sur chaque temps, d'une caisse claire nette sur les temps 2 et 4, et d'une basse électrique mélodique jouant des croches syncopées. Des nappes de synthétiseur scintillantes apportent une densité harmonique en arrière-plan. Durant le pont, la batterie s'efface pour laisser place à une séquence épurée ne conservant que la guitare acoustique et la voix, avant une montée en intensité finale incluant tambourin et cymbales crash.",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "Pop chrétienne contemporaine aux influences R&B et gospel. On y entend une guitare électrique au son propre et compressé, jouant des accords rythmiques syncopés entrecoupés de quelques phrases mélodiques. Une basse électrique mélodique suit le motif de la grosse caisse avec des glissandos fluides. La batterie se compose d'une caisse claire sèche et précise sur les temps 2 et 4, d'une grosse caisse au son rond et d'un charleston net marquant les croches. La voix masculine principale est empreinte d'émotion, avec de fréquents mélismes et vibratos, soutenue par un chœur gospel riche assurant des harmonies et des jeux d'appel et réponse. L'arrangement intègre de subtils accords de piano électrique (type Rhodes) ainsi qu'un shaker marquant les subdivisions rythmiques. Tonalité : Mi majeur ; tempo : 95 BPM ; mesure : 4/4.",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "Ballade au piano, tempo lent, influence classique, japonaise, débutant par de douces notes en arpèges puis étoffée d’accords fluides sur les refrains, Mélodie vocale simple, ligne claire et ample, idéale pour le chant collectif",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "duo mixte homme et femme afro caribéens, gwoka et créole influence",
+    "instrumental": false,
+    "vocal_language": "fr"
+},
+  {
+    "description": "Une pièce instrumentale mélancolique comprenant une section de cordes, un piano et une guitare acoustique. Le tempo est lent, créant une ambiance réfléchie et sombre. La section des cordes offre un fond riche et soutenu, avec parfois des phrases mélodiques. Le piano joue un accompagnement doux et arpégé. alors que la guitare acoustique offre une contre-mélodie délicate, la production globale est propre et spacieuse, permettant à chaque instrument d’être clairement entendu. Il n’y a pas d’éléments percussifs, ce qui souligne davantage le caractère calme et introspectif de la musique, La pièce gagne progressivement en intensité émotionnelle grâce à la superposition d’instruments et à de subtils changements dynamiques.",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "classical, instrumental, ambient",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "émotionnel, triste, soulful melody, nostalgic melodies, slow-tempo, praise and worship",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "female, story telling",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "gospel, ballad",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "A gospel ballad in a major key, featuring a male tenor lead vocal with a rich vibrato, The instrumentation includes a piano playing arpeggiated chords, a bass guitar providing a walking bass line, and a drum kit with a light, brushed snare rhythm, The song structure is verse-chorus, The melody is expressive and uses a moderate tempo, Production elements include a reverb on the vocals and a clean mix that highlights the piano and vocals",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "gospel, ballad",
+    "instrumental": false,
+    "vocal_language": "fr"
+  },
+  {
+    "description": "classical, japanese influence",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "r&b, easy to sing, joy",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "gospel, R&B, worship (piano-led)",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "indie pop, synth-pop, soft rock",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "gospel, spoken-word, swing jazz",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Musique a cappella juive, Jewish rhythmic, cinematic a cappella",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "minimalist piano, cinematic, melancholic",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": " Pop, shoegaze, psychedelic, alternative",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "indie rock, Pop",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Clean Double bass, Clean Jazz piano, Clean Jazz drum, Drum Style: Minimal, dry, lo-fi kit centered on muted snare and soft kick; cymbals used only as occasional accents, never continuous, Vocal: soft, airy female vocal; whispery, intimate, breathy tone, No belting, no shouting, no vibrato exaggeration, no dramatic lift, Vocals float lightly with mild reverb; slightly nostalgic but warm, Atmosphere: winter street, warm window lights, gentle breeze, evening glow, Keep the mood calm, friendly, cozy, not dramatic, Mix: soft and open, warm mids, bright but thin top-end, gentle stereo spread",
+    "instrumental": false,
     "vocal_language": "en"
   }
 ]

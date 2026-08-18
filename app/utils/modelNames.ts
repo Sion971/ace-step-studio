@@ -10,7 +10,7 @@
  */
 
 /** Repli lorsque l'identifiant du modèle est absent (chansons anciennes). */
-const UNKNOWN_MODEL_LABEL = 'XL';
+const UNKNOWN_MODEL_LABEL = '—';
 
 const DISPLAY_NAMES: Record<string, string> = {
   // Famille 2B — ~4,5 Go sur disque, tourne confortablement sous 8 Go de VRAM

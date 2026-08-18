@@ -134,10 +134,14 @@ export DATASETS_DIR="$SCRIPT_DIR/ACE-Step-1.5/datasets"
 export DATASETS_UPLOADS_DIR="$DATASETS_DIR/uploads"
 export PREPROCESSED_TENSORS_DIR="$DATASETS_DIR/preprocessed_tensors"
 export TENSOR_DIR="$PREPROCESSED_TENSORS_DIR"
-
-export GRADIO_ALLOWED_PATHS="$DATASETS_DIR,$SCRIPT_DIR/ACE-Step-1.5"
-
+# Gradio ne sert que les fichiers de son répertoire de travail. Sans ce chemin,
+# construire un dataset depuis un dossier personnel échoue (InvalidPathError).
+# Transmis au pipeline via --allowed-path, seule voie efficace : le paramètre
+# passé à launch() court-circuite la variable GRADIO_ALLOWED_PATHS.
+# Plusieurs dossiers possibles, séparés par des virgules.
+export EXTRA_ALLOWED_PATHS="${EXTRA_ALLOWED_PATHS:-$HOME/Musique}"
 mkdir -p "$PREPROCESSED_TENSORS_DIR" "$DATASETS_UPLOADS_DIR"
+
 
 # === 6. Fichier .env du moteur ===============================================
 # Chargé AVANT les options de ligne de commande : celles-ci doivent gagner.
@@ -181,6 +185,8 @@ if $GRADIO_ONLY; then
         --init_service true \
         --init_llm "$INIT_LLM_ARG" \
         --enable-api \
+        --allowed-path "$HOME/Musique" \
+        --allowed-path "$EXTRA_ALLOWED_PATHS" \
         --offload_to_cpu true
 fi
 
