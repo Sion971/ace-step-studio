@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { execSync, spawn } from 'child_process';
 import { writeFile, mkdir, readFile, rm, chmod } from 'fs/promises';
-import { existsSync, createWriteStream } from 'fs';
+import { existsSync, createWriteStream, createReadStream, statSync } from 'fs';
 import path from 'path';
 import os from 'os';
 import { pipeline } from 'stream/promises';
@@ -172,14 +172,19 @@ router.post('/frames', async (req: Request, res: Response) => {
     return;
   }
 
-  const start = startIndex || session.frameCount;
+  const start = startIndex ?? session.frameCount;
+  const received = frames.length;
   for (let i = 0; i < frames.length; i++) {
     const frameData = Buffer.from(frames[i], 'base64');
     await writeFile(path.join(session.dir, `frame${String(start + i).padStart(6, '0')}.jpg`), frameData);
+    // Chaque image pese ~340 ko en base64, soit ~680 ko en RAM (UTF-16).
+    // On lache la reference des qu'elle est ecrite pour que le ramasse-miettes
+    // puisse travailler pendant la boucle plutot qu'a la fin.
+    frames[i] = '';
   }
-  session.frameCount = start + frames.length;
+  session.frameCount = Math.max(session.frameCount, start + received);
 
-  res.json({ received: frames.length, total: session.frameCount });
+  res.json({ received, total: session.frameCount });
 });
 
 // 3. Finish — encode with ffmpeg
@@ -207,33 +212,39 @@ router.post('/finish', async (req: Request, res: Response) => {
     }
 
     const outputPath = path.join(session.dir, 'output.mp4');
-    const args = [
-      '-framerate', String(fps),
-      '-i', path.join(session.dir, 'frame%06d.jpg'),
-    ];
-
-    if (existsSync(audioPath)) args.push('-i', audioPath);
-
-    if (useNvenc) {
-      args.push('-c:v', 'h264_nvenc', '-preset', 'p4', '-rc', 'vbr', '-cq', '28');
-    } else {
-      args.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '23');
+    const hasAudio = existsSync(audioPath);
+    if (!hasAudio) {
+      // Trois conditions imbriquees menaient ici sans le moindre signalement :
+      // la video sortait muette et personne ne savait pourquoi.
+      console.warn(`[Render] Aucune piste audio pour audioUrl="${audioUrl}" — video muette.`);
     }
 
-    args.push(
-      '-pix_fmt', 'yuv420p',
-      '-c:a', 'aac', '-b:a', '192k',
-      '-shortest',
-      '-movflags', '+faststart',
-      '-y', outputPath,
-    );
+    const buildArgs = (encoder: 'nvenc' | 'x264') => {
+      const a = [
+        '-framerate', String(fps),
+        '-i', path.join(session.dir, 'frame%06d.jpg'),
+      ];
+      if (hasAudio) a.push('-i', audioPath);
+      if (encoder === 'nvenc') {
+        a.push('-c:v', 'h264_nvenc', '-preset', 'p4', '-rc', 'vbr', '-cq', '28');
+      } else {
+        a.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '23');
+      }
+      a.push('-pix_fmt', 'yuv420p');
+      if (hasAudio) a.push('-c:a', 'aac', '-b:a', '192k', '-shortest');
+      a.push('-movflags', '+faststart', '-y', outputPath);
+      return a;
+    };
 
-    console.log(`[Render] ffmpeg ${args.slice(0, 10).join(' ')}...`);
-
-    await new Promise<void>((resolve, reject) => {
+    const runFfmpeg = (args: string[]) => new Promise<void>((resolve, reject) => {
       const proc = spawn(ffmpegPath, args, { stdio: 'pipe' });
       let stderr = '';
-      proc.stderr?.on('data', d => { stderr += d.toString(); });
+      // Borne le tampon d'erreur : un ffmpeg bavard sur 4 500 images peut
+      // accumuler plusieurs Mo de texte pour rien.
+      proc.stderr?.on('data', d => {
+        stderr += d.toString();
+        if (stderr.length > 8192) stderr = stderr.slice(-4096);
+      });
       proc.on('close', code => {
         if (code === 0) resolve();
         else reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(-500)}`));
@@ -241,17 +252,48 @@ router.post('/finish', async (req: Request, res: Response) => {
       proc.on('error', reject);
     });
 
-    const videoData = await readFile(outputPath);
-    console.log(`[Render] Done: ${(videoData.length / 1024 / 1024).toFixed(1)}MB`);
+    // `hasNvenc()` ne verifie que la presence de l'encodeur dans le binaire,
+    // pas que le GPU puisse l'allouer. Avec le modele ACE-Step charge, la VRAM
+    // peut manquer au moment de l'encodage : on retombe sur libx264 au lieu de
+    // perdre tout le rendu.
+    if (useNvenc) {
+      try {
+        await runFfmpeg(buildArgs('nvenc'));
+      } catch (e: any) {
+        console.warn('[Render] NVENC a echoue, repli sur libx264 :', e.message);
+        await runFfmpeg(buildArgs('x264'));
+      }
+    } else {
+      await runFfmpeg(buildArgs('x264'));
+    }
+
+    // Diffusion en flux : `readFile` chargeait le MP4 entier en RAM, et
+    // `res.send` en faisait une seconde copie. Sur une machine deja tendue,
+    // c'etait un facteur de plus vers l'OOM.
+    const { size } = statSync(outputPath);
+    console.log(`[Render] Done: ${(size / 1024 / 1024).toFixed(1)}MB`);
 
     res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('Content-Length', String(size));
     res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"');
-    res.send(videoData);
+
+    const stream = createReadStream(outputPath);
+    // Le nettoyage attend la fin de l'envoi, sinon on supprime le fichier
+    // qu'on est en train de lire.
+    const cleanup = () => {
+      rm(session.dir, { recursive: true, force: true }).catch(() => {});
+      sessions.delete(sessionId);
+    };
+    res.on('close', cleanup);
+    stream.on('error', err => {
+      console.error('[Render] Stream error:', err);
+      res.destroy();
+    });
+    stream.pipe(res);
 
   } catch (error: any) {
     console.error('[Render] Failed:', error.message);
     res.status(500).json({ error: error.message });
-  } finally {
     rm(session.dir, { recursive: true, force: true }).catch(() => {});
     sessions.delete(sessionId);
   }
