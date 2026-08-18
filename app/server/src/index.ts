@@ -63,6 +63,17 @@ app.use(helmet({
       // the preview shows as a broken image even though the bytes are fine
       // (Save still works, but the user can't see what they're saving).
       imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+      mediaSrc: ["'self'", 'data:', 'blob:', 'https:', 'http://localhost:*'],
+      objectSrc: ["'none'"],
+      // `blob:` — MP4 importé localement dans Video Studio, via
+      // URL.createObjectURL(file). Sans cette directive, le navigateur
+      // retombe sur `defaultSrc: 'self'` et bloque la vidéo : fond noir
+      // en prévisualisation comme au rendu, sans autre signal qu'une
+      // ligne de CSP dans la console.
+      // `https:` — vidéos distantes (Pexels). Attention : autorisé ici ne
+      // veut pas dire exploitable — le CDN doit aussi renvoyer les en-têtes
+      // CORS, sinon `crossOrigin='anonymous'` fera échouer le chargement.
+      mediaSrc: ["'self'", 'data:', 'blob:', 'https:', 'http://localhost:*'],
       objectSrc: ["'none'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.tailwindcss.com', 'https://esm.sh'],
       scriptSrcAttr: ["'none'"],
