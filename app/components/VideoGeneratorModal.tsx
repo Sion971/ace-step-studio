@@ -19,6 +19,12 @@ type PresetType =
 
 type AspectRatio = '16:9' | '9:16' | '1:1';
 
+// Les objets Song portent l'URL audio tantot en `audioUrl`, tantot en
+// `audio_url` selon leur provenance (API, cache local, parametres reutilises).
+// Un seul point de resolution evite que les appels divergent.
+const resolveAudioUrl = (song: any): string =>
+  (song?.audioUrl || song?.audio_url || song?.audio || '').trim();
+
 const RESOLUTIONS: Record<AspectRatio, { width: number; height: number; label: string }> = {
   '16:9': { width: 1920, height: 1080, label: '1920×1080' },
   '9:16': { width: 1080, height: 1920, label: '1080×1920' },
@@ -168,6 +174,9 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
   const [customImage, setCustomImage] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const bgVideoRef = useRef<HTMLVideoElement | null>(null);
+  // Un echec de fond video ne se voyait que dans la console : a l'ecran,
+  // l'utilisateur avait un rectangle noir sans explication.
+  const [videoBgError, setVideoBgError] = useState(false);
 
   // Custom Album Art
   const [customAlbumArt, setCustomAlbumArt] = useState<string | null>(null);
@@ -472,11 +481,9 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
 
   // Load Background Image
   useEffect(() => {
-    if (backgroundType === 'video') {
-      bgImageRef.current = null;
-      return;
-    }
-
+    // On charge l'image MEME en mode video : elle sert de repli si la video
+    // echoue (CSP, CORS, codec non supporte). Auparavant elle etait effacee,
+    // et un echec video ne laissait qu'un fond noir sans explication.
     const img = new Image();
     img.crossOrigin = "Anonymous";
     if (backgroundType === 'custom' && customImage) {
@@ -488,7 +495,7 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
     img.onload = () => {
       bgImageRef.current = img;
     };
-  }, [backgroundSeed, backgroundType, customImage]);
+  }, [backgroundSeed, backgroundType, customImage, config.aspectRatio]);
 
   // Load Background Video
   useEffect(() => {
@@ -500,8 +507,13 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
       return;
     }
 
+    setVideoBgError(false);
     const video = document.createElement('video');
-    video.crossOrigin = 'anonymous';
+    // `crossOrigin` n'a de sens que pour une source distante. Sur une URL
+    // `blob:` (MP4 importe) il est au mieux inutile.
+    if (!videoUrl.startsWith('blob:') && !videoUrl.startsWith('data:')) {
+      video.crossOrigin = 'anonymous';
+    }
     video.src = videoUrl;
     video.loop = true;
     video.muted = true;
@@ -516,6 +528,7 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
     video.onerror = () => {
       console.error('Failed to load video:', videoUrl);
       bgVideoRef.current = null;
+      setVideoBgError(true);
     };
 
     return () => {
@@ -563,7 +576,7 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
     // Audio Setup
     const audio = new Audio();
     audio.crossOrigin = "anonymous";
-    audio.src = song.audioUrl || '';
+    audio.src = resolveAudioUrl(song);
     audioRef.current = audio;
 
     const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -629,7 +642,16 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
     }
   };
 
-  const analyzeAudioOffline = async (audioBuffer: AudioBuffer, fps: number): Promise<Uint8Array[]> => {
+  // Rend la main au navigateur jusqu'a la prochaine frame, pour qu'il puisse
+  // effectivement peindre. Utilise partout ou une boucle longue tourne.
+  const yieldToBrowser = () =>
+    new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+
+  const analyzeAudioOffline = async (
+    audioBuffer: AudioBuffer,
+    fps: number,
+    onProgress?: (ratio: number) => void,
+  ): Promise<Uint8Array[]> => {
     const duration = audioBuffer.duration;
     const totalFrames = Math.ceil(duration * fps);
     const samplesPerFrame = Math.floor(audioBuffer.sampleRate / fps);
@@ -643,6 +665,13 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
     let prevFrame = new Float32Array(frequencyBinCount);
 
     for (let frame = 0; frame < totalFrames; frame++) {
+      // Boucle synchrone declaree `async` sans aucun `await` : elle bloquait le
+      // fil principal du debut a la fin. On cede la main periodiquement et on
+      // remonte l'avancement, sinon cette phase est un trou noir pour l'UI.
+      if (frame % 400 === 0) {
+        onProgress?.(frame / totalFrames);
+        await yieldToBrowser();
+      }
       const startSample = frame * samplesPerFrame;
       const endSample = Math.min(startSample + fftSize, channelData.length);
 
@@ -719,7 +748,9 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
     // Load background video or image
     if (backgroundType === 'video' && videoUrl) {
       bgVideo = document.createElement('video');
-      bgVideo.crossOrigin = 'anonymous';
+      if (!videoUrl.startsWith('blob:') && !videoUrl.startsWith('data:')) {
+        bgVideo.crossOrigin = 'anonymous';
+      }
       bgVideo.src = videoUrl;
       bgVideo.muted = true;
       bgVideo.playsInline = true;
@@ -728,6 +759,7 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
         bgVideo!.onerror = () => {
           console.warn('Failed to load background video, falling back to image');
           bgVideo = null;
+          setVideoBgError(true);
           resolve();
         };
         bgVideo!.load();
@@ -755,9 +787,76 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
 
     // Fetch and decode audio
     setExportProgress(2);
-    const audioUrl = song.audioUrl || '';
-    const audioResponse = await fetch(audioUrl);
-    const audioArrayBuffer = await audioResponse.arrayBuffer();
+    const audioUrl = resolveAudioUrl(song);
+    if (!audioUrl) {
+      throw new Error("Ce morceau n'a pas d'URL audio exploitable : impossible de générer la vidéo.");
+    }
+    // Delai d'expiration : un fetch sans limite gelait l'export sans rien dire.
+    // Les FLAC de sortie pesent 40-60 Mo. Contrairement au lecteur de la
+    // bibliotheque qui diffuse en flux et demarre apres quelques centaines de
+    // ko, l'export exige le fichier COMPLET avant de continuer : `decodeAudioData`
+    // ne travaille pas sur un flux. D'ou une attente longue et, avec un premier
+    // delai a 60 s, un echec sur un telechargement parfaitement sain.
+    //
+    // On lit le corps par morceaux pour afficher une vraie progression, et le
+    // delai ne se declenche que sur une absence de donnees, pas sur la duree
+    // totale : un transfert lent mais vivant n'est plus interrompu.
+    const STALL_TIMEOUT_MS = 120000;
+    const audioAbort = new AbortController();
+    let stallTimer: ReturnType<typeof setTimeout> | null = null;
+    const armStallTimer = () => {
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => audioAbort.abort(), STALL_TIMEOUT_MS);
+    };
+
+    let audioArrayBuffer: ArrayBuffer;
+    try {
+      armStallTimer();
+      const audioResponse = await fetch(audioUrl, { signal: audioAbort.signal });
+      if (!audioResponse.ok) {
+        throw new Error(`Téléchargement de l'audio échoué : HTTP ${audioResponse.status} sur ${audioUrl}`);
+      }
+
+      const totalBytes = Number(audioResponse.headers.get('Content-Length')) || 0;
+      const reader = audioResponse.body?.getReader();
+
+      if (!reader) {
+        audioArrayBuffer = await audioResponse.arrayBuffer();
+      } else {
+        const chunks: Uint8Array[] = [];
+        let loaded = 0;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!value) continue;
+          armStallTimer();          // des donnees arrivent : on repousse l'echeance
+          chunks.push(value);
+          loaded += value.byteLength;
+          if (totalBytes > 0) {
+            // 2 → 5 % pendant le telechargement.
+            setExportProgress(2 + Math.round((loaded / totalBytes) * 3));
+          }
+        }
+        const merged = new Uint8Array(loaded);
+        let offset = 0;
+        for (const c of chunks) { merged.set(c, offset); offset += c.byteLength; }
+        chunks.length = 0;         // libere les morceaux, on a la copie fusionnee
+        audioArrayBuffer = merged.buffer;
+      }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') {
+        throw new Error(
+          `Le téléchargement de l'audio s'est interrompu (aucune donnée pendant ${STALL_TIMEOUT_MS / 1000} s). ` +
+          `Fichier : ${audioUrl}`
+        );
+      }
+      throw e;
+    } finally {
+      if (stallTimer) clearTimeout(stallTimer);
+    }
+    if (audioArrayBuffer.byteLength === 0) {
+      throw new Error(`Fichier audio vide : ${audioUrl}`);
+    }
 
     // Keep a copy for FFmpeg
     const audioDataCopy = audioArrayBuffer.slice(0);
@@ -773,15 +872,51 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
     setExportProgress(10);
 
     // Analyze audio to get frequency data for each frame
-    const frequencyDataFrames = await analyzeAudioOffline(audioBuffer, fps);
+    const frequencyDataFrames = await analyzeAudioOffline(audioBuffer, fps, ratio => {
+      // 10 → 15 % pendant l'analyse spectrale.
+      setExportProgress(10 + Math.round(ratio * 5));
+    });
 
     setExportProgress(15);
+    await yieldToBrowser();
 
     // Render all frames
     const currentEffects = effectsRef.current;
     const currentIntensities = intensitiesRef.current;
     const currentTexts = textLayersRef.current;
-    const capturedFrames: string[] = [];
+
+    // ── Capture en flux ──────────────────────────────────────────────────
+    // L'ancienne version accumulait TOUTES les images en base64 dans un
+    // tableau avant le premier envoi. Une image 1080p JPEG q0.85 pese ~250 ko,
+    // ~340 ko une fois en base64, et JavaScript stocke les chaines en UTF-16 :
+    // ~680 ko de RAM par image. Un morceau de 2 min 30 en 16:9 a 30 fps fait
+    // 4 500 images, soit ~3 Go pour le seul tableau — d'ou l'OOM et le gel.
+    //
+    // On envoie desormais chaque lot des qu'il est complet, puis on le libere.
+    // L'empreinte plafonne a la taille d'un lot, ~35 Mo.
+    const CHUNK_SIZE = 50;
+    let pendingFrames: string[] = [];
+    let framesSent = 0;
+
+    // Session ouverte avant la boucle, puisqu'on televerse au fil de l'eau.
+    const startRes = await fetch('/api/render-video/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    if (!startRes.ok) throw new Error(`Impossible d'ouvrir la session de rendu : HTTP ${startRes.status}`);
+    const { sessionId } = await startRes.json();
+
+    const flushFrames = async () => {
+      if (pendingFrames.length === 0) return;
+      const chunk = pendingFrames;
+      // Detache le lot AVANT l'await : le ramasse-miettes peut liberer les
+      // chaines des que `JSON.stringify` a produit le corps de la requete.
+      pendingFrames = [];
+      const res = await fetch('/api/render-video/frames', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, frames: chunk, startIndex: framesSent }),
+      });
+      if (!res.ok) throw new Error(`Envoi des images echoue : HTTP ${res.status}`);
+      framesSent += chunk.length;
+    };
 
     for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
       const time = frameIndex / fps;
@@ -1141,44 +1276,34 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
 
       // Capture frame as base64
       const frameData = canvas.toDataURL('image/jpeg', 0.85);
-      capturedFrames.push(frameData.split(',')[1]);
+      pendingFrames.push(frameData.split(',')[1]);
 
-      // Update progress + yield to prevent Chrome "page not responding" alert
-      if (frameIndex % 30 === 0) {
-        setExportProgress(15 + Math.round((frameIndex / totalFrames) * 55));
-        await new Promise(r => setTimeout(r, 0));
+      // Lot complet : on televerse et on libere immediatement.
+      if (pendingFrames.length >= CHUNK_SIZE) {
+        await flushFrames();
+      }
+
+      // Progression + main rendue au navigateur. Toutes les 10 images plutot
+      // que 30 : en 1080p une image coute ~50-100 ms, donc 30 images pouvaient
+      // representer plusieurs secondes sans le moindre rafraichissement.
+      if (frameIndex % 10 === 0) {
+        setExportProgress(15 + Math.round((frameIndex / totalFrames) * 75));
+        await yieldToBrowser();
       }
     }
 
+    // Dernier lot partiel.
+    await flushFrames();
+
     setExportStage('encoding');
-    setExportProgress(70);
-
-    // Send frames to server in chunks for encoding with local ffmpeg
-    console.log(`[Video] Sending ${capturedFrames.length} frames to server...`);
-
-    // Start session
-    const startRes = await fetch('/api/render-video/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-    const { sessionId } = await startRes.json();
-
-    // Upload frames in chunks of 50
-    const CHUNK_SIZE = 50;
-    for (let i = 0; i < capturedFrames.length; i += CHUNK_SIZE) {
-      const chunk = capturedFrames.slice(i, i + CHUNK_SIZE);
-      await fetch('/api/render-video/frames', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, frames: chunk, startIndex: i }),
-      });
-      setExportProgress(70 + Math.round((i / capturedFrames.length) * 20));
-    }
-
     setExportProgress(90);
+    console.log(`[Video] ${framesSent} images televersees, encodage cote serveur...`);
 
     // Encode
     const response = await fetch('/api/render-video/finish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, audioUrl: song.audioUrl || song.audio_url || '', fps }),
+      body: JSON.stringify({ sessionId, audioUrl, fps }),
     });
 
     console.log('[Video] Server response:', response.status, response.headers.get('content-type'));
@@ -2784,6 +2909,11 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
 
             {/* Footer */}
             <div className="p-4 md:p-6 border-t border-white/5 bg-black/20 space-y-3 safe-area-inset-bottom">
+                 {videoBgError && (
+                     <p className="text-[11px] text-amber-400 leading-snug">
+                         {t('videoBgFailed') || "La vidéo de fond n'a pas pu être chargée — une image est utilisée à la place. Causes fréquentes : codec non lu par le navigateur, ou source distante sans en-têtes CORS."}
+                     </p>
+                 )}
                  {ffmpegLoading ? (
                      <div className="w-full bg-zinc-800 rounded-xl h-12 flex items-center justify-center px-4">
                          <div className="flex items-center gap-2 text-white font-bold text-sm">
