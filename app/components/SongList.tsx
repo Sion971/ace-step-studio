@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { getModelDisplayName } from '../utils/modelNames';
 import { Song } from '../types';
-import { Play, MoreHorizontal, Heart, ListPlus, Pause, Search, Filter, Check, Globe, Lock, Loader2, ThumbsUp, Share2, Video, Info, Clock, Timer, ImagePlus } from 'lucide-react';
+import { Play, MoreHorizontal, Heart, ListPlus, Pause, Search, Filter, Check, Globe, Lock, Loader2, ThumbsUp, Share2, Video, Info, Clock, Timer, ImagePlus, Pencil, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useI18n } from '../context/I18nContext';
 import { SongDropdownMenu } from './SongDropdownMenu';
@@ -20,6 +20,7 @@ interface SongListProps {
     onSelect: (song: Song) => void;
     onToggleLike: (songId: string) => void;
     onAddToPlaylist: (song: Song) => void;
+    onAddToWorkspace?: (song: Song) => void;
     onOpenVideo?: (song: Song) => void;
     onOpenCoverRegen?: (song: Song) => void;
     onShowDetails?: (song: Song) => void;
@@ -37,6 +38,24 @@ interface SongListProps {
     onCancelAll?: () => void;
     onResetAll?: () => void;
     activeJobCount?: number;
+    // Filtrage par espace de travail (voir App.tsx) : le filtrage lui-meme se
+    // fait EN AMONT, dans `songs` — ce composant n'a jamais besoin de savoir
+    // COMMENT filtrer, juste d'afficher le nom actif et de proposer un
+    // retour. Les deux sont optionnels : sans eux, le fil d'Ariane retombe
+    // sur son comportement d'origine (t('myWorkspace') statique).
+    activeWorkspaceName?: string;
+    onBackToWorkspaces?: () => void;
+    // Distinct de onBackToWorkspaces : efface le filtre SANS quitter
+    // l'onglet Creer (celui-ci navigue vers la Bibliotheque pour en
+    // choisir un autre). Avant cette prop, le seul retour vers "Mon
+    // espace de travail" passait par un aller-retour complet via
+    // Bibliotheque > Tous les titres > Creer.
+    onClearWorkspaceFilter?: () => void;
+    // Renommage de l'espace en cours — absent (undefined) sur la vue par
+    // defaut virtuelle "Mon espace de travail" (voir activeWorkspaceName),
+    // qui n'a donc jamais de bouton d'edition puisqu'il n'existe rien a
+    // renommer en base.
+    onRenameWorkspace?: (newName: string) => void;
 }
 
 // ... existing code ...
@@ -89,6 +108,7 @@ export const SongList: React.FC<SongListProps> = ({
     onSelect,
     onToggleLike,
     onAddToPlaylist,
+    onAddToWorkspace,
     onOpenVideo,
     onOpenCoverRegen,
     onShowDetails,
@@ -106,10 +126,17 @@ export const SongList: React.FC<SongListProps> = ({
     onResetJob,
     onResetAll,
     activeJobCount = 0,
+    activeWorkspaceName,
+    onBackToWorkspaces,
+    onClearWorkspaceFilter,
+    onRenameWorkspace,
 }) => {
     const { user } = useAuth();
     const { t } = useI18n();
     const [searchQuery, setSearchQuery] = useState('');
+    // Edition en ligne du nom de l'espace de travail actif.
+    const [isEditingWorkspaceName, setIsEditingWorkspaceName] = useState(false);
+    const [workspaceNameDraft, setWorkspaceNameDraft] = useState('');
     const [activeFilters, setActiveFilters] = useState<Set<FilterType>>(new Set());
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [isSelecting, setIsSelecting] = useState(false);
@@ -164,10 +191,17 @@ export const SongList: React.FC<SongListProps> = ({
     const filteredSongs = useMemo(() => {
         return songs.filter(song => {
             // 1. Search Logic
+            // Defensif sur song.tags : meme motif que le crash createdAt
+            // corrige precedemment (PlaylistDetail.tsx) — un objet chanson
+            // construit ailleurs peut avoir tags manquant/non-tableau, et
+            // .some() plantait alors TOUTE la recherche, pas seulement cet
+            // element. Source exacte non identifiee avec certitude cette
+            // fois ; ce garde-fou evite le plantage quoi qu'il arrive.
+            const songTags = Array.isArray(song.tags) ? song.tags : [];
             const matchesSearch =
-                song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                song.style.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                song.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+                (song.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (song.style || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                songTags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
 
             if (!matchesSearch) return false;
 
@@ -205,7 +239,14 @@ export const SongList: React.FC<SongListProps> = ({
             createdAt: new Date(track.created_at || Date.now()),
             track
         }));
-        return [...songItems, ...uploadItems].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        // Defensif : createdAt manquant/invalide ne doit plus jamais faire
+        // planter tout le rendu (voir App.tsx, meme correctif applique a
+        // refreshSongsList — cause racine identifiee dans PlaylistDetail.tsx).
+        const time = (item: { createdAt: Date }) => {
+          const t = item.createdAt?.getTime?.();
+          return Number.isFinite(t) ? t! : 0;
+        };
+        return [...songItems, ...uploadItems].sort((a, b) => time(b) - time(a));
     }, [filteredSongs, filteredUploads]);
 
     const selectableSongs = useMemo(
@@ -223,9 +264,67 @@ export const SongList: React.FC<SongListProps> = ({
                 {/* Header */}
                 <div className="flex flex-col gap-6 mb-8">
                     <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-                        <span className="hover:text-black dark:hover:text-white cursor-pointer transition-colors">{t('workspaces')}</span>
+                        <span
+                            className="hover:text-black dark:hover:text-white cursor-pointer transition-colors"
+                            onClick={onBackToWorkspaces}
+                        >
+                            {t('workspaces')}
+                        </span>
                         <span className="text-zinc-400 dark:text-zinc-600">›</span>
-                        <span className="text-zinc-900 dark:text-white font-medium">{t('myWorkspace')}</span>
+                        {isEditingWorkspaceName ? (
+                            <input
+                                type="text"
+                                value={workspaceNameDraft}
+                                autoFocus
+                                onChange={(e) => setWorkspaceNameDraft(e.target.value)}
+                                onBlur={() => {
+                                    const trimmed = workspaceNameDraft.trim();
+                                    if (trimmed && trimmed !== activeWorkspaceName) {
+                                        onRenameWorkspace?.(trimmed);
+                                    }
+                                    setIsEditingWorkspaceName(false);
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.currentTarget.blur();
+                                    } else if (e.key === 'Escape') {
+                                        setWorkspaceNameDraft(activeWorkspaceName || '');
+                                        setIsEditingWorkspaceName(false);
+                                    }
+                                }}
+                                className="bg-transparent border-b border-zinc-400 dark:border-zinc-500 text-zinc-900 dark:text-white font-medium focus:outline-none focus:border-pink-500 px-0.5"
+                            />
+                        ) : (
+                            <>
+                                <span className="text-zinc-900 dark:text-white font-medium">{activeWorkspaceName || t('myWorkspace')}</span>
+                                {/* Renommage disponible uniquement sur un VRAI espace — jamais
+                                    sur "Mon espace de travail" (virtuel, aucune ligne en base). */}
+                                {activeWorkspaceName && onRenameWorkspace && (
+                                    <button
+                                        onClick={() => {
+                                            setWorkspaceNameDraft(activeWorkspaceName);
+                                            setIsEditingWorkspaceName(true);
+                                        }}
+                                        className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                                        title={t('renameWorkspace')}
+                                    >
+                                        <Pencil size={12} />
+                                    </button>
+                                )}
+                                {/* Retour direct vers "Mon espace de travail" SANS quitter
+                                    l'onglet Creer — visible uniquement si un vrai espace est
+                                    actif, meme condition que le bouton de renommage. */}
+                                {activeWorkspaceName && onClearWorkspaceFilter && (
+                                    <button
+                                        onClick={onClearWorkspaceFilter}
+                                        className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                                        title={t('myWorkspace')}
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                )}
+                            </>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -403,6 +502,7 @@ export const SongList: React.FC<SongListProps> = ({
                                     }}
                                     onToggleLike={() => onToggleLike(item.song.id)}
                                     onAddToPlaylist={() => onAddToPlaylist(item.song)}
+                                    onAddToWorkspace={onAddToWorkspace ? () => onAddToWorkspace(item.song) : undefined}
                                     onOpenVideo={() => onOpenVideo && onOpenVideo(item.song)}
                                     onOpenCoverRegen={() => onOpenCoverRegen && onOpenCoverRegen(item.song)}
                                     onShowDetails={() => onShowDetails && onShowDetails(item.song)}
@@ -473,6 +573,7 @@ interface SongItemProps {
     onToggleSelect: () => void;
     onToggleLike: () => void;
     onAddToPlaylist: () => void;
+    onAddToWorkspace?: () => void;
     onOpenVideo?: () => void;
     onOpenCoverRegen?: () => void;
     onShowDetails?: () => void;
@@ -500,6 +601,7 @@ const SongItem: React.FC<SongItemProps> = ({
     onToggleSelect,
     onToggleLike,
     onAddToPlaylist,
+    onAddToWorkspace,
     onOpenVideo,
     onOpenCoverRegen,
     onShowDetails,
@@ -842,6 +944,7 @@ const SongItem: React.FC<SongItemProps> = ({
                                 onCreateVideo={() => onOpenVideo?.(song)}
                                 onReusePrompt={onReusePrompt ? () => onReusePrompt?.(song) : undefined}
                                 onAddToPlaylist={() => onAddToPlaylist?.(song)}
+                                onAddToWorkspace={() => onAddToWorkspace?.(song)}
                                 onDelete={() => onDelete?.(song)}
                                 onShare={() => setShareModalOpen(true)}
                                 onUseAsReference={() => onUseAsReference?.()}

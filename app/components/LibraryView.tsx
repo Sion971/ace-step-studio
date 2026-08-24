@@ -11,11 +11,31 @@ interface LibraryViewProps {
   allSongs: Song[];
   likedSongs: Song[];
   playlists: Playlist[];
+  // Distinctes depuis la separation par `kind` (voir migration_playlists_kind.sql) :
+  // `playlists` ne contient plus que les vraies playlists, `workspaces` les
+  // espaces de travail. Les deux etaient auparavant le MEME tableau.
+  workspaces: Playlist[];
+  // Sur quel onglet s'ouvrir — permet a App.tsx de "viser" un onglet
+  // precis avant de naviguer ici (ex: retour vers Espaces de travail
+  // apres consultation d'un espace, plutot que de retomber sur "Tous").
+  initialTab?: 'all' | 'workspaces' | 'playlists' | 'liked' | 'uploads';
   referenceTracks: ReferenceTrack[];
   onPlaySong: (song: Song, list?: Song[]) => void;
   onCreatePlaylist: () => void;
+  // Distinct de onCreatePlaylist : ouvre le meme modal, mais marque le type
+  // a creer comme 'workspace' cote App.tsx (voir creatingPlaylistKind).
+  onCreateWorkspace: () => void;
   onSelectPlaylist: (playlist: Playlist) => void;
+  // Distinct de onSelectPlaylist : le clic sur une carte "Espace de travail"
+  // bascule vers l'onglet Creer avec la liste filtree, plutot que d'ouvrir
+  // la page PlaylistDetail separee (voir App.tsx, handleSelectWorkspace).
+  onSelectWorkspace: (workspace: Playlist) => void;
   onAddToPlaylist: (song: Song) => void;
+  // Manquaient completement — les actions correspondantes du menu
+  // deroulant etaient silencieusement muettes depuis la Bibliotheque.
+  onAddToWorkspace?: (song: Song) => void;
+  onCoverSong?: (song: Song) => void;
+  onUseAsReference?: (song: Song) => void;
   onOpenVideo?: (song: Song) => void;
   onReusePrompt?: (song: Song) => void;
   onDeleteSong?: (song: Song) => void;
@@ -37,11 +57,18 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     allSongs,
     likedSongs, 
     playlists, 
+    workspaces,
+    initialTab,
     referenceTracks,
     onPlaySong, 
     onCreatePlaylist,
+    onCreateWorkspace,
     onSelectPlaylist,
+    onSelectWorkspace,
     onAddToPlaylist,
+    onAddToWorkspace,
+    onCoverSong,
+    onUseAsReference,
     onOpenVideo,
     onReusePrompt,
     onDeleteSong,
@@ -49,7 +76,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 }) => {
     const { t } = useI18n();
     const { user } = useAuth();
-    const [activeTab, setActiveTab] = useState<'all' | 'playlists' | 'liked' | 'uploads'>('all');
+    const [activeTab, setActiveTab] = useState<'all' | 'workspaces' | 'playlists' | 'liked' | 'uploads'>(initialTab || 'all');
     const [shareModalOpen, setShareModalOpen] = useState(false);
     const [shareSong, setShareSong] = useState<Song | null>(null);
 
@@ -70,13 +97,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         <div className="flex-1 bg-white dark:bg-black overflow-y-auto custom-scrollbar p-6 lg:p-10 pb-32 transition-colors duration-300">
              <div className="flex items-center justify-between mb-8">
                 <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">{t('yourLibrary')}</h1>
-                <button 
-                    onClick={onCreatePlaylist}
-                    className="flex items-center gap-2 bg-zinc-900 dark:bg-zinc-800 hover:bg-zinc-800 dark:hover:bg-zinc-700 text-white px-4 py-2 rounded-full font-medium transition-colors shadow-lg shadow-zinc-900/10 dark:shadow-none"
-                >
-                    <Plus size={18} />
-                    <span>{t('newPlaylist')}</span>
-                </button>
              </div>
 
              {/* Tabs */}
@@ -85,7 +105,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     onClick={() => setActiveTab('all')}
                     className={`pb-3 text-sm font-bold transition-colors relative ${activeTab === 'all' ? 'text-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'}`}
                  >
-                    All Songs
+                    {t('allSongs')}
                     {activeTab === 'all' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-500 rounded-full"></div>}
                  </button>
                  <button 
@@ -94,6 +114,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                  >
                     {t('likedSongs')}
                     {activeTab === 'liked' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-500 rounded-full"></div>}
+                 </button>
+                 {/* Nouvel onglet Espace de travail */}
+                 <button 
+                    onClick={() => setActiveTab('workspaces')}
+                    className={`pb-3 text-sm font-bold transition-colors relative ${activeTab === 'workspaces' ? 'text-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'}`}
+                 >
+                    {t('workspaces')}
+                    {activeTab === 'workspaces' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-500 rounded-full"></div>}
                  </button>
                  <button 
                     onClick={() => setActiveTab('playlists')}
@@ -106,7 +134,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     onClick={() => setActiveTab('uploads')}
                     className={`pb-3 text-sm font-bold transition-colors relative ${activeTab === 'uploads' ? 'text-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'}`}
                  >
-                    Uploads
+                    {t('uploads')}
                     {activeTab === 'uploads' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-500 rounded-full"></div>}
                  </button>
              </div>
@@ -152,6 +180,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                         onCreateVideo={() => onOpenVideo?.(song)}
                                         onReusePrompt={() => onReusePrompt?.(song)}
                                         onAddToPlaylist={() => onAddToPlaylist(song)}
+                                        onAddToWorkspace={onAddToWorkspace ? () => onAddToWorkspace(song) : undefined}
+                                        onCoverSong={onCoverSong ? () => onCoverSong(song) : undefined}
+                                        onUseAsReference={onUseAsReference ? () => onUseAsReference(song) : undefined}
                                         onDelete={() => onDeleteSong?.(song)}
                                         onShare={() => {
                                             setShareModalOpen(true);
@@ -220,6 +251,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                         onCreateVideo={() => onOpenVideo?.(song)}
                                         onReusePrompt={() => onReusePrompt?.(song)}
                                         onAddToPlaylist={() => onAddToPlaylist(song)}
+                                        onAddToWorkspace={onAddToWorkspace ? () => onAddToWorkspace(song) : undefined}
+                                        onCoverSong={onCoverSong ? () => onCoverSong(song) : undefined}
+                                        onUseAsReference={onUseAsReference ? () => onUseAsReference(song) : undefined}
                                         onDelete={() => onDeleteSong?.(song)}
                                         onShare={() => {
                                             setShareModalOpen(true);
@@ -231,8 +265,51 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     </div>
                  </div>
              )}
+             {activeTab === 'workspaces' && (
+                 <div className="space-y-6">
+        {/* Bouton pour créer un espace de travail — meme style que le bouton
+            "Nouvelle playlist" (onglet Playlists), harmonise sur demande. */}
+        <button
+            onClick={onCreateWorkspace}
+            className="flex items-center gap-2 bg-zinc-900 dark:bg-zinc-800 hover:bg-zinc-800 dark:hover:bg-zinc-700 text-white px-4 py-2 rounded-full font-medium transition-colors shadow-lg shadow-zinc-900/10 dark:shadow-none"
+        >
+            <Plus size={18} />
+            <span>{t('createNewWorkspace') || 'Créer un nouvel espace de travail'}</span>
+        </button>
+
+        {/* Liste des espaces de travail — reutilise `playlists` (voir plus
+            bas, onglet Playlists) : il n'existe pas de concept "workspace"
+            distinct cote serveur ni cote app, seulement des Playlist. Les
+            deux onglets affichent donc actuellement les MEMES elements,
+            juste via un point d'entree/etiquette differents. A revoir si un
+            jour un vrai marqueur de distinction est souhaite. */}
+        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-4">
+            {workspaces.map((workspace) => (
+                <div key={workspace.id} className="bg-white dark:bg-zinc-900/40 p-4 rounded-lg border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10 hover:shadow-lg dark:hover:bg-zinc-900 transition-all group cursor-pointer" onClick={() => onSelectWorkspace(workspace)}>
+                    <div className="relative aspect-square mb-4 rounded-md overflow-hidden bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+                        {workspace.coverUrl ? (
+                            <img src={workspace.coverUrl} className="w-full h-full object-cover" alt={workspace.name} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                        ) : (
+                            <AlbumCover seed={workspace.id || workspace.name} size="full" className="w-full h-full" />
+                        )}
+                    </div>
+                    <h3 className="font-bold text-zinc-900 dark:text-white truncate">{workspace.name}</h3>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400 line-clamp-2">{workspace.description || t('byYou')}</p>
+                </div>
+            ))}
+        </div>
+    </div>
+)}
              {activeTab === 'playlists' && (
-                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                 <div className="space-y-6">
+                     <button
+                        onClick={onCreatePlaylist}
+                        className="flex items-center gap-2 bg-zinc-900 dark:bg-zinc-800 hover:bg-zinc-800 dark:hover:bg-zinc-700 text-white px-4 py-2 rounded-full font-medium transition-colors shadow-lg shadow-zinc-900/10 dark:shadow-none"
+                     >
+                        <Plus size={18} />
+                        <span>{t('newPlaylist')}</span>
+                     </button>
+                     <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-4">
                      {playlists.map((playlist) => (
                          <div key={playlist.id} className="bg-white dark:bg-zinc-900/40 p-4 rounded-lg border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10 hover:shadow-lg dark:hover:bg-zinc-900 transition-all group cursor-pointer" onClick={() => onSelectPlaylist(playlist)}>
                              <div className="relative aspect-square mb-4 rounded-md overflow-hidden bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
@@ -246,6 +323,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                              <p className="text-sm text-zinc-500 dark:text-zinc-400 line-clamp-2">{playlist.description || t('byYou')}</p>
                          </div>
                      ))}
+                     </div>
                  </div>
              )}
              {activeTab === 'uploads' && (

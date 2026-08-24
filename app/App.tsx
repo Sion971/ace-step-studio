@@ -192,6 +192,13 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
   // Content State
   const [songs, setSongs] = useState<Song[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  // Separation par type (voir migration_playlists_kind.sql) : `kind` absent
+  // = ligne anterieure a la migration, toujours traitee comme 'playlist',
+  // jamais comme 'workspace' par defaut. Recalcule a chaque rendu — les
+  // tableaux sont petits (playlists d'un seul utilisateur), pas besoin de
+  // useMemo ici.
+  const regularPlaylists = playlists.filter(p => p.kind !== 'workspace');
+  const workspaces = playlists.filter(p => p.kind === 'workspace');
   const [likedSongIds, setLikedSongIds] = useState<Set<string>>(new Set());
   const [referenceTracks, setReferenceTracks] = useState<ReferenceTrack[]>([]);
   const [playQueue, setPlayQueue] = useState<Song[]>([]);
@@ -217,6 +224,42 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
   // UI State
   const [isGenerating, setIsGenerating] = useState(false);
   const [showRightSidebar, setShowRightSidebar] = useState(false);
+  // Espace de travail actif dans l'onglet Creer (voir handleSelectWorkspace).
+  // null = aucun filtre, la liste affiche tout comme avant.
+  const [activeWorkspaceFilter, setActiveWorkspaceFilter] = useState<Playlist | null>(null);
+  // Identifiants reellement charges pour cet espace — separes de
+  // activeWorkspaceFilter car GET /playlists (liste) ne renvoie qu'un
+  // COUNT, jamais les chansons elles-memes (verifie dans playlists.ts
+  // cote serveur). Il faut un appel a GET /playlists/:id au moment du
+  // clic pour obtenir la vraie liste, d'ou cet etat asynchrone distinct.
+  const [activeWorkspaceSongIds, setActiveWorkspaceSongIds] = useState<Set<string> | null>(null);
+  // Union des chansons appartenant a N'IMPORTE QUEL espace de travail —
+  // permet a la vue par defaut ("Mon espace de travail", virtuel, aucune
+  // ligne en base — voir session du 25/08/2026) d'exclure tout ce qui est
+  // deja range dans un espace nomme. Rafraichie au chargement et apres
+  // chaque ajout/suppression d'une chanson dans un espace.
+  const [songsInAnyWorkspace, setSongsInAnyWorkspace] = useState<Set<string>>(new Set());
+
+  const refreshWorkspaceSongIds = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await playlistsApi.getWorkspaceSongIds(token);
+      setSongsInAnyWorkspace(new Set(res.songIds));
+    } catch (e) {
+      console.error('Failed to refresh workspace song ids:', e);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    refreshWorkspaceSongIds();
+  }, [refreshWorkspaceSongIds]);
+  // Sur quel onglet LibraryView doit s'ouvrir au prochain rendu — permet a
+  // App.tsx de "viser" un onglet precis avant de naviguer vers 'library'
+  // (ex: revenir sur "Espaces de travail" plutot que retomber sur "Tous").
+  // LibraryView est demonte/remonte a chaque changement de currentView (le
+  // switch/case ne fait pas que masquer/afficher), donc initialiser son
+  // useState local depuis cette prop fonctionne de facon fiable.
+  const [libraryInitialTab, setLibraryInitialTab] = useState<'all' | 'workspaces' | 'playlists' | 'liked' | 'uploads'>('all');
   const [showLeftSidebar, setShowLeftSidebar] = useState(true);
   const [pendingAudioSelection, setPendingAudioSelection] = useState<{ target: 'reference' | 'source'; url: string; title?: string } | null>(null);
 
@@ -225,6 +268,14 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
 
   // Modals
   const [isCreatePlaylistModalOpen, setIsCreatePlaylistModalOpen] = useState(false);
+  // Quel type creer au prochain passage dans createPlaylist() — le MEME
+  // modal sert aux deux flux (playlist classique / espace de travail),
+  // seul ce marqueur change selon le bouton qui a ouvert le modal.
+  const [creatingPlaylistKind, setCreatingPlaylistKind] = useState<'playlist' | 'workspace'>('playlist');
+  // Quelle liste montrer dans AddToPlaylistModal — reutilise le MEME modal
+  // pour les deux, distingue seulement le contenu affiche et le type cree
+  // si l'utilisateur clique "creer une nouvelle" depuis l'interieur.
+  const [addingToKind, setAddingToKind] = useState<'playlist' | 'workspace'>('playlist');
   const [isAddToPlaylistModalOpen, setIsAddToPlaylistModalOpen] = useState(false);
   const [songToAddToPlaylist, setSongToAddToPlaylist] = useState<Song | null>(null);
 
@@ -1041,8 +1092,16 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         // Keep only generating songs that aren't in the loaded list
         const stillGenerating = prev.filter(s => s.isGenerating && !loadedSongs.some(l => l.id === s.id));
         const mergedSongs = [...stillGenerating, ...loadedSongs];
-        // Sort by creation date, newest first
-        return mergedSongs.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        // Sort by creation date, newest first. Defensif : un objet chanson
+        // construit ailleurs (ex. PlaylistDetail.tsx avant correctif) peut
+        // avoir createdAt manquant/invalide — on le traite comme "le plus
+        // ancien" plutot que de planter tout le rendu (voir le crash
+        // "createdAt is undefined" en passant de Playlist a Creer).
+        const time = (s: Song) => {
+          const t = s.createdAt?.getTime?.();
+          return Number.isFinite(t) ? t! : 0;
+        };
+        return mergedSongs.sort((a, b) => time(b) - time(a));
       });
 
       // If the current selection was a temp/generating song, replace it with newest real song
@@ -1150,15 +1209,27 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     const preCreatedId = params._tempId;
     const tempId = preCreatedId || `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     if (preCreatedId) {
-      // Promote the placeholder with whatever metadata the pre-flight produced.
-      setSongs(prev => prev.map(s => s.id === tempId ? {
-        ...s,
-        title: params.title || s.title,
-        style: params.style || s.style,
-        tags: params.customMode ? ['custom'] : ['simple'],
-        stage: 'stageStartingTrack',
-      } : s));
-      setSelectedSong(prev => prev?.id === tempId ? { ...prev, title: params.title || prev.title, style: params.style || prev.style } : prev);
+      // On ne peut PAS lire `songs` (fermeture figee au dernier rendu) pour
+      // retrouver la carte que CreatePanel vient de creer juste avant cet
+      // appel, dans le meme tick synchrone : React n'a pas encore applique
+      // cette mise a jour a la fermeture exterieure au moment ou ce code
+      // s'execute (confirme par diagnostic : preCreatedId existe mais
+      // songs.find(...) le rate). Le gestionnaire fonctionnel de setSongs,
+      // lui, recoit toujours l'etat le plus a jour — on y derive donc la
+      // chanson promue, et on appelle setSelectedSong depuis l'interieur.
+      setSongs(prev => {
+        const next = prev.map(s => s.id === tempId ? {
+          ...s,
+          title: params.title || s.title,
+          style: params.style || s.style,
+          tags: params.customMode ? ['custom'] : ['simple'],
+          stage: 'stageStartingTrack',
+        } : s);
+        const promoted = next.find(s => s.id === tempId);
+        if (promoted) setSelectedSong(promoted);
+        return next;
+      });
+      setShowRightSidebar(true);
     } else {
       const tempSong: Song = {
         id: tempId,
@@ -1594,15 +1665,23 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
   const createPlaylist = async (name: string, description: string) => {
     if (!token) return;
     try {
-      const res = await playlistsApi.create(name, description, true, token);
+      const res = await playlistsApi.create(name, description, true, token, creatingPlaylistKind);
       setPlaylists(prev => [res.playlist, ...prev]);
 
       if (songToAddToPlaylist) {
         await playlistsApi.addSong(res.playlist.id, songToAddToPlaylist.id, token);
         setSongToAddToPlaylist(null);
         playlistsApi.getMyPlaylists(token).then(r => setPlaylists(r.playlists)).catch(() => {});
+        // Meme oubli que addSongToPlaylist avait eu la fois precedente :
+        // creer un NOUVEL espace "a la volee" (plutot que d'en choisir un
+        // deja existant) est un chemin de code distinct, qui n'appelait
+        // jamais refreshWorkspaceSongIds — la chanson restait visible a
+        // tort dans "Mon espace de travail" jusqu'a rechargement complet.
+        if (creatingPlaylistKind === 'workspace') {
+          refreshWorkspaceSongIds();
+        }
       }
-      showToast(t('playlistCreated'));
+      showToast(creatingPlaylistKind === 'workspace' ? t('workspaceCreated') : t('playlistCreated'));
     } catch (error) {
       console.error('Create playlist error:', error);
       showToast(t('failedToCreatePlaylist'), 'error');
@@ -1611,6 +1690,13 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
 
   const openAddToPlaylistModal = (song: Song) => {
     setSongToAddToPlaylist(song);
+    setAddingToKind('playlist');
+    setIsAddToPlaylistModalOpen(true);
+  };
+
+  const openAddToWorkspaceModal = (song: Song) => {
+    setSongToAddToPlaylist(song);
+    setAddingToKind('workspace');
     setIsAddToPlaylistModalOpen(true);
   };
 
@@ -1621,6 +1707,12 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
       setSongToAddToPlaylist(null);
       showToast(t('songAddedToPlaylist'));
       playlistsApi.getMyPlaylists(token).then(r => setPlaylists(r.playlists)).catch(() => {});
+      // Rafraichit l'union des chansons "dans un espace" — sans ca, une
+      // chanson qu'on vient de ranger dans un espace resterait visible
+      // dans "Mon espace de travail" jusqu'au prochain rechargement complet.
+      if (addingToKind === 'workspace') {
+        refreshWorkspaceSongIds();
+      }
     } catch (error) {
       console.error('Add song error:', error);
       showToast(t('failedToAddSong'), 'error');
@@ -1633,16 +1725,85 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     window.history.pushState({}, '', `/playlist/${playlistId}`);
   };
 
+  // Clic sur une carte "Espace de travail" (onglet Bibliotheque) : bascule
+  // vers l'onglet Creer, filtre la liste sur les chansons de cet espace, et
+  // le fil d'Ariane de SongList affiche son vrai nom. Distinct de
+  // handleNavigateToPlaylist : les cartes "Playlist" classiques continuent
+  // d'ouvrir la page PlaylistDetail separee, comportement inchange.
+  //
+  // La liste des chansons n'est PAS disponible sur l'objet `workspace` recu
+  // (issu de GET /playlists, qui ne renvoie qu'un COUNT) — il faut refaire
+  // l'appel GET /playlists/:id ici, au moment du clic, exactement comme le
+  // fait PlaylistDetail.tsx.
+  const handleSelectWorkspace = async (workspace: Playlist) => {
+    setActiveWorkspaceFilter(workspace);
+    setActiveWorkspaceSongIds(null); // vide pendant le chargement
+    setCurrentView('create');
+    setMobileShowList(false);
+    if (!token) return;
+    try {
+      const res = await playlistsApi.getPlaylist(workspace.id, token);
+      setActiveWorkspaceSongIds(new Set((res.songs || []).map((s: any) => s.id)));
+    } catch (e) {
+      console.error('Failed to load workspace songs:', e);
+      setActiveWorkspaceSongIds(new Set()); // echec = liste vide, pas "tout afficher"
+    }
+  };
+
+  // Retour vers la bibliotheque pour choisir un AUTRE espace — avant ce
+  // correctif, on se contentait d'effacer le filtre en restant dans l'onglet
+  // Creer, ce qui ne permettait pas de re-selectionner un espace different.
+  const handleBackToWorkspaces = () => {
+    setActiveWorkspaceFilter(null);
+    setActiveWorkspaceSongIds(null);
+    setLibraryInitialTab('workspaces');
+    setCurrentView('library');
+  };
+
+  // Distinct de handleBackToWorkspaces : reste dans l'onglet Creer, efface
+  // juste le filtre pour retomber sur "Mon espace de travail". Le seul
+  // retour possible auparavant demandait un aller-retour complet par
+  // Bibliotheque > Tous les titres > Creer.
+  const handleClearWorkspaceFilter = () => {
+    setActiveWorkspaceFilter(null);
+    setActiveWorkspaceSongIds(null);
+  };
+
+  // Renommage de l'espace de travail actuellement affiche. Jamais appelable
+  // sur "Mon espace de travail" (virtuel — voir SongList.tsx, le bouton
+  // d'edition n'apparait que si activeWorkspaceFilter est un vrai espace).
+  const handleRenameWorkspace = async (newName: string) => {
+    if (!activeWorkspaceFilter || !token) return;
+    try {
+      const res = await playlistsApi.update(activeWorkspaceFilter.id, { name: newName }, token);
+      // Met a jour l'espace actif (affichage immediat dans le fil d'Ariane)
+      // ET la liste globale (pour que la grille de la Bibliotheque reflete
+      // le nouveau nom sans necessiter un rechargement).
+      setActiveWorkspaceFilter(res.playlist);
+      setPlaylists(prev => prev.map(p => p.id === res.playlist.id ? res.playlist : p));
+    } catch (error) {
+      console.error('Failed to rename workspace:', error);
+      showToast(t('failedToRenameWorkspace'), 'error');
+    }
+  };
+
   const handleUseAsReference = (song: Song) => {
     if (!song.audioUrl) return;
-    setPendingAudioSelection({ target: 'reference', url: song.audioUrl, title: song.title });
+    // Meme correctif que handleCoverSong ci-dessous : mode explicite plutot
+    // que de deriver taskType du mode deja actif au moment du clic.
+    setPendingAudioSelection({ target: 'reference', url: song.audioUrl, title: song.title, mode: 'inspiration' });
     setCurrentView('create');
     setMobileShowList(false);
   };
 
   const handleCoverSong = (song: Song) => {
     if (!song.audioUrl) return;
-    setPendingAudioSelection({ target: 'source', url: song.audioUrl, title: song.title });
+    // mode: 'cover' explicite — sans lui, CreatePanel derivait taskType du
+    // mode DEJA actif au moment du clic (ex: Inspiration), pas de
+    // l'intention reelle de "Reprendre la chanson (Cover)". L'audio se
+    // chargeait bien, mais la section Cover ne s'affichait jamais quand on
+    // declenchait l'action depuis un autre mode que Cover.
+    setPendingAudioSelection({ target: 'source', url: song.audioUrl, title: song.title, mode: 'cover' });
     setCurrentView('create');
     setMobileShowList(false);
   };
@@ -1669,8 +1830,26 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
 
   const handleBackFromPlaylist = () => {
     setViewingPlaylistId(null);
+    // Atterrit sur l'onglet Playlists plutot que "Tous" — sert aussi bien le
+    // bouton retour manuel que la suppression (les deux appellent onBack,
+    // donc cette meme fonction), repondant a la demande d'une redirection
+    // plus logique apres suppression d'une playlist.
+    setLibraryInitialTab('playlists');
     setCurrentView('library');
     window.history.pushState({}, '', '/library');
+  };
+
+  // Retire une playlist supprimee de l'etat local — sans ceci, la carte
+  // restait visible dans la grille apres suppression (App.tsx n'etait
+  // jamais prevenu), et un clic dessus tentait de rouvrir un id qui
+  // n'existe plus cote serveur (404 "Playlist not found"), necessitant un
+  // rechargement complet pour purger l'entree fantome.
+  const handlePlaylistDeleted = (deletedId: string) => {
+    setPlaylists(prev => prev.filter(p => p.id !== deletedId));
+    // Si l'espace supprime contenait des chansons, elles doivent redevenir
+    // visibles dans "Mon espace de travail" — meme logique que le retrait
+    // d'une chanson unique (voir onSongRemovedFromPlaylist).
+    refreshWorkspaceSongIds();
   };
 
   const openVideoGenerator = (song: Song) => {
@@ -1712,15 +1891,27 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
           <LibraryView
             allSongs={allSongs}
             likedSongs={songs.filter(s => likedSongIds.has(s.id))}
-            playlists={playlists}
+            playlists={regularPlaylists}
+            workspaces={workspaces}
+            initialTab={libraryInitialTab}
             referenceTracks={referenceTracks}
             onPlaySong={playSong}
             onCreatePlaylist={() => {
               setSongToAddToPlaylist(null);
+              setCreatingPlaylistKind('playlist');
+              setIsCreatePlaylistModalOpen(true);
+            }}
+            onCreateWorkspace={() => {
+              setSongToAddToPlaylist(null);
+              setCreatingPlaylistKind('workspace');
               setIsCreatePlaylistModalOpen(true);
             }}
             onSelectPlaylist={(p) => handleNavigateToPlaylist(p.id)}
+            onSelectWorkspace={handleSelectWorkspace}
             onAddToPlaylist={openAddToPlaylistModal}
+            onAddToWorkspace={openAddToWorkspaceModal}
+            onCoverSong={handleCoverSong}
+            onUseAsReference={handleUseAsReference}
             onOpenVideo={openVideoGenerator}
             onReusePrompt={handleReuse}
             onDeleteSong={handleDeleteSong}
@@ -1751,6 +1942,8 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
           <PlaylistDetail
             playlistId={viewingPlaylistId}
             onBack={handleBackFromPlaylist}
+            onPlaylistDeleted={handlePlaylistDeleted}
+            onSongRemovedFromPlaylist={refreshWorkspaceSongIds}
             onPlaySong={playSong}
             onSelect={(s) => {
               setSelectedSong(s);
@@ -1798,6 +1991,17 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
 
       case 'create':
       default:
+        // Filtre par espace de travail actif (voir handleSelectWorkspace) :
+        // s'appuie sur activeWorkspaceSongIds, charge par appel API separe.
+        //
+        // Sans espace explicitement selectionne, "Mon espace de travail"
+        // (virtuel — aucune ligne en base, voir session du 25/08/2026)
+        // exclut tout ce qui appartient DEJA a un espace nomme : une
+        // chanson rangee ailleurs ne doit pas rester visible aussi dans la
+        // vue par defaut.
+        const displayedSongs = activeWorkspaceFilter
+          ? songs.filter(s => activeWorkspaceSongIds?.has(s.id))
+          : songs.filter(s => !songsInAnyWorkspace.has(s.id));
         return (
           <div className="flex h-full overflow-hidden relative w-full">
             {/* Create Panel */}
@@ -1834,12 +2038,16 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
               flex-1 flex-col h-full overflow-hidden bg-white dark:bg-suno-DEFAULT transition-colors duration-300
             `}>
               <SongList
-                songs={songs}
+                songs={displayedSongs}
                 currentSong={currentSong}
                 selectedSong={selectedSong}
                 likedSongIds={likedSongIds}
                 isPlaying={isPlaying}
                 referenceTracks={referenceTracks}
+                activeWorkspaceName={activeWorkspaceFilter?.name}
+                onBackToWorkspaces={handleBackToWorkspaces}
+                onClearWorkspaceFilter={handleClearWorkspaceFilter}
+                onRenameWorkspace={handleRenameWorkspace}
                 onPlay={playSong}
                 onSelect={(s) => {
                   setSelectedSong(s);
@@ -1847,6 +2055,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
                 }}
                 onToggleLike={toggleLike}
                 onAddToPlaylist={openAddToPlaylistModal}
+                onAddToWorkspace={openAddToWorkspaceModal}
                 onOpenVideo={openVideoGenerator}
                 onOpenCoverRegen={openCoverRegen}
                 onShowDetails={handleShowDetails}
@@ -1921,6 +2130,13 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
       <div className="flex-1 flex overflow-hidden">
         <Sidebar
           currentView={currentView}
+          onNavigateHome={() => {
+            if (user?.username) {
+              handleNavigateToProfile(user.username);
+            } else {
+              setCurrentView('create');
+            }
+          }}
           onNavigate={(v) => {
             setCurrentView(v);
             if (v === 'create') {
@@ -1986,10 +2202,11 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
       <AddToPlaylistModal
         isOpen={isAddToPlaylistModalOpen}
         onClose={() => setIsAddToPlaylistModalOpen(false)}
-        playlists={playlists}
+        playlists={addingToKind === 'workspace' ? workspaces : regularPlaylists}
         onSelect={addSongToPlaylist}
         onCreateNew={() => {
           setIsAddToPlaylistModalOpen(false);
+          setCreatingPlaylistKind(addingToKind);
           setIsCreatePlaylistModalOpen(true);
         }}
       />
