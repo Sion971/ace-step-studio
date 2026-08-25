@@ -930,5 +930,457 @@ images au lieu de 30. `analyzeAudioOffline`, déclarée `async` sans le moindre
 **Reste ouvert.** Une vidéo de fond courte est mise en boucle par
 repositionnement de l'élément `<video>` à chaque image — 8 000 `currentTime`
 avec une attente jusqu'à 50 ms chacune. Fonctionne, mais ralentit la capture.
+
+---
+
+## 28. Séparation de pistes (Demucs Web) — dépendances distantes et gel mémoire
+
+**Contexte.** Video Studio possède déjà une séparation de pistes fonctionnant
+entièrement dans le navigateur via ONNX Runtime Web (`app/server/public/demucs-web/`),
+accessible depuis le menu d'un morceau (« Extraire les pistes (Stems) ») ou
+directement sur `/demucs-web/?audioUrl=…`. Elle fonctionnait, mais dépendait de
+trois ressources distantes à chaque session — donc inutilisable hors connexion,
+et coûteuse en réseau à chaque ouverture de page.
+
+---
+
+### 28.1 — Le modèle était retéléchargé à chaque session (172 Mo)
+
+**Symptôme.** Chaque ouverture de la page de séparation retélécharge
+`htdemucs_embedded.onnx` (~172 Mo) depuis Hugging Face, alors qu'`app.js`
+contenait déjà une constante `LOCAL_MODEL_URL` pointant vers un fichier local.
+
+**Cause.** La logique de chargement essayait le distant **en premier**, le local
+en repli — l'inverse de ce qu'on veut pour une application locale :
+
+```js
+// avant
+try {
+  await processor.loadModel(DEFAULT_MODEL_URL);   // distant, ~172 Mo
+} catch {
+  await processor.loadModel(LOCAL_MODEL_URL);     // local, jamais atteint
+}
+```
+
+Et le fichier local référencé par `LOCAL_MODEL_URL = '../models/htdemucs_embedded.onnx'`
+n'existait pas sur le disque.
+
+**Solution.**
+
+1. Télécharger le modèle une fois dans `app/server/public/models/htdemucs_embedded.onnx`
+   (voir `fetch-assets.sh`, §28.5).
+2. Inverser l'ordre : local d'abord, distant en repli si le fichier local est absent.
+3. **Servir `/models` avant le catch-all SPA.** Sans montage explicite,
+   `express` renvoyait `index.html` avec un statut **200** pour toute URL
+   inconnue — le fetch réussissait, mais `InferenceSession.create` échouait
+   ensuite sur du HTML avec un message de bas niveau sans rapport
+   (`protobuf parsing failed`), qui a fait perdre un temps considérable à
+   chercher une corruption de fichier inexistante :
+
+```ts
+// index.ts — DOIT précéder le catch-all SPA
+app.use('/models', express.static(path.join(__dirname, '../public/models')));
+```
+
+**Diagnostic pour la prochaine fois.** Avant de suspecter le fichier, vérifier
+ce que le serveur sert réellement :
+
+```bash
+curl -sI http://localhost:3001/models/htdemucs_embedded.onnx | grep -i content-type
+```
+
+`application/octet-stream` = bon. `text/html` = le catch-all répond à la
+place du fichier statique, quel que soit le code retourné par `curl` (souvent
+200, ce qui trompe une vérification rapide qui ne regarde que le statut).
+
+---
+
+### 28.2 — Le runtime ONNX venait encore d'un CDN
+
+**Symptôme.** Une fois le modèle local en place, la séparation échoue toujours
+hors connexion.
+
+**Cause.** `app.js` importe le runtime ONNX Runtime Web directement depuis
+jsdelivr :
+
+```js
+import * as ort from 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.all.mjs';
+```
+
+Ce runtime charge lui-même dynamiquement ses fichiers `.wasm` (calcul réel)
+depuis la même origine que le script importé.
+
+**Solution.** Rapatrier le runtime en local (`npm pack onnxruntime-web@1.21.0`,
+voir `fetch-assets.sh`), importer le fichier local, et surtout fixer le chemin
+de résolution des `.wasm` en **absolu** :
+
+```js
+import * as ort from '/vendor/onnxruntime/ort.all.min.mjs';
+
+// ABSOLU impératif : un chemin relatif est résolu depuis l'emplacement de
+// ort.all.min.mjs lui-même (déjà /vendor/onnxruntime/), pas depuis la page —
+// un chemin du type '../vendor/onnxruntime/' produit un /vendor/vendor/
+// silencieusement erroné.
+ort.env.wasm.wasmPaths = '/vendor/onnxruntime/';
+```
+
+Piège de vérification : un test de repli volontaire vers le CDN a révélé que
+`wasmPaths` était bien appliqué — l'URL en échec devenait
+`https://cdn.jsdelivr.net/vendor/onnxruntime/...`, confirmant le mécanisme —
+ce qui a permis d'écarter une fausse piste (suspicion sur `ort.all.min.mjs`
+lui-même) avant de trouver la vraie cause en 28.3.
+
+Ne garder que les fichiers nécessaires à l'exécution WASM pure (pas de WebGPU
+disponible sur toutes les machines) : `ort.all.min.mjs`,
+`ort-wasm-simd-threaded.{wasm,mjs}`, `ort-wasm-simd-threaded.jsep.{wasm,mjs}`.
+Les variantes WebGL/WebGPU/Node du paquet npm (~150 Mo à elles seules) sont
+inutiles ici.
+
+---
+
+### 28.3 — Blocages intermittents malgré des fichiers locaux corrects
+
+**Symptôme.** Modèle et runtime tous deux servis localement, avec les bons
+types MIME, et pourtant le chargement échoue de façon **intermittente** :
+dans l'onglet Réseau, des requêtes identiques vers
+`ort-wasm-simd-threaded.jsep.mjs` alternent entre succès (304) et
+`NS_ERROR_BLOCKED_BY_POLICY`, sans schéma apparent.
+
+**Fausse piste explorée.** Le nombre de threads (12, un par cœur) a été
+suspecté — le runtime crée onze workers qui rechargent le même module en
+rafale, ce qui ressemble à une course. Réduire `ort.env.wasm.numThreads` à 4
+n'a rien changé : ce n'était pas la cause.
+
+**Cause réelle.** L'isolement cross-origin (nécessaire à `SharedArrayBuffer`
+et donc au multithreading WASM) exige **deux** en-têtes simultanés sur
+**chaque sous-ressource** de la page, pas seulement le document HTML :
+
+```
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+Le montage `/demucs-web` posait bien les deux sur les fichiers qu'il sert.
+Mais `/models` et `/vendor` — ajoutés après coup, montés séparément — n'en
+avaient **aucun**. Firefox active `crossOriginIsolated = true` de façon
+optimiste au chargement de la page, puis rejette silencieusement, requête par
+requête, toute sous-ressource dépourvue de `COEP` : d'où le mélange
+succès/échec sur une URL identique, qui n'a rien à voir avec de la
+concurrence.
+
+**Diagnostic.** `crossOriginIsolated` dans la console renvoie `true` même
+quand le problème est présent — ne pas s'y fier seul. Le tell est dans
+l'onglet Réseau → en-têtes de réponse d'une requête vers `/models/…` ou
+`/vendor/…` : `Cross-Origin-Embedder-Policy` y est absent alors qu'il est
+présent sur les requêtes vers `/demucs-web/…`.
+
+**Solution.** Poser les deux en-têtes sur `/models` et `/vendor` également :
+
+```ts
+app.use('/models', (req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  next();
+}, express.static(path.join(__dirname, '../public/models')));
+
+app.use('/vendor', (req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  next();
+}, express.static(path.join(__dirname, '../public/vendor')));
+```
+
+**Règle générale.** Sur une page dépendant de l'isolement cross-origin, tout
+nouveau montage statique qui lui sert des ressources doit reproduire les deux
+en-têtes — ils ne s'héritent pas d'un préfixe de route à un autre.
+
+---
+
+### 28.4 — Gel de l'interface pendant l'extraction (contention mémoire)
+
+**Symptôme.** Une fois 28.1-28.3 résolus, l'extraction aboutit mais Firefox
+propose parfois d'arrêter la page pendant le traitement.
+
+**Diagnostic.**
+
+```bash
+watch -n 2 free -h
+```
+
+Mesuré pendant une extraction avec ACE-Step chargé en parallèle : **13 Go
+utilisés sur 15,9 Go, 515 Mo libres, 1,7 Go de swap sollicité**. `--no-lm`
+(désactivation du seul LM local) ne change presque rien à ce chiffre — le
+poids vient du DiT et du déchargement CPU permanent d'ACE-Step (voir §25),
+pas du modèle de langage.
+
+**Cause.** Deux moteurs d'inférence lourds coexistent sur une machine à
+16 Go : ACE-Step (DiT + déchargement CPU) et l'inférence WASM de Demucs
+(~180 Mo de protobuf décodé, poids et graphe alloués en mémoire de travail).
+Sous cette pression, le système swappe, et un swap actif ralentit
+suffisamment le rendu de la page pour déclencher l'avertissement "page ne
+répond pas" de Firefox — ce n'est pas un blocage logique, la page continue de
+progresser en arrière-plan.
+
+**Contournement actuel (manuel).** Décharger le pipeline ACE-Step (bouton
+existant dans l'onglet Modèles) avant de lancer une séparation. Sans ACE-Step
+chargé, l'extraction dispose d'une marge confortable.
+
+**Solution propre — non implémentée.** Le même motif que l'entraînement LoRA
+(§3) : deux tâches qui ne peuvent pas cohabiter sur une machine à VRAM/RAM
+limitée. Généraliser le mécanisme de déchargement déjà utilisé par
+l'entraînement pour qu'il se déclenche aussi avant une séparation de pistes,
+plutôt que de dupliquer la logique une troisième fois pour la conversion MIDI
+à venir.
+
+---
+
+### 28.5 — `fetch-assets.sh`
+
+Script de rapatriement pour les deux ressources ci-dessus, à lancer une fois
+après un clone du dépôt. Les dossiers cibles sont dans `.gitignore` — ~210 Mo
+au total, hors dépôt :
+
+```bash
+./fetch-assets.sh
+```
+
+Idempotent : vérifie la taille des fichiers déjà présents avant de
+retélécharger quoi que ce soit. La taille du modèle Demucs est vérifiée au
+bit près (`Content-Length` confirmé) ; celle des fichiers du runtime ONNX
+seulement approximativement, npm n'exposant que des tailles arrondies.
+
+**À faire si le dépôt gagne un jour un mécanisme d'installation
+automatisé** : appeler ce script depuis `run.sh` ou l'équivalent, pour que
+l'étape ne soit plus manuelle.
+
+---
+
+### 28.6 — `pytorch_wavelets` sous Python 3.12 (DCW)
+
+Note indépendante, sans lien avec la séparation de pistes, mais rencontrée le
+même jour et concernant le même profil d'environnement.
+
+**Symptôme.** `pytorch_wavelets` échoue à charger ses coefficients de filtre
+(`coeffs.py`) sous Python 3.12, la faute à `pkg_resources`, retiré de
+`setuptools` récent.
+
+**Solution**, dans
+`.venv/lib/python3.12/site-packages/pytorch_wavelets/dtcwt/coeffs.py` :
+
+```python
+# avant
+from pkg_resources import resource_stream
+
+# après — 2 lignes, rend le paquet independant de pkg_resources/setuptools
+import importlib.resources as resources
+
+def resource_stream(package, resource):
+    return resources.files(package).joinpath(resource).open("rb")
+```
+
+**Portée.** Modification appliquée directement dans l'environnement virtuel :
+ne survit pas à une reconstruction du `.venv`. À documenter dans le script
+d'installation si le DCW (§11) doit rester utilisable sous Python 3.12 sans
+intervention manuelle répétée.
+
+---
+
+### 28.7 — Piste explorée et abandonnée : déchargement automatique avant séparation
+
+**Objectif initial.** Généraliser le contournement manuel de 28.4 (décharger
+ACE-Step avant une séparation de pistes) en appel automatique depuis
+`demucs-web`, sur le modèle de ce qui existe pour l'entraînement LoRA.
+
+**Ce qu'on a découvert en creusant.** Il n'existe pas de mécanisme de
+déchargement réutilisable côté moteur.
+
+- `unload_models(*models)` (`acestep/training_v2/model_loader.py:376`) est
+  générique et fonctionne bien, mais n'est appelée que dans le chemin
+  d'entraînement (`estimate.py`, `preprocess.py`) — jamais depuis le serveur
+  API de génération.
+- La route `/v1/init` (`acestep/api/http/model_service_routes.py`) ne connaît
+  qu'un seul mode : charger/remplacer un modèle. `InitModelRequest` n'a aucun
+  champ permettant « décharge et ne recharge rien ».
+- `initialize_service()`, qui fait le travail réel
+  (`acestep/core/generation/handler/init_service_orchestrator.py:48`),
+  déclare explicitement dans sa docstring qu'**elle ne décharge jamais
+  l'ancien modèle avant de charger le nouveau** :
+
+  > *"it does not short-circuit when components are already loaded"*
+
+  Chaque changement de modèle (y compris depuis `ModelMenu.tsx`) charge donc
+  le nouveau par-dessus l'ancien, en comptant sur le ramasse-miettes Python et
+  un éventuel `torch.cuda.empty_cache()` en aval pour récupérer la mémoire —
+  sans garantie de timing. Cause plausible, non confirmée, de pics mémoire
+  observés ailleurs dans cette session.
+
+**Pourquoi on s'est arrêté là.** Ajouter un vrai `/v1/unload` demanderait de
+modifier `initialize_service` — ou d'écrire une fonction sœur qui connaît tous
+les attributs qu'elle peuple (`self.dit`, `self.vae`, LM, tokenizer, cache…)
+sans filet de tests pour vérifier qu'aucun n'est oublié. C'est une
+modification du cœur du chargement de modèle d'ACE-Step, pas un ajout
+d'endpoint isolé — hors de portée d'une session, et pas le genre de risque à
+prendre sans tests dédiés.
+
+**Contournement retenu.** Décharger manuellement via l'onglet Modèles avant
+une séparation de pistes (voir 28.4). Zéro risque, un clic.
+
+**Pour qui reprend ce chantier.** Le point d'entrée logique est
+`InitServiceOrchestratorMixin.initialize_service` — regarder la suite de la
+méthode (au-delà de la ligne 140) pour inventorier tous les attributs qu'elle
+peuple, avant d'écrire une méthode `unload()` sœur qui les libère tous via
+`unload_models(*[...])`. Traiter ça comme une modification du moteur ACE-Step
+en amont, avec ses propres tests, pas comme un patch du portage Studio.
+
+---
+
+## 29. Playlists vs Espaces de travail — séparation, et bugs qui en ont découlé
+
+**Contexte.** Une fonctionnalité « Espaces de travail » a été construite par
+petites étapes sur plusieurs sessions : d'abord réutilisant entièrement les
+données de Playlist (deux onglets, mêmes données — délibéré à l'époque, pour
+avancer vite), puis séparée réellement une fois le partage jugé gênant en
+pratique (« créer un espace se répercute sur playlist et vice versa »).
+
+### 29.1 — Séparation par colonne `kind`, pas par table séparée
+
+Décision retenue après discussion : ajouter une colonne `kind` (`'playlist'`
+par défaut, ou `'workspace'`) sur la table `playlists` existante, plutôt que
+créer une table dédiée. Réutilise toute l'infrastructure déjà en place
+(création, ajout de chanson, suppression), pas de duplication.
+
+**Piège découvert en préparant la migration** : ce projet utilise
+**SQLite** via `better-sqlite3` (confirmé dans `db/pool.ts`), pas
+PostgreSQL — malgré une syntaxe de requêtes (`$1, $2`, `RETURNING *`) qui y
+ressemble fortement. Une première migration écrite en SQL PostgreSQL
+(`ALTER TABLE ... ADD CONSTRAINT`) aurait échoué : SQLite ne supporte pas
+l'ajout de contrainte `CHECK` après coup sans reconstruire toute la table.
+Solution : script Node.js (`run-migration-kind.mjs`) utilisant directement
+`better-sqlite3`, la même bibliothèque que le serveur — élimine tout risque
+d'incompatibilité de version entre un `sqlite3` système et le binaire
+embarqué. Sauvegarde automatique du fichier avant modification, vérification
+d'idempotence (colonne déjà présente = ne rien refaire).
+
+**Piège Express** : toute nouvelle route de préfixe fixe (`GET
+/workspace-song-ids`) doit être déclarée **avant** `GET /:id` dans le
+routeur, sinon Express interprète le préfixe comme une valeur de `:id` et la
+route n'est jamais atteinte.
+
+### 29.2 — « Mon espace de travail » : virtuel, pas une ligne en base
+
+Deux options envisagées pour le fil d'Ariane par défaut : une vraie ligne
+créée à l'installation (avec migration pour les comptes existants, logique
+d'attribution automatique à chaque génération, protection contre le
+renommage/suppression), ou une vue calculée par exclusion. La seconde a été
+retenue — plus simple, aucune migration supplémentaire, et explique
+naturellement pourquoi cette vue n'est ni renommable ni supprimable :
+elle n'existe pas en tant qu'entité.
+
+**Implémentation** : `GET /api/playlists/workspace-song-ids` renvoie l'union
+des identifiants de chansons appartenant à *n'importe quel* espace nommé
+d'un utilisateur (une seule requête SQL, pas N appels). Côté client, la vue
+par défaut affiche toutes les chansons **sauf** celles présentes dans cette
+union. Rafraîchi à quatre moments : chargement initial, ajout d'une chanson
+à un espace, retrait d'une chanson, suppression d'un espace entier — chacun
+de ces cas change potentiellement l'ensemble d'exclusion, et un oubli aurait
+laissé une chanson invisible ou visible à tort jusqu'au prochain
+rechargement complet (motif déjà rencontré plusieurs fois, voir §29.3).
+
+### 29.3 — État périmé après suppression de playlist
+
+**Symptôme.** Suppression d'une playlist réussie côté serveur, mais sa
+carte reste visible et cliquable dans la grille. Cliquer dessus tente de
+rouvrir un identifiant qui n'existe plus → 404 (« Playlist not found »).
+Seul un rechargement complet (Ctrl+Maj+R) purge l'entrée fantôme.
+
+**Cause.** `PlaylistDetail.tsx` appelait bien l'API de suppression, mais ne
+prévenait jamais le composant parent (`App.tsx`) — son état local
+`playlists` n'était donc jamais mis à jour.
+
+**Correctif.** Callback `onPlaylistDeleted`, appelé après succès de
+l'appel API, qui retire la ligne de l'état local. Même motif appliqué à
+`onSongRemovedFromPlaylist` (retrait d'une chanson) pour la même raison —
+sans lui, une chanson retirée d'un espace resterait exclue à tort de « Mon
+espace de travail » (voir §29.2) jusqu'à rechargement.
+
+**Leçon générale** : toute action qui modifie une relation chanson↔espace
+côté serveur doit avoir un chemin de retour explicite vers l'état du
+composant parent qui affiche des vues dérivées de cette relation. Un
+`console.error` silencieux en cas d'échec ne suffit pas non plus — voir
+§29.4 pour un cas où l'absence totale de callback avait rendu une action
+entièrement muette, sans la moindre erreur.
+
+### 29.4 — Actions du menu déroulant silencieuses depuis la Bibliothèque
+
+**Symptôme.** « Reprendre la chanson (Cover) » et « Utiliser comme
+référence » ne faisaient rien du tout, sans erreur console, quand
+déclenchées depuis l'onglet Bibliothèque — alors qu'elles fonctionnaient
+(avec un bug différent, voir §29.5) depuis l'onglet Créer.
+
+**Cause.** `LibraryView.tsx` affiche `SongDropdownMenu` directement, sans
+passer par `SongList`/`SongItem`. Trois callbacks (`onCoverSong`,
+`onUseAsReference`, `onAddToWorkspace`) n'étaient tout simplement jamais
+déclarés dans son interface de props ni transmis à ses deux instances
+internes de `SongDropdownMenu` — ni erreur de compilation (props
+optionnelles) ni erreur d'exécution (`handleAction(undefined)` se contente
+de fermer le menu), juste un silence total.
+
+**Correctif.** Les trois callbacks ajoutés à l'interface, à la
+déstructuration, et transmis aux deux blocs `<SongDropdownMenu>`.
+
+**Leçon générale** : quand un même menu contextuel (`SongDropdownMenu`)
+est intégré à plusieurs endroits du code (`SongList`/`SongItem` d'un côté,
+`LibraryView` de l'autre, sans partager de composant commun), toute
+nouvelle action ajoutée doit être vérifiée aux **deux** points d'intégration
+— sinon elle ne fonctionne que là où elle a été testée en premier.
+
+### 29.5 — Cover/Reference : audio chargé, mais section pas affichée
+
+**Symptôme.** Cliquer sur « Reprendre la chanson (Cover) » depuis
+l'intérieur de l'onglet Créer (par exemple en filtrant sur un espace de
+travail) chargeait bien l'audio, mais la section « Cover » ne s'affichait
+jamais — l'interface restait sur le mode déjà actif.
+
+**Cause.** `applyAudioTargetUrl` (CreatePanel.tsx) dérivait `taskType` du
+mode **déjà actif** au moment du clic, pas de l'intention réelle de
+l'action :
+```ts
+const mode = AUDIO_MODE_MAP[audioMode];  // mode COURANT, pas celui visé
+setTaskType(mode.field === target ? mode.taskType : 'text2music');
+```
+Si tu étais sur Inspiration en cliquant Cover, `taskType` retombait sur
+`text2music` : l'audio se chargeait dans le bon emplacement mais rien ne
+disait à l'interface de changer de section pour le montrer. Sans erreur,
+sans plantage — juste un état incohérent.
+
+**Correctif.** `pendingAudioSelection` transporte désormais un `mode`
+explicite (`AudioModeId`), fixé par l'appelant (`handleCoverSong` →
+`'cover'`, `handleUseAsReference` → `'inspiration'`). `applyAudioTargetUrl`
+bascule `audioMode` **avant** de calculer `taskType`, en lisant le
+paramètre reçu plutôt que l'état React (asynchrone — le relire juste après
+`setAudioMode()` aurait donné l'ancienne valeur, piège classique de
+fermeture obsolète).
+
+### 29.6 — Recherche qui plante : `.tags.some is not a function`
+
+**Symptôme.** Taper le premier caractère dans la recherche, à l'intérieur
+d'un espace de travail filtré, faisait planter tout le rendu de l'onglet
+Créer (écran noir).
+
+**Cause.** `song.tags.some(...)`, appelé sans protection dans le filtre de
+recherche. Toutes les voies de construction d'objet chanson vérifiées
+(`refreshSongsList` dans App.tsx, le mapping de `PlaylistDetail.tsx`)
+fixent correctement `tags: s.tags || []` — la source exacte du morceau
+fautif n'a **pas** été identifiée avec certitude cette session.
+
+**Correctif.** Garde-fou défensif (`Array.isArray(song.tags) ? song.tags :
+[]`), étendu par précaution à `title`/`style` (même risque de `.toLowerCase()`
+sur `undefined`). Rend le plantage impossible sans avoir besoin de connaître
+la cause exacte — mais celle-ci reste à élucider si elle se reproduit.
+
+**Piège de plantage identique déjà rencontré** : voir la découverte de
+`createdAt` en `snake_case` au lieu de `camelCase` dans `PlaylistDetail.tsx`
+(§29.3-adjacent, session du 24/08) — même famille de bug (objet chanson
+divergent de la forme canonique), cause différente cette fois.
 Décoder la boucle une seule fois vers un tableau d'images serait la bonne
 approche.

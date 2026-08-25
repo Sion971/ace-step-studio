@@ -32,3 +32,8 @@ torchcodec/
 *.pyc
 *.bak
 *.log
+
+# Poids de modèles et runtimes téléchargés à l'installation.
+# 173 Mo pour htdemucs seul — hors dépôt, rapatriés par fetch-assets.sh.
+app/server/public/models/
+app/server/public/vendor/

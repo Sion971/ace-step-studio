@@ -184,6 +184,7 @@ export const fr = {
     coverStrength: 'Force de la reprise',
     workspaces: 'Espaces de travail',
     myWorkspace: 'Mon espace de travail',
+    createNewWorkspace: 'Créer un nouvel espace de travail',
     selectAll: 'Tout sélectionner',
     nSelected: 'sélectionné(s)',
     renameSong: 'Renommer la chanson',
@@ -263,6 +264,7 @@ export const fr = {
     scrollToResize: 'Faire défiler pour redimensionner',
     generationFailed: 'La génération a échoué. Veuillez réessayer.',
     playlistCreated: 'Playlist créée avec succès !',
+    workspaceCreated: 'Espace de travail créé avec succès !',
     failedToCreatePlaylist: 'Échec de la création de la playlist',
     songAddedToPlaylist: 'Chanson ajoutée à la playlist',
     failedToAddSong: 'Échec de l’ajout de la chanson à la playlist',
@@ -616,6 +618,8 @@ export const fr = {
     selectSongToView: 'Sélectionnez une chanson pour voir les détails',
     noSongsMatchFilters: 'Aucune chanson ne correspond à vos filtres.',
     clearFilters: 'Effacer les filtres',
+    renameWorkspace: 'Renommer l\'espace de travail',
+    failedToRenameWorkspace: 'Échec du renommage',
 
     // RightSidebar - Song Details
     songDetails: 'Détails de la chanson',
@@ -672,10 +676,11 @@ export const fr = {
 
     // Library View
     yourLibrary: 'Votre bibliothèque',
+    allSongs: 'Tous les titres',
     newPlaylist: 'Nouvelle playlist',
     likedSongs: 'Titres aimés',
     playlists: 'Playlists',
-    playlist: 'Playlist',
+    uploads: 'Téléchargés',
     byYou: 'Par vous',
 
     // User Profile
@@ -711,6 +716,7 @@ export const fr = {
     playlistDescription: 'Description',
     descriptionPlaceholder: 'Ambiance pour coder...',
     addToPlaylist: 'Ajouter à la playlist',
+    addToWorkspace: 'Ajouter à l\'espace de travail',
     createNewPlaylist: 'Créer une nouvelle playlist',
     noExistingPlaylists: 'Aucune playlist existante.',
 
