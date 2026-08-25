@@ -654,14 +654,21 @@ export interface Playlist {
 }
 
 export const playlistsApi = {
-  create: (name: string, description: string, isPublic: boolean, token: string): Promise<{ playlist: Playlist }> =>
-    api('/api/playlists', { method: 'POST', body: { name, description, isPublic }, token }),
+  create: (name: string, description: string, isPublic: boolean, token: string, kind: 'playlist' | 'workspace' = 'playlist'): Promise<{ playlist: Playlist }> =>
+    api('/api/playlists', { method: 'POST', body: { name, description, isPublic, kind }, token }),
 
   getMyPlaylists: (token: string): Promise<{ playlists: Playlist[] }> =>
     api('/api/playlists', { token }),
 
   getPlaylist: (id: string, token?: string | null): Promise<{ playlist: Playlist, songs: any[] }> =>
     api(`/api/playlists/${id}`, { token: token || undefined }),
+
+  // Union des chansons appartenant a N'IMPORTE QUEL espace de travail —
+  // sert a calculer la vue par defaut "Mon espace de travail" (tout SAUF
+  // ce qui est deja dans un espace nomme). Doit rester en phase avec la
+  // route serveur du meme nom, deliberement placee AVANT GET /:id.
+  getWorkspaceSongIds: (token: string): Promise<{ songIds: string[] }> =>
+    api('/api/playlists/workspace-song-ids', { token }),
 
   getFeaturedPlaylists: (): Promise<{ playlists: Array<Playlist & { creator?: string; creator_avatar?: string }> }> =>
     api('/api/playlists/public/featured'),

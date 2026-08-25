@@ -19,7 +19,7 @@ async function resolveAccessibleAudioUrl(audioUrl: string | null, isPublic: bool
 // Create playlist
 router.post('/', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const { name, description, isPublic, coverUrl } = req.body;
+        const { name, description, isPublic, coverUrl, kind } = req.body;
 
         if (!name) {
             res.status(400).json({ error: 'Name is required' });
@@ -27,10 +27,10 @@ router.post('/', authMiddleware, async (req: AuthenticatedRequest, res: Response
         }
 
         const result = await pool.query(
-            `INSERT INTO playlists (user_id, name, description, is_public, cover_url)
-             VALUES ($1, $2, $3, $4, $5)
+            `INSERT INTO playlists (user_id, name, description, is_public, cover_url, kind)
+             VALUES ($1, $2, $3, $4, $5, $6)
              RETURNING *`,
-            [req.user!.id, name, description, isPublic || false, coverUrl]
+            [req.user!.id, name, description, isPublic || false, coverUrl, kind === 'workspace' ? 'workspace' : 'playlist']
         );
 
         res.status(201).json({ playlist: result.rows[0] });
@@ -95,6 +95,30 @@ router.get('/public/featured', async (_req, res: Response) => {
         res.json({ playlists: result.rows });
     } catch (error) {
         console.error('Get featured playlists error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Union des identifiants de chansons a travers TOUS les espaces de travail
+// (kind='workspace') d'un utilisateur — sert a calculer la vue par defaut
+// "Mon espace de travail" cote client : tout SAUF ce qui appartient
+// explicitement a un espace nomme. Une seule requete plutot que N appels
+// (un par espace), qui deviendrait lent a mesure que la liste grandit.
+//
+// IMPORTANT : doit rester déclarée AVANT `GET /:id` ci-dessous — sinon
+// Express interpreterait "workspace-song-ids" comme une valeur de :id.
+router.get('/workspace-song-ids', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const result = await pool.query(
+            `SELECT DISTINCT ps.song_id
+             FROM playlist_songs ps
+             JOIN playlists p ON p.id = ps.playlist_id
+             WHERE p.user_id = $1 AND p.kind = 'workspace'`,
+            [req.user!.id]
+        );
+        res.json({ songIds: result.rows.map((r: { song_id: string }) => r.song_id) });
+    } catch (error) {
+        console.error('Get workspace song ids error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

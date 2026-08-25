@@ -45,6 +45,12 @@ export interface Playlist {
   created_at?: string;
   song_count?: number;
   songs?: any[];
+  // 'playlist' (defaut) ou 'workspace' — separation introduite pour
+  // distinguer les Espaces de travail des vraies Playlists, qui partageaient
+  // auparavant les memes donnees (voir migration_playlists_kind.sql).
+  // Absent sur les lignes anterieures a la migration : toujours traiter
+  // une valeur manquante comme 'playlist', jamais comme 'workspace'.
+  kind?: 'playlist' | 'workspace';
 }
 
 export interface Comment {
