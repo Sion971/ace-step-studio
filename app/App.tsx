@@ -1669,6 +1669,10 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
       setPlaylists(prev => [res.playlist, ...prev]);
 
       if (songToAddToPlaylist) {
+        // Meme exclusivite que addSongToPlaylist — voir son commentaire.
+        if (creatingPlaylistKind === 'workspace') {
+          await playlistsApi.removeSongFromAllWorkspaces(songToAddToPlaylist.id, token);
+        }
         await playlistsApi.addSong(res.playlist.id, songToAddToPlaylist.id, token);
         setSongToAddToPlaylist(null);
         playlistsApi.getMyPlaylists(token).then(r => setPlaylists(r.playlists)).catch(() => {});
@@ -1679,6 +1683,9 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         // tort dans "Mon espace de travail" jusqu'a rechargement complet.
         if (creatingPlaylistKind === 'workspace') {
           refreshWorkspaceSongIds();
+          if (activeWorkspaceFilter) {
+            refreshActiveWorkspaceSongIds(activeWorkspaceFilter.id);
+          }
         }
       }
       showToast(creatingPlaylistKind === 'workspace' ? t('workspaceCreated') : t('playlistCreated'));
@@ -1703,6 +1710,15 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
   const addSongToPlaylist = async (playlistId: string) => {
     if (!songToAddToPlaylist || !token) return;
     try {
+      // Exclusivite d'appartenance pour les espaces de travail : retire
+      // d'abord le morceau de TOUT espace ou il se trouvait deja, sinon
+      // l'ajout se contentait de dupliquer sa presence dans les deux — le
+      // morceau devient visible dans deux espaces a la fois au lieu d'un
+      // vrai deplacement. Les playlists classiques restent many-to-many,
+      // pas de retrait pour elles.
+      if (addingToKind === 'workspace') {
+        await playlistsApi.removeSongFromAllWorkspaces(songToAddToPlaylist.id, token);
+      }
       await playlistsApi.addSong(playlistId, songToAddToPlaylist.id, token);
       setSongToAddToPlaylist(null);
       showToast(t('songAddedToPlaylist'));
@@ -1712,6 +1728,13 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
       // dans "Mon espace de travail" jusqu'au prochain rechargement complet.
       if (addingToKind === 'workspace') {
         refreshWorkspaceSongIds();
+        // Si on est DEJA a l'interieur d'un espace au moment du
+        // deplacement (activeWorkspaceFilter non nul), son contenu affiche
+        // peut avoir change — soit le morceau vient d'en partir, soit (cas
+        // rare) on l'a re-ajoute au meme espace. Toujours sur, jamais nuisible.
+        if (activeWorkspaceFilter) {
+          refreshActiveWorkspaceSongIds(activeWorkspaceFilter.id);
+        }
       }
     } catch (error) {
       console.error('Add song error:', error);
@@ -1735,19 +1758,28 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
   // (issu de GET /playlists, qui ne renvoie qu'un COUNT) — il faut refaire
   // l'appel GET /playlists/:id ici, au moment du clic, exactement comme le
   // fait PlaylistDetail.tsx.
+  // Recharge les identifiants de l'espace ACTUELLEMENT affiche (distinct de
+  // refreshWorkspaceSongIds, qui couvre l'union de TOUS les espaces pour la
+  // vue par defaut). Factorise depuis handleSelectWorkspace pour etre
+  // reutilisable apres qu'un morceau ait bouge pendant qu'on est deja a
+  // l'interieur d'un espace — sans ca, deplacer un morceau hors de l'espace
+  // affiche le laissait visible a tort jusqu'a un nouveau clic sur la carte.
+  const refreshActiveWorkspaceSongIds = useCallback(async (workspaceId: string) => {
+    if (!token) return;
+    try {
+      const res = await playlistsApi.getPlaylist(workspaceId, token);
+      setActiveWorkspaceSongIds(new Set((res.songs || []).map((s: any) => s.id)));
+    } catch (e) {
+      console.error('Failed to refresh active workspace songs:', e);
+    }
+  }, [token]);
+
   const handleSelectWorkspace = async (workspace: Playlist) => {
     setActiveWorkspaceFilter(workspace);
     setActiveWorkspaceSongIds(null); // vide pendant le chargement
     setCurrentView('create');
     setMobileShowList(false);
-    if (!token) return;
-    try {
-      const res = await playlistsApi.getPlaylist(workspace.id, token);
-      setActiveWorkspaceSongIds(new Set((res.songs || []).map((s: any) => s.id)));
-    } catch (e) {
-      console.error('Failed to load workspace songs:', e);
-      setActiveWorkspaceSongIds(new Set()); // echec = liste vide, pas "tout afficher"
-    }
+    refreshActiveWorkspaceSongIds(workspace.id);
   };
 
   // Retour vers la bibliotheque pour choisir un AUTRE espace — avant ce

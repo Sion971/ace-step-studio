@@ -710,9 +710,9 @@ export const fr = {
     saveChanges: 'Enregistrer les modifications',
 
     // Playlist Modals
-    createPlaylist: 'Créer une playlist',
+    createPlaylist: 'Créer un dossier',
     playlistName: 'Nom',
-    playlistNamePlaceholder: 'Ma super playlist',
+    playlistNamePlaceholder: 'Mon nouveau dossier',
     playlistDescription: 'Description',
     descriptionPlaceholder: 'Ambiance pour coder...',
     addToPlaylist: 'Ajouter à la playlist',

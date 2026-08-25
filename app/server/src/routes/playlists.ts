@@ -123,6 +123,35 @@ router.get('/workspace-song-ids', authMiddleware, async (req: AuthenticatedReque
     }
 });
 
+// Retire une chanson de TOUS les espaces de travail (kind='workspace') d'un
+// utilisateur en une seule requete — sert a garantir l'exclusivite
+// d'appartenance : un morceau ne doit vivre que dans UN SEUL espace a la
+// fois, contrairement aux playlists classiques qui restent many-to-many.
+// Appele par le client AVANT d'ajouter le morceau au nouvel espace, pour
+// simuler un vrai deplacement plutot qu'une duplication.
+//
+// Volontairement une route DELETE distincte, jamais un simple appel a
+// DELETE /:id/songs/:songId (qui ne cible qu'UN espace precis) : le client
+// ne connait pas forcement l'identifiant de l'ancien espace au moment du
+// clic, seulement que le morceau appartient DEJA a quelque chose.
+router.delete('/remove-song-from-workspaces/:songId', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { songId } = req.params;
+        await pool.query(
+            `DELETE FROM playlist_songs
+             WHERE song_id = $1
+               AND playlist_id IN (
+                 SELECT id FROM playlists WHERE user_id = $2 AND kind = 'workspace'
+               )`,
+            [songId, req.user!.id]
+        );
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Remove song from workspaces error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // Get playlist by ID
 router.get('/:id', optionalAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {

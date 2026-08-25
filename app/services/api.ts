@@ -670,6 +670,13 @@ export const playlistsApi = {
   getWorkspaceSongIds: (token: string): Promise<{ songIds: string[] }> =>
     api('/api/playlists/workspace-song-ids', { token }),
 
+  // Retire une chanson de TOUS les espaces de travail — appele avant
+  // addSong pour garantir l'exclusivite (un morceau ne vit que dans un
+  // seul espace de travail a la fois, contrairement aux playlists
+  // classiques). Doit rester en phase avec la route serveur du meme nom.
+  removeSongFromAllWorkspaces: (songId: string, token: string): Promise<{ success: boolean }> =>
+    api(`/api/playlists/remove-song-from-workspaces/${songId}`, { method: 'DELETE', token }),
+
   getFeaturedPlaylists: (): Promise<{ playlists: Array<Playlist & { creator?: string; creator_avatar?: string }> }> =>
     api('/api/playlists/public/featured'),
 
