@@ -37,3 +37,4 @@ torchcodec/
 # 173 Mo pour htdemucs seul — hors dépôt, rapatriés par fetch-assets.sh.
 app/server/public/models/
 app/server/public/vendor/
+app/server/basic-pitch-venv/

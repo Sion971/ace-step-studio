@@ -1,8 +1,31 @@
 /**
  * Demucs Web - Stem Extraction for SunoAce
  */
-import * as ort from 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.all.mjs';
+// Runtime local — voir vendor/onnxruntime/. Il venait de jsdelivr, ce qui
+// rendait la separation de pistes inutilisable hors ligne alors que le modele,
+// lui, est deja sur le disque.
+import * as ort from '/vendor/onnxruntime/ort.all.min.mjs';
+
+// Sans ce chemin, le runtime irait chercher ses .wasm sur le CDN — la
+// dependance reseau reviendrait par la porte de service.
+// Chemin ABSOLU : un chemin relatif serait resolu depuis l'emplacement de
+// ort.all.min.mjs, deja dans /vendor/onnxruntime/ — d'ou un /vendor/vendor/.
+ort.env.wasm.wasmPaths = '/vendor/onnxruntime/';
+// Douze threads = onze workers qui rechargent le meme module en rafale,
+// ce qui declenche des blocages intermittents (NS_ERROR_BLOCKED_BY_POLICY)
+// probablement lies a l'isolement cross-origin. Sur une machine deja
+// tendue en RAM face a ACE-Step, moins de threads est de toute facon
+// preferable a l'inference la plus rapide possible.
+ort.env.wasm.numThreads = 4;
 import { DemucsProcessor, CONSTANTS } from './src/index.js';
+// Conversion audio -> MIDI (basic-pitch de Spotify) : desormais cote
+// SERVEUR, dans un venv Python isole (voir app/server/src/routes/midi.ts
+// et setup-basic-pitch-venv.sh). L'ancienne tentative navigateur via
+// TensorFlow.js (import BasicPitch/tf/Midi ici meme) est abandonnee —
+// WebGL echouait a compiler ses shaders sur cette machine, forcant un
+// repli CPU en JavaScript pur (53 minutes pour 19 secondes de musique).
+// L'inference native cote serveur convertit le meme stem en moins de
+// 20 secondes. Voir TROUBLESHOOTING #28-29 pour l'historique complet.
 
 const { SAMPLE_RATE, TRAINING_SAMPLES, TRACKS, DEFAULT_MODEL_URL } = CONSTANTS;
 
@@ -12,6 +35,49 @@ let processor = null;
 let audioContext = null;
 let audioBuffer = null;
 let isProcessing = false;
+
+// Encode un stem stereo (Float32Array 44100 Hz) en WAV PCM 16 bits — format
+// que la route serveur /api/midi/convert accepte en televersement multipart.
+// Remplace toMonoDownsampled + convertStemToMidi (execution navigateur,
+// abandonnee) : plus besoin de decimer/aplatir en mono cote client, le
+// serveur recoit le stem complet et gere le reechantillonnage lui-meme.
+function encodeWavStereo(left, right, sampleRate) {
+    const numSamples = left.length;
+    const blockAlign = 4; // 2 canaux x 2 octets
+    const dataSize = numSamples * blockAlign;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+
+    const writeString = (offset, str) => {
+        for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, 2, true); // stereo
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true); // bits par echantillon
+    writeString(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    let offset = 44;
+    for (let i = 0; i < numSamples; i++) {
+        const l = Math.max(-1, Math.min(1, left[i]));
+        const r = Math.max(-1, Math.min(1, right[i]));
+        view.setInt16(offset, l < 0 ? l * 0x8000 : l * 0x7fff, true);
+        offset += 2;
+        view.setInt16(offset, r < 0 ? r * 0x8000 : r * 0x7fff, true);
+        offset += 2;
+    }
+
+    return new Blob([buffer], { type: 'audio/wav' });
+}
 
 // DOM elements
 const dropZone = document.getElementById('dropZone');
@@ -64,7 +130,10 @@ async function init() {
         }
     }
 
-    ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
+    // Ne PAS reecrire numThreads ici : la valeur voulue (4, voir le
+    // commentaire en tete de fichier) etait ecrasee par cette ligne,
+    // qui s'execute apres le reglage initial et remettait le nombre de
+    // threads au maximum (navigator.hardwareConcurrency).
 
     if (backend === 'webgpu') {
         ort.env.webgpu = ort.env.webgpu || {};
@@ -98,11 +167,13 @@ async function init() {
             }
         },
         onLog: log,
-        onDownloadProgress: (loaded, total) => {
+        onDownloadProgress: (loaded, total, sourceUrl) => {
             const percent = ((loaded / total) * 100).toFixed(1);
             const loadedMB = (loaded / 1024 / 1024).toFixed(1);
             const totalMB = (total / 1024 / 1024).toFixed(1);
-            status.textContent = `Downloading model... ${loadedMB}MB / ${totalMB}MB (${percent}%)`;
+            const isLocal = String(sourceUrl || '').startsWith(location.origin);
+            status.textContent = (isLocal ? 'Lecture du modele local' : 'Telechargement du modele')
+              + ` ... ${loadedMB}MB / ${totalMB}MB (${percent}%)`;
             progressFill.style.width = (loaded / total * 100) + '%';
         }
     });
@@ -110,12 +181,19 @@ async function init() {
     status.textContent = 'Loading AI model...';
 
     try {
+        // Local d'abord : le modele pese 173 Mo et etait retelecharge a
+        // chaque session. Le distant ne sert plus que si le fichier local
+        // est absent (installation incomplete). Voir fetch-assets.sh.
         try {
-            status.textContent = 'Downloading model (~172MB)...';
-            await processor.loadModel(DEFAULT_MODEL_URL);
-        } catch {
-            status.textContent = 'Loading local model...';
+            status.textContent = 'Chargement du modele local...';
             await processor.loadModel(LOCAL_MODEL_URL);
+        } catch (localErr) {
+            // Ce catch attrape TOUTE erreur de loadModel, pas seulement un
+            // fichier absent : runtime ONNX non initialise, memoire, fichier
+            // corrompu... Le message d'origine etait donc trompeur.
+            console.error('[demucs] echec du modele local :', localErr);
+            status.textContent = 'Modele local KO (' + (localErr?.message || localErr) + ') — telechargement...';
+            await processor.loadModel(DEFAULT_MODEL_URL);
         }
         status.textContent = 'Ready - Select an audio file';
         progressFill.style.width = '0%';
@@ -266,10 +344,12 @@ async function startProcessing() {
 
 // Store track URLs for download all feature
 let trackUrls = {};
+let trackBuffers = {};
 
 function displayResults(tracks) {
     trackList.innerHTML = '';
     trackUrls = {};
+    trackBuffers = {};
 
     const TRACK_CONFIG = {
         drums: { icon: '🥁', label: 'Drums' },
@@ -291,6 +371,7 @@ function displayResults(tracks) {
 
         // Store for download all
         trackUrls[fileName] = audioUrl;
+        trackBuffers[trackId] = { left: track.left, right: track.right, label: config.label };
 
         const trackDiv = document.createElement('div');
         trackDiv.className = 'track';
@@ -322,6 +403,12 @@ function displayResults(tracks) {
                     </svg>
                     WAV
                 </a>
+                <button id="midi-btn-${trackId}" class="download-btn" onclick="convertToMidi('${trackId}')" title="Convertir ${config.label} en MIDI">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"/>
+                    </svg>
+                    MIDI
+                </button>
             </div>
 
             <audio id="audio-${trackId}" src="${audioUrl}" preload="metadata"></audio>
@@ -337,7 +424,61 @@ function displayResults(tracks) {
     results.classList.add('visible');
 }
 
-// Download all stems
+// Convertit un stem en MIDI via le serveur (route /api/midi/convert, basic-
+// pitch dans son venv isole — voir encodeWavStereo ci-dessus). Progression
+// moins fine qu'avec l'ancienne tentative navigateur (pas de rappel par
+// image), mais sans objet : la conversion complete prend maintenant
+// quelques secondes, pas assez long pour justifier une barre detaillee.
+window.convertToMidi = async function(trackId) {
+    const btn = document.getElementById(`midi-btn-${trackId}`);
+    const buf = trackBuffers[trackId];
+    if (!buf || !btn) return;
+    const originalLabel = btn.innerHTML;
+    btn.disabled = true;
+    try {
+        btn.innerHTML = '...';
+        const wavBlob = encodeWavStereo(buf.left, buf.right, SAMPLE_RATE);
+        const formData = new FormData();
+        formData.append('audio', wavBlob, `${buf.label}.wav`);
+
+        const response = await fetch('/api/midi/convert', {
+            method: 'POST',
+            body: formData,
+        });
+
+        const contentType = response.headers.get('Content-Type') || '';
+        if (contentType.includes('application/json')) {
+            const data = await response.json();
+            if (data.warning) {
+                // Pas une erreur : un stem tres calme peut legitimement ne
+                // produire aucune note detectee (voir basic_pitch_convert.py).
+                alert(data.warning);
+                return;
+            }
+            throw new Error(data.error || 'Echec de la conversion MIDI.');
+        }
+        if (!response.ok) {
+            throw new Error(`Le serveur a repondu ${response.status}.`);
+        }
+
+        const midiBlob = await response.blob();
+        const midiUrl = URL.createObjectURL(midiBlob);
+        const a = document.createElement('a');
+        a.href = midiUrl;
+        a.download = `${buf.label.toLowerCase()}.mid`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(midiUrl);
+    } catch (err) {
+        console.error('MIDI conversion failed:', err);
+        alert(`Echec de la conversion MIDI : ${err.message || err}`);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalLabel;
+    }
+};
+
 window.downloadAllStems = function() {
     const entries = Object.entries(trackUrls);
     let index = 0;

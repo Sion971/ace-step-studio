@@ -30,6 +30,7 @@ import settingsRoutes from './routes/settings.js';
 import pipelineRoutes from './routes/pipeline.js';
 import renderVideoRoutes from './routes/render-video.js';
 import toolsRoutes from './routes/tools.js';
+import midiRoutes from './routes/midi.js';
 import { pipelineManager } from './services/pipeline-manager.js';
 import { pool } from './db/pool.js';
 import './db/migrate.js';
@@ -113,6 +114,29 @@ app.use(express.json({ limit: '50mb' }));
 
 // Serve static audio files
 app.use('/audio', express.static(path.join(__dirname, '../public/audio')));
+
+// Poids de modeles telecharges a l'installation (voir .gitignore).
+// Doit etre monte AVANT le catch-all SPA, sinon /models/... renvoie
+// index.html avec un statut 200 — et le parseur ONNX echoue sur du HTML.
+// COOP/COEP requis ici aussi : ces fichiers sont charges par la page
+// /demucs-web, et l'isolement cross-origin (necessaire pour SharedArrayBuffer
+// et le multithreading WASM) exige ces en-tetes sur TOUTE sous-ressource,
+// pas seulement sur le document HTML. Sans eux, le navigateur echoue de facon
+// intermittente et silencieuse, requete par requete (NS_ERROR_BLOCKED_BY_POLICY).
+app.use('/models', (req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  next();
+}, express.static(path.join(__dirname, '../public/models')));
+
+// Runtimes JS/WASM rapatries a l'installation (voir .gitignore).
+// Meme contrainte que /models : doit preceder le catch-all SPA.
+// Meme contrainte que /models — voir le commentaire ci-dessus.
+app.use('/vendor', (req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  next();
+}, express.static(path.join(__dirname, '../public/vendor')));
 
 // Audio Editor (AudioMass) - needs relaxed CSP for inline scripts and external images
 app.use('/editor', (req, res, next) => {
@@ -361,6 +385,68 @@ app.get('/api/pexels/videos', async (req, res) => {
   }
 });
 
+// Video proxy for CORS — les URL retournees par /api/pexels/videos pointent
+// vers le CDN Pexels, qui ne renvoie pas d'en-tetes CORS. Le navigateur peut
+// donc afficher la video (elle passe par cette route en <video src>), mais
+// pas la lire pixel par pixel sur un <canvas> pour l'export — le canvas
+// devient "tainted" et toDataURL() leve une SecurityError. Voir
+// TROUBLESHOOTING #26 pour l'historique complet du probleme de fond noir.
+//
+// Diffuse en flux plutot qu'en tampon complet (contrairement au proxy
+// d'image ci-dessus) : une video Pexels pese facilement plusieurs dizaines
+// de Mo, et charger ca entierement en RAM avant de le renvoyer serait une
+// repetition du probleme documente en #25 (accumulation memoire).
+app.get('/api/proxy/video', async (req, res) => {
+  const url = req.query.url as string;
+  if (!url) {
+    res.status(400).json({ error: 'URL required' });
+    return;
+  }
+  // Restreint aux domaines Pexels connus : ce proxy ne doit pas devenir un
+  // relais generique capable de recuperer n'importe quelle URL distante pour
+  // le compte du serveur (SSRF).
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    res.status(400).json({ error: 'Invalid URL' });
+    return;
+  }
+  const allowedHosts = ['videos.pexels.com', 'player.vimeo.com'];
+  if (!allowedHosts.some(h => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`))) {
+    res.status(400).json({ error: 'URL host not allowed' });
+    return;
+  }
+  try {
+    // Transmet Range pour permettre la lecture en avance rapide / le seek
+    // sans devoir retelecharger tout le fichier depuis le debut.
+    const upstreamHeaders: Record<string, string> = {};
+    if (req.headers.range) upstreamHeaders['Range'] = req.headers.range as string;
+
+    const response = await fetch(url, { headers: upstreamHeaders });
+    if (!response.ok || !response.body) {
+      res.status(response.status || 502).json({ error: 'Failed to fetch video' });
+      return;
+    }
+
+    res.status(response.status); // 200 ou 206 (Partial Content) selon Range
+    const passthroughHeaders = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
+    for (const h of passthroughHeaders) {
+      const v = response.headers.get(h);
+      if (v) res.setHeader(h, v);
+    }
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+
+    // @ts-ignore — Response.body (Web ReadableStream) se pipe vers un
+    // ServerResponse Node via Readable.fromWeb, disponible en Node >= 17.
+    const { Readable } = await import('node:stream');
+    Readable.fromWeb(response.body as any).pipe(res);
+  } catch (error) {
+    console.error('Video proxy error:', error);
+    if (!res.headersSent) res.status(500).json({ error: 'Failed to proxy video' });
+  }
+});
+
 // Search endpoint
 app.get('/api/search', async (req, res) => {
   const query = (req.query.q as string)?.trim();
@@ -445,6 +531,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/pipeline', pipelineRoutes);
 app.use('/api/render-video', express.json({ limit: '500mb' }), renderVideoRoutes);
 app.use('/api/tools', toolsRoutes);
+app.use('/api/midi', midiRoutes);
 
 // GET /api/changelog — serve CHANGELOG.md as plain text
 app.get('/api/changelog', (_req, res) => {

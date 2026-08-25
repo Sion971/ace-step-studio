@@ -24,6 +24,23 @@ export const config = {
     backoffMax: 15_000,          // 15 seconds max
   },
 
+  // Conversion audio -> MIDI (basic-pitch, Spotify). Environnement Python
+  // ISOLE, distinct du venv ACE-Step (pipeline.pythonPath ci-dessus) — evite
+  // tout conflit avec les versions figees de torch/torchaudio/numpy
+  // qu'ACE-Step exige. Pas de gestion de processus persistant ici (contraste
+  // avec pipeline.* plus haut) : un appel ponctuel par conversion, le
+  // processus se termine de lui-meme une fois le MIDI ecrit.
+  basicPitch: {
+    pythonPath: process.env.BASIC_PITCH_PYTHON_PATH || path.join(__dirname, '../../basic-pitch-venv/bin/python3'),
+    scriptPath: path.join(__dirname, '../../scripts/basic_pitch_convert.py'),
+    // Timeout genereux mais fini : ONNX sur CPU pour un stem de quelques
+    // minutes devrait prendre quelques secondes, pas les dizaines de
+    // minutes observees avec la tentative navigateur/TensorFlow.js —
+    // si ca depasse ce delai, quelque chose ne va pas, mieux vaut echouer
+    // proprement que bloquer indefiniment.
+    timeoutMs: 120_000,
+  },
+
   // SQLite database
   database: {
     path: process.env.DATABASE_PATH || path.join(__dirname, '../../data/acestep.db'),
