@@ -11,6 +11,9 @@ import { GuidanceSettings } from './GuidanceSettings';
 import { CotDebugToggles, type CotDebugTogglesValues } from './CotDebugToggles';
 import { LmParametersPanel } from './LmParametersPanel';
 import { AudioTransformPanel } from './AudioTransformPanel';
+import { AudioModeHeader } from './AudioModeHeader';
+import { AudioPlayerPanel } from './AudioPlayerPanel';
+import { LmSettings } from './LmSettings';
 import { ModelMenu } from './ModelMenu';
 import { isTurboModel } from '../utils/modelNames';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -23,7 +26,6 @@ import { generateApi, settingsApi } from '../services/api';
 import { MAIN_STYLES } from '../data/genres';
 import { EditableSlider } from './EditableSlider';
 import { UseOpenRouterToggle } from './UseOpenRouterToggle';
-import { LmProviderPanel } from './LmProviderPanel';
 import { GenerationStatusPanel } from './GenerationStatusPanel';
 import { UsePollinationsToggle } from './UsePollinationsToggle';
 import { PollinationsPanel } from './PollinationsPanel';
@@ -1627,6 +1629,33 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       ? tf('warnCoverNoSource', 'Sans audio chargé, Cover génère du texte-à-musique — dépose un fichier pour un vrai cover.')
       : null;
 
+  // Extrait du bloc JSX inline d'origine (bouton "Appliquer les reglages
+  // LM") lors de l'extraction de LmSettings.tsx — logique metier, reste
+  // ici plutot que dans le composant presentationnel, transmise comme
+  // simple callback.
+  const handleApplyLmSettings = async () => {
+    if (!token || !lmModel) return;
+    setModelSwitchStatus(`${tf('applyingLmSettings', 'Restarting pipeline')}...`);
+    try {
+      const res = await fetch('/api/generate/switch-model', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ model: selectedModel, lmModel, lmBackend }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setModelSwitchStatus('');
+        lmEditingRef.current = false; // re-sync from server on next poll
+      } else {
+        setModelSwitchStatus(data.error || 'Failed');
+        setTimeout(() => setModelSwitchStatus(''), 5000);
+      }
+    } catch (err) {
+      setModelSwitchStatus('Error');
+      setTimeout(() => setModelSwitchStatus(''), 5000);
+    }
+  };
+
   const handleGenerate = async () => {
     // Per-click LLM draft from pre-flight (used to populate effStyle/effLyrics/etc
     // and the Pollinations cover prompt). null = pre-flight either didn't run
@@ -2186,229 +2215,55 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               onDragLeave={(e) => { e.currentTarget.classList.remove('ring-2', 'ring-zinc-400/50'); }}
               className="bg-white dark:bg-[#1a1a1f] rounded-xl border border-zinc-200 dark:border-white/5 transition-shadow relative"
             >
-              {/* En-tete : libelle + selecteur de mode */}
-              <div className="px-3 py-2 border-b border-zinc-100 dark:border-white/5 bg-zinc-50 dark:bg-white/[0.02] flex items-center justify-between gap-2">
-                <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide flex-shrink-0">
-                  {tf('audio', 'Audio')}
-                </span>
+              {/* En-tete : libelle + selecteur de mode — voir AudioModeHeader.tsx */}
+              <AudioModeHeader
+                activeAudioUrl={activeAudioUrl}
+                activeAudioMode={activeAudioMode}
+                audioMode={audioMode}
+                showAudioAddMenu={showAudioAddMenu}
+                onToggleAudioAddMenu={() => { setShowAudioAddMenu((v) => !v); setShowAudioMenu(false); }}
+                audioAddMenuRef={audioAddMenuRef}
+                onSelectFromLibrary={() => { setShowAudioAddMenu(false); openAudioModal(audioTarget, 'uploads'); }}
+                onSelectUpload={() => { setShowAudioAddMenu(false); activeAudioInputRef.current?.click(); }}
+                showAudioMenu={showAudioMenu}
+                onToggleAudioMenu={() => { setShowAudioMenu((v) => !v); setShowAudioAddMenu(false); }}
+                audioMenuRef={audioMenuRef}
+                onChangeAudioMode={changeAudioMode}
+                t={t}
+                tf={tf}
+              />
 
-                <div className="flex items-center gap-1 min-w-0">
-                  {!activeAudioUrl && (
-                    <div className="relative flex-shrink-0" ref={audioAddMenuRef}>
-                      <button
-                        type="button"
-                        onClick={() => { setShowAudioAddMenu((v) => !v); setShowAudioMenu(false); }}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors whitespace-nowrap"
-                      >
-                        <Plus size={11} className="flex-shrink-0" />
-                        <span>{tf('addAudio', 'Ajouter')}</span>
-                        <ChevronDown size={10} className={`flex-shrink-0 transition-transform ${showAudioAddMenu ? 'rotate-180' : ''}`} />
-                      </button>
-
-                      {showAudioAddMenu && (
-                        <div className="absolute left-0 top-full mt-1 z-50 w-52 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#1f1f24] shadow-2xl overflow-hidden py-1">
-                          <button
-                            type="button"
-                            onClick={() => { setShowAudioAddMenu(false); openAudioModal(audioTarget, 'uploads'); }}
-                            className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors"
-                          >
-                            <Library size={14} className="text-zinc-400 flex-shrink-0" />
-                            <span className="text-xs text-zinc-800 dark:text-zinc-100">{t('fromLibrary')}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setShowAudioAddMenu(false); activeAudioInputRef.current?.click(); }}
-                            className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors"
-                          >
-                            <Upload size={14} className="text-zinc-400 flex-shrink-0" />
-                            <span className="text-xs text-zinc-800 dark:text-zinc-100">{t('upload')}</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Menu de mode */}
-                  <div className="relative min-w-0" ref={audioMenuRef}>
-                    <button
-                      type="button"
-                      onClick={() => { setShowAudioMenu((v) => !v); setShowAudioAddMenu(false); }}
-                      className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-[10px] font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors max-w-full"
-                      title={`${activeAudioMode.label} — ${activeAudioMode.desc}`}
-                    >
-                      <activeAudioMode.icon size={11} className="text-pink-500 flex-shrink-0" />
-                      <span className="truncate">{activeAudioMode.short}</span>
-                      <ChevronDown size={11} className={`flex-shrink-0 transition-transform ${showAudioMenu ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {showAudioMenu && (
-                      <div className="absolute right-0 top-full mt-1 z-50 w-72 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#1f1f24] shadow-2xl overflow-hidden py-1">
-                        {(['remix', 'edit'] as const).map((group) => (
-                          <div key={group}>
-                            <div className="px-3 pt-2 pb-1 text-[9px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                              {group === 'remix' ? (tf('remix', 'Remix')) : (tf('modification', 'Modification'))}
-                            </div>
-                            {AUDIO_MODES.filter((m) => m.group === group).map((m) => {
-                              const Icon = m.icon;
-                              const isActive = m.id === audioMode;
-                              return (
-                                <button
-                                  key={m.id}
-                                  type="button"
-                                  disabled={!m.available}
-                                  onClick={() => changeAudioMode(m.id)}
-                                  className={`w-full flex items-start gap-2.5 px-3 py-2 text-left transition-colors ${
-                                    !m.available
-                                      ? 'opacity-40 cursor-not-allowed'
-                                      : isActive
-                                        ? 'bg-pink-500/10'
-                                        : 'hover:bg-zinc-100 dark:hover:bg-white/5'
-                                  }`}
-                                >
-                                  <Icon size={14} className={`mt-0.5 flex-shrink-0 ${isActive ? 'text-pink-500' : 'text-zinc-400'}`} />
-                                  <span className="min-w-0 flex-1">
-                                    <span className="flex items-center gap-1.5">
-                                      <span className={`text-xs font-medium ${isActive ? 'text-pink-500' : 'text-zinc-800 dark:text-zinc-100'}`}>
-                                        {m.label}
-                                      </span>
-                                      {!m.available && (
-                                        <span className="text-[8px] uppercase font-bold px-1 py-px rounded bg-zinc-200 dark:bg-white/10 text-zinc-500 dark:text-zinc-400">
-                                          {tf('soon', 'bientot')}
-                                        </span>
-                                      )}
-                                    </span>
-                                    <span className="block text-[10px] text-zinc-500 dark:text-zinc-400 leading-tight mt-0.5">
-                                      {m.desc}
-                                    </span>
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Corps : lecteur si un audio est charge, zone de depot sinon */}
-              {activeAudioUrl ? (
-                <div className="p-2 space-y-2">
-                  <div className="flex items-center gap-3 p-2 rounded-lg bg-zinc-50 dark:bg-white/[0.03] border border-zinc-100 dark:border-white/5">
-                    <button
-                      type="button"
-                      onClick={() => toggleAudio(audioTarget)}
-                      className={`relative flex-shrink-0 w-10 h-10 rounded-full text-white flex items-center justify-center shadow-lg hover:scale-105 transition-transform ${
-                        isReferenceTarget
-                          ? 'bg-gradient-to-br from-pink-500 to-purple-600 shadow-pink-500/20'
-                          : 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/20'
-                      }`}
-                    >
-                      {activeAudioPlaying
-                        ? <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>
-                        : <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>}
-                      <span className="absolute -bottom-1 -right-1 text-[8px] font-bold bg-zinc-900 text-white px-1 py-0.5 rounded">
-                        {formatTime(activeAudioDuration)}
-                      </span>
-                    </button>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate">
-                          {activeAudioTitle || getAudioLabel(activeAudioUrl)}
-                        </div>
-                        <span className="text-[10px] text-zinc-400 tabular-nums ml-2 flex-shrink-0">
-                          {formatTime(activeAudioTime)} / {formatTime(activeAudioDuration)}
-                        </span>
-                      </div>
-                      <AudioWaveform
-                        url={activeAudioUrl}
-                        currentTime={activeAudioTime}
-                        duration={activeAudioDuration}
-                        activeColor={isReferenceTarget ? '#ec4899' : '#10b981'}
-                        inactiveColor="rgba(255,255,255,0.08)"
-                        height={isRepaintMode ? 48 : 28}
-                        onClick={!isRepaintMode ? ((pct) => { if (activeAudioElRef.current && activeAudioDuration > 0) activeAudioElRef.current.currentTime = pct * activeAudioDuration; }) : undefined}
-                        regionStart={isRepaintMode ? repaintingStart : undefined}
-                        regionEnd={isRepaintMode ? repaintingEnd : undefined}
-                        onRegionChange={isRepaintMode ? ((s, e) => { setRepaintingStart(Math.round(s * 10) / 10); setRepaintingEnd(e < 0 ? -1 : Math.round(e * 10) / 10); }) : undefined}
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={clearActiveAudio}
-                      className="p-1.5 rounded-full hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-400 hover:text-zinc-600 dark:hover:text-white transition-colors"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
-                  </div>
-
-                  {/* Reglages contextuels au mode */}
-                  <div className="space-y-2">
-                    {/* Ces deux parametres partent dans la charge utile hors
-                        Repaint uniquement (voir le payload plus haut) — les
-                        masquer ici sans les neutraliser recreerait le bug
-                        documente en TROUBLESHOOTING #23. Non documentes pour
-                        Repaint, qui a son propre controle "Strength" plus bas. */}
-                    {!isRepaintMode && (<>
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 w-14">{tf('audioCoverStrength', 'Reprise')}</span>
-                        <input type="range" min="0" max="1" step="0.01" value={audioCoverStrength} onChange={(e) => setAudioCoverStrength(Number(e.target.value))} className="flex-1 h-1 accent-pink-500 cursor-pointer" />
-                        <span className="text-[10px] text-zinc-500 tabular-nums w-8 text-right">{Math.round(audioCoverStrength * 100)}%</span>
-                      </div>
-                      <p className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-16">{tf('hintAudioCoverStrength', 'Influence marginale entre 0 et 75 % : la fidelite harmonique et le grain montent tres legerement avec la valeur.')}</p>
-                    </div>
-
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 w-14">{tf('coverNoiseStrength', 'Fidelite')}</span>
-                        <input type="range" min="0" max="1" step="0.01" value={coverNoiseStrength} onChange={(e) => setCoverNoiseStrength(Number(e.target.value))} className="flex-1 h-1 accent-amber-500 cursor-pointer" />
-                        <span className={`text-[10px] tabular-nums w-8 text-right ${audioTarget === 'reference' && coverNoiseStrength > 0 ? 'text-red-500 font-medium' : 'text-zinc-500'}`}>{Math.round(coverNoiseStrength * 100)}%</span>
-                      </div>
-                      <p className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-16">
-                        {audioTarget === 'reference'
-                          ? tf('hintCoverNoiseRef', 'En mode Inspiration, toute valeur > 0 dégrade fortement le rendu. Laisser à 0.')
-                          : tf('hintCoverNoiseStrength', 'Plus haut = plus proche de la source. Au-delà de ~40 %, quasi-copie.')}
-                      </p>
-                    </div>
-                    </>)}
-
-                    {isRepaintMode && (<>
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 w-10">{tf('strength', 'Strength')}</span>
-                          <input type="range" min="0" max="1" step="0.05" value={repaintStrength} onChange={(e) => setRepaintStrength(Number(e.target.value))} className="flex-1 h-1 accent-purple-500 cursor-pointer" />
-                          <span className="text-[10px] text-zinc-500 tabular-nums w-8 text-right">{Math.round(repaintStrength * 100)}%</span>
-                        </div>
-                        <p className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-12">{tf('hintRepaintStrength', '0% — fully regenerate the region, 100% — leave it almost unchanged')}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 w-10">{tf('region', 'Region')}</span>
-                        <div className="flex items-center gap-1 flex-1">
-                          <input type="number" step="0.1" min="0" placeholder="0s" value={repaintingStart || ''} onChange={(e) => setRepaintingStart(Number(e.target.value))} className="w-16 bg-zinc-100 dark:bg-black/30 border border-zinc-200 dark:border-white/10 rounded px-1.5 py-0.5 text-[10px] text-zinc-900 dark:text-white text-center focus:outline-none focus:border-purple-500" />
-                          <span className="text-[10px] text-zinc-400">—</span>
-                          <input type="number" step="0.1" min="-1" placeholder={tf('end', 'end')} value={repaintingEnd === -1 ? '' : repaintingEnd} onChange={(e) => setRepaintingEnd(e.target.value === '' ? -1 : Number(e.target.value))} className="w-16 bg-zinc-100 dark:bg-black/30 border border-zinc-200 dark:border-white/10 rounded px-1.5 py-0.5 text-[10px] text-zinc-900 dark:text-white text-center focus:outline-none focus:border-purple-500" />
-                          <span className="text-[10px] text-zinc-400">{tf('seconds', 'sec')}</span>
-                        </div>
-                      </div>
-                    </>)}
-                  </div>
-                </div>
-              ) : (
-                <div className={`px-3 text-center text-[10px] text-zinc-400 transition-all ${isDraggingFile ? 'py-8 text-zinc-300 border-2 border-dashed border-zinc-600 rounded-lg mx-2 mb-2' : 'py-3'}`}>
-                  {isDraggingFile
-                    ? '↓ ' + activeAudioMode.label
-                    : (tf('dropAudioHere', 'Depose un audio ou utilise les boutons ci-dessus'))}
-                </div>
-              )}
-              {coverModeMissingSource && !isDraggingFile && (
-                <p className="px-3 pb-2 text-[10px] text-amber-500 text-center">
-                  {tf('warnCoverNoSource', 'Sans audio chargé, Cover génère du texte-à-musique — dépose un fichier pour un vrai cover.')}
-                </p>
-              )}
+              {/* Corps : lecteur + reglages contextuels — voir AudioPlayerPanel.tsx */}
+              <AudioPlayerPanel
+                activeAudioUrl={activeAudioUrl}
+                activeAudioMode={activeAudioMode}
+                activeAudioTitle={activeAudioTitle}
+                activeAudioTime={activeAudioTime}
+                activeAudioDuration={activeAudioDuration}
+                activeAudioPlaying={activeAudioPlaying}
+                activeAudioElRef={activeAudioElRef}
+                isReferenceTarget={isReferenceTarget}
+                isRepaintMode={isRepaintMode}
+                isDraggingFile={isDraggingFile}
+                coverModeMissingSource={coverModeMissingSource}
+                audioCoverStrength={audioCoverStrength}
+                onAudioCoverStrengthChange={setAudioCoverStrength}
+                coverNoiseStrength={coverNoiseStrength}
+                onCoverNoiseStrengthChange={setCoverNoiseStrength}
+                audioTarget={audioTarget}
+                repaintStrength={repaintStrength}
+                onRepaintStrengthChange={setRepaintStrength}
+                repaintingStart={repaintingStart}
+                onRepaintingStartChange={setRepaintingStart}
+                repaintingEnd={repaintingEnd}
+                onRepaintingEndChange={setRepaintingEnd}
+                onToggleAudio={() => toggleAudio(audioTarget)}
+                onClearAudio={clearActiveAudio}
+                formatTime={formatTime}
+                getAudioLabel={getAudioLabel}
+                t={t}
+                tf={tf}
+              />
             </div>
 
             {/* Lyrics Input */}
@@ -2863,77 +2718,22 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             {/* OpenRouter toggle — selects between local LM and remote OpenRouter provider */}
             <UseOpenRouterToggle value={useOpenRouter} onChange={setUseOpenRouter} />
 
-            {/* Local LM controls — hidden entirely when OpenRouter is active */}
-            {!useOpenRouter && (
-              <>
-                {/* LM Backend */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{tf('lmBackendLabel', 'LM Backend')}</label>
-                  <select
-                    value={lmBackend}
-                    onChange={e => { setLmBackend(e.target.value as 'pt' | 'vllm'); lmEditingRef.current = true; }}
-                    className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800 [&>option]:text-zinc-900 [&>option]:dark:text-white"
-                  >
-                    <option value="vllm">{tf('lmBackendVllm', 'VLLM (~9.2 GB VRAM)')}</option>
-                    <option value="pt">{tf('lmBackendPt', 'PT (~1.6 GB VRAM)')}</option>
-                  </select>
-                  <p className="text-[10px] text-zinc-500">{tf('lmBackendHint', 'vLLM uses CUDA graphs for faster LLM inference')}</p>
-                </div>
-
-                {/* LM Model */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('lmModelLabel')}</label>
-                  <select
-                    value={lmModel}
-                    onChange={(e) => { setLmModel(e.target.value); lmEditingRef.current = true; }}
-                    className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800 [&>option]:text-zinc-900 [&>option]:dark:text-white"
-                  >
-                    <option value="acestep-5Hz-lm-0.6B">{t('lmModel06B')}</option>
-                    <option value="acestep-5Hz-lm-1.7B">{t('lmModel17B')}</option>
-                    <option value="acestep-5Hz-lm-4B">{t('lmModel4B')}</option>
-                  </select>
-                  <p className="text-[10px] text-zinc-500">{t('lmModelHint')}</p>
-                </div>
-              </>
-            )}
-
-            {/* OpenRouter provider config — shown when toggle is ON */}
-            {useOpenRouter && <LmProviderPanel />}
-
-            {/* Apply LM Settings button — only relevant when controlling local LM */}
-            {!useOpenRouter && <button
-              type="button"
-              disabled={!!modelSwitchStatus || !lmModel}
-              onClick={async () => {
-                if (!token || !lmModel) return;
-                setModelSwitchStatus(`${tf('applyingLmSettings', 'Restarting pipeline')}...`);
-                try {
-                  const res = await fetch('/api/generate/switch-model', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                    body: JSON.stringify({ model: selectedModel, lmModel, lmBackend }),
-                  });
-                  const data = await res.json();
-                  if (data.success) {
-                    setModelSwitchStatus('');
-                    lmEditingRef.current = false; // re-sync from server on next poll
-                  } else {
-                    setModelSwitchStatus(data.error || 'Failed');
-                    setTimeout(() => setModelSwitchStatus(''), 5000);
-                  }
-                } catch (err) {
-                  setModelSwitchStatus('Error');
-                  setTimeout(() => setModelSwitchStatus(''), 5000);
-                }
-              }}
-              className={`w-full py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-2 ${modelSwitchStatus ? 'bg-purple-800 text-purple-300 cursor-wait' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}
-            >
-              {modelSwitchStatus ? (
-                <><Loader2 size={12} className="animate-spin" /> {modelSwitchStatus}</>
-              ) : (
-                tf('applyLmSettings', 'Apply LM Settings (restart pipeline)')
-              )}
-            </button>}
+            <LmSettings
+              useOpenRouter={useOpenRouter}
+              lmBackend={lmBackend}
+              onLmBackendChange={setLmBackend}
+              lmModel={lmModel}
+              onLmModelChange={setLmModel}
+              lmEditingRef={lmEditingRef}
+              modelSwitchStatus={modelSwitchStatus}
+              onApply={handleApplyLmSettings}
+              thinking={thinking}
+              onThinkingChange={setThinking}
+              loraLoaded={loraLoaded}
+              activeLmModel={activeLmModel}
+              t={t}
+              tf={tf}
+            />
 
             {/* ───── Pollinations.ai cover generation ─────
                 Independent of the LLM provider above. When ON, after audio
@@ -2965,25 +2765,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               t={t}
               tf={tf}
             />
-
-            {/* Thinking / Reasoning Toggle —
-                  • Local LM mode: enables chain-of-thought caption/lyrics generation.
-                  • OpenRouter mode: forwards reasoning hint to OR model (honored by reasoning models like Claude extended-thinking, GPT-5, DeepSeek-R1; ignored by others).
-            */}
-            {(useOpenRouter || activeLmModel !== '') && (
-              <div className="flex items-center justify-between py-2 border-t border-zinc-100 dark:border-white/5">
-                <span className={`text-xs font-medium ${loraLoaded ? 'text-zinc-400 dark:text-zinc-600' : 'text-zinc-600 dark:text-zinc-400'}`} title={useOpenRouter ? 'Forwards reasoning hint to OpenRouter (honored by reasoning-capable models, ignored by others).' : (tf('hintThinkingCot', 'Lets the lyric model reason about structure and metadata. Slightly slower.'))}>
-                  {t('thinkingCot')}
-                </span>
-                <button
-                  onClick={() => !loraLoaded && setThinking(!thinking)}
-                  disabled={loraLoaded}
-                  className={`w-10 h-5 rounded-full flex items-center transition-colors duration-200 px-0.5 border border-zinc-200 dark:border-white/5 ${thinking ? 'bg-pink-600' : 'bg-zinc-300 dark:bg-black/40'} ${loraLoaded ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                  <div className={`w-4 h-4 rounded-full bg-white transform transition-transform duration-200 shadow-sm ${thinking ? 'translate-x-5' : 'translate-x-0'}`} />
-                </button>
-              </div>
-            )}
 
             {/* Shift */}
             <EditableSlider
