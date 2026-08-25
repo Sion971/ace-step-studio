@@ -10,9 +10,18 @@ interface PlaylistDetailProps {
     onPlaySong: (song: Song, list?: Song[]) => void;
     onSelect: (song: Song) => void;
     onNavigateToProfile: (username: string) => void;
+    // Sans ceci, App.tsx ne savait jamais qu'une playlist avait ete
+    // supprimee : sa carte restait dans l'etat local, cliquable, menant
+    // vers une 404 "Playlist not found" — seul un rechargement complet
+    // purgeait l'entree fantome.
+    onPlaylistDeleted?: (playlistId: string) => void;
+    // Sans ceci, retirer une chanson d'un espace de travail ne rafraichissait
+    // pas l'union cote App.tsx (songsInAnyWorkspace) — la chanson restait
+    // invisible dans "Mon espace de travail" jusqu'a un rechargement complet.
+    onSongRemovedFromPlaylist?: () => void;
 }
 
-export const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlistId, onBack, onPlaySong, onSelect, onNavigateToProfile }) => {
+export const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlistId, onBack, onPlaySong, onSelect, onNavigateToProfile, onPlaylistDeleted, onSongRemovedFromPlaylist }) => {
     const { user: currentUser, token } = useAuth();
     const { t } = useI18n();
     const [playlist, setPlaylist] = useState<Playlist & { creator_avatar?: string } | null>(null);
@@ -44,7 +53,7 @@ export const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlistId, onBa
                 likeCount: s.like_count || 0,
                 viewCount: s.view_count || 0,
                 creator: s.creator,
-                created_at: s.created_at,
+                createdAt: new Date(s.created_at),
                 addedAt: s.added_at
             }));
 
@@ -62,6 +71,7 @@ export const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlistId, onBa
         try {
             await playlistsApi.removeSong(playlist.id, songId, token);
             setSongs(prev => prev.filter(s => s.id !== songId));
+            onSongRemovedFromPlaylist?.();
         } catch (error) {
             console.error('Failed to remove song:', error);
         }
@@ -72,6 +82,7 @@ export const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlistId, onBa
         if (!confirm(t('deletePlaylistConfirm'))) return;
         try {
             await playlistsApi.delete(playlist.id, token);
+            onPlaylistDeleted?.(playlist.id);
             onBack();
         } catch (error) {
             console.error('Failed to delete playlist:', error);

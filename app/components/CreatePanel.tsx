@@ -4,6 +4,13 @@ import { SeedSettings } from './SeedSettings';
 import { FlowEditSettings } from './FlowEditSettings';
 import { OutputSettings } from './OutputSettings';
 import { SamplingSettings } from './SamplingSettings';
+import { InstructionField, LEGACY_INSTRUCTION_DEFAULT } from './InstructionField';
+import { TrackSettings } from './TrackSettings';
+import { RepaintSettings } from './RepaintSettings';
+import { GuidanceSettings } from './GuidanceSettings';
+import { CotDebugToggles, type CotDebugTogglesValues } from './CotDebugToggles';
+import { LmParametersPanel } from './LmParametersPanel';
+import { AudioTransformPanel } from './AudioTransformPanel';
 import { ModelMenu } from './ModelMenu';
 import { isTurboModel } from '../utils/modelNames';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -98,23 +105,6 @@ export const AUDIO_MODES: AudioModeDef[] = [
     icon: Gauge, available: false },
 ];
 
-// Ancien defaut code en dur du champ `instruction`. Il n'etait jamais vide,
-// donc `params.instruction || (...)` dans acestep.ts l.186 court-circuitait
-// toujours les instructions specifiques a cover / repaint : le DiT recevait
-// l'instruction du text2music meme en cover, d'ou les artefacts.
-// On le garde uniquement pour neutraliser la valeur persistee en base.
-export const LEGACY_INSTRUCTION_DEFAULT =
-  'Fill the audio semantic mask based on the given conditions:';
-
-// Instruction que le serveur appliquera si le champ est laisse vide.
-// Sert de placeholder informatif dans les reglages avances.
-export const defaultInstructionFor = (taskType: string): string =>
-  taskType === 'cover'
-    ? 'Generate audio semantic tokens based on the given conditions:'
-    : taskType === 'repaint'
-      ? 'Repaint the mask area based on the given conditions:'
-      : 'Fill the audio semantic mask based on the given conditions:';
-
 export const AUDIO_MODE_MAP = AUDIO_MODES.reduce((acc, m) => {
   acc[m.id] = m;
   return acc;
@@ -126,7 +116,7 @@ interface CreatePanelProps {
   activeJobCount?: number;
   initialData?: { song: Song, timestamp: number } | null;
   createdSongs?: Song[];
-  pendingAudioSelection?: { target: 'reference' | 'source'; url: string; title?: string } | null;
+  pendingAudioSelection?: { target: 'reference' | 'source'; url: string; title?: string; mode?: AudioModeId } | null;
   onAudioSelectionApplied?: () => void;
   /** Returns a promise that resolves when all currently-running generation
    *  jobs have completed. Used to serialize bulk clicks: the next click's
@@ -174,12 +164,6 @@ const KEY_SIGNATURES = [
 ];
 
 const TIME_SIGNATURES = ['', '2', '3', '4', '6', 'N/A'];
-
-const TRACK_NAMES = [
-  'woodwinds', 'brass', 'fx', 'synth', 'strings', 'percussion',
-  'keyboard', 'guitar', 'bass', 'drums', 'backing_vocals', 'vocals',
-];
-
 
 export const CreatePanel: React.FC<CreatePanelProps> = ({
   onGenerate,
@@ -350,7 +334,18 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const [repaintingEnd, setRepaintingEnd] = useState(-1);
   // Vide par defaut : acestep.ts choisit alors l'instruction adaptee au taskType.
   const [instruction, setInstruction] = useState('');
-  const [audioCoverStrength, setAudioCoverStrength] = useState(0.5);
+  // Suivi du mode audio dans lequel Instruction a ete edite pour la
+  // derniere fois, pour detecter un contenu potentiellement laisse par un
+  // autre mode (ex: du texte pense pour Cover, encore present en Repaint).
+  // null tant que rien n'a ete tape manuellement, ou apres restauration de
+  // parametres — evite un faux avertissement au chargement.
+  const [instructionModeAtEdit, setInstructionModeAtEdit] = useState<AudioModeId | null>(null);
+  // Defaut initial = valeurs du mode 'inspiration' (voir AUDIO_MODE_DEFAULTS
+  // ci-dessous) : le mode par defaut du panneau est 'inspiration', donc
+  // changeAudioMode n'est jamais appele avant un premier changement manuel
+  // de mode. Sans cet alignement, une premiere inspiration sans changer de
+  // mode repartirait sur d'autres valeurs.
+  const [audioCoverStrength, setAudioCoverStrength] = useState(0.40);
   // `cover_noise_strength` etait accepte par acestep.ts (`?? 0.0`) mais aucun
   // etat ne l'alimentait : il valait donc toujours 0, sans marge de manoeuvre
   // pour s'ecarter proprement de la source. Expose ici.
@@ -616,7 +611,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const [audioModalTarget, setAudioModalTarget] = useState<'reference' | 'source'>('reference');
   const [tempAudioUrl, setTempAudioUrl] = useState('');
   // Emplacement audio unifie : le mode decide de la case du payload ET du taskType.
-  const [audioMode, setAudioMode] = useState<AudioModeId>('cover');
+  const [audioMode, setAudioMode] = useState<AudioModeId>('inspiration');
   const [showAudioMenu, setShowAudioMenu] = useState(false);
   const audioMenuRef = useRef<HTMLDivElement>(null);
   // « Depuis la bibliotheque » + « Importer » occupaient trop de largeur a cote
@@ -829,7 +824,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     applyAudioTargetUrl(
       pendingAudioSelection.target,
       pendingAudioSelection.url,
-      pendingAudioSelection.title
+      pendingAudioSelection.title,
+      pendingAudioSelection.mode
     );
     onAudioSelectionApplied?.();
   }, [pendingAudioSelection, onAudioSelectionApplied]);
@@ -1405,7 +1401,16 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // Emplacement UNIQUE : charger un audio vide systematiquement l'autre case.
   // Le pipeline n'arbitre que sur `taskType`, donc garder les deux remplies
   // rendait l'une des deux silencieusement inerte.
-  const applyAudioTargetUrl = (target: 'reference' | 'source', url: string, title?: string) => {
+  const applyAudioTargetUrl = (target: 'reference' | 'source', url: string, title?: string, mode?: AudioModeId) => {
+    // Si l'appelant precise un mode explicite (ex: "Reprendre la chanson"
+    // vise toujours 'cover'), on bascule audioMode AVANT de deriver
+    // taskType — sinon taskType dependait du mode DEJA actif au moment du
+    // clic, pas de l'intention reelle de l'action. C'etait la cause du
+    // "l'audio charge mais la section Cover ne s'affiche pas" quand on
+    // declenchait l'action depuis un autre mode que Cover.
+    if (mode && AUDIO_MODE_MAP[mode]) {
+      setAudioMode(mode);
+    }
     const derivedTitle = title ? title.replace(/\.[^/.]+$/, '') : getAudioLabel(url);
     if (target === 'reference') {
       clearSourceSlot();
@@ -1421,18 +1426,41 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       setSourceDuration(0);
     }
     // Le taskType decoule du mode actif, plus d'un basculement implicite.
-    const mode = AUDIO_MODE_MAP[audioMode];
-    setTaskType(mode.field === target ? mode.taskType : 'text2music');
+    const effectiveAudioMode = mode && AUDIO_MODE_MAP[mode] ? mode : audioMode;
+    const activeMode = AUDIO_MODE_MAP[effectiveAudioMode];
+    setTaskType(activeMode.field === target ? activeMode.taskType : 'text2music');
   };
 
   // Changement de mode : on deplace le fichier deja charge vers la case que le
   // nouveau mode va reellement lire, pour ne pas le perdre silencieusement.
+  //
+  // Force (audioCoverStrength) et Fidelite (coverNoiseStrength) sont des
+  // valeurs UNIQUES, partagees entre tous les modes — pas de reglage par
+  // mode dans l'etat. Des essais manuels ont montre que les defauts
+  // generiques (0.5 / 0) produisent du gresillement plutot qu'un vrai cover
+  // ou une vraie inspiration. On applique donc des valeurs eprouvees pour
+  // ces deux modes precis, a CHAQUE bascule — y compris par-dessus un
+  // reglage manuel du mode precedent, sur demande explicite (pas de
+  // detection de "l'utilisateur a-t-il deja touche ces curseurs").
+  // Non revalide par une mesure controlee comme en TROUBLESHOOTING #22 :
+  // valeurs empiriques d'un seul utilisateur, a affiner si besoin.
+  const AUDIO_MODE_DEFAULTS: Partial<Record<AudioModeId, { strength: number; noise: number }>> = {
+    cover: { strength: 0.15, noise: 0.12 },
+    inspiration: { strength: 0.40, noise: 0 },
+  };
+
   const changeAudioMode = (id: AudioModeId) => {
     const next = AUDIO_MODE_MAP[id];
     if (!next || !next.available) return;
     const prev = AUDIO_MODE_MAP[audioMode];
     setShowAudioMenu(false);
     setAudioMode(id);
+
+    const modeDefaults = AUDIO_MODE_DEFAULTS[id];
+    if (modeDefaults) {
+      setAudioCoverStrength(modeDefaults.strength);
+      setCoverNoiseStrength(modeDefaults.noise);
+    }
 
     const currentUrl = prev.field === 'reference' ? referenceAudioUrl : sourceAudioUrl;
     const currentTitle = prev.field === 'reference' ? referenceAudioTitle : sourceAudioTitle;
@@ -1579,6 +1607,26 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     Boolean(songDescription.trim()) && !lyrics.trim() && !style.trim()
     && !useOpenRouter && !referenceAudioUrl.trim() && !sourceAudioUrl.trim();
 
+  // Cover sans fichier source charge : AUDIO_MODE_MAP['cover'].field ===
+  // 'source', donc sans sourceAudioUrl le taskType retombe silencieusement
+  // sur 'text2music' — Force/Fidelite (reglees pour transformer un signal
+  // existant) s'appliquent alors a une generation text-to-music pure, sans
+  // rapport avec ce qu'elles controlent. Observe empiriquement comme du
+  // gresillement. Le mode reste utilisable, mais l'utilisateur doit savoir
+  // qu'il ne fait pas un cover.
+  const coverModeMissingSource =
+    audioMode === 'cover' && !sourceAudioUrl.trim();
+
+  // Regroupe les deux raisons qui doivent griser le bouton Creer. Les
+  // messages restent distincts (l'un est une erreur bloquante de charge
+  // utile, l'autre un garde-fou d'usage) mais le bouton se comporte pareil
+  // dans les deux cas : desactive, avec l'explication correspondante.
+  const blockGenerateReason = descriptionCannotBeUsed
+    ? tf('errNothingToGenerate', 'Rien à envoyer au moteur : active OpenRouter pour développer la description, ou remplis Style ou Paroles.')
+    : coverModeMissingSource
+      ? tf('warnCoverNoSource', 'Sans audio chargé, Cover génère du texte-à-musique — dépose un fichier pour un vrai cover.')
+      : null;
+
   const handleGenerate = async () => {
     // Per-click LLM draft from pre-flight (used to populate effStyle/effLyrics/etc
     // and the Pollinations cover prompt). null = pre-flight either didn't run
@@ -1600,6 +1648,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     // Le message est deja affiche en rouge sous la description ; ici on se
     // contente de ne pas partir, pour eviter le 400 et la carte fantome.
     if (descriptionCannotBeUsed) return;
+    if (coverModeMissingSource) return;
 
     setPreflightFailed(false);
     const slotsClaimed = bulkCount;
@@ -1623,9 +1672,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       }
     };
     try {
-    // Simple mode + OpenRouter ON + no local LM = pre-flight: ask OR to expand
-    // the user's description into caption/lyrics/metadata, fill the same fields
-    // a Custom-mode submission would have, then proceed as Custom.
+    // Description + OpenRouter ON + paroles vides = pre-vol : demande a OR
+    // de developper la description en caption/paroles/metadata, remplit les
+    // memes champs qu'une saisie manuelle aurait rempli.
     //
     // SEQUENTIAL queue: bulk clicks chain through llmPreflightQueueRef. Each
     // click also waits for waitForJobsToDrain() — the previous track's full
@@ -1701,9 +1750,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             // Either user-clicked-cancel or our 90 s timeout fired. Either
             // way the chain step bails — the catch in the awaiting block
             // below releases slots and removes the placeholder card.
-            console.warn('[Simple+OR] pre-flight aborted (cancel or timeout)');
+            console.warn('[Pré-vol OR] pre-flight aborted (cancel or timeout)');
           } else {
-            console.error('[Simple+OR] pre-flight failed:', e);
+            console.error('[Pré-vol OR] pre-flight failed:', e);
           }
           return null;
         } finally {
@@ -1724,13 +1773,13 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
           setPreflightFailed(true);
         }
         // Stamp the model id used for this song — `orHook` only updates this
-        // for the explicit AI buttons, not the Simple-mode pre-flight, so
-        // without this `params.openrouterModel` would always be null for
-        // Simple+OR generations and the song-row badge tooltip would be empty.
+        // for the explicit AI buttons, not this pre-vol, so without this
+        // `params.openrouterModel` would always be null for pre-vol
+        // generations and the song-row badge tooltip would be empty.
         const orModelId = llmStorage.getOpenRouter().model;
         if (orModelId) setLastOpenRouterModelId(orModelId);
       } catch (e) {
-        console.error('[Simple+OR] queued pre-flight failed:', e);
+        console.error('[Pré-vol OR] queued pre-flight failed:', e);
         if (!payloadValidWithoutDraft) { releaseClaimedSlots(); return; }
         setPreflightFailed(true);
         perClickDraft = null;
@@ -1738,7 +1787,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     }
 
     // Charge utile unique depuis la suppression du mode Simple.
-    const effectiveCustomMode = true;
     const d = perClickDraft;
     // Priorite : ce que l'utilisateur a ecrit dans le champ, puis le brouillon
     // du pre-vol de ce clic, puis la ref (derniere generation streamee).
@@ -1746,10 +1794,20 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     const effStyle = style.trim() || d?.caption || styleRef.current || style;
     const effLyrics = lyrics.trim() || d?.lyrics || lyricsTextRef.current || lyrics;
     const effTitle = title.trim() || d?.title || titleRef.current || title;
-    const effBpm = effectiveCustomMode && (d?.bpm || bpmRef.current) > 0 ? (d?.bpm || bpmRef.current) : bpm;
-    const effKeyScale = effectiveCustomMode && (d?.keyScale || keyScaleRef.current) ? (d?.keyScale || keyScaleRef.current) : keyScale;
-    const effTimeSig = effectiveCustomMode && (d?.timeSignature || timeSignatureRef.current) ? (d?.timeSignature || timeSignatureRef.current) : timeSignature;
-    const effDuration = effectiveCustomMode && (d?.durationSec || durationRef.current) > 0 ? (d?.durationSec || durationRef.current) : duration;
+    // Meme correctif que effStyle/effLyrics/effTitle (l.1784-1786) : la
+    // valeur saisie par l'utilisateur doit gagner, pas le brouillon du
+    // pre-vol ni une ref potentiellement obsolete. Ces quatre lignes avaient
+    // garde l'ancien ordre (brouillon/ref avant la valeur utilisateur) alors
+    // que les trois champs voisins avaient deja ete corriges — un BPM fixe
+    // manuellement pouvait donc etre ecrase silencieusement. Trouve par
+    // balayage systematique du meme motif "controle cache/etat partage" que
+    // les correctifs Force/Fidelite/Instruction de cette session.
+    // `effectiveCustomMode` referencait autrefois cette condition — retiree
+    // avec la suppression du mode Simple, elle valait toujours `true`.
+    const effBpm = bpm > 0 ? bpm : (d?.bpm || bpmRef.current || bpm);
+    const effKeyScale = keyScale || (d?.keyScale || keyScaleRef.current || keyScale);
+    const effTimeSig = timeSignature || (d?.timeSignature || timeSignatureRef.current || timeSignature);
+    const effDuration = duration > 0 ? duration : (d?.durationSec || durationRef.current || duration);
     // LLM-tailored cover prompt for this exact song. Empty string falls
     // through to the keyword-based default in buildCoverPrompt.
     const effCoverPrompt = d?.coverPrompt || '';
@@ -1851,11 +1909,24 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         referenceAudioTitle: referenceAudioTitle.trim() || undefined,
         sourceAudioTitle: sourceAudioTitle.trim() || undefined,
         audioCodes: audioCodes.trim() || undefined,
-        repaintingStart,
-        repaintingEnd,
+        // Documentees uniquement pour repaint/lego (INFERENCE.md). Lego n'est
+        // pas atteignable depuis cette UI (absent de AUDIO_MODE_MAP), donc
+        // repaint est la seule tache concernee. Neutralisees ailleurs pour
+        // eviter qu'une valeur laissee par un test Repaint precedent
+        // n'atteigne une autre tache — meme motif que audioCoverStrength /
+        // coverNoiseStrength ci-dessous. Champs visibles en permanence dans
+        // RepaintSettings (contrairement a Force/Fidelite masques), donc
+        // risque moindre, mais meme incoherence de fond.
+        repaintingStart: taskType === 'repaint' ? repaintingStart : undefined,
+        repaintingEnd: taskType === 'repaint' ? repaintingEnd : undefined,
         instruction,
-        audioCoverStrength,
-        coverNoiseStrength,
+        // Non documentees pour Repaint (absentes de l'exemple de payload
+        // repaint dans INFERENCE.md) et masquees dans l'UI pour ce mode —
+        // voir TROUBLESHOOTING #23 : un controle masque doit aussi cesser
+        // d'etre envoye, sinon sa valeur heritee d'un mode precedent
+        // (Cover, Inspiration) reste active de facon invisible.
+        audioCoverStrength: taskType === 'repaint' ? undefined : audioCoverStrength,
+        coverNoiseStrength: taskType === 'repaint' ? undefined : coverNoiseStrength,
         taskType,
         useAdg,
         cfgIntervalStart,
@@ -1903,6 +1974,24 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         repaintStrength: taskType === 'repaint' ? repaintStrength : undefined,
         loraLoaded,
 
+      }).catch((e: unknown) => {
+        // onGenerate (App.tsx:handleGenerate) est async mais appelee ici
+        // sans await ni .catch — toute exception, meme dans son tout premier
+        // bloc synchrone (avant son propre try/catch interne), devenait une
+        // rejection de promesse JAMAIS interceptee : ni ici (pas d'await),
+        // ni dans le catch interne d'App.tsx (qui ne demarre qu'apres la
+        // verification d'auth + creation de la carte temporaire). Resultat :
+        // aucun toast, aucune carte ajoutee, juste un "Uncaught (in
+        // promise)" facile a manquer en console. Ce filet n'empeche pas le
+        // bug de fond (a chercher dans App.tsx) mais garantit qu'on le VOIT.
+        //
+        // Nettoyage PAR JOB, pas releaseClaimedSlots() : cette boucle peut
+        // tourner bulkCount fois, et un seul appel en echec ne doit pas
+        // supprimer les cartes des autres jobs du meme lot, potentiellement
+        // deja reussis.
+        console.error('[CreatePanel] onGenerate a echoue silencieusement :', e);
+        decrementPendingClicks?.(1);
+        if (removeTempSongForClick) removeTempSongForClick(tempIdForThisJob);
       });
     }
 
@@ -1936,6 +2025,44 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // Reflects whichever target (reference/source) the audio modal is
   // currently uploading for — see uploadReferenceTrack.
   const isUploadingModalTarget = audioModalTarget === 'source' ? isUploadingSource : isUploadingReference;
+
+  // Regroupement pour CotDebugToggles — dix booléens uniformes, un seul
+  // callback plutôt que dix props onChange individuelles.
+  const cotDebugValues: CotDebugTogglesValues = {
+    useAdg, allowLmBatch, useCotMetas, useCotCaption, useCotLanguage,
+    autogen, constrainedDecodingDebug, isFormatCaption, getScores, getLrc,
+  };
+  const cotDebugSetters: Record<keyof CotDebugTogglesValues, () => void> = {
+    useAdg: () => setUseAdg(!useAdg),
+    allowLmBatch: () => setAllowLmBatch(!allowLmBatch),
+    useCotMetas: () => setUseCotMetas(!useCotMetas),
+    useCotCaption: () => setUseCotCaption(!useCotCaption),
+    useCotLanguage: () => setUseCotLanguage(!useCotLanguage),
+    autogen: () => setAutogen(!autogen),
+    constrainedDecodingDebug: () => setConstrainedDecodingDebug(!constrainedDecodingDebug),
+    isFormatCaption: () => setIsFormatCaption(!isFormatCaption),
+    getScores: () => setGetScores(!getScores),
+    getLrc: () => setGetLrc(!getLrc),
+  };
+  const handleCotDebugToggle = (key: keyof CotDebugTogglesValues) => cotDebugSetters[key]();
+
+  // Marque l'instruction comme editee dans le mode ACTUEL a chaque frappe —
+  // sert de reference pour detecter, apres un changement de mode, un texte
+  // potentiellement ecrit pour une autre operation (voir instructionMayBeStale).
+  const handleInstructionChange = (value: string) => {
+    setInstruction(value);
+    setInstructionModeAtEdit(audioMode);
+  };
+  // Avertissement, pas d'effacement automatique (choix explicite) : un
+  // champ non vide, edite dans un mode different de celui actif maintenant,
+  // peut faire echouer silencieusement l'operation en cours — observe sur
+  // Repaint, dont le mecanisme de remplissage de region masquee semble
+  // particulierement sensible a une instruction incoherente (silence dans
+  // la region repaint plutot que des artefacts, contrairement a Cover).
+  const instructionMayBeStale =
+    instruction.trim() !== '' &&
+    instructionModeAtEdit !== null &&
+    instructionModeAtEdit !== audioMode;
 
   return (
     <div
@@ -2220,10 +2347,12 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
 
                   {/* Reglages contextuels au mode */}
                   <div className="space-y-2">
-                    {/* Ces deux parametres partent dans la charge utile quel que
-                        soit le mode. Les masquer hors mode source rendait leur
-                        valeur invisible sans la neutraliser — c'est exactement ce
-                        qui cassait le mode Inspiration. On les affiche toujours. */}
+                    {/* Ces deux parametres partent dans la charge utile hors
+                        Repaint uniquement (voir le payload plus haut) — les
+                        masquer ici sans les neutraliser recreerait le bug
+                        documente en TROUBLESHOOTING #23. Non documentes pour
+                        Repaint, qui a son propre controle "Strength" plus bas. */}
+                    {!isRepaintMode && (<>
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 w-14">{tf('audioCoverStrength', 'Reprise')}</span>
@@ -2245,6 +2374,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                           : tf('hintCoverNoiseStrength', 'Plus haut = plus proche de la source. Au-delà de ~40 %, quasi-copie.')}
                       </p>
                     </div>
+                    </>)}
 
                     {isRepaintMode && (<>
                       <div className="space-y-0.5">
@@ -2273,6 +2403,11 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                     ? '↓ ' + activeAudioMode.label
                     : (tf('dropAudioHere', 'Depose un audio ou utilise les boutons ci-dessus'))}
                 </div>
+              )}
+              {coverModeMissingSource && !isDraggingFile && (
+                <p className="px-3 pb-2 text-[10px] text-amber-500 text-center">
+                  {tf('warnCoverNoSource', 'Sans audio chargé, Cover génère du texte-à-musique — dépose un fichier pour un vrai cover.')}
+                </p>
               )}
             </div>
 
@@ -2872,405 +3007,92 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               <div className="text-[11px] text-rose-500">{uploadError}</div>
             )}
 
-            {/* LM Parameters — only relevant when a local LM is actually loaded */}
-            {!useOpenRouter && activeLmModel !== '' &&(
-              <button
-                onClick={() => setShowLmParams(!showLmParams)}
-                className="w-full flex items-center justify-between px-4 py-3 bg-white/60 dark:bg-black/20 rounded-xl border border-zinc-200/70 dark:border-white/10 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <Music2 size={16} className="text-zinc-500" />
-                  <div className="flex flex-col items-start">
-                    <span title={tf('hintLmParameters', 'Controls the 5Hz lyric/caption model sampling behavior.')}>{t('lmParameters')}</span>
-                    <span className="text-[11px] text-zinc-400 dark:text-zinc-500 font-normal">{t('controlLyricGeneration')}</span>
-                  </div>
-                </div>
-                <ChevronDown size={16} className={`text-zinc-500 transition-transform ${showLmParams ? 'rotate-180' : ''}`} />
-              </button>
-            )}
+            <LmParametersPanel
+              useOpenRouter={useOpenRouter}
+              activeLmModel={activeLmModel}
+              showLmParams={showLmParams}
+              onToggleShowLmParams={() => setShowLmParams(!showLmParams)}
+              lmTemperature={lmTemperature}
+              onLmTemperatureChange={setLmTemperature}
+              lmCfgScale={lmCfgScale}
+              onLmCfgScaleChange={setLmCfgScale}
+              lmTopK={lmTopK}
+              onLmTopKChange={setLmTopK}
+              lmTopP={lmTopP}
+              onLmTopPChange={setLmTopP}
+              lmNegativePrompt={lmNegativePrompt}
+              onLmNegativePromptChange={setLmNegativePrompt}
+              t={t}
+              tf={tf}
+            />
 
-            {!useOpenRouter && activeLmModel !== '' &&showLmParams && (
-              <div className="bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 p-4 space-y-4">
-                {/* LM Temperature */}
-                <EditableSlider
-                  label={t('lmTemperature')}
-                  value={lmTemperature}
-                  min={0}
-                  max={2}
-                  step={0.1}
-                  onChange={setLmTemperature}
-                  formatDisplay={(val) => val.toFixed(2)}
-                  helpText={t('higherMoreRandom')}
-                  title={tf('hintLmTemperature', 'Higher temperature = more random word choices.')}
-                />
+            <AudioTransformPanel
+              audioCodes={audioCodes}
+              onAudioCodesChange={setAudioCodes}
+              sourceAudioUrl={sourceAudioUrl}
+              audioCoverStrength={audioCoverStrength}
+              onAudioCoverStrengthChange={setAudioCoverStrength}
+              taskType={taskType}
+              activeAudioMode={activeAudioMode}
+              activeAudioUrl={activeAudioUrl}
+              t={t}
+              tf={tf}
+            />
 
-                {/* LM CFG Scale */}
-                <EditableSlider
-                  label={t('lmCfgScale')}
-                  value={lmCfgScale}
-                  min={1}
-                  max={3}
-                  step={0.1}
-                  onChange={setLmCfgScale}
-                  formatDisplay={(val) => val.toFixed(1)}
-                  helpText={t('noCfgScale')}
-                  title={tf('hintLmCfgScale', 'How strongly the lyric model follows the prompt.')}
-                />
+            <RepaintSettings
+              taskType={taskType}
+              repaintMode={repaintMode}
+              onRepaintModeChange={setRepaintMode}
+              repaintStrength={repaintStrength}
+              onRepaintStrengthChange={setRepaintStrength}
+              repaintingStart={repaintingStart}
+              onRepaintingStartChange={setRepaintingStart}
+              repaintingEnd={repaintingEnd}
+              onRepaintingEndChange={setRepaintingEnd}
+              t={t}
+              tf={tf}
+            />
 
-                {/* LM Top-K & Top-P */}
-                <div className="grid grid-cols-2 gap-3">
-                  <EditableSlider
-                    label={t('topK')}
-                    value={lmTopK}
-                    min={0}
-                    max={100}
-                    step={1}
-                    onChange={setLmTopK}
-                    title={tf('hintTopK', 'Restricts choices to the K most likely tokens. 0 disables.')}
-                  />
-                  <EditableSlider
-                    label={t('topP')}
-                    value={lmTopP}
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    onChange={setLmTopP}
-                    formatDisplay={(val) => val.toFixed(2)}
-                    title={tf('hintTopP', 'Samples from the smallest set whose total probability is P.')}
-                  />
-                </div>
+            <InstructionField
+              instruction={instruction}
+              onInstructionChange={handleInstructionChange}
+              taskType={taskType}
+              showStaleWarning={instructionMayBeStale}
+              t={t}
+              tf={tf}
+            />
 
-                {/* LM Negative Prompt */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintLmNegativePrompt', 'Words or ideas to steer the lyric model away from.')}>{t('lmNegativePrompt')}</label>
-                  <textarea
-                    value={lmNegativePrompt}
-                    onChange={(e) => setLmNegativePrompt(e.target.value)}
-                    placeholder={t('thingsToAvoid')}
-                    className="w-full h-16 bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg p-2 text-xs text-zinc-900 dark:text-white focus:outline-none resize-none"
-                  />
-                  <p className="text-[10px] text-zinc-500">{t('useWhenCfgScaleGreater')}</p>
-                </div>
-              </div>
-            )}
+            <GuidanceSettings
+              cfgIntervalStart={cfgIntervalStart}
+              onCfgIntervalStartChange={setCfgIntervalStart}
+              cfgIntervalEnd={cfgIntervalEnd}
+              onCfgIntervalEndChange={setCfgIntervalEnd}
+              customTimesteps={customTimesteps}
+              onCustomTimestepsChange={setCustomTimesteps}
+              scoreScale={scoreScale}
+              onScoreScaleChange={setScoreScale}
+              lmBatchChunkSize={lmBatchChunkSize}
+              onLmBatchChunkSizeChange={setLmBatchChunkSize}
+              useAdg={useAdg}
+              onUseAdgChange={setUseAdg}
+              t={t}
+              tf={tf}
+            />
 
-            <div className="space-y-1">
-              <h4 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide" title={tf('hintTransform', 'Controls how much the output follows the input audio.')}>{t('transform')}</h4>
-              <p className="text-[11px] text-zinc-400 dark:text-zinc-500">{t('controlSourceAudio')}</p>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintAudioCodes', 'Advanced: precomputed audio codes for conditioning.')}>{t('audioCodes')}</label>
-              <textarea
-                value={audioCodes}
-                onChange={(e) => setAudioCodes(e.target.value)}
-                placeholder={t('optionalAudioCodes')}
-                className="w-full h-16 bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg p-2 text-xs text-zinc-900 dark:text-white focus:outline-none resize-none"
-              />
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    // Convert source audio to LM codes — requires Gradio lambda (not exposed as API)
-                    // This is a placeholder: Gradio's convert_src_audio_to_codes_wrapper is not a named endpoint
-                    console.log('Convert to Codes: requires source audio upload. Use Gradio UI for this feature.');
-                  }}
-                  disabled={!sourceAudioUrl}
-                  title={tf('hintConvertToCodes', 'Convert source audio to LM codes (requires source audio)')}
-                  className="px-2 py-1 rounded text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  Convert to Codes
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    // Transcribe audio codes to metadata — requires Gradio lambda (not exposed as API)
-                    console.log('Transcribe: requires audio codes. Use Gradio UI for this feature.');
-                  }}
-                  disabled={!audioCodes.trim()}
-                  title={tf('hintTranscribeCodes', 'Transcribe audio codes to metadata (requires audio codes)')}
-                  className="px-2 py-1 rounded text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  Transcribe
-                </button>
-              </div>
-            </div>
+            <TrackSettings
+              trackName={trackName}
+              onTrackNameChange={setTrackName}
+              completeTrackClasses={completeTrackClasses}
+              onCompleteTrackClassesChange={setCompleteTrackClasses}
+              t={t}
+            />
 
-            <div className="grid grid-cols-2 gap-3">
-              {/* Lecture seule : le taskType est desormais pilote par le mode
-                  du bloc AUDIO, pour eviter deux sources de verite qui se
-                  contredisent silencieusement. */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintTaskType', 'Choose text-to-music or audio-based modes.')}>{t('taskType')}</label>
-                <div className="w-full bg-zinc-100 dark:bg-black/30 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-1.5 text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 cursor-default">
-                  <activeAudioMode.icon size={12} className="flex-shrink-0 text-pink-500" />
-                  <span className="truncate">{activeAudioUrl ? activeAudioMode.label : (tf('textToMusic', 'Text to music'))}</span>
-                  <span className="ml-auto text-[9px] font-mono opacity-60 flex-shrink-0">{taskType}</span>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintAudioCoverStrength', 'Influence marginale entre 0 et 75 % : la fidelite harmonique et le grain montent tres legerement avec la valeur.')}>{t('audioCoverStrength')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                  value={audioCoverStrength}
-                  onChange={(e) => setAudioCoverStrength(Number(e.target.value))}
-                  className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Repaint Mode & Strength (only for repaint task) */}
-            {taskType === 'repaint' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{tf('repaintModeLabel', 'Repaint Mode')}</label>
-                  <select
-                    value={repaintMode}
-                    onChange={(e) => setRepaintMode(e.target.value as 'conservative' | 'balanced' | 'aggressive' | 'most_natural')}
-                    className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500 transition-colors cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800"
-                  >
-                    <option value="conservative">{tf('repaintConservative', 'Conservative')}</option>
-                    <option value="balanced">{tf('repaintBalanced', 'Balanced')}</option>
-                    <option value="aggressive">{tf('repaintAggressive', 'Aggressive')}</option>
-                    <option value="most_natural">{tf('repaintMostNatural', 'Most Natural')}</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{tf('repaintStrengthLabel', 'Repaint Strength')}</label>
-                  <input
-                    type="number" step="0.05" min="0" max="1"
-                    value={repaintStrength}
-                    onChange={(e) => setRepaintStrength(Number(e.target.value))}
-                    className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintRepaintingStart', 'Start time for the region to repaint (seconds).')}>{t('repaintingStart')}</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  value={repaintingStart}
-                  onChange={(e) => setRepaintingStart(Number(e.target.value))}
-                  className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintRepaintingEnd', 'End time for the region to repaint (seconds).')}>{t('repaintingEnd')}</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="-1"
-                  value={repaintingEnd}
-                  onChange={(e) => setRepaintingEnd(Number(e.target.value))}
-                  className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintInstruction', 'Additional directives to guide generation.')}>{t('instruction')}</label>
-              <textarea
-                value={instruction}
-                onChange={(e) => setInstruction(e.target.value)}
-                placeholder={defaultInstructionFor(taskType)}
-                className="w-full h-16 bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg p-2 text-xs text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none resize-none"
-              />
-              <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
-                {tf('hintInstructionEmpty', 'Laisser vide : l\'instruction est choisie automatiquement selon le mode audio.')}
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <h4 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">{t('guidance')}</h4>
-              <p className="text-[11px] text-zinc-400 dark:text-zinc-500">{t('advancedCfgScheduling')}</p>
-              {/* Presets */}
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {[
-                  { label: t('presetDefault'), cfg: [0, 1], ts: '', score: 0.5, adg: false, desc: t('presetDefaultDesc') },
-                  { label: t('presetCleanVocals'), cfg: [0, 0.5], ts: '', score: 0.5, adg: false, desc: t('presetCleanVocalsDesc') },
-                  { label: t('presetCreative'), cfg: [0.2, 0.8], ts: '', score: 0.5, adg: false, desc: t('presetCreativeDesc') },
-                  { label: t('presetCover'), cfg: [0, 0.95], ts: '', score: 0.5, adg: false, desc: t('presetCoverDesc') },
-                  { label: t('presetStrict'), cfg: [0, 0.75], ts: '', score: 0.7, adg: false, desc: t('presetStrictDesc') },
-                  { label: 'ADG', cfg: [0, 1], ts: '', score: 0.5, adg: true, desc: t('presetAdgDesc') },
-                ].map(p => (
-                  <button
-                    key={p.label}
-                    title={p.desc}
-                    onClick={() => {
-                      setCfgIntervalStart(p.cfg[0]);
-                      setCfgIntervalEnd(p.cfg[1]);
-                      setCustomTimesteps(p.ts);
-                      setScoreScale(p.score);
-                      setUseAdg(p.adg);
-                    }}
-                    className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all border ${
-                      cfgIntervalStart === p.cfg[0] && cfgIntervalEnd === p.cfg[1] && (useAdg === p.adg)
-                        ? 'bg-pink-500/20 text-pink-400 border-pink-500/30'
-                        : 'bg-white/5 text-zinc-400 border-white/10 hover:border-white/20 hover:text-zinc-200'
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintCfgIntervalStart', 'Fraction of the diffusion process to start applying guidance.')}>{t('cfgIntervalStart')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                  value={cfgIntervalStart}
-                  onChange={(e) => setCfgIntervalStart(Number(e.target.value))}
-                  className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintCfgIntervalEnd', 'Fraction of the diffusion process to stop applying guidance.')}>{t('cfgIntervalEnd')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                  value={cfgIntervalEnd}
-                  onChange={(e) => setCfgIntervalEnd(Number(e.target.value))}
-                  className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintCustomTimesteps', 'Override the default timestep schedule (advanced).')}>{t('customTimesteps')}</label>
-              <input
-                type="text"
-                value={customTimesteps}
-                onChange={(e) => setCustomTimesteps(e.target.value)}
-                placeholder={t('timestepsPlaceholder')}
-                className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintScoreScale', 'Scales score-based guidance (advanced).')}>{t('scoreScale')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  max="1"
-                  value={scoreScale}
-                  onChange={(e) => setScoreScale(Number(e.target.value))}
-                  className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintLmBatchChunkSize', 'Bigger chunks can be faster but use more memory.')}>{t('lmBatchChunkSize')}</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="32"
-                  step="1"
-                  value={lmBatchChunkSize}
-                  onChange={(e) => setLmBatchChunkSize(Number(e.target.value))}
-                  className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('trackName')}</label>
-              <select
-                value={trackName}
-                onChange={(e) => setTrackName(e.target.value)}
-                className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800"
-              >
-                <option value="">None</option>
-                {TRACK_NAMES.map(name => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('completeTrackClasses')}</label>
-              <div className="flex flex-wrap gap-2">
-                {TRACK_NAMES.map(name => {
-                  const selected = completeTrackClasses.split(',').map(s => s.trim()).filter(Boolean);
-                  const isChecked = selected.includes(name);
-                  return (
-                    <label key={name} className="flex items-center gap-1 text-[10px] font-medium text-zinc-500 dark:text-zinc-400 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {
-                          const next = isChecked
-                            ? selected.filter(s => s !== name)
-                            : [...selected, name];
-                          setCompleteTrackClasses(next.join(','));
-                        }}
-                        className="accent-pink-600"
-                      />
-                      {name}
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <label
-                className="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400"
-                title={tf('hintUseAdg', 'Adaptive Dual Guidance: dynamically adjusts CFG for quality. Base model only; slower.')}
-              >
-                <input type="checkbox" checked={useAdg} onChange={() => setUseAdg(!useAdg)} />
-                {t('useAdg')}
-              </label>
-              <label className="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintAllowLmBatch', 'Allow the LM to run in larger batches for speed (more VRAM).')}>
-                <input type="checkbox" checked={allowLmBatch} onChange={() => setAllowLmBatch(!allowLmBatch)} />
-                {t('allowLmBatch')}
-              </label>
-              <label className="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintUseCotMetas', 'Let the LM reason about metadata like BPM, key, duration.')}>
-                <input type="checkbox" checked={useCotMetas} onChange={() => setUseCotMetas(!useCotMetas)} />
-                {t('useCotMetas')}
-              </label>
-              <label className="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintUseCotCaption', 'Let the LM reason about the caption/style text.')}>
-                <input type="checkbox" checked={useCotCaption} onChange={() => setUseCotCaption(!useCotCaption)} />
-                {t('useCotCaption')}
-              </label>
-              <label className="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintUseCotLanguage', 'Let the LM reason about language selection.')}>
-                <input type="checkbox" checked={useCotLanguage} onChange={() => setUseCotLanguage(!useCotLanguage)} />
-                {t('useCotLanguage')}
-              </label>
-              <label className="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintAutogen', 'Auto-generate missing fields when possible.')}>
-                <input type="checkbox" checked={autogen} onChange={() => setAutogen(!autogen)} />
-                {t('autogen')}
-              </label>
-              <label className="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintConstrainedDecodingDebug', 'Include debug info for constrained decoding.')}>
-                <input type="checkbox" checked={constrainedDecodingDebug} onChange={() => setConstrainedDecodingDebug(!constrainedDecodingDebug)} />
-                {t('constrainedDecodingDebug')}
-              </label>
-              <label className="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintFormatCaption', 'Use the formatted caption produced by the AI formatter.')}>
-                <input type="checkbox" checked={isFormatCaption} onChange={() => setIsFormatCaption(!isFormatCaption)} />
-                {t('formatCaption')}
-              </label>
-              <label className="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintGetScores', 'Return scorer outputs for diagnostics.')}>
-                <input type="checkbox" checked={getScores} onChange={() => setGetScores(!getScores)} />
-                {t('getScores')}
-              </label>
-              <label className="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintGetLrcLyrics', 'Return synced lyric (LRC) output when available.')}>
-                <input type="checkbox" checked={getLrc} onChange={() => setGetLrc(!getLrc)} />
-                {t('getLrcLyrics')}
-              </label>
-            </div>
+            <CotDebugToggles
+              values={cotDebugValues}
+              onToggle={handleCotDebugToggle}
+              t={t}
+              tf={tf}
+            />
           </div>
         )}
       </div>
@@ -3616,15 +3438,18 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             {tf('errNothingToGenerate', 'Rien à envoyer au moteur : active OpenRouter pour développer la description, ou remplis Style ou Paroles.')}
           </p>
         )}
+        {!descriptionCannotBeUsed && coverModeMissingSource && (
+          <p className="text-[11px] text-amber-500 leading-snug">
+            {tf('warnCoverNoSource', 'Sans audio chargé, Cover génère du texte-à-musique — dépose un fichier pour un vrai cover.')}
+          </p>
+        )}
         <button
           onClick={handleGenerate}
-          title={descriptionCannotBeUsed
-            ? tf('errNothingToGenerate', 'Rien à envoyer au moteur : active OpenRouter pour développer la description, ou remplis Style ou Paroles.')
-            : undefined}
+          title={blockGenerateReason ?? undefined}
           className={`w-full h-12 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] bg-gradient-to-r from-orange-500 to-pink-600 text-white shadow-lg ${
-            descriptionCannotBeUsed ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110'
+            blockGenerateReason ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110'
           }`}
-          disabled={!isAuthenticated || activeJobCount >= 10 || descriptionCannotBeUsed}
+          disabled={!isAuthenticated || activeJobCount >= 10 || Boolean(blockGenerateReason)}
         >
           <Sparkles size={18} />
           <span>

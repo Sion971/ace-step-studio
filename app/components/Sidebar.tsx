@@ -8,6 +8,11 @@ import { pollinationsStorage } from '../services/pollinations/storage';
 interface SidebarProps {
   currentView: View;
   onNavigate: (view: View) => void;
+  // Clic sur le logo : renvoie vers la page d'accueil reelle de l'app (le
+  // profil de l'utilisateur, voir OPEN_ON_PROFILE dans App.tsx), pas vers
+  // 'create'. Sidebar n'a pas besoin de savoir COMMENT on y revient (nom
+  // d'utilisateur, route), juste de declencher l'action au clic.
+  onNavigateHome?: () => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   user?: { username: string; isAdmin?: boolean; avatar_url?: string } | null;
@@ -244,6 +249,7 @@ const SystemWidget: React.FC<{ isOpen?: boolean }> = ({ isOpen }) => {
 export const Sidebar: React.FC<SidebarProps> = ({
   currentView,
   onNavigate,
+  onNavigateHome,
   theme,
   onToggleTheme,
   user,
@@ -276,7 +282,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex items-center gap-3">
           <div
             className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center cursor-pointer shadow-lg hover:scale-105 transition-transform flex-shrink-0"
-            onClick={() => onNavigate('create')}
+            onClick={() => (onNavigateHome ? onNavigateHome() : onNavigate('create'))}
             title={t('aceStepUI')}
           >
             <AudioLines size={22} className="text-white" />

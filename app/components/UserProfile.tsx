@@ -314,14 +314,19 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
                     )}
                 </div>
 
-                {/* Back Button */}
-                <button
-                    onClick={onBack}
-                    className="absolute top-4 left-4 flex items-center gap-2 text-white/80 hover:text-white bg-black/30 hover:bg-black/50 px-4 py-2 rounded-full backdrop-blur-sm transition-all z-20"
-                >
-                    <ArrowLeft size={20} />
-                    <span>{t('back')}</span>
-                </button>
+                {/* Back Button — masque sur ton propre profil (page
+                    d'accueil de l'app) ou "retour" n'a pas vraiment de
+                    sens. Reste visible en consultant le profil de
+                    quelqu'un d'autre. */}
+                {!isOwner && (
+                    <button
+                        onClick={onBack}
+                        className="absolute top-4 left-4 flex items-center gap-2 text-white/80 hover:text-white bg-black/30 hover:bg-black/50 px-4 py-2 rounded-full backdrop-blur-sm transition-all z-20"
+                    >
+                        <ArrowLeft size={20} />
+                        <span>{t('back')}</span>
+                    </button>
+                )}
 
                 {/* Edit Banner Button (Owner Only) - Visual Cue */}
                 {isOwner && (

@@ -7,6 +7,7 @@ import {
     Layers,
     Repeat,
     ListPlus,
+    FolderPlus,
     Download,
     Trash2,
     Share2
@@ -24,6 +25,10 @@ interface SongDropdownMenuProps {
     onExtractStems?: () => void;
     onReusePrompt?: () => void;
     onAddToPlaylist?: () => void;
+    // Distinct de onAddToPlaylist : "Playlist" et "Espace de travail" sont
+    // desormais separes cote donnees (voir migration_playlists_kind.sql),
+    // chacun avec son propre selecteur cote App.tsx.
+    onAddToWorkspace?: () => void;
     onDownload?: () => void;
     onShare?: () => void;
     onDelete?: () => void;
@@ -71,6 +76,7 @@ export const SongDropdownMenu: React.FC<SongDropdownMenuProps> = ({
     onExtractStems,
     onReusePrompt,
     onAddToPlaylist,
+    onAddToWorkspace,
     onDownload,
     onShare,
     onDelete,
@@ -222,6 +228,11 @@ export const SongDropdownMenu: React.FC<SongDropdownMenuProps> = ({
                 icon={<ListPlus size={14} />}
                 label={t('addToPlaylist')}
                 onClick={() => handleAction(onAddToPlaylist)}
+            />
+            <MenuItem
+                icon={<FolderPlus size={14} />}
+                label={t('addToWorkspace')}
+                onClick={() => handleAction(onAddToWorkspace)}
             />
             <MenuItem
                 icon={<Download size={14} />}
