@@ -19,6 +19,7 @@
 		var snap_px = 9;
 		var beat_snap_px = 4;
 		var region_snap_px = 5;
+		var zc_on = !w.localStorage || w.localStorage.pk_snapzc !== '0';
 		var row_h = default_row_h;
 		var clip_min_w = app.isMobile ? 24 : 36;
 		var cursor = 0;
@@ -2766,6 +2767,7 @@
 						next_start = old_start + (next_in - old_in);
 					}
 					next_start = snapTime ( next_start, e, clip );
+					next_start = zcClipTime ( clip, next_start, e, old_start, old_in );
 					next_in = old_in + next_start - old_start;
 					if (next_in < 0) {
 						next_start -= next_in;
@@ -2782,6 +2784,7 @@
 				else {
 					var next_out = Math.max (old_in + min, Math.min (clip.buffer.duration, old_out + diff));
 					var end = snapTime ( old_start + next_out - old_in, e, clip );
+					end = zcClipTime ( clip, end, e, old_start, old_in );
 					clip.out = Math.max (old_in + min, Math.min (clip.buffer.duration, old_in + end - old_start));
 				}
 				clampClipFades ( clip );
@@ -3071,6 +3074,15 @@
 				if (dlt < Math.min (lim, beat_snap_px / px_per_sec)) best = val;
 			}
 			return Math.max (0, best);
+		}
+
+		function zcClipTime ( clip, t, e, bs, bi ) {
+			if (!zc_on || e && e.altKey || !clip || !clip.buffer ||
+				!app.engine || !app.engine.ZeroCrossTime) return t;
+			bs = bs === undefined ? clip.start : bs;
+			bi = bi === undefined ? clipIn ( clip ) : bi;
+			var p = bi + t - bs;
+			return bs + app.engine.ZeroCrossTime ( clip.buffer, p ) - bi;
 		}
 
 		function snapHoldLimit ( t ) {
@@ -4520,16 +4532,24 @@
 			var wv = app.engine.wavesurfer;
 			var clip_id = clip.id;
 
+			var pushed_undo = false;
 			if (wv.backend.buffer !== buffer && app.engine.PreserveCurrentForUndo)
-				app.engine.PreserveCurrentForUndo ('Open Clip', function ( undo ) {
+				pushed_undo = !!app.engine.PreserveCurrentForUndo ('Open Clip', function ( undo ) {
 					editing_clip = undo ? null : clip_id;
 				});
 
 			Stop ();
 			Toggle ( false );
-			editing_clip = clip_id;
 			app.engine.is_ready = true;
-			wv.loadDecodedBuffer ( buffer );
+			if (!wv.loadDecodedBuffer ( buffer )) {
+				// clip failed to open: drop the stale 'Open Clip' undo entry
+				// and return to the multitrack view (prior editor history was
+				// already cleared by the undo push above)
+				if (pushed_undo) app.fireEvent ('StateRequestClearAll');
+				Toggle ( true );
+				return false;
+			}
+			editing_clip = clip_id;
 
 			if (buffer.numberOfChannels === 1) {
 				wv.backend.SetNumberOfChannels (1);
@@ -4555,6 +4575,7 @@
 			var dirty = d.getElementsByClassName ('pk_ed_empty');
 			if (dirty.length) dirty[0].parentNode.removeChild (dirty[0]);
 			OneUp ('Loaded clip in editor', 1000);
+			return true;
 		}
 
 		function syncEditingClip () {
@@ -5201,6 +5222,7 @@
 			if (!clip) return false;
 
 			if (at === undefined) at = marker;
+			at = zcClipTime ( clip, at );
 			var rel = at - clip.start;
 			var len = clipLen ( clip );
 
@@ -5491,6 +5513,9 @@
 		});
 		app.listenFor ('DidSetClipboard', function () {
 			clip_copy = null;
+		});
+		app.listenFor ('DidSnapSelDrag', function ( val ) {
+			zc_on = !!val;
 		});
 		app.listenFor ('RequestResize', function () {
 			if (!el) return ;

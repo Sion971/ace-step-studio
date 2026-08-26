@@ -149,6 +149,84 @@
 				});
 			}
 
+			// Chargement audio direct via ?audioUrl= (Ouvrir dans l'editeur,
+			// voir SongDropdownMenu.tsx / demucs-web).
+			if (w.location.href.split('audioUrl=')[1]) {
+				var audioUrl = decodeURIComponent(w.location.href.split('audioUrl=')[1].split('&')[0]);
+				setTimeout(function () {
+					if (audioUrl) {
+						q.engine.LoadURL(audioUrl);
+					}
+				}, 500);
+			}
+			// Chargement audio direct via ?audioUrl= (Ouvrir dans l'editeur,
+			// voir SongDropdownMenu.tsx / demucs-web).
+			if (w.location.href.split('audioUrl=')[1]) {
+				var audioUrl = decodeURIComponent(w.location.href.split('audioUrl=')[1].split('&')[0]);
+				setTimeout(function () {
+					if (audioUrl) {
+						q.engine.LoadURL(audioUrl);
+					}
+				}, 500);
+			}
+
+			// Chargement de PLUSIEURS stems a la fois via ?audioUrls= (pluriel,
+			// URL individuellement encodees puis jointes par des virgules —
+			// evite toute ambiguite si une URL contenait elle-meme une
+			// virgule, puisque encodeURIComponent l'aurait deja echappee en
+			// %2C avant la jointure). ?audioNames= optionnel, meme schema
+			// d'encodage, pour nommer chaque piste (sinon nom derive de l'URL).
+			//
+			// Utilise RequestLoadPickedFiles (voir multitrack.js) plutot que
+			// LoadURL : ce dernier ne cree jamais de nouvelle piste quand
+			// aucune n'existe encore (silencieusement no-op, voir addFiles
+			// dans multitrack.js — chemin mono-fichier vs chemin multi-
+			// fichiers, qui LUI cree une piste par fichier automatiquement).
+			if (w.location.href.split('audioUrls=')[1]) {
+				var rawUrls = w.location.href.split('audioUrls=')[1].split('&')[0];
+				var urls = rawUrls.split(',').map(function (s) { return decodeURIComponent(s); }).filter(Boolean);
+
+				var rawNames = w.location.href.split('audioNames=')[1];
+				var names = rawNames
+					? rawNames.split('&')[0].split(',').map(function (s) { return decodeURIComponent(s); })
+					: [];
+
+				if (urls.length > 0) {
+					// Le multipiste doit etre actif pour que multitrack.js
+					// ecoute RequestLoadPickedFiles — pas besoin d'ajouter
+					// separement &multitrack=1, cette activation est implicite
+					// des qu'on demande plusieurs stems.
+					setTimeout(function () {
+						if (q.multitrack) {
+							q.multitrack.Toggle(true);
+						}
+
+						var pending = urls.length;
+						var blobs = new Array(urls.length);
+						urls.forEach(function (url, i) {
+							fetch(url)
+								.then(function (res) {
+									if (!res.ok) throw new Error('HTTP ' + res.status);
+									return res.blob();
+								})
+								.then(function (blob) {
+									blob.name = (names[i] || ('Stem ' + (i + 1))) + '.wav';
+									blobs[i] = blob;
+								})
+								.catch(function (err) {
+									console.error('[audioUrls] Failed to fetch stem', url, err);
+								})
+								.then(function () {
+									if (--pending > 0) return;
+									var loaded = blobs.filter(Boolean);
+									if (loaded.length > 0) {
+										q.fireEvent('RequestLoadPickedFiles', loaded);
+									}
+								});
+						});
+					}, 500);
+				}
+			}
 			return (q);
 		};
 

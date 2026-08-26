@@ -409,6 +409,12 @@ function displayResults(tracks) {
                     </svg>
                     MIDI
                 </button>
+                <button id="edit-btn-${trackId}" class="download-btn" onclick="openInEditor('${trackId}')" title="Ouvrir ${config.label} dans l'editeur audio">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                    Editer
+                </button>
             </div>
 
             <audio id="audio-${trackId}" src="${audioUrl}" preload="metadata"></audio>
@@ -473,6 +479,89 @@ window.convertToMidi = async function(trackId) {
     } catch (err) {
         console.error('MIDI conversion failed:', err);
         alert(`Echec de la conversion MIDI : ${err.message || err}`);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalLabel;
+    }
+};
+
+// Ouvre un stem dans l'editeur audio AudioMass (page /editor, SEPAREE de
+// cette page). Un stem n'existe qu'en memoire ici (trackBuffers) — jamais
+// de fichier serveur, et une URL blob: creee dans CETTE page ne serait pas
+// valide dans /editor. On encode en WAV (meme encodeWavStereo que pour le
+// MIDI), on depose temporairement via /api/audio-editor/stage (purge
+// automatique cote serveur apres quelques minutes), et on ouvre l'editeur
+// avec cette vraie URL HTTP.
+window.openInEditor = async function(trackId) {
+    const btn = document.getElementById(`edit-btn-${trackId}`);
+    const buf = trackBuffers[trackId];
+    if (!buf || !btn) return;
+    const originalLabel = btn.innerHTML;
+    btn.disabled = true;
+    try {
+        btn.innerHTML = '...';
+        const wavBlob = encodeWavStereo(buf.left, buf.right, SAMPLE_RATE);
+        const formData = new FormData();
+        formData.append('audio', wavBlob, `${buf.label}.wav`);
+
+        const response = await fetch('/api/audio-editor/stage', {
+            method: 'POST',
+            body: formData,
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || `Le serveur a repondu ${response.status}.`);
+        }
+
+        window.open(`/editor?audioUrl=${encodeURIComponent(data.url)}`, '_blank');
+    } catch (err) {
+        console.error('Open in editor failed:', err);
+        alert(`Echec de l'ouverture dans l'editeur : ${err.message || err}`);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalLabel;
+    }
+};
+
+// Ouvre les QUATRE stems ensemble dans l'editeur, comme pistes separees
+// (mode multitrack — voir la mise a jour AudioMass et le correctif
+// ?audioUrls= dans app/server/audio-editor/app.js). Depose chaque stem en
+// parallele (Promise.all), puis construit une seule URL combinee — chaque
+// URL de depot est encodee INDIVIDUELLEMENT avant d'etre jointe par des
+// virgules, pour eviter toute ambiguite si l'une d'elles contenait deja
+// une virgule.
+window.openAllInEditor = async function() {
+    const btn = document.getElementById('editAll-btn');
+    const entries = Object.entries(trackBuffers);
+    if (entries.length === 0 || !btn) return;
+    const originalLabel = btn.innerHTML;
+    btn.disabled = true;
+    try {
+        btn.innerHTML = '...';
+
+        const staged = await Promise.all(entries.map(async ([trackId, buf]) => {
+            const wavBlob = encodeWavStereo(buf.left, buf.right, SAMPLE_RATE);
+            const formData = new FormData();
+            formData.append('audio', wavBlob, `${buf.label}.wav`);
+
+            const response = await fetch('/api/audio-editor/stage', {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || `Le serveur a repondu ${response.status} pour ${buf.label}.`);
+            }
+            return { url: data.url, label: buf.label };
+        }));
+
+        const audioUrls = staged.map((s) => encodeURIComponent(s.url)).join(',');
+        const audioNames = staged.map((s) => encodeURIComponent(s.label)).join(',');
+
+        window.open(`/editor?audioUrls=${audioUrls}&audioNames=${audioNames}`, '_blank');
+    } catch (err) {
+        console.error('Open all in editor failed:', err);
+        alert(`Echec de l'ouverture dans l'editeur : ${err.message || err}`);
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalLabel;

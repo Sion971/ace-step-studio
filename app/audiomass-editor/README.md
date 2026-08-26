@@ -4,12 +4,6 @@ Free full-featured web-based audio &amp; waveform editing tool
 
 Live: [https://audiomass.co](https://audiomass.co)
 
-### Now with multitrack support!
-
-AudioMass now ships with a full multitrack mode -- layer multiple tracks, drag clips around, crossfade overlaps, record onto armed channels, and bounce the whole thing back down to a single file. More details on the [about page](https://audiomass.co/about.html).
-
-![AudioMass Multitrack](https://audiomass.co/about/multitrack.png)
-
 ---
 
 ## Getting it to Run!
@@ -25,7 +19,6 @@ AudioMass now ships with a full multitrack mode -- layer multiple tracks, drag c
 ---
 
 If you want to build the all.build.js minified file for delivery/publishing this then you can use uglify and run as:
-```cat dist/wavesurfer.js dist/plugin/wavesurfer.regions.js oneup.js app.js keys.js contextmenu.js lufs.js ui-fx.js ui.js modal.js state.js engine.js actions.js drag.js recorder.js multitrack.js welcome.js fx-pg-eq.js fx-auto.js local.js id3.js lzma.js | uglifyjs -c -m -o all.build.js```
+```cat dist/wavesurfer.js dist/plugin/wavesurfer.regions.js oneup.js app.js keys.js contextmenu.js ui-fx.js ui.js modal.js state.js engine.js actions.js drag.js recorder.js welcome.js fx-pg-eq.js fx-auto.js local.js id3.js lzma.js | uglifyjs -c -m -o all.build.js```
 
 Thanks!
-

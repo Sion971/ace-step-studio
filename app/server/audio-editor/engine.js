@@ -48,13 +48,10 @@
 			return ((val *dec) >> 0) / dec;
 		}
 
-		function snapTime ( t ) {
-			var b = wavesurfer.backend && wavesurfer.backend.buffer;
+		this.ZeroCrossTime = function ( b, t, c ) {
 			if (!b) return t;
 			if (t <= 0 || t >= b.duration) return Math.max (0, Math.min (b.duration, t));
-
-			var c = 0;
-			while (c < b.numberOfChannels - 1 && wavesurfer.ActiveChannels && !wavesurfer.ActiveChannels[c]) ++c;
+			c = c || 0;
 			var r = b.sampleRate;
 			var d = b.getChannelData ( c );
 			var i = Math.max (1, Math.min (d.length - 1, (t * r) >> 0));
@@ -66,6 +63,13 @@
 				if (d[k] === 0 || d[k - 1] < 0 && d[k] > 0 || d[k - 1] > 0 && d[k] < 0) return k / r;
 			}
 			return t;
+		};
+
+		function snapTime ( t ) {
+			var b = wavesurfer.backend && wavesurfer.backend.buffer;
+			var c = 0;
+			while (b && c < b.numberOfChannels - 1 && wavesurfer.ActiveChannels && !wavesurfer.ActiveChannels[c]) ++c;
+			return q.ZeroCrossTime ( b, t, c );
 		}
 		wavesurfer.SnapTime = snap_sel ? snapTime : null;
 
@@ -155,11 +159,18 @@
 		};
 
 		this.LoadDB = function ( e ) {
-			var new_buffer = wavesurfer.backend.ac.createBuffer (
-					e.data.length,
-					e.data[0].byteLength / 4,
-					e.samplerate
-			);
+			var new_buffer;
+			try {
+				new_buffer = wavesurfer.backend.ac.createBuffer (
+						e.data.length,
+						e.data[0].byteLength / 4,
+						e.samplerate
+				);
+			} catch ( err ) {
+				wavesurfer.backend._add = 0;
+				app.fireEvent ('ShowError', 'Could not load this draft - it may be corrupted or too long for this browser.');
+				return false;
+			}
 
 			for (var i = 0; i < e.data.length; ++i) {
 
@@ -179,9 +190,10 @@
 			var append = wavesurfer.backend._add;
 			var old_durr = wavesurfer.getDuration ();
 
-			PKAudioEditor.engine.wavesurfer.loadDecodedBuffer (new_buffer);
+			if (!PKAudioEditor.engine.wavesurfer.loadDecodedBuffer (new_buffer)) return false;
 			_compute_channels ();
 			var new_durr = wavesurfer.getDuration ();
+
 			app.fireEvent ('DidUpdateLen', new_durr);
 			if (app.mrk) {
 				if (!append) app.mrk.loadEd (e.markers, false);
@@ -197,6 +209,7 @@
 						id:'t'
 					});
 			}
+			return true;
 			// --------
 		};
 
@@ -975,10 +988,34 @@
 
 		wavesurfer.on('error', function (error_msg) {
 
+			// load flows set is_ready to false before loading; errors from
+			// other sources (a failed edit) must not touch their cancel hooks
+			var was_load_flow = !q.is_ready;
+
 			// if loading - cancel loading
 			setTimeout(function() {
 				app.fireEvent ('DidDownloadFile'); // just hides the interface
-				q.is_ready = false;
+
+				// a failed load must not leave append mode armed - the next
+				// buffer swap (undo, fx) would concatenate instead of replace
+				if (wavesurfer.backend) wavesurfer.backend._add = 0;
+
+				// a failed load must not lock the editor: if a valid buffer
+				// survived (e.g. a failed append), keep the session usable.
+				// was_load_flow (not a re-read) so an unrelated load that
+				// started inside this timeout window is left alone
+				if (wavesurfer.backend && wavesurfer.backend.buffer) {
+					if (was_load_flow && !q.is_ready) {
+						q.is_ready = true;
+						wavesurfer.drawBuffer (1); // the display was blanked when loading began
+						app.fireEvent ('DidLoadFile');
+					}
+				}
+				else {
+					q.is_ready = false;
+				}
+
+				if (was_load_flow) app.stopListeningForName ('RequestCancelModal');
 			}, 20);
 
 			app.fireEvent ('ShowError', error_msg);
@@ -3223,6 +3260,10 @@
 
 		app.listenFor ('RequestActionFX_SPEED', function ( val ) {
 			if (!q.is_ready) return ;
+			if (AudioUtils.previewing) {
+				AudioUtils.FXPreviewStop ();
+				app.fireEvent ('DidStopPreview');
+			}
 
 			app.fireEvent('RequestPause');
 
@@ -3254,13 +3295,14 @@
 			var duration = fx.duration ? fx.duration (selected_duration) : selected_duration / val;
 			duration = q.TrimTo (duration, 3);
 
-			handleStateInline ( start, end );
-
-			var fx_buffer = AudioUtils.Copy ( start, end );
 			var originalBuffer = wavesurfer.backend.buffer;
 			var new_offset = ((start/1)   * originalBuffer.sampleRate) >> 0;
 			var new_len    = ((duration/1) * originalBuffer.sampleRate) >> 0;
 			var old_len    = ((end/1) * originalBuffer.sampleRate) >> 0;
+			if (!(new_len > 0) || !(old_len > 0)) return OneUp ('Could not apply Speed', 1200);
+
+			handleStateInline ( start, end );
+			var fx_buffer = AudioUtils.Copy ( start, end );
 
 			/*
 			var emptySegment = wavesurfer.backend.ac.createBuffer (
@@ -3321,6 +3363,8 @@
 			if (offline_renderer)
 				offline_renderer.then( offline_callback ).catch(function(err) {
 					console.log('Rendering failed: ' + err);
+					q.in_fx = false;
+					app.ui.InteractionHandler.on = false;
 				});
 			else
 				audio_ctx.oncomplete = function ( e ) {
@@ -3331,11 +3375,15 @@
 		app.listenFor ('StateDidPop', function ( state, undo ) {
 			if (state.type === 'mult') return ;
 			if (state.type === 'mrk') return ;
-			if (!q.is_ready) return ;
+			if (!q.is_ready) { state._restore_failed = true; return ; }
 			app.fireEvent ('RequestPause');
 
+			// only touch the session once the snapshot actually loaded
+			if (!wavesurfer.loadDecodedBuffer (state.data)) {
+				state._restore_failed = true;
+				return ;
+			}
 			wavesurfer.regions.clear();
-			wavesurfer.loadDecodedBuffer (state.data);
 
 			if (state.cb) state.cb (undo);
 

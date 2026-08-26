@@ -65,6 +65,20 @@ export const config = {
     audioDir: process.env.AUDIO_DIR || path.join(__dirname, '../../public/audio'),
   },
 
+  // Zone de depot temporaire pour "Ouvrir dans l'editeur" (stems separes
+  // par Demucs, existant uniquement comme buffers en memoire cote
+  // navigateur — jamais de fichier serveur reel). L'editeur AudioMass
+  // s'ouvre comme une page SEPAREE : une URL blob: creee dans la page
+  // React ne lui est pas accessible. On encode le stem en WAV cote
+  // client, on le depose ici temporairement, et l'editeur le recupere
+  // via une vraie URL HTTP de meme origine — voir routes/audio-editor.ts.
+  audioEditorStaging: {
+    dir: process.env.AUDIO_EDITOR_STAGING_DIR || path.join(__dirname, '../../temp/audio-editor-staging'),
+    ttlMs: 5 * 60 * 1000, // purge automatique 5 min apres depot — l'editeur
+    // recupere le fichier presque immediatement a l'ouverture, pas besoin
+    // de le garder plus longtemps.
+  },
+
   // Training datasets (inside ACE-Step-1.5 so Gradio can access them)
   datasets: {
     dir: process.env.DATASETS_DIR || path.join(__dirname, '../../../ACE-Step-1.5/datasets'),

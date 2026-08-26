@@ -31,6 +31,7 @@ import pipelineRoutes from './routes/pipeline.js';
 import renderVideoRoutes from './routes/render-video.js';
 import toolsRoutes from './routes/tools.js';
 import midiRoutes from './routes/midi.js';
+import audioEditorRoutes from './routes/audio-editor.js';
 import { pipelineManager } from './services/pipeline-manager.js';
 import { pool } from './db/pool.js';
 import './db/migrate.js';
@@ -143,6 +144,11 @@ app.use('/editor', (req, res, next) => {
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' blob: data: http://localhost:* https:; connect-src 'self' http://localhost:* https:; worker-src 'self' blob:");
   next();
 }, express.static(path.join(__dirname, '../audio-editor')));
+
+// Depot temporaire "Ouvrir dans l'editeur" (voir routes/audio-editor.ts) —
+// sert les fichiers deposes via une vraie URL HTTP de meme origine, seul
+// moyen pour la page /editor (separee) de les charger.
+app.use('/audio-editor-staged', express.static(config.audioEditorStaging.dir));
 
 // Demucs Web (Stem Extraction) - requires COOP/COEP headers for SharedArrayBuffer and relaxed CSP for ONNX runtime
 app.use('/demucs-web', (req, res, next) => {
@@ -532,6 +538,7 @@ app.use('/api/pipeline', pipelineRoutes);
 app.use('/api/render-video', express.json({ limit: '500mb' }), renderVideoRoutes);
 app.use('/api/tools', toolsRoutes);
 app.use('/api/midi', midiRoutes);
+app.use('/api/audio-editor', audioEditorRoutes);
 
 // GET /api/changelog — serve CHANGELOG.md as plain text
 app.get('/api/changelog', (_req, res) => {
