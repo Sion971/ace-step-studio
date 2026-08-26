@@ -75,7 +75,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, t
                             <div className="flex-1">
                                 <h3 className="text-xl font-bold text-zinc-900 dark:text-white">@{user.username}</h3>
                                 <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
-                                    {t('memberSince')} {new Date(user.createdAt).toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'long', year: 'numeric' })}
+                                    {t('memberSince')} {new Date(user.createdAt).toLocaleDateString(language === 'zh' ? 'zh-CN' : language === 'fr' ? 'fr-FR' : 'en-US', { month: 'long', year: 'numeric' })}
                                 </p>
                             </div>
                             <div className="flex gap-2">

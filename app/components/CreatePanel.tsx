@@ -2568,7 +2568,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             {/* Load Parameters from JSON */}
             <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-zinc-300 dark:border-white/15 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-white/5 cursor-pointer transition-colors">
               <Upload size={14} />
-              Load Parameters (JSON)
+              {t('loadParametersJson')}
               <input
                 type="file"
                 accept=".json"

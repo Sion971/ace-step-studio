@@ -19,6 +19,14 @@ interface UserProfileProps {
 
 export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPlaySong, onNavigateToProfile, onNavigateToPlaylist, currentSong, isPlaying, likedSongIds = new Set(), onToggleLike }) => {
     const { t, language } = useI18n();
+    // Locale a 3 branches (zh/fr/en), factorisee pour eviter de dupliquer
+    // le meme enchainement de conditions aux deux endroits qui affichent
+    // une date (supportingSince, joined). Avant ce correctif, chacun avait
+    // sa propre logique a DEUX branches, incoherentes entre elles : l'une
+    // oubliait le francais (repli sur l'anglais), l'autre oubliait le
+    // chinois — un utilisateur francophone ou sinophone selon l'endroit
+    // voyait des dates dans une langue qu'il n'avait pas choisie.
+    const dateLocale = language === 'zh' ? 'zh-CN' : language === 'fr' ? 'fr-FR' : 'en-US';
     const { user: currentUser, token } = useAuth();
     const [profileUser, setProfileUser] = useState<UserProfileType | null>(null);
     const [publicSongs, setPublicSongs] = useState<Song[]>([]);
@@ -466,7 +474,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
 
                                     {profileUser.supporter_since && profileUser.accountTier && profileUser.accountTier !== 'free' && (
                                         <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3">
-                                            {t('supportingSince')} {new Date(profileUser.supporter_since).toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'long', year: 'numeric' })}
+                                            {t('supportingSince')} {new Date(profileUser.supporter_since).toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' })}
                                         </p>
                                     )}
 
@@ -478,7 +486,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
                                     )}
 
                                     <p className="text-zinc-500 text-xs md:text-sm mb-4">
-                                        {t('joined')} {new Date(profileUser.created_at).toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'long', year: 'numeric' })}
+                                        {t('joined')} {new Date(profileUser.created_at).toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' })}
                                     </p>
                                 </div>
 
