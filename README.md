@@ -1,273 +1,287 @@
-<div align="center">
+<p align="center">
+  <img src="https://img.shields.io/badge/🎵-ACE--Step_Studio-ec4899?style=for-the-badge&labelColor=1a1a1a" alt="ACE-Step Studio" height="60">
+</p>
 
-# ACE-Step Studio
+<h1 align="center">ACE-Step Studio (Linux)</h1>
 
-**Suno at home. Local AI music generation studio — songs, vocals, lyrics, covers, music videos.**
+<p align="center">
+  <strong>A Linux-native fork of ACE-Step Studio, built around a local AI music generation workflow</strong><br>
+  <em>Powered by <a href="https://github.com/ace-step/ACE-Step-1.5">ACE-Step 1.5</a> — The Open Source AI Music Generation Model</em>
+</p>
 
-[![Stars](https://img.shields.io/github/stars/timoncool/ACE-Step-Studio?style=flat-square)](https://github.com/timoncool/ACE-Step-Studio/stargazers)
-[![License](https://img.shields.io/github/license/timoncool/ACE-Step-Studio?style=flat-square)](LICENSE)
-[![Last Commit](https://img.shields.io/github/last-commit/timoncool/ACE-Step-Studio?style=flat-square)](https://github.com/timoncool/ACE-Step-Studio/commits/master)
-[![Downloads](https://img.shields.io/github/downloads/timoncool/ACE-Step-Studio/total?style=flat-square)](https://github.com/timoncool/ACE-Step-Studio/releases)
-
-**[Русская версия](README_RU.md)**
-
-![ACE-Step Studio](docs/screenshots/main-ui.png)
-
-</div>
-
-Create full songs with vocals, lyrics, covers, remixes and music videos — **100% local**, no cloud, no subscriptions, no internet required. One-click install on Windows, runs on any NVIDIA GPU with 12+ GB VRAM.
-
-Built on [ACE-Step 1.5 XL](https://github.com/ace-step/ACE-Step-1.5) — the open-source 4B parameter DiT music generation model.
-
-## Why ACE-Step Studio?
-
-- **Free forever** — no API keys, no credits, no usage limits
-- **Private** — your music never leaves your machine
-- **Portable** — everything in one folder, copy to USB, delete = uninstall
-- **One-click** — `install.bat` → `run.bat` → make music
-
-## Features
-
-### Music Generation
-- **Full songs with vocals** — up to 8 minutes, any language, any genre
-- **Simple & Custom modes** — describe what you want or fine-tune every parameter
-- **3 XL Models** — XL Turbo (8 steps, fast), XL SFT (50 steps, max quality), XL Turbo BF16 (compact, 7.5 GB)
-- **AI Lyrics & Style** — LLM generates lyrics and enriches style descriptions
-- **Hot Model Switching** — change DiT/LM models without restart
-- **Batch generation** — create multiple variations at once
-- **10 samplers, 7 schedulers** — euler, heun, midpoint, dopri5, deis, ipndm, and more
-- **LoRA support** — load LoRA weights at inference time
-- **ID3 tags** — MP3 files include title, artist, cover art, lyrics, BPM
-
-### Cloud LLM & Image (optional, off by default)
-- **OpenRouter for lyrics & style** — bring-your-own-key alternative to the local LM. Pick any model (Claude, GPT-4o, DeepSeek, Llama 3.x, etc.), get instant lyrics + caption + key/BPM/duration metadata without using GPU VRAM. Local LM keeps working in parallel — toggle anytime.
-- **Pollinations.ai cover generation** — auto-generate album covers in parallel with audio (server-side, fire-and-forget, never blocks audio gen). The visual prompt comes straight from the OpenRouter LLM (which writes a 1–2 sentence visual description tailored to the song's lyrics and mood) or from a keyword fallback. Anonymous tier works; bring your own token for higher rate limits and no watermark.
-- **Manual cover regen modal** — picture-with-pencil button on every track. Pick any Pollinations model, write your own prompt, "Try again" until you like it, **or upload your own image from disk** (JPEG/PNG/WEBP, ≤10MB). Saved cover replaces both `songs.cover_url` and the embedded ID3 frame inside the MP3, so external players see your picked image too.
-- **Independent toggles** — every cloud feature is opt-in. Use only Pollinations covers + local LM, or only OpenRouter lyrics + auto-picsum covers, or both, or neither. Local-only mode is the default.
-
-### Cover & Remix
-- **Cover mode** — transform existing audio into a new style while keeping the melody
-- **Repaint mode** — regenerate specific sections of a song (region selection on waveform)
-- **Reference audio** — use a reference track to guide the generation style
-- **Audio strength control** — blend between source and generated audio
-
-### Video Studio
-
-![Video Studio](docs/screenshots/video-studio.png)
-
-- **Music video generator** — NCS-style visualizers with 10 presets
-- **Karaoke lyrics** — synchronized LRC subtitles with 3 styles (lines, scroll, karaoke fill)
-- **WYSIWYG editor** — drag elements, scroll to resize, selection frames
-- **Aspect ratios** — 16:9, 9:16 (Reels/TikTok), 1:1 (Instagram)
-- **12 effects** — shake, glitch, VHS, CCTV, scanlines, bloom, film grain, strobe, vignette, hue shift, letterbox, pixelate
-- **Background** — random, custom image, Pexels search, video backgrounds
-- **Server-side rendering** — native ffmpeg with NVENC GPU acceleration
-
-### Audio Tools
-- **Audio editor** — trim, fade, effects (AudioMass)
-- **Stem extraction** — separate vocals, drums, bass, other (Demucs)
-- **LRC download** — export synchronized lyrics
-
-### Model Tools
-- **BF16 Converter** — convert safetensors from FP32/FP16 to BFloat16 (~50% size reduction)
-- **Model Merger** — merge two ACE-Step models with adjustable alpha (3 methods)
-- **Bake LoRA** — bake LoRA weights into base model
-
-### Interface
-- **Single terminal** — one `run.bat`, Express manages Python/Gradio automatically
-- **Portable** — everything in one folder, no system-wide installs
-- **5 languages** — English, Russian, Chinese, Japanese, Korean
-- **LAN access** — use from any device on your network (phone, tablet)
-- **GPU monitoring** — live VRAM, RAM, CPU, temperature stats
-- **Dark/Light theme**
-
-## System Requirements
-
-| Component | Minimum | Recommended |
-|-----------|---------|-------------|
-| GPU VRAM | 12 GB | 20+ GB |
-| RAM | 16 GB | 32 GB |
-| Disk | 30 GB | 60 GB (all models) |
-| OS | Windows 10/11 | Windows 11 |
-| GPU | RTX 3060+ | RTX 4090 |
-
-## Quick Start
-
-> 🚀 **One-click cross-platform install via Pinokio:** [![Install on Pinokio](https://img.shields.io/badge/Install_on-Pinokio-7c3aed?style=flat-square)](https://pinokio.co/item?uri=https://github.com/timoncool/ACE-Step-Studio-pinokio) [![Open in Pinokio](https://img.shields.io/badge/Open_in-Pinokio-6d28d9?style=flat-square)](https://beta.pinokio.co/apps/github-com-timoncool-ace-step-studio-pinokio)
->
-> Works on Windows / Linux (x64 & aarch64) / macOS (Apple Silicon & Intel). No `install.bat` required — Pinokio bundles Python, Node, ffmpeg, venv and picks the right PyTorch build for your GPU automatically.
->
-> Pinokio launcher repo: **[timoncool/ACE-Step-Studio-pinokio](https://github.com/timoncool/ACE-Step-Studio-pinokio)**
+<p align="center">
+  <img src="https://img.shields.io/github/stars/Sion971/ace-step-studio?style=flat-square" alt="Stars">
+  <img src="https://img.shields.io/github/license/Sion971/ace-step-studio?style=flat-square" alt="License">
+  <img src="https://img.shields.io/github/last-commit/Sion971/ace-step-studio?style=flat-square" alt="Last Commit">
+</p>
 
 ---
 
-Or install manually on Windows:
+## 🐧 About this fork
 
-### 1. Clone
+This is a **Linux-focused fork** of [timoncool/ACE-Step-Studio](https://github.com/timoncool/ACE-Step-Studio), itself built on [AmbsdOP's ACE-Step UI](https://github.com/fspecii/ace-step-ui). It's been substantially reworked and extended for a Linux workflow — developed and tested on Linux Mint with an NVIDIA RTX GPU, with a one-shot installer that handles GPU detection, driver-aware compiler checks, and every dependency down to the isolated MIDI conversion environment.
+
+If you're on Windows or macOS, the [upstream project](https://github.com/timoncool/ACE-Step-Studio) is the better starting point — this fork trades cross-platform support for going deep on one platform.
+
+**What's different from upstream:**
+
+- **Playlists vs. Workspaces** — a real separation between curated playlists and working sessions, with exclusive workspace membership (a song lives in one workspace at a time) and a virtual "default" view computed by exclusion.
+- **MIDI conversion, server-side** — [basic-pitch](https://github.com/spotify/basic-pitch) running in an isolated Python 3.11 environment (its TensorFlow dependency doesn't ship wheels for newer Python), converting stems to MIDI in seconds rather than tens of minutes in-browser.
+- **AudioMass, updated and wired in** — upgraded to the multitrack build, with direct-load support: open a single stem or all four Demucs stems together as separate tracks, straight from the browser, no manual export/import round-trip.
+- **LoRA training from the UI** — the full scan → label → preprocess → train pipeline, drivable from React without dropping into Gradio directly.
+- **One installer, GPU-aware** — detects your actual compute capability and compiler version, not just a menu choice, and knows when `flash-attn` will and won't build correctly for your hardware (Blackwell/RTX 50-series needs CUDA 12.8+ to compile it at all — the installer checks this before attempting a multi-hour build that's doomed to fail).
+
+---
+
+## 🎬 Screenshots
+
+<p align="center">
+  <img src="app/docs/screenshots/01-create.png" alt="Create page" width="800">
+</p>
+
+<p align="center">
+  <em>Generation panel, workspace view, and the bottom player — all in one screen.</em>
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="app/docs/screenshots/02-workspaces.png" alt="Workspaces"></td>
+    <td width="50%"><img src="app/docs/screenshots/03-stems.png" alt="Stem extraction"></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Workspaces, organized visually</em></td>
+    <td align="center"><em>Stem extraction — WAV, MIDI, or straight to the editor</em></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="app/docs/screenshots/04-multitrack-editor.png" alt="Multitrack editor" width="800">
+</p>
+
+<p align="center">
+  <em>All four Demucs stems, opened together as separate tracks in the AudioMass editor.</em>
+</p>
+
+---
+
+## ✨ Features
+
+### 🎵 AI Music Generation
+| Feature | Description |
+|---------|-------------|
+| **Full Song Generation** | Create complete songs with vocals and lyrics up to 4+ minutes |
+| **Instrumental Mode** | Generate instrumental tracks without vocals |
+| **Custom Mode** | Fine-tune BPM, key, time signature, and duration |
+| **Style Tags** | Define genre, mood, tempo, and instrumentation |
+| **Batch Generation** | Generate multiple variations at once |
+| **AI Enhance** | Enrich genre tags into detailed captions with proper BPM/key/time |
+| **Thinking Mode** | Let AI reason about structure and generate audio codes |
+
+### 🎨 Advanced Parameters
+| Feature | Description |
+|---------|-------------|
+| **Reference Audio** | Use any audio file as a style reference |
+| **Audio Cover** | Transform existing audio with new styles |
+| **Repainting** | Regenerate specific sections of a track |
+| **Seed Control** | Reproduce exact generations for consistency |
+| **Inference Steps** | Control quality vs speed tradeoff |
+
+### 🎤 Lyrics & Prompts
+| Feature | Description |
+|---------|-------------|
+| **Lyrics Editor** | Write and format lyrics with structure tags |
+| **Format Assistant** | AI-powered caption and lyrics formatting |
+| **Prompt Templates** | Quick-start with genre presets |
+| **Reuse Prompts** | Clone settings from any previous generation |
+
+### 📁 Library Organization
+| Feature | Description |
+|---------|-------------|
+| **Playlists** | Curated collections, a song can belong to several |
+| **Workspaces** | Active working sessions — a song belongs to exactly one at a time |
+| **Default View** | Everything not currently assigned to a workspace |
+| **Bottom Player** | Full-featured player with waveform and progress |
+| **Real-time Progress** | Live generation progress with queue position |
+| **LAN Access** | Use from any device on your local network |
+
+### 🛠️ Built-in Tools
+| Feature | Description |
+|---------|-------------|
+| **Multitrack Audio Editor** | Trim, fade, and mix with AudioMass — open single stems or all four together as separate tracks |
+| **Stem Extraction** | Separate vocals, drums, bass, and other with Demucs, in-browser |
+| **MIDI Conversion** | Turn any stem into MIDI server-side, in seconds |
+| **LoRA Training** | Full training pipeline, driven from the UI |
+| **Video Generator** | Create music videos with Pexels backgrounds |
+| **Gradient Covers** | Procedural album art, no internet needed |
+
+---
+
+## 💻 Tech Stack
+
+| Layer | Technologies |
+|-------|-------------|
+| **Frontend** | React 18, TypeScript, TailwindCSS, Vite |
+| **Backend** | Express.js, SQLite, better-sqlite3 |
+| **AI Engine** | [ACE-Step 1.5](https://github.com/ace-step/ACE-Step-1.5) (Gradio API) |
+| **Audio Tools** | AudioMass (multitrack), Demucs, basic-pitch, FFmpeg |
+
+---
+
+## 📋 Requirements
+
+| Requirement | Specification |
+|-------------|---------------|
+| **OS** | Linux (developed on Linux Mint / Ubuntu 24.04) |
+| **Node.js** | 22 LTS |
+| **Python** | 3.12 (main env), 3.11 (isolated, for MIDI conversion only) |
+| **NVIDIA GPU** | 4GB+ VRAM (works without LLM), 12GB+ recommended (with LLM) |
+| **CUDA compiler (`nvcc`)** | 12.8+ if you want `flash-attn` on Blackwell (RTX 50-series) — older cards work with older `nvcc` too, the installer checks and falls back to SDPA if not |
+| **FFmpeg, libsndfile** | Installed automatically by the installer if missing |
+| **uv** | Python package manager — installed automatically if missing |
+
+---
+
+## ⚡ Quick Start
 
 ```bash
-git clone https://github.com/timoncool/ACE-Step-Studio.git
-cd ACE-Step-Studio
+# 1. Clone this repo and ACE-Step-1.5 side by side (see full install below)
+git clone https://github.com/Sion971/ace-step-studio.git
+cd ace-step-studio
+
+# 2. Run the installer — handles GPU detection, PyTorch, dependencies,
+#    database migration, and the isolated MIDI conversion environment
+./install.sh
+
+# 3. Start everything (frontend + backend + AI engine) in one terminal
+./run.sh
 ```
 
-### 2. Install
-
-```
-install.bat
-```
-
-Select your GPU type (CUDA 12.8 / 12.6 / 12.4). Installs portable Python 3.12, PyTorch, Node.js 22, and all dependencies — nothing system-wide.
-
-### 3. Run
-
-```
-run.bat
-```
-
-Browser opens automatically at http://localhost:3001. Models download on first run (~7.5 GB for default BF16 model).
-
-## Launchers
-
-| Script | Description |
-|--------|-------------|
-| `run.bat` | Standard launch — DiT + LM (0.6B PT), full features |
-| `run-no-lm.bat` | Launch without LM — more VRAM for DiT, cover/repaint work, no AI lyrics/thinking |
-| `run-dev.bat` | Dev mode — 3 terminals with Vite HMR |
-| `install.bat` | One-click installer |
-| `update.bat` | Update code + deps + rebuild frontend |
-| `reinstall.bat` | Clean reinstall (preserves models and data) |
-| `download_model.bat` | Pre-download models |
-
-## Models
-
-| Model | Size | Steps | Speed | Quality |
-|-------|------|-------|-------|---------|
-| XL Turbo BF16 | 7.5 GB | 8 | Fast | High |
-| XL Turbo | 18.8 GB | 8 | Fast | Very High |
-| XL SFT | 18.8 GB | 50 | Slow | Highest |
-| XL Merge SFT+Turbo | 18.8 GB | 12 | Medium | Very High |
-
-### LM Models (text/lyrics AI)
-
-| Model | VRAM | Quality |
-|-------|------|---------|
-| 0.6B | ~0.5 GB | Basic |
-| 1.7B | ~1.5 GB | Good |
-| 4B | ~4 GB | Best |
-
-LM backend: **PT** (PyTorch, lighter) or **vLLM** (faster inference, more VRAM).
-
-## API Keys (optional)
-
-ACE-Step Studio is fully usable **without any API keys** — local DiT + local LM cover everything music-generation related. The keys below unlock optional cloud services that some users prefer for convenience or quality. They are stored in browser `localStorage` only, never sent to any server but the provider's own.
-
-> **TL;DR — both providers can be used 100 % free.**
-> OpenRouter has dozens of completely free models you can pick (DeepSeek R1 free, Llama 3.3 70B free, Gemini 2.0 Flash free, Qwen 2.5 free, Mistral Small free…) — just create a key and choose any model with a `:free` tag.
-> Pollinations.ai works **without any account at all** on the anonymous tier (slower, occasional watermark on some models) — leave the key field blank and it just works.
-
-| Provider | What it does in the app | Where to get it | Free tier |
-|---|---|---|---|
-| **OpenRouter** | Generates lyrics + caption + BPM/key/duration metadata + a visual cover prompt from your one-line description (replaces the local LM). Lets you pick Claude / GPT-4o / DeepSeek / Llama / Mistral / Gemini / any of 200+ models. | [openrouter.ai/keys](https://openrouter.ai/keys) — sign in with Google/GitHub, click *Create Key*. | **Yes — many fully free models** (filter the model picker by `:free`): DeepSeek R1 free, Llama 3.3 70B Instruct free, Gemini 2.0 Flash free, Qwen 2.5 free, Mistral Small 3 free, and more. Paid models are pay-per-token from your wallet — no monthly subscription required. |
-| **Pollinations.ai** | Generates the album cover image in parallel with audio gen, plus powers the manual cover-regen modal. Token also unlocks the full image-model catalogue (FLUX, Qwen-Image, Klein, GPT-Image, Z-Image, …) and removes the watermark. | [auth.pollinations.ai](https://auth.pollinations.ai) — sign in, copy `pk_…` (public) or `sk_…` (private) key. | **Yes — fully free**, anonymous tier works without any account or key. Slower (1 req/15 s) and may have a small watermark on certain models. With a free token: 1 req/5 s + no watermark + full model list. |
-
-### Where to enter them
-
-- **OpenRouter** → Create panel → Advanced → toggle *"Use OpenRouter"* → paste key, pick model, *Test*.
-- **Pollinations** → Create panel → Advanced → *Cover image (Pollinations.ai)* → toggle *"Generate covers via Pollinations.ai"* → paste key (optional), pick model, *Test*.
-
-Both toggles persist across sessions and are independent — turn either one off to fall back to the local pipeline (LM for lyrics, picsum for covers).
-
-### How private is this?
-
-- Keys live only in your browser's `localStorage` for this site.
-- They are sent **only** to `openrouter.ai` / `gen.pollinations.ai` over HTTPS, attached to that single API call. ACE-Step Studio does not have a backend account, telemetry, or proxy server.
-- Cover images you generate are written to `app/server/public/audio/<userId>/covers/<songId>.jpg` on your machine. Nothing is uploaded anywhere.
-- If you don't want any cloud calls, simply leave both toggles off — the entire app works offline.
-
-## Architecture
-
-```
-ACE-Step-Studio/
-├── app/              # React + Express frontend & backend
-├── ACE-Step-1.5/     # Python ML pipeline
-├── python/           # Portable Python 3.12 (created by install.bat)
-├── node/             # Portable Node.js 22 (created by install.bat)
-├── models/           # HuggingFace cache (created at runtime)
-├── run.bat           # Standard launcher
-├── run-no-lm.bat     # Launch without LM
-├── install.bat       # One-click installer
-├── update.bat        # Updater
-└── CHANGELOG.md      # Version history
-```
-
-## Updating
-
-```
-update.bat
-```
-
-Pulls latest code, updates Python/Node deps, rebuilds frontend.
-
-## Contributing
-
-Contributions welcome! Here's how to help:
-
-- **Report bugs** — [open an issue](https://github.com/timoncool/ACE-Step-Studio/issues)
-- **Suggest features** — [start a discussion](https://github.com/timoncool/ACE-Step-Studio/issues)
-- **Submit PRs** — see [AGENTS.md](AGENTS.md) for architecture, coding conventions, and pitfalls
-
-Areas where help is especially needed:
-- macOS / Linux support
-- New visualizer presets for Video Studio
-- Translations (i18n)
-- LoRA training UI improvements
-- Documentation & tutorials
-
-## Other Portable Neural Networks
-
-| Project | Description |
-|---------|-------------|
-| [Foundation Music Lab](https://github.com/timoncool/Foundation-Music-Lab) | Music generation + timeline editor |
-| [VibeVoice ASR](https://github.com/timoncool/VibeVoice_ASR_portable_ru) | Speech recognition (ASR) |
-| [LavaSR](https://github.com/timoncool/LavaSR_portable_ru) | Audio quality enhancement |
-| [Qwen3-TTS](https://github.com/timoncool/Qwen3-TTS_portable_rus) | Text-to-speech by Qwen |
-| [SuperCaption Qwen3-VL](https://github.com/timoncool/SuperCaption_Qwen3-VL) | Image captioning |
-| [VideoSOS](https://github.com/timoncool/videosos) | AI video production |
-| [RC Stable Audio Tools](https://github.com/timoncool/RC-stable-audio-tools-portable) | Music and audio generation |
-
-## Authors
-
-- **Nerual Dreming** — [Telegram](https://t.me/nerual_dreming) | [neuro-cartel.com](https://neuro-cartel.com) | [ArtGeneration.me](https://artgeneration.me)
-- **Neiro-Soft** — [Telegram](https://t.me/neuroport) | portable neural network builds
-
-## Acknowledgments
-
-- **[ACE-Step Team](https://github.com/ace-step)** — open source ACE-Step 1.5 music generation model
-- **[fspecii](https://github.com/fspecii/ace-step-ui)** — original ACE-Step UI
-- [AudioMass](https://audiomass.co/) — browser audio editor
-- [Demucs](https://github.com/facebookresearch/demucs) — stem extraction by Meta
-- [Pexels](https://www.pexels.com/) — free stock photos/videos
-- [Gradio](https://gradio.app/) — ML model serving
-- [FFmpeg](https://ffmpeg.org/) — video encoding
-
-## Support This Project
-
-I build software and do research in AI and music generation. Most of what I create is free and open source. Your donations allow me to keep creating and exploring without worrying about where the next meal comes from =)
-
-**[All donation methods](DONATE.md)** | **[dalink.to/nerual_dreming](https://dalink.to/nerual_dreming)** | **[boosty.to/neuro_art](https://boosty.to/neuro_art)**
-
-- **BTC:** `1E7dHL22RpyhJGVpcvKdbyZgksSYkYeEBC`
-- **ETH (ERC20):** `0xb5db65adf478983186d4897ba92fe2c25c594a0c`
-- **USDT (TRC20):** `TQST9Lp2TjK6FiVkn4fwfGUee7NmkxEE7C`
+That's it — the UI opens automatically at `http://localhost:3001`.
 
 ---
 
-## Star History
+## 📦 Installation
 
-<a href="https://github.com/timoncool/ACE-Step-Studio/stargazers">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="docs/stars-dark.svg" />
-   <source media="(prefers-color-scheme: light)" srcset="docs/stars-light.svg" />
-   <img alt="Star History Chart" src="docs/stars-light.svg" />
- </picture>
-</a>
+### 1. Get ACE-Step 1.5 (the AI engine)
+
+```bash
+git clone https://github.com/ace-step/ACE-Step-1.5.git
+```
+
+Place it alongside this repo — `run.sh` expects `../ACE-Step-1.5` relative to this project by default (configurable).
+
+### 2. Clone this repo and run the installer
+
+```bash
+git clone https://github.com/Sion971/ace-step-studio.git
+cd ace-step-studio
+./install.sh
+```
+
+The installer walks through twelve steps, all self-checking and safe to re-run:
+
+1. System dependencies (FFmpeg, libsndfile) via apt, only if missing
+2. Working directory structure
+3. GPU / CUDA selection (Pascal through Blackwell, or CPU-only)
+4. Python virtual environment (via `uv`)
+5. Build tools
+6. PyTorch, matched to your selected CUDA version
+7. NVIDIA NPP (a `torchcodec` runtime dependency that PyTorch doesn't pull in on its own)
+8. ACE-Step dependencies, including a real compute-capability check before attempting `flash-attn` — skips it cleanly (falling back to SDPA) rather than burning hours on a build that can't succeed on your hardware
+9. `torchcodec` load verification
+10. Node.js check, npm install, frontend build
+11. Database migration (playlist/workspace schema) — idempotent, safe on every reinstall
+12. Isolated `basic-pitch` environment for MIDI conversion (Python 3.11 via deadsnakes PPA)
+
+Models download automatically on first run (~5GB).
+
+### 3. Start the app
+
+```bash
+./run.sh
+```
+
+**Options:**
+
+| Flag | Effect |
+|------|--------|
+| `--no-lm` | Skip the local 5Hz LM (0.6B) — frees ~1GB VRAM, good for LoRA training |
+| `--gradio-only` | ACE-Step's own Gradio UI only (port 8001), no Express/React frontend — needed for dataset labeling |
+| `--no-browser` | Don't auto-open a browser tab |
+| `--port <n>` | Web server port (default 3001) |
+
+---
+
+## 🎼 Generation Modes
+
+### Simple Mode
+Just describe your song in natural language — genre, mood, instruments — and let ACE-Step handle the rest.
+
+### Custom Mode
+Fine-grained control over BPM, key, time signature, duration, and structure tags in your lyrics.
+
+### AI Enhance & Thinking Mode
+AI Enhance enriches short genre tags into detailed captions with proper metadata. Thinking Mode lets the model reason about song structure before generating audio codes — better results, more VRAM.
+
+### Batch Size & Bulk Generation
+Generate several variations of the same prompt in one pass to compare results quickly.
+
+---
+
+## 🔧 Built-in Tools
+
+**Audio Editor (AudioMass, multitrack)** — trim, fade, apply effects. Open a single stem directly from your library, or send all four Demucs stems over together as separate tracks in one editor session.
+
+**Stem Extraction (Demucs)** — runs in-browser via ONNX, separates vocals/drums/bass/other. Each stem can be downloaded, converted to MIDI, or sent straight to the editor.
+
+**MIDI Conversion (basic-pitch)** — runs server-side in its own isolated environment, converts any stem to MIDI in seconds.
+
+**LoRA Training** — scan your dataset, label, preprocess, and train, all from the UI.
+
+**Video Generator** — turn a track into a music video with Pexels stock backgrounds.
+
+---
+
+## 🐛 Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| **ACE-Step not reachable** | Ensure Gradio server is running with `--enable-api` (handled automatically by `run.sh`) |
+| **CUDA out of memory** | Set batch size to **1**, reduce duration, or disable Thinking Mode |
+| **4GB GPU — Out of memory** | Batch size **1**, Thinking Mode **off**. LLM features need 12GB+ |
+| **`flash-attn` build fails or errors at runtime** | Check your `nvcc` version supports your GPU's compute capability — see `install.sh` step 8, or fall back to `--no-lm` if you just need generation working now |
+| **Songs show 0:00 duration** | `sudo apt install ffmpeg` |
+| **LAN access not working** | Check firewall allows the port you're running on (default 3001) |
+
+More detail in `TROUBLESHOOTING.md`.
+
+---
+
+## 🙏 Credits
+
+- **[ACE-Step](https://github.com/ace-step/ACE-Step-1.5)** — the underlying open source AI music generation model
+- **[timoncool/ACE-Step-Studio](https://github.com/timoncool/ACE-Step-Studio)** — the project this fork is built on
+- **[AmbsdOP/ace-step-ui](https://github.com/fspecii/ace-step-ui)** — the original UI this was in turn based on
+- **[@bdsqlsz](https://space.bilibili.com/29863478)** — Chinese localization, carried over from upstream
+- **[AudioMass](https://github.com/pkalogiros/AudioMass)** — web audio editor
+- **[Demucs](https://github.com/facebookresearch/demucs)** — audio source separation
+- **[basic-pitch](https://github.com/spotify/basic-pitch)** — audio-to-MIDI conversion
+- **[Pexels](https://www.pexels.com)** — stock video backgrounds
+
+---
+
+## 🤝 Contributing
+
+This started as a personal project to get ACE-Step Studio running well on Linux, and it's grown from there. It's not actively looking for contributors, but issues, questions, and pull requests are welcome if something's broken or you've got an improvement in mind.
+
+---
+
+## 📄 License
+
+MIT License — see [LICENSE](LICENSE). Original copyright retained; this fork's changes are released under the same terms.
+
+---
+
+<p align="center">
+  <em>Built on the shoulders of ACE-Step, AudioMass, Demucs, and everyone who worked on this UI before it got here.</em>
+</p>
