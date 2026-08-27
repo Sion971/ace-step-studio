@@ -1,5 +1,182 @@
 [
   {
+    "id": "public-release-2026-08-27",
+    "date": "2026-08-27",
+    "title": {
+      "en": "🚀 First public release",
+      "fr": "🚀 Première publication publique",
+      "ru": "🚀 Первый публичный релиз",
+      "zh": "🚀 首次公开发布",
+      "ja": "🚀 初の一般公開",
+      "ko": "🚀 첫 공개 릴리스"
+    },
+    "body": {
+      "en": "This Linux fork is now public. Attribution cleaned up throughout — credit where it's due, all the way back to the original ace-step-ui — README rewritten to describe what this fork actually does instead of the generic upstream docs, and a distinct visual identity.",
+      "fr": "Ce fork Linux est désormais public. Attribution nettoyée de bout en bout — crédit là où il revient, jusqu'à l'ace-step-ui d'origine — README réécrit pour décrire ce que ce fork fait vraiment plutôt que la documentation générique d'origine, et une identité visuelle propre.",
+      "ru": "Этот Linux-форк теперь публичен. Атрибуция приведена в порядок повсюду — благодарность там, где она уместна, вплоть до оригинального ace-step-ui — README переписан, чтобы описывать реальные возможности этого форка вместо общей документации от исходного проекта, и появилась собственная визуальная идентичность.",
+      "zh": "这个 Linux 分支现已公开。全局梳理了署名——将功劳归于应得之处，一直追溯到最初的 ace-step-ui——README 重写以描述这个分支实际做的事情，而非泛泛的上游文档，并拥有了独立的视觉标识。",
+      "ja": "このLinuxフォークが一般公開されました。全体にわたって帰属表示を整理——本家のace-step-uiまで遡って然るべきクレジットを付与し、READMEも一般的な上流ドキュメントではなくこのフォークの実際の内容を説明するよう書き直し、独自のビジュアルアイデンティティも用意しました。",
+      "ko": "이 리눅스 포크가 공개되었습니다. 전반에 걸쳐 저작자 표시를 정리했습니다 — 원본 ace-step-ui까지 거슬러 올라가 마땅한 곳에 공을 돌렸고, README도 일반적인 업스트림 문서 대신 이 포크가 실제로 하는 일을 설명하도록 다시 작성했으며, 고유한 시각적 아이덴티티도 갖췄습니다."
+    },
+    "tags": [
+      "release",
+      "github",
+      "attribution"
+    ]
+  },
+  {
+    "id": "installer-flashattn-2026-08-27",
+    "date": "2026-08-27",
+    "title": {
+      "en": "⚙️ One-shot installer, GPU-aware down to the compiler",
+      "fr": "⚙️ Installateur en une fois, conscient du GPU jusqu'au compilateur",
+      "ru": "⚙️ Установка в один проход, с учётом GPU вплоть до компилятора",
+      "zh": "⚙️ 一键安装，精确到编译器的 GPU 感知",
+      "ja": "⚙️ ワンショットインストーラー、コンパイラまで含めたGPU対応",
+      "ko": "⚙️ 원샷 설치, 컴파일러까지 고려한 GPU 인식"
+    },
+    "body": {
+      "en": "install.sh now checks real compute capability and compiler version before attempting to build flash-attn — including a fix for Blackwell (RTX 50-series), which needs CUDA 12.8+ to compile it at all. Skips cleanly to SDPA when it can't, rather than burning hours on a doomed build. Database migration and the isolated MIDI environment are now installer steps, not separate manual scripts.",
+      "fr": "install.sh vérifie désormais la vraie capacité de calcul et la version du compilateur avant de tenter de compiler flash-attn — avec un correctif pour Blackwell (RTX 50xx), qui exige CUDA 12.8+ pour ne serait-ce que le compiler. Bascule proprement sur SDPA quand ce n'est pas possible, plutôt que de perdre des heures sur une compilation vouée à l'échec. La migration de base de données et l'environnement MIDI isolé sont désormais des étapes de l'installateur, plus des scripts séparés à lancer à la main.",
+      "ru": "install.sh теперь проверяет реальную вычислительную способность и версию компилятора перед попыткой сборки flash-attn — включая исправление для Blackwell (RTX 50-й серии), которому нужен CUDA 12.8+ даже для компиляции. Аккуратно переключается на SDPA, если это невозможно, вместо того чтобы тратить часы на обречённую сборку. Миграция базы данных и изолированное окружение MIDI теперь являются шагами установщика, а не отдельными ручными скриптами.",
+      "zh": "install.sh 现在会在尝试编译 flash-attn 之前检查真实的计算能力和编译器版本——包括针对 Blackwell（RTX 50 系列）的修复，该架构至少需要 CUDA 12.8 才能编译。若无法满足条件则干净地回退到 SDPA，而不是把数小时浪费在注定失败的编译上。数据库迁移和隔离的 MIDI 环境现在也是安装步骤，而非独立的手动脚本。",
+      "ja": "install.shは、flash-attnのビルドを試みる前に実際の計算能力とコンパイラのバージョンを確認するようになりました——Blackwell（RTX 50シリーズ）向けの修正も含まれ、これはコンパイルするだけでもCUDA 12.8以上が必要です。無理な場合は失敗が確定したビルドに何時間も費やす代わりに、きれいにSDPAへフォールバックします。データベースのマイグレーションと隔離されたMIDI環境も、個別の手動スクリプトではなくインストーラーの手順になりました。",
+      "ko": "install.sh는 이제 flash-attn 빌드를 시도하기 전에 실제 컴퓨팅 성능과 컴파일러 버전을 확인합니다 — 컴파일하는 데만도 CUDA 12.8 이상이 필요한 Blackwell(RTX 50 시리즈)용 수정 사항도 포함됩니다. 불가능할 경우 실패가 뻔한 빌드에 몇 시간을 낭비하는 대신 SDPA로 깔끔하게 전환합니다. 데이터베이스 마이그레이션과 격리된 MIDI 환경도 이제 별도의 수동 스크립트가 아닌 설치 단계입니다."
+    },
+    "tags": [
+      "installer",
+      "gpu",
+      "flash-attn",
+      "blackwell"
+    ]
+  },
+  {
+    "id": "audiomass-multitrack-2026-08-26",
+    "date": "2026-08-26",
+    "title": {
+      "en": "🎚️ Multitrack audio editor",
+      "fr": "🎚️ Éditeur audio multipiste",
+      "ru": "🎚️ Многодорожечный аудиоредактор",
+      "zh": "🎚️ 多轨音频编辑器",
+      "ja": "🎚️ マルチトラック・オーディオエディタ",
+      "ko": "🎚️ 멀티트랙 오디오 편집기"
+    },
+    "body": {
+      "en": "AudioMass updated to its multitrack build, wired directly into stem extraction — open a single stem, or send all four Demucs stems over together as separate tracks in one editor session, no manual export/import round-trip needed.",
+      "fr": "AudioMass mis à jour vers sa version multipiste, connectée directement à l'extraction de stems — ouvre un seul stem, ou envoie les quatre stems Demucs ensemble comme pistes séparées dans une même session d'édition, sans passer par un export/import manuel.",
+      "ru": "AudioMass обновлён до многодорожечной сборки и напрямую подключён к извлечению стемов — открывайте один стем или отправляйте все четыре стема Demucs вместе как отдельные дорожки в одной сессии редактора, без ручного экспорта/импорта.",
+      "zh": "AudioMass 升级为多轨版本，并直接与分轨提取相连——可打开单个分轨，也可将 Demucs 提取的全部四个分轨作为独立轨道一起送入同一个编辑会话，无需手动导出/导入。",
+      "ja": "AudioMassをマルチトラック版に更新し、ステム抽出と直接連携——単一ステムを開くことも、Demucsの4つのステムをまとめて別トラックとして1つの編集セッションに送ることもでき、手動でのエクスポート/インポートは不要です。",
+      "ko": "AudioMass를 멀티트랙 버전으로 업데이트하고 스템 추출과 직접 연동했습니다 — 단일 스템을 열거나, Demucs의 4개 스템 전체를 별도 트랙으로 한 편집 세션에 함께 불러올 수 있으며, 수동으로 내보내기/가져오기를 할 필요가 없습니다."
+    },
+    "tags": [
+      "audio-editor",
+      "demucs",
+      "audiomass"
+    ]
+  },
+  {
+    "id": "midi-conversion-2026-08-25",
+    "date": "2026-08-25",
+    "title": {
+      "en": "🎹 Server-side MIDI conversion",
+      "fr": "🎹 Conversion MIDI côté serveur",
+      "ru": "🎹 Конвертация в MIDI на стороне сервера",
+      "zh": "🎹 服务器端 MIDI 转换",
+      "ja": "🎹 サーバー側MIDI変換",
+      "ko": "🎹 서버 측 MIDI 변환"
+    },
+    "body": {
+      "en": "basic-pitch now runs in its own isolated Python 3.11 environment, converting any stem to MIDI in seconds — the old in-browser approach could take tens of minutes for a single track. Workspace membership is now strictly exclusive: adding a song to a new workspace cleanly removes it from any other.",
+      "fr": "basic-pitch tourne désormais dans son propre environnement Python 3.11 isolé, convertissant n'importe quel stem en MIDI en quelques secondes — l'ancienne approche dans le navigateur pouvait prendre des dizaines de minutes pour un seul morceau. L'appartenance aux espaces de travail est désormais strictement exclusive : ajouter une chanson à un nouvel espace de travail l'en retire proprement de tout autre.",
+      "ru": "basic-pitch теперь работает в собственном изолированном окружении Python 3.11, конвертируя любой стем в MIDI за секунды — старый браузерный подход мог занимать десятки минут на один трек. Принадлежность к рабочему пространству теперь строго эксклюзивна: добавление песни в новое рабочее пространство аккуратно убирает её из любого другого.",
+      "zh": "basic-pitch 现在运行在独立隔离的 Python 3.11 环境中，可在几秒钟内将任意分轨转换为 MIDI——旧的浏览器内方案单曲可能需要数十分钟。工作区归属现在严格互斥：将歌曲添加到新工作区会自动将其从其他工作区中移除。",
+      "ja": "basic-pitchは独自の隔離されたPython 3.11環境で動作するようになり、どのステムも数秒でMIDIに変換できます——旧来のブラウザ内方式では1曲に数十分かかることもありました。ワークスペースの所属も厳密に排他的になり、曲を新しいワークスペースに追加すると他のワークスペースからはきれいに削除されます。",
+      "ko": "basic-pitch가 이제 독립된 Python 3.11 환경에서 실행되어 어떤 스템이든 몇 초 만에 MIDI로 변환합니다 — 기존 브라우저 내 방식은 곡 하나에 수십 분이 걸리기도 했습니다. 작업공간 소속도 이제 완전히 배타적입니다: 곡을 새 작업공간에 추가하면 다른 작업공간에서는 깔끔하게 제거됩니다."
+    },
+    "tags": [
+      "midi",
+      "workspaces",
+      "performance"
+    ]
+  },
+  {
+    "id": "workspaces-2026-08-24",
+    "date": "2026-08-24",
+    "title": {
+      "en": "📁 Playlists vs. Workspaces",
+      "fr": "📁 Playlists vs. Espaces de travail",
+      "ru": "📁 Плейлисты и рабочие пространства",
+      "zh": "📁 播放列表与工作区",
+      "ja": "📁 プレイリストとワークスペース",
+      "ko": "📁 재생목록과 작업공간"
+    },
+    "body": {
+      "en": "Real separation between curated playlists and active working sessions, down at the database level. A song can belong to several playlists, but exactly one workspace at a time — with a virtual default view computed for anything not currently assigned to one.",
+      "fr": "Vraie séparation entre playlists organisées et sessions de travail actives, jusqu'au niveau de la base de données. Une chanson peut appartenir à plusieurs playlists, mais un seul espace de travail à la fois — avec une vue par défaut calculée pour tout ce qui n'est assigné à aucun.",
+      "ru": "Настоящее разделение между подобранными плейлистами и активными рабочими сессиями на уровне базы данных. Песня может входить в несколько плейлистов, но только в одно рабочее пространство одновременно — с виртуальным видом по умолчанию для всего, что пока никуда не назначено.",
+      "zh": "在数据库层面真正区分了精选播放列表与活跃工作会话。一首歌可以属于多个播放列表，但同一时间只能属于一个工作区——并为尚未分配到任何工作区的歌曲计算出一个虚拟的默认视图。",
+      "ja": "厳選されたプレイリストとアクティブな作業セッションをデータベースレベルで実際に分離。曲は複数のプレイリストに属することができますが、ワークスペースには同時に1つだけ所属——どこにも割り当てられていない曲は仮想のデフォルトビューにまとめて表示されます。",
+      "ko": "엄선된 재생목록과 활성 작업 세션을 데이터베이스 수준에서 실제로 분리했습니다. 곡은 여러 재생목록에 속할 수 있지만 작업공간에는 한 번에 하나만 속합니다 — 아직 할당되지 않은 곡들을 위한 가상 기본 보기도 함께 제공됩니다."
+    },
+    "tags": [
+      "workspaces",
+      "playlists",
+      "database"
+    ]
+  },
+  {
+    "id": "video-studio-createpanel-2026-08-18",
+    "date": "2026-08-18",
+    "title": {
+      "en": "🎬 Video Studio rebuilt, CreatePanel cleaned up",
+      "fr": "🎬 Studio Vidéo reconstruit, CreatePanel nettoyé",
+      "ru": "🎬 Video Studio переработан, CreatePanel приведён в порядок",
+      "zh": "🎬 视频工作室重构，CreatePanel 精简",
+      "ja": "🎬 Video Studioを再構築、CreatePanelを整理",
+      "ko": "🎬 비디오 스튜디오 재구축, CreatePanel 정리"
+    },
+    "body": {
+      "en": "Music video generation reworked around streaming frame capture — this fixes a long-standing flicker that came from the old client-side recording approach. CreatePanel split further into focused sub-panels, and dataset folders for training no longer need to live in one fixed location.",
+      "fr": "Génération de vidéos musicales reprise autour d'une capture d'image en flux — corrige un scintillement persistant venant de l'ancienne approche d'enregistrement côté client. CreatePanel encore découpé en sous-panneaux ciblés, et les dossiers de datasets pour l'entraînement n'ont plus besoin de rester à un emplacement fixe.",
+      "ru": "Генерация музыкальных видео переработана вокруг потокового захвата кадров — устраняет давнее мерцание, вызванное старым клиентским способом записи. CreatePanel разбит ещё дальше на целевые подпанели, а папки датасетов для обучения больше не обязаны находиться в одном фиксированном месте.",
+      "zh": "音乐视频生成围绕流式帧捕获重新构建——修复了源自旧客户端录制方式的长期闪烁问题。CreatePanel 进一步拆分为专门的子面板，训练用的数据集文件夹也不再需要固定在一个位置。",
+      "ja": "音楽ビデオ生成をストリーミングフレームキャプチャ方式に刷新——旧来のクライアント側録画方式に起因していた長年のちらつきを修正。CreatePanelをさらに専用のサブパネルへ分割し、トレーニング用データセットフォルダも固定位置に置く必要がなくなりました。",
+      "ko": "스트리밍 프레임 캡처 방식으로 뮤직비디오 생성을 재구성 — 기존 클라이언트 측 녹화 방식에서 비롯된 오랜 깜빡임 문제를 해결했습니다. CreatePanel을 더 세분화된 하위 패널로 분리했고, 학습용 데이터셋 폴더도 더 이상 고정된 위치에 있을 필요가 없습니다."
+    },
+    "tags": [
+      "video",
+      "refactor",
+      "training"
+    ]
+  },
+  {
+    "id": "linux-port-2026-08-14",
+    "date": "2026-08-14",
+    "title": {
+      "en": "🐧 Linux port, live",
+      "fr": "🐧 Portage Linux, fonctionnel",
+      "ru": "🐧 Порт на Linux, в строю",
+      "zh": "🐧 Linux 移植，已上线",
+      "ja": "🐧 Linux 移植、稼働開始",
+      "ko": "🐧 리눅스 포팅, 작동 확인"
+    },
+    "body": {
+      "en": "Ground-up port of this UI to Linux, from scratch. install.sh and run.sh unified into a single, real GPU-aware setup, the first LoRA trained end-to-end through a CLI-driven pipeline, and the first pass of breaking the giant Create panel into maintainable sub-components.",
+      "fr": "Portage complet de cette interface vers Linux, repris depuis la base. install.sh et run.sh unifiés en une vraie installation consciente du GPU, premier LoRA entraîné de bout en bout via un pipeline piloté en ligne de commande, et première étape de découpage du grand panneau de création en sous-composants maintenables.",
+      "ru": "Полный перенос интерфейса на Linux, с нуля. install.sh и run.sh объединены в единую настройку с реальным учётом GPU, первая LoRA обучена от начала до конца через конвейер на базе CLI, и первый этап разбиения гигантской панели создания на поддерживаемые подкомпоненты.",
+      "zh": "将此界面从零开始完整移植到 Linux。install.sh 和 run.sh 合并为一套真正感知 GPU 的安装流程，第一个 LoRA 通过命令行驱动的流程端到端训练完成，并首次将庞大的创作面板拆分为可维护的子组件。",
+      "ja": "このUIをLinuxへゼロから完全移植。install.shとrun.shを実際のGPU検出を伴う単一のセットアップに統合し、CLI駆動のパイプラインで初めてLoRAをエンドツーエンドで学習、さらに巨大なCreateパネルを保守可能なサブコンポーネントに分割する最初の一歩。",
+      "ko": "이 UI를 리눅스로 처음부터 완전히 이식. install.sh와 run.sh를 실제 GPU 인식 설치 과정으로 통합하고, CLI 기반 파이프라인을 통해 첫 LoRA를 처음부터 끝까지 학습했으며, 거대한 Create 패널을 유지보수 가능한 하위 컴포넌트로 분리하는 첫 단계를 진행했습니다."
+    },
+    "tags": [
+      "linux",
+      "installer",
+      "training",
+      "refactor"
+    ]
+  },
+  {
     "id": "openrouter-pollinations-cover-regen-2026-05-05",
     "date": "2026-05-05",
     "title": {
@@ -16,11 +193,25 @@
       "ja": "3 つのオプションクラウド機能。3 つともデフォルトでオフ、3 つとも無料ティアあり、使わなければローカルパイプラインは従来どおり動作。\n\n• OpenRouter による歌詞とメタデータ — ローカル LM の代わりに 200+ クラウドモデル(Claude、GPT-4o、DeepSeek、Llama、Gemini、Mistral など)を接続できます。多くは完全無料 — モデルピッカーで ':free' でフィルタするだけ。曲の 1 行の説明からモデルが歌詞、caption、BPM、キー、長さ、そしてカバー用の短いビジュアルプロンプトを生成します。\n\n• Pollinations.ai による自動カバー生成 — LLM がカバープロンプトを出すと、Pollinations がオーディオと並行してカバーをレンダリング。匿名ティアは透かしなし・アカウント不要、auth.pollinations.ai の無料トークンでフルモデルカタログ(FLUX、Qwen-Image、GPT-Image、Z-Image など)と高速レートを解放。\n\n• 手動カバー再生成 — 自分の各曲行の「画像 + 鉛筆」ボタン。任意の Pollinations モデルを選び、独自のプロンプトを書き、「もう一度」で気に入るまで再生成、またはディスクから自分の画像をアップロード(JPEG/PNG/WEBP、最大 10 MB)。選んだ画像はカバーとして保存され、MP3 にも埋め込まれるため、ダウンロードしたファイルを再生する外部プレイヤーでも表示されます。\n\nキーの入力場所:作成パネル → 詳細 → 対応するパネル → キーを貼り付け、モデルを選択、テスト。キーはブラウザ内にのみ保存され、プロバイダ自身の API 以外には送信されません。",
       "ko": "세 가지 선택적 클라우드 기능. 셋 다 기본값은 꺼져 있고, 셋 다 무료 티어가 있으며, 사용하지 않으면 로컬 파이프라인은 그대로 동작합니다.\n\n• OpenRouter 로 가사와 메타데이터 — 로컬 LM 대신 200+ 클라우드 모델(Claude、GPT-4o、DeepSeek、Llama、Gemini、Mistral 등) 중 하나를 연결할 수 있습니다. 다수는 완전 무료 — 모델 선택기에서 ':free' 로 필터링만 하면 됩니다. 한 줄 설명에서 모델이 가사, caption, BPM, 키, 길이, 그리고 커버용 짧은 비주얼 프롬프트를 작성합니다.\n\n• Pollinations.ai 로 자동 커버 생성 — LLM 이 커버 프롬프트를 만들면 Pollinations 가 오디오와 병렬로 커버를 렌더링합니다. 익명 티어는 워터마크 없이 계정 없이 동작하며, auth.pollinations.ai 의 무료 토큰으로 전체 모델 카탈로그(FLUX、Qwen-Image、GPT-Image、Z-Image 등)와 더 빠른 레이트를 해제합니다.\n\n• 수동 커버 재생성 — 자신의 각 곡 행에 있는 «이미지+연필» 버튼. 임의의 Pollinations 모델을 선택하고, 자신의 프롬프트를 작성하고, 마음에 들 때까지 «다시 시도», 또는 디스크에서 자신의 이미지를 업로드 (JPEG/PNG/WEBP, 최대 10 MB) 합니다. 선택한 이미지는 커버로 저장되고 MP3 에도 포함되므로, 파일을 다운로드해서 외부 플레이어로 재생해도 같은 이미지가 표시됩니다.\n\n키 입력 위치: 생성 패널 → 고급 → 해당 패널 → 키 붙여넣기, 모델 선택, 테스트. 키는 브라우저에만 저장되며 공급자의 자체 API 외에는 어디에도 전송되지 않습니다."
     },
-    "tags": ["update", "feature", "cloud", "covers"],
+    "tags": [
+      "update",
+      "feature",
+      "cloud",
+      "covers"
+    ],
     "links": [
-      { "label": "🤖 OpenRouter — get a free API key", "url": "https://openrouter.ai/keys" },
-      { "label": "🎨 Pollinations.ai — get a free token", "url": "https://auth.pollinations.ai" },
-      { "label": "📦 ACE-Step Studio repo", "url": "https://github.com/timoncool/ACE-Step-Studio" }
+      {
+        "label": "🤖 OpenRouter — get a free API key",
+        "url": "https://openrouter.ai/keys"
+      },
+      {
+        "label": "🎨 Pollinations.ai — get a free token",
+        "url": "https://auth.pollinations.ai"
+      },
+      {
+        "label": "📦 ACE-Step Studio repo",
+        "url": "https://github.com/timoncool/ACE-Step-Studio"
+      }
     ]
   },
   {
@@ -40,13 +231,31 @@
       "ja": "ACE-Step Studio は 100% 無料でローカル動作します。Suno や Udio の月額 $10+ を節約できたなら — プロジェクトのサポートをご検討ください。\n\n最も簡単な方法：\n• カード / PayPal / Apple Pay（任意の通貨）— dalink.to/nerual_dreming\n• Boosty（月額サポート / Patreon 代替）— boosty.to/neuro_art\n\n暗号通貨：\n• BTC — 1E7dHL22RpyhJGVpcvKdbyZgksSYkYeEBC\n• ETH (ERC20) — 0xb5db65adf478983186d4897ba92fe2c25c594a0c\n• USDT (TRC20) — TQST9Lp2TjK6FiVkn4fwfGUee7NmkxEE7C\n\nサポートはホスティング、テスト用ハードウェア、開発時間に使われます。スター、シェア、寄付はすべて大切です。ありがとうございます！",
       "ko": "ACE-Step Studio는 100% 무료이며 로컬에서 실행됩니다. Suno/Udio 월 $10+ 구독료를 아껴주었다면 — 프로젝트 후원을 고려해 주세요.\n\n가장 쉬운 방법:\n• 카드 / PayPal / Apple Pay (모든 통화) — dalink.to/nerual_dreming\n• Boosty (월간 후원 / Patreon 대안) — boosty.to/neuro_art\n\n암호화폐:\n• BTC — 1E7dHL22RpyhJGVpcvKdbyZgksSYkYeEBC\n• ETH (ERC20) — 0xb5db65adf478983186d4897ba92fe2c25c594a0c\n• USDT (TRC20) — TQST9Lp2TjK6FiVkn4fwfGUee7NmkxEE7C\n\n후원은 호스팅, 테스트 하드웨어, 개발 시간에 사용됩니다. 모든 별표, 공유, 기부가 중요합니다. 감사합니다!"
     },
-    "tags": ["donate", "support"],
+    "tags": [
+      "donate",
+      "support"
+    ],
     "links": [
-      { "label": "💳 Card / PayPal / Apple Pay — dalink.to", "url": "https://dalink.to/nerual_dreming" },
-      { "label": "🎨 Boosty — monthly support",             "url": "https://boosty.to/neuro_art" },
-      { "label": "📖 Full donation guide (EN / RU)",         "url": "https://github.com/timoncool/ACE-Step-Studio/blob/master/DONATE.md" },
-      { "label": "Nerual Dreming — Telegram",                "url": "https://t.me/nerual_dreming" },
-      { "label": "@timoncool on GitHub",                     "url": "https://github.com/timoncool" }
+      {
+        "label": "💳 Card / PayPal / Apple Pay — dalink.to",
+        "url": "https://dalink.to/nerual_dreming"
+      },
+      {
+        "label": "🎨 Boosty — monthly support",
+        "url": "https://boosty.to/neuro_art"
+      },
+      {
+        "label": "📖 Full donation guide (EN / RU)",
+        "url": "https://github.com/timoncool/ACE-Step-Studio/blob/master/DONATE.md"
+      },
+      {
+        "label": "Nerual Dreming — Telegram",
+        "url": "https://t.me/nerual_dreming"
+      },
+      {
+        "label": "@timoncool on GitHub",
+        "url": "https://github.com/timoncool"
+      }
     ]
   },
   {
@@ -66,11 +275,24 @@
       "ja": "Upstream ACE-Step v0.1.7 + post-release fixes (5/1) と同期。大規模な品質アップデート。\n\n新機能:\n• DCW (Differential Correction in Wavelet domain) — CVPR 2026 論文、各サンプラーステップで無料の品質向上。デフォルトオン。Custom モードに新パネル: Mode (low/high/double/pix) + Wavelet (haar/db4/sym8/...) + 2 つの強度スライダー。\n• Retake — Variance スライダー付きバリエーションシード。メインモチーフを保ちながら微妙な違い(ボーカル、編曲)で同じ曲を生成。\n• Flow-edit (#1156) — text2music + cover + cover-nofsq タスク用テキスト編集オーバーレイ。ソース caption+lyrics をターゲットプロンプトに向かってモーフ。Custom モードに完全 UI パネル (source caption + source lyrics + n_min/n_max + n_avg)。\n• ScragVAE — 代替コミュニティ VAE、ACESTEP_VAE_CHECKPOINT 環境変数で切り替え。\n• Repaint Most Natural — 4 番目のモードオプション (Conservative/Balanced/Aggressive に加えて)、最大ソース保持、反復的な repaint リファインメントに有用。\n• 7 スケジューラ (linear/karras/cosine/beta/sway/logit_normal/laplace) — 当 fork から保持。\n\n修正:\n• turbo/xl-turbo の infer_steps — 以前は黙って 8 ステップにクランプされていた、UI 値 (1–20) を尊重するように。\n• LM CFG uncond prompt をトレーニング dropout 形式に整合 (#1127, #1128) — 歌詞品質向上。\n• Apple Silicon の MLX DiT static buffers 修正 (#1166)。\n• 多数の上流からの小さなバグ修正。\n\n依存関係: pip install pytorch-wavelets PyWavelets (install.bat / Pinokio が自動インストール)。",
       "ko": "Upstream ACE-Step v0.1.7 + post-release fixes (5/1) 와 동기화. 대규모 품질 업데이트.\n\n새 기능:\n• DCW (Differential Correction in Wavelet domain) — CVPR 2026 논문, 각 샘플러 단계에서 무료 품질 향상. 기본 ON. Custom 모드에 새 패널: Mode (low/high/double/pix) + Wavelet (haar/db4/sym8/...) + 2 개 강도 슬라이더.\n• Retake — Variance 슬라이더가 있는 변형 시드. 메인 모티브를 유지하면서 미묘한 차이(보컬, 편곡)로 같은 곡 생성.\n• Flow-edit (#1156) — text2music + cover + cover-nofsq 작업용 텍스트 편집 오버레이. 소스 caption+lyrics를 타겟 prompt로 모핑. Custom 모드에 완전한 UI 패널 (source caption + source lyrics + n_min/n_max + n_avg).\n• ScragVAE — 대체 커뮤니티 VAE, ACESTEP_VAE_CHECKPOINT 환경 변수로 전환.\n• Repaint Most Natural — 4 번째 모드 옵션 (Conservative/Balanced/Aggressive 외에), 최대 소스 보존, 반복적인 repaint 다듬기에 유용.\n• 7 스케줄러 (linear/karras/cosine/beta/sway/logit_normal/laplace) — 우리 fork 에서 유지.\n\n수정사항:\n• turbo/xl-turbo 의 infer_steps — 이전에는 8 단계로 무음 클램프, 이제 UI 값 (1–20) 존중.\n• LM CFG uncond prompt 를 훈련 dropout 형식과 정렬 (#1127, #1128) — 가사 품질 향상.\n• Apple Silicon MLX DiT static buffers 수정 (#1166).\n• 다수의 upstream 작은 버그 수정.\n\n의존성: pip install pytorch-wavelets PyWavelets (install.bat / Pinokio 자동 설치)."
     },
-    "tags": ["update", "quality", "upstream-sync"],
+    "tags": [
+      "update",
+      "quality",
+      "upstream-sync"
+    ],
     "links": [
-      { "label": "📄 DCW paper (arXiv 2604.16044)", "url": "https://arxiv.org/abs/2604.16044" },
-      { "label": "🔬 Upstream ACE-Step v0.1.7 release", "url": "https://github.com/ace-step/ACE-Step-1.5/releases/tag/v0.1.7" },
-      { "label": "📦 ACE-Step Studio repo", "url": "https://github.com/timoncool/ACE-Step-Studio" }
+      {
+        "label": "📄 DCW paper (arXiv 2604.16044)",
+        "url": "https://arxiv.org/abs/2604.16044"
+      },
+      {
+        "label": "🔬 Upstream ACE-Step v0.1.7 release",
+        "url": "https://github.com/ace-step/ACE-Step-1.5/releases/tag/v0.1.7"
+      },
+      {
+        "label": "📦 ACE-Step Studio repo",
+        "url": "https://github.com/timoncool/ACE-Step-Studio"
+      }
     ]
   },
   {
@@ -90,13 +312,31 @@
       "ja": "ACE-Step Studio が Pinokio の 1-click ランチャーとして利用可能になりました。Pinokio が Python 3.12、Node.js、ffmpeg、venv、torch、triton、flash-attention をすべて同梱 — install.bat はもう不要です。\n\n対応プラットフォーム:\n• Windows 10/11 — NVIDIA RTX 20xx–50xx、AMD (DirectML)\n• Linux x64 — NVIDIA CUDA 12.8、AMD ROCm 6.3\n• Linux aarch64 — NVIDIA DGX Spark / Jetson (CUDA 13.0)\n• macOS Apple Silicon — MPS + MLX ネイティブアクセラレーション\n• macOS Intel / CPU のみ — 遅いが動作\n\nhttps://pinokio.co から Pinokio をインストールし、Discover タブで 'ACE-Step Studio' を検索してください。",
       "ko": "ACE-Step Studio가 이제 Pinokio 원클릭 런처로 제공됩니다. Pinokio는 Python 3.12, Node.js, ffmpeg, venv, torch, triton, flash-attention을 모두 번들 — install.bat 불필요.\n\n지원 플랫폼:\n• Windows 10/11 — NVIDIA RTX 20xx–50xx, AMD (DirectML)\n• Linux x64 — NVIDIA CUDA 12.8, AMD ROCm 6.3\n• Linux aarch64 — NVIDIA DGX Spark / Jetson (CUDA 13.0)\n• macOS Apple Silicon — MPS + MLX 네이티브 가속\n• macOS Intel / CPU 전용 — 느리지만 작동\n\nhttps://pinokio.co 에서 Pinokio를 설치하고 Discover 탭에서 'ACE-Step Studio'를 검색하세요."
     },
-    "tags": ["release", "pinokio"],
+    "tags": [
+      "release",
+      "pinokio"
+    ],
     "links": [
-      { "label": "🚀 Install on Pinokio (1-click)",   "url": "https://pinokio.co/item?uri=https://github.com/timoncool/ACE-Step-Studio-pinokio" },
-      { "label": "📂 Open in Pinokio (app page)",     "url": "https://beta.pinokio.co/apps/github-com-timoncool-ace-step-studio-pinokio" },
-      { "label": "Pinokio launcher repo (GitHub)",    "url": "https://github.com/timoncool/ACE-Step-Studio-pinokio" },
-      { "label": "Pinokio — download app",            "url": "https://pinokio.co" },
-      { "label": "ACE-Step Studio repo (GitHub)",     "url": "https://github.com/timoncool/ACE-Step-Studio" }
+      {
+        "label": "🚀 Install on Pinokio (1-click)",
+        "url": "https://pinokio.co/item?uri=https://github.com/timoncool/ACE-Step-Studio-pinokio"
+      },
+      {
+        "label": "📂 Open in Pinokio (app page)",
+        "url": "https://beta.pinokio.co/apps/github-com-timoncool-ace-step-studio-pinokio"
+      },
+      {
+        "label": "Pinokio launcher repo (GitHub)",
+        "url": "https://github.com/timoncool/ACE-Step-Studio-pinokio"
+      },
+      {
+        "label": "Pinokio — download app",
+        "url": "https://pinokio.co"
+      },
+      {
+        "label": "ACE-Step Studio repo (GitHub)",
+        "url": "https://github.com/timoncool/ACE-Step-Studio"
+      }
     ]
   },
   {
@@ -116,13 +356,31 @@
       "ja": "プロジェクトをフォークし、ACE-Step Studio として大幅にアップグレードしました。Windows 向けのフル機能ポータブル音楽生成アプリです。新機能：XL モデル対応（4B DiT）BF16、シングルターミナルモード、API によるモデルホットスワップ、LRC タイムスタンプ歌詞カラオケビデオオーバーレイ、WYSIWYG エディター付き Video Studio、GPU 加速 FFmpeg サーバーサイドレンダリング、MP3 ID3 タグ、国際化（5言語）、Flash Attention 2 + Triton 高速化、ワンクリックポータブルインストーラー。",
       "ko": "프로젝트를 포크하여 ACE-Step Studio로 대폭 업그레이드했습니다 — Windows용 풀기능 포터블 음악 생성 앱입니다. 새 기능: XL 모델 지원 (4B DiT) BF16, 단일 터미널 모드, API 모델 핫스왑, LRC 타임스탬프 가사 노래방 비디오 오버레이, WYSIWYG 편집기 Video Studio, GPU 가속 FFmpeg 서버 렌더링, MP3 ID3 태그, 국제화 (5개 언어), Flash Attention 2 + Triton 가속, 원클릭 포터블 설치."
     },
-    "tags": ["release", "feature"],
+    "tags": [
+      "release",
+      "feature"
+    ],
     "links": [
-      { "label": "ACE-Step Studio on GitHub", "url": "https://github.com/timoncool/ACE-Step-Studio" },
-      { "label": "Nerual Dreming — Telegram", "url": "https://t.me/nerual_dreming" },
-      { "label": "neuro-cartel.com", "url": "https://neuro-cartel.com" },
-      { "label": "ArtGeneration.me", "url": "https://artgeneration.me" },
-      { "label": "Neiro-Soft — Telegram", "url": "https://t.me/neiro_soft" }
+      {
+        "label": "ACE-Step Studio on GitHub",
+        "url": "https://github.com/timoncool/ACE-Step-Studio"
+      },
+      {
+        "label": "Nerual Dreming — Telegram",
+        "url": "https://t.me/nerual_dreming"
+      },
+      {
+        "label": "neuro-cartel.com",
+        "url": "https://neuro-cartel.com"
+      },
+      {
+        "label": "ArtGeneration.me",
+        "url": "https://artgeneration.me"
+      },
+      {
+        "label": "Neiro-Soft — Telegram",
+        "url": "https://t.me/neiro_soft"
+      }
     ]
   },
   {
@@ -142,7 +400,10 @@
       "ja": "バックエンドを REST API から Gradio API に移行し、ACE-Step と直接通信できるようになりました。このバージョンは実験的です — バグを見つけた場合は GitHub で issue または PR を作成してください。",
       "ko": "백엔드를 REST API에서 Gradio API로 마이그레이션하여 ACE-Step과 직접 통신합니다. 이 버전은 실험적입니다 — 버그를 발견하면 GitHub에서 issue 또는 PR을 생성해 주세요."
     },
-    "tags": ["backend", "experimental"]
+    "tags": [
+      "backend",
+      "experimental"
+    ]
   },
   {
     "id": "v1-training-experimental",
@@ -161,6 +422,9 @@
       "ja": "トレーニング機能が利用可能になりましたが、まだ実験的です。データセット構築、前処理、トレーニング中にバグが発生する可能性があります。バグレポートと PR を歓迎します！",
       "ko": "훈련 기능이 사용 가능하지만 아직 실험적입니다. 데이터셋 구축, 전처리, 훈련 중 버그가 발생할 수 있습니다. 버그 리포트와 PR을 환영합니다!"
     },
-    "tags": ["training", "experimental"]
+    "tags": [
+      "training",
+      "experimental"
+    ]
   }
 ]

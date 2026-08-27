@@ -1,5 +1,67 @@
 # Changelog
 
+## 2026-08-27
+
+### Added
+- Public GitHub repository — first release of this fork under `Sion971/ace-step-studio`
+- `nvcc` version check in `install.sh` before attempting a `flash-attn` build — checks compute capability and compiler version together, skips cleanly to SDPA when incompatible instead of a doomed multi-hour build
+
+### Fixed
+- `flash-attn` on Blackwell (RTX 50-series, compute capability 12.0) — three compounding causes, found one at a time across three full rebuilds: wrong env var (`TORCH_CUDA_ARCH_LIST` is never read by `flash-attn`'s own `setup.py`; the correct variable is `FLASH_ATTN_CUDA_ARCHS`), wrong value format (expects an integer `"120"`, not the decimal `"12.0"` `nvidia-smi` reports), and finally the real blocker — system `nvcc` at CUDA 12.0 predates `compute_120` support entirely. Confirmed via `cuobjdump --list-elf` inspection of the compiled `.so`, not import success alone — the module imports fine even when compiled for the wrong architecture, failing only at the first real kernel call with `CUDA error: no kernel image is available for execution on the device`.
+
+### Changed
+- Attribution across `SettingsModal.tsx`, `NewsPage.tsx`, `README.md`, `LICENSE` — full lineage (AmbsdOP → timoncool → this fork) made explicit; links pointing to upstream repos corrected to this fork's own
+- `README.md` rewritten to describe this fork's actual Linux-only feature set instead of the generic multi-platform docs it shipped with
+- `app/audiomass-editor/src` and `app/server/audio-editor` (~16MB each, byte-identical) collapsed from a manually-maintained duplicate to a symlink
+
+## 2026-08-26
+
+### Added
+- AudioMass updated to its multitrack build; custom `?audioUrl=`/`?audioUrls=` patch re-applied to `app.js` to load stems directly from Demucs Web — a single stem via `LoadURL`, or all four together via `RequestLoadPickedFiles` (`LoadURL` alone never creates a new track when none exists yet, a silent no-op rather than an error)
+- `POST /api/audio-editor/stage` — stems only ever exist as in-memory buffers client-side; this stages an encoded WAV server-side so the editor, which opens as a separate page, can fetch it by a real URL rather than an unusable `blob:` reference
+- `install.sh`: GPU/CUDA selection extended with a real compute-capability check via `nvidia-smi`, gating a conditional `flash-attn` install (previously absent from the script entirely, for every GPU generation)
+- `install.sh`: database migration and the isolated `basic-pitch` venv setup folded in as numbered steps, replacing two separate manual scripts
+- Vite 6.4.2 → 6.4.3
+
+### Fixed
+- `run-migration-kind.mjs` idempotency — previously checked for an existing backup file before checking whether the migration itself was already done, so any automated re-run against an already-migrated database failed outright. Combined with `install.sh`'s `set -e`, this silently aborted the rest of the install without reaching later steps.
+
+## 2026-08-25
+
+### Added
+- MIDI conversion via `basic-pitch`, isolated Python 3.11 venv (deadsnakes PPA — `basic-pitch`'s TensorFlow pin ships no Python 3.12 wheel), `/api/midi/convert` route
+
+### Changed
+- Workspace membership is now strictly exclusive — adding a song to a workspace removes it from any other first, via `DELETE /api/playlists/remove-song-from-workspaces/:songId`
+
+## 2026-08-24
+
+### Added
+- `kind` column on `playlists` (SQLite, `better-sqlite3`) — real separation between `playlist` and `workspace` rows, previously conflated in one table with no distinguishing field
+- Virtual "Mon espace de travail" default view, computed by exclusion — no database row of its own
+
+### Fixed
+- `PlaylistDetail`'s `createdAt` snake_case mismatch, crashing the Create tab on navigation from a playlist
+- Library search crash on non-array `tags`
+- Deleted playlist cards remaining clickable, leading to a 404 on open
+
+## 2026-08-18
+
+### Changed
+- Video generation rearchitected around server-side frame-by-frame assembly — the client-side `MediaRecorder` approach was the root cause of a long-standing flicker
+- `CreatePanel` split further into focused sub-panels
+
+### Fixed
+- "Zoom jump" reported on karaoke-lyrics video exports — confirmed via `ffprobe` (5400 frames, consistent 1080×1920 throughout) to be VLC's own resume-playback prompt, not an export defect
+
+## 2026-08-14
+
+### Added
+- Linux port — `install.sh` and `run.sh` unified into a single GPU-aware setup
+- First LoRA trained end-to-end via a CLI-driven pipeline ("Side-Step" strategy)
+- `CreatePanel` cartography: first extraction pass (`LoraPanel`)
+
+
 ## 2026-05-05
 
 ### Added
