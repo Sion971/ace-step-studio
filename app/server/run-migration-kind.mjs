@@ -3,8 +3,14 @@
 // ecrit par erreur en syntaxe PostgreSQL — ce projet utilise SQLite via
 // better-sqlite3 (confirme dans app/server/src/db/pool.ts), pas Postgres.
 //
-// A lancer UNE SEULE FOIS, depuis app/server/, avant de deployer le nouveau
-// code serveur (playlists.ts) qui lit/ecrit cette colonne.
+// Idempotent : peut etre relance sans risque, a la main ou automatiquement
+// par install.sh a chaque (re)installation — voir TROUBLESHOOTING.md.
+// Correctif du 26/08/2026 : la version precedente verifiait la presence
+// d'un fichier de sauvegarde AVANT de verifier si la colonne existait deja,
+// ce qui faisait echouer (exit 1) toute relance automatisee des qu'une
+// premiere sauvegarde existait — meme quand la migration etait deja faite
+// depuis longtemps. install.sh utilisant `set -e`, ca arretait net toute
+// l'installation a cette etape, sans jamais atteindre les etapes suivantes.
 //
 // Usage :
 //   cd app/server
@@ -33,30 +39,30 @@ if (!existsSync(DB_PATH)) {
   process.exit(1);
 }
 
-// Sauvegarde automatique avant toute modification — un simple fichier a
-// copier, aucun outil special necessaire pour SQLite.
 const BACKUP_PATH = `${DB_PATH}.backup-before-kind-migration`;
-if (existsSync(BACKUP_PATH)) {
-  console.error(`Une sauvegarde existe deja : ${BACKUP_PATH}`);
-  console.error('Ce script a peut-etre deja tourne. Verifie avant de continuer :');
-  console.error(`  sqlite3 "${DB_PATH}" "PRAGMA table_info(playlists);"`);
-  console.error('(ou lance directement la verification en bas de ce script)');
-  process.exit(1);
-}
-copyFileSync(DB_PATH, BACKUP_PATH);
-console.log(`Sauvegarde creee : ${BACKUP_PATH}`);
-
 const db = new Database(DB_PATH);
 
 try {
-  // Verifie si la colonne existe deja (idempotence manuelle — SQLite ne
-  // garantit pas ADD COLUMN IF NOT EXISTS selon la version bundled).
+  // Verifie D'ABORD si la colonne existe deja — la vraie question qui
+  // determine si un travail reste a faire, plutot que de deduire l'etat de
+  // la migration a partir d'un simple fichier de sauvegarde (un artefact
+  // d'un lancement precedent, pas une source de verite fiable).
   const columns = db.prepare("PRAGMA table_info(playlists)").all();
   const hasKind = columns.some((c) => c.name === 'kind');
 
   if (hasKind) {
     console.log('La colonne "kind" existe deja — rien a faire.');
   } else {
+    // Migration reellement necessaire : sauvegarde d'abord (sauf si une
+    // sauvegarde existe deja depuis une tentative precedente incomplete —
+    // rare, mais ne jamais l'ecraser silencieusement dans ce cas).
+    if (!existsSync(BACKUP_PATH)) {
+      copyFileSync(DB_PATH, BACKUP_PATH);
+      console.log(`Sauvegarde creee : ${BACKUP_PATH}`);
+    } else {
+      console.log(`Sauvegarde deja presente (tentative precedente incomplete ?) : ${BACKUP_PATH}`);
+    }
+
     // Pas de contrainte CHECK au niveau SQL : SQLite ne supporte pas l'ajout
     // de contrainte via ALTER TABLE apres coup (il faudrait reconstruire
     // toute la table, trop invasif pour ce cas). Le serveur (playlists.ts)
@@ -86,8 +92,10 @@ try {
   console.log('\nMigration terminee avec succes.');
 } catch (err) {
   console.error('\nErreur pendant la migration :', err.message);
-  console.error(`La sauvegarde reste disponible : ${BACKUP_PATH}`);
-  console.error(`Pour restaurer : cp "${BACKUP_PATH}" "${DB_PATH}"`);
+  if (existsSync(BACKUP_PATH)) {
+    console.error(`La sauvegarde reste disponible : ${BACKUP_PATH}`);
+    console.error(`Pour restaurer : cp "${BACKUP_PATH}" "${DB_PATH}"`);
+  }
   process.exit(1);
 } finally {
   db.close();
