@@ -93,6 +93,10 @@ if [ "$CUDA_VERSION" != "cpu" ] && command -v nvidia-smi &> /dev/null; then
     COMPUTE_CAP=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 | tr -d '[:space:]')
     if [ -n "$COMPUTE_CAP" ] && awk "BEGIN {exit !($COMPUTE_CAP >= 8.0)}" 2>/dev/null; then
         FLASH_ATTN_OK=true
+        # flash-attn attend un format entier ("120"), pas la notation
+        # decimale de nvidia-smi ("12.0") — sinon sa propre variable
+        # d'environnement (voir plus bas) ne serait jamais reconnue.
+        FLASH_ATTN_ARCH="${COMPUTE_CAP/./}"
         echo "GPU detecte : capacite de calcul $COMPUTE_CAP — flash-attn sera installe."
     elif [ -n "$COMPUTE_CAP" ]; then
         echo "GPU detecte : capacite de calcul $COMPUTE_CAP — flash-attn ignore (exige >= 8.0)."
@@ -166,8 +170,74 @@ fi
 # (compilation depuis les sources si aucune roue precompilee ne correspond
 # exactement a cette version de torch/CUDA/Python).
 if [ "$FLASH_ATTN_OK" = true ]; then
+    # Verification du compilateur systeme AVANT toute tentative — vecu en
+    # pratique (RTX 5060, 3 tentatives) : un nvcc trop ancien "reussit"
+    # silencieusement en ignorant l'architecture demandee des qu'aucune
+    # cible n'est fixee explicitement, produisant un binaire qui s'importe
+    # sans erreur mais echoue a l'usage reel avec "no kernel image is
+    # available for execution on the device". Avec une cible explicite
+    # (voir FLASH_ATTN_CUDA_ARCHS plus bas), il echoue franchement avec
+    # "nvcc fatal : Unsupported gpu architecture" — plus clair, mais deux
+    # heures de compilation perdues avant de le decouvrir si on ne
+    # verifie pas en amont. Verification volontairement restreinte au cas
+    # Blackwell/sm_120 (>= CUDA 12.8) — seul cas reellement observe et
+    # confirme, pas une matrice de compatibilite generale devinee.
+    NVCC_VERSION=""
+    command -v nvcc &> /dev/null && NVCC_VERSION=$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+\.[0-9]+')
+    if [ -z "$NVCC_VERSION" ]; then
+        echo "  ATTENTION : nvcc introuvable — flash-attn ignore, SDPA prendra le relais."
+        FLASH_ATTN_OK=false
+    elif [ "$FLASH_ATTN_ARCH" -ge 120 ] && ! awk "BEGIN {exit !($NVCC_VERSION >= 12.8)}" 2>/dev/null; then
+        echo "  ATTENTION : nvcc $NVCC_VERSION trop ancien pour sm_$FLASH_ATTN_ARCH (Blackwell exige >= 12.8)."
+        echo "  flash-attn ignore, SDPA prendra le relais (fonctionnel, juste sans cette acceleration)."
+        echo "  Pour installer un compilateur a jour (boite a outils SEULE, sans toucher au pilote) :"
+        echo "    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb"
+        echo "    sudo dpkg -i cuda-keyring_1.1-1_all.deb && sudo apt update"
+        echo "    sudo apt install -y cuda-toolkit-12-8"
+        echo "    export PATH=\"/usr/local/cuda-12.8/bin:\$PATH\"  # puis relance install.sh"
+        FLASH_ATTN_OK=false
+    else
+        echo "  nvcc $NVCC_VERSION detecte — compatible avec sm_$FLASH_ATTN_ARCH."
+    fi
+fi
+
+if [ "$FLASH_ATTN_OK" = true ]; then
     echo "  Installation de flash-attn (peut prendre plusieurs minutes)..."
-    uv pip install flash-attn==2.8.3.post1 --no-build-isolation
+    # Purge du cache AVANT toute chose : un cache issu d'une compilation
+    # anterieure (avant le correctif ci-dessous) contient un binaire cible
+    # sur le mauvais jeu d'architectures — uv le reutiliserait sinon
+    # silencieusement, sans jamais reconstruire.
+    uv cache clean flash-attn 2>/dev/null || true
+    # FLASH_ATTN_CUDA_ARCHS (PAS TORCH_CUDA_ARCH_LIST, qui n'est jamais lue
+    # par ce paquet — confirme dans son propre setup.py) est OBLIGATOIRE
+    # ici : sans elle, la compilation depuis les sources cible le defaut
+    # propre a cette version de flash-attn, qui peut ne pas inclure
+    # l'architecture reellement presente (observe sur Blackwell/RTX 50xx,
+    # sm_120 absent du binaire compile malgre une compilation "reussie" —
+    # verifie objectivement via cuobjdump --list-elf). Resultat sans ce
+    # correctif : "CUDA error: no kernel image is available for execution
+    # on the device" au premier VRAI appel, jamais a l'import. Format
+    # entier attendu ("120"), pas la notation decimale de nvidia-smi
+    # ("12.0") — voir FLASH_ATTN_ARCH plus haut.
+    FLASH_ATTN_CUDA_ARCHS="$FLASH_ATTN_ARCH" uv pip install flash-attn==2.8.3.post1 --no-build-isolation
+
+    # Verification OBJECTIVE — importer le module reussit meme quand le
+    # binaire cible la mauvaise architecture (observe en pratique : import
+    # sans erreur, mais "CUDA error: no kernel image is available for
+    # execution on the device" au premier vrai appel, en cours de
+    # generation). On inspecte directement le binaire compile plutot que
+    # de faire confiance au simple succes de la commande d'installation.
+    FLASH_ATTN_SO=$(find .venv/lib -iname "flash_attn_2_cuda*.so" 2>/dev/null | head -1)
+    if [ -n "$FLASH_ATTN_SO" ] && command -v cuobjdump &> /dev/null; then
+        if cuobjdump --list-elf "$FLASH_ATTN_SO" 2>/dev/null | grep -q "sm_${FLASH_ATTN_ARCH}"; then
+            echo "  OK — flash-attn compile pour sm_${FLASH_ATTN_ARCH} (confirme via cuobjdump)."
+        else
+            echo "  ATTENTION : sm_${FLASH_ATTN_ARCH} absent du binaire flash-attn compile."
+            echo "  L'import fonctionnera, mais la generation echouera avec :"
+            echo "  \"CUDA error: no kernel image is available for execution on the device\"."
+            echo "  Voir TROUBLESHOOTING.md."
+        fi
+    fi
 fi
 
 # torch, torchaudio et torchcodec sont déjà installés plus haut depuis l'index
