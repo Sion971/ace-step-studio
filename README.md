@@ -268,6 +268,8 @@ More detail in `TROUBLESHOOTING.md`.
 - **[basic-pitch](https://github.com/spotify/basic-pitch)** — audio-to-MIDI conversion
 - **[Pexels](https://www.pexels.com)** — stock video backgrounds
 
+Built with [Claude](https://claude.ai) (Anthropic) as a development pair — most of this fork's Linux port, features, and this very README were worked through together, session by session.
+
 ---
 
 ## 🤝 Contributing
