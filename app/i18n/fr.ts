@@ -1068,7 +1068,7 @@ export const fr = {
     modelLoadingBadge: "chargement...",
     modelUnloadingBadge: "déchargement...",
     modelInMemory: "en mémoire",
-    modelDownloaded: "téléchargé"
-
-
+    modelDownloaded: "téléchargé",
+    
+    basedOnAceStepUi: 'Basé sur ACE-Step UI par'
 };

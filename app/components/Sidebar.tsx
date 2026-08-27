@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Library, Disc, Search, LogIn, LogOut, Sun, Moon, GraduationCap, Newspaper, AudioLines, Wrench } from 'lucide-react';
+import { Library, Disc, Search, LogIn, LogOut, Sun, Moon, GraduationCap, Newspaper, Wrench } from 'lucide-react';
 import { View } from '../types';
 import { useI18n } from '../context/I18nContext';
 import { llmStorage } from '../services/llm/storage';
+// Meme fichier que le favicon de l'onglet (voir app/favicon.svg) — une
+// seule source de verite pour le logo, plutot que de maintenir deux
+// representations separees (cette div CSS+icone, et le SVG reel) qui
+// risqueraient de diverger sans qu'on s'en apercoive, comme ce fut le cas
+// avant ce correctif.
+import faviconUrl from '../favicon.svg';
 import { pollinationsStorage } from '../services/pollinations/storage';
 
 interface SidebarProps {
@@ -281,11 +287,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="px-3 mb-8 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div
-            className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center cursor-pointer shadow-lg hover:scale-105 transition-transform flex-shrink-0"
+            className="w-10 h-10 rounded-xl overflow-hidden cursor-pointer shadow-lg hover:scale-105 transition-transform flex-shrink-0"
             onClick={() => (onNavigateHome ? onNavigateHome() : onNavigate('create'))}
             title={t('aceStepUI')}
           >
-            <AudioLines size={22} className="text-white" />
+            <img src={faviconUrl} alt="" className="w-full h-full object-cover" />
           </div>
           {isOpen && (
             <span className="text-sm font-bold text-zinc-900 dark:text-white whitespace-nowrap">ACE Step 1.5 XL</span>
