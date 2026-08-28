@@ -10,12 +10,6 @@
   <img src="https://img.shields.io/github/last-commit/Sion971/ace-step-studio?style=flat-square" alt="Last Commit">
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/github/stars/Sion971/ace-step-studio?style=flat-square" alt="Stars">
-  <img src="https://img.shields.io/github/license/Sion971/ace-step-studio?style=flat-square" alt="License">
-  <img src="https://img.shields.io/github/last-commit/Sion971/ace-step-studio?style=flat-square" alt="Last Commit">
-</p>
-
 ---
 
 ## 🐧 About this fork
