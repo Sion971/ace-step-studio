@@ -215,50 +215,6 @@
     ]
   },
   {
-    "id": "support-open-source-ai",
-    "date": "2026-04-23",
-    "title": {
-      "en": "💖 Support open-source AI — Donation info",
-      "ru": "💖 Поддержать опенсорс AI — реквизиты для донатов",
-      "zh": "💖 支持开源 AI — 捐赠信息",
-      "ja": "💖 オープンソース AI を応援 — 寄付情報",
-      "ko": "💖 오픈소스 AI 후원하기 — 기부 정보"
-    },
-    "body": {
-      "en": "ACE-Step Studio is 100% free and local. If it saved you from paying $10+/month to Suno or Udio — please consider supporting the project.\n\nEasiest ways:\n• Card / PayPal / Apple Pay (any currency) — dalink.to/nerual_dreming\n• Boosty (monthly / Patreon alternative) — boosty.to/neuro_art\n\nCrypto:\n• BTC — 1E7dHL22RpyhJGVpcvKdbyZgksSYkYeEBC\n• ETH (ERC20) — 0xb5db65adf478983186d4897ba92fe2c25c594a0c\n• USDT (TRC20) — TQST9Lp2TjK6FiVkn4fwfGUee7NmkxEE7C\n\nYour support funds hosting, test hardware and development time. Every star, share and donation matters. Thanks!",
-      "ru": "ACE-Step Studio полностью бесплатен и работает локально. Если он сэкономил вам $10+/мес на Suno или Udio — поддержите проект донатом.\n\nСамые простые способы:\n• Карта / PayPal / Apple Pay (любая валюта) — dalink.to/nerual_dreming\n• Boosty (ежемесячная подписка, аналог Patreon) — boosty.to/neuro_art\n\nКрипта:\n• BTC — 1E7dHL22RpyhJGVpcvKdbyZgksSYkYeEBC\n• ETH (ERC20) — 0xb5db65adf478983186d4897ba92fe2c25c594a0c\n• USDT (TRC20) — TQST9Lp2TjK6FiVkn4fwfGUee7NmkxEE7C\n\nДонаты идут на серверы, домены, железо для тестов и время разработки. Каждая звезда, репост и донат имеют значение. Спасибо!",
-      "zh": "ACE-Step Studio 100% 免费且本地运行。如果它为您节省了每月 $10+ 的 Suno/Udio 订阅费 — 欢迎支持本项目。\n\n最简单的方式：\n• 信用卡 / PayPal / Apple Pay（任意货币）— dalink.to/nerual_dreming\n• Boosty（月度订阅 / Patreon 替代）— boosty.to/neuro_art\n\n加密货币：\n• BTC — 1E7dHL22RpyhJGVpcvKdbyZgksSYkYeEBC\n• ETH (ERC20) — 0xb5db65adf478983186d4897ba92fe2c25c594a0c\n• USDT (TRC20) — TQST9Lp2TjK6FiVkn4fwfGUee7NmkxEE7C\n\n您的支持将用于托管、测试硬件和开发时间。每一个 star、分享和捐赠都很重要。谢谢！",
-      "ja": "ACE-Step Studio は 100% 無料でローカル動作します。Suno や Udio の月額 $10+ を節約できたなら — プロジェクトのサポートをご検討ください。\n\n最も簡単な方法：\n• カード / PayPal / Apple Pay（任意の通貨）— dalink.to/nerual_dreming\n• Boosty（月額サポート / Patreon 代替）— boosty.to/neuro_art\n\n暗号通貨：\n• BTC — 1E7dHL22RpyhJGVpcvKdbyZgksSYkYeEBC\n• ETH (ERC20) — 0xb5db65adf478983186d4897ba92fe2c25c594a0c\n• USDT (TRC20) — TQST9Lp2TjK6FiVkn4fwfGUee7NmkxEE7C\n\nサポートはホスティング、テスト用ハードウェア、開発時間に使われます。スター、シェア、寄付はすべて大切です。ありがとうございます！",
-      "ko": "ACE-Step Studio는 100% 무료이며 로컬에서 실행됩니다. Suno/Udio 월 $10+ 구독료를 아껴주었다면 — 프로젝트 후원을 고려해 주세요.\n\n가장 쉬운 방법:\n• 카드 / PayPal / Apple Pay (모든 통화) — dalink.to/nerual_dreming\n• Boosty (월간 후원 / Patreon 대안) — boosty.to/neuro_art\n\n암호화폐:\n• BTC — 1E7dHL22RpyhJGVpcvKdbyZgksSYkYeEBC\n• ETH (ERC20) — 0xb5db65adf478983186d4897ba92fe2c25c594a0c\n• USDT (TRC20) — TQST9Lp2TjK6FiVkn4fwfGUee7NmkxEE7C\n\n후원은 호스팅, 테스트 하드웨어, 개발 시간에 사용됩니다. 모든 별표, 공유, 기부가 중요합니다. 감사합니다!"
-    },
-    "tags": [
-      "donate",
-      "support"
-    ],
-    "links": [
-      {
-        "label": "💳 Card / PayPal / Apple Pay — dalink.to",
-        "url": "https://dalink.to/nerual_dreming"
-      },
-      {
-        "label": "🎨 Boosty — monthly support",
-        "url": "https://boosty.to/neuro_art"
-      },
-      {
-        "label": "📖 Full donation guide (EN / RU)",
-        "url": "https://github.com/timoncool/ACE-Step-Studio/blob/master/DONATE.md"
-      },
-      {
-        "label": "Nerual Dreming — Telegram",
-        "url": "https://t.me/nerual_dreming"
-      },
-      {
-        "label": "@timoncool on GitHub",
-        "url": "https://github.com/timoncool"
-      }
-    ]
-  },
-  {
     "id": "upstream-sync-v0-1-7-dcw-retake",
     "date": "2026-05-04",
     "title": {
