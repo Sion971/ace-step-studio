@@ -5,8 +5,9 @@
 <h1 align="center">ACE-Step Studio (Linux)</h1>
 
 <p align="center">
-  <strong>A Linux-native fork of ACE-Step Studio, built around a local AI music generation workflow</strong><br>
-  <em>Powered by <a href="https://github.com/ace-step/ACE-Step-1.5">ACE-Step 1.5</a> — The Open Source AI Music Generation Model</em>
+  <img src="https://img.shields.io/github/stars/Sion971/ace-step-studio?style=flat-square" alt="Stars">
+  <a href="https://github.com/Sion971/ace-step-studio?tab=MIT-1-ov-file"><img src="https://img.shields.io/badge/license-MIT-yellow?style=flat-square" alt="License"></a>
+  <img src="https://img.shields.io/github/last-commit/Sion971/ace-step-studio?style=flat-square" alt="Last Commit">
 </p>
 
 <p align="center">
