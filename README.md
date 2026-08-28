@@ -10,9 +10,9 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/stars/Sion971/ace-step-studio?style=flat-square" alt="Stars">
-  <img src="https://img.shields.io/github/license/Sion971/ace-step-studio?style=flat-square" alt="License">
-  <img src="https://img.shields.io/github/last-commit/Sion971/ace-step-studio?style=flat-square" alt="Last Commit">
+  <a href="https://github.com/Sion971/ace-step-studio/stargazers"><img src="https://img.shields.io/github/stars/Sion971/ace-step-studio?style=flat-square" alt="Stars"></a>
+  <a href="https://github.com/Sion971/ace-step-studio?tab=MIT-1-ov-file"><img src="https://img.shields.io/badge/license-MIT-yellow?style=flat-square" alt="License"></a>
+  <a href="https://github.com/Sion971/ace-step-studio/commits/master"><img src="https://img.shields.io/github/last-commit/Sion971/ace-step-studio?style=flat-square" alt="Last Commit"></a>
 </p>
 
 ---
