@@ -9,7 +9,7 @@ set "HF_HOME=%SCRIPT_DIR%models"
 set "HUGGINGFACE_HUB_CACHE=%SCRIPT_DIR%models"
 set "HF_HUB_ENABLE_HF_TRANSFER=1"
 
-if not exist "python\python.exe" (
+if not exist ".venv\Scripts\python.exe" (
     echo ERROR: Python not found! Run install.bat first.
     pause
     exit /b 1
@@ -39,19 +39,19 @@ exit /b 1
 :dl_turbo
 echo.
 echo Downloading ACE-Step XL Turbo...
-python\python.exe -m huggingface_hub.commands.huggingface_cli download ACE-Step/acestep-v15-xl-turbo --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-turbo"
+.venv\Scripts\python.exe -m huggingface_hub.commands.huggingface_cli download ACE-Step/acestep-v15-xl-turbo --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-turbo"
 goto :done
 
 :dl_sft
 echo.
 echo Downloading ACE-Step XL SFT...
-python\python.exe -m huggingface_hub.commands.huggingface_cli download ACE-Step/acestep-v15-xl-sft --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-sft"
+.venv\Scripts\python.exe -m huggingface_hub.commands.huggingface_cli download ACE-Step/acestep-v15-xl-sft --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-sft"
 goto :done
 
 :dl_bf16
 echo.
 echo Downloading ACE-Step XL Turbo BF16...
-python\python.exe -m huggingface_hub.commands.huggingface_cli download marcorez8/acestep-v15-xl-turbo-bf16 --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-turbo-bf16"
+.venv\Scripts\python.exe -m huggingface_hub.commands.huggingface_cli download marcorez8/acestep-v15-xl-turbo-bf16 --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-turbo-bf16"
 goto :done
 
 :dl_all
@@ -59,13 +59,13 @@ echo.
 echo Downloading all three models...
 echo.
 echo [1/3] XL Turbo...
-python\python.exe -m huggingface_hub.commands.huggingface_cli download ACE-Step/acestep-v15-xl-turbo --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-turbo"
+.venv\Scripts\python.exe -m huggingface_hub.commands.huggingface_cli download ACE-Step/acestep-v15-xl-turbo --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-turbo"
 echo.
 echo [2/3] XL SFT...
-python\python.exe -m huggingface_hub.commands.huggingface_cli download ACE-Step/acestep-v15-xl-sft --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-sft"
+.venv\Scripts\python.exe -m huggingface_hub.commands.huggingface_cli download ACE-Step/acestep-v15-xl-sft --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-sft"
 echo.
 echo [3/3] XL Turbo BF16...
-python\python.exe -m huggingface_hub.commands.huggingface_cli download marcorez8/acestep-v15-xl-turbo-bf16 --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-turbo-bf16"
+.venv\Scripts\python.exe -m huggingface_hub.commands.huggingface_cli download marcorez8/acestep-v15-xl-turbo-bf16 --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-turbo-bf16"
 goto :done
 
 :done

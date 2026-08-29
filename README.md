@@ -2,10 +2,10 @@
   <img src="https://img.shields.io/badge/🎵-ACE--Step_Studio-ec4899?style=for-the-badge&labelColor=1a1a1a" alt="ACE-Step Studio" height="60">
 </p>
 
-<h1 align="center">ACE-Step Studio (Linux)</h1>
+<h1 align="center">ACE-Step Studio</h1>
 
 <p align="center">
-  <strong>A Linux-native fork of ACE-Step Studio, built around a local AI music generation workflow</strong><br>
+  <strong>A fork of ACE-Step Studio, built around a local AI music generation workflow</strong><br>
   <em>Powered by <a href="https://github.com/ace-step/ACE-Step-1.5">ACE-Step 1.5</a> — The Open Source AI Music Generation Model</em>
 </p>
 
@@ -17,11 +17,11 @@
 
 ---
 
-## 🐧 About this fork
+## About this fork
 
-This is a **Linux-focused fork** of [timoncool/ACE-Step-Studio](https://github.com/timoncool/ACE-Step-Studio), itself built on [AmbsdOP's ACE-Step UI](https://github.com/fspecii/ace-step-ui). It's been substantially reworked and extended for a Linux workflow — developed and tested on Linux Mint with an NVIDIA RTX GPU, with a one-shot installer that handles GPU detection, driver-aware compiler checks, and every dependency down to the isolated MIDI conversion environment.
+This is a fork of [timoncool/ACE-Step-Studio](https://github.com/timoncool/ACE-Step-Studio), itself built on [AmbsdOP's ACE-Step UI](https://github.com/fspecii/ace-step-ui). It's been substantially reworked and extended — developed primarily on Linux Mint with an NVIDIA RTX GPU, with genuine Windows support built out in parallel rather than tacked on afterward.
 
-If you're on Windows or macOS, the [upstream project](https://github.com/timoncool/ACE-Step-Studio) is the better starting point — this fork trades cross-platform support for going deep on one platform.
+Both platforms share the same underlying approach: a single [`uv`](https://github.com/astral-sh/uv)-managed Python environment instead of the older embedded-Python-plus-manual-pip setup most Windows installers still rely on. Same fast, reliable dependency resolution, same GPU-aware `flash-attn` handling, same isolated environment for MIDI conversion — one installer per platform, one consistent approach underneath. macOS isn't currently tested or supported.
 
 **What's different from upstream:**
 
@@ -29,7 +29,7 @@ If you're on Windows or macOS, the [upstream project](https://github.com/timonco
 - **MIDI conversion, server-side** — [basic-pitch](https://github.com/spotify/basic-pitch) running in an isolated Python 3.11 environment (its TensorFlow dependency doesn't ship wheels for newer Python), converting stems to MIDI in seconds rather than tens of minutes in-browser.
 - **AudioMass, updated and wired in** — upgraded to the multitrack build, with direct-load support: open a single stem or all four Demucs stems together as separate tracks, straight from the browser, no manual export/import round-trip.
 - **LoRA training from the UI** — the full scan → label → preprocess → train pipeline, drivable from React without dropping into Gradio directly.
-- **One installer, GPU-aware** — detects your actual compute capability and compiler version, not just a menu choice, and knows when `flash-attn` will and won't build correctly for your hardware (Blackwell/RTX 50-series needs CUDA 12.8+ to compile it at all — the installer checks this before attempting a multi-hour build that's doomed to fail).
+- **One installer per platform, both `uv`-based and GPU-aware** — detects your actual compute capability and compiler version, not just a menu choice, and knows when `flash-attn` will and won't build correctly for your hardware (Blackwell/RTX 50-series needs CUDA 12.8+ to compile it at all on Linux, or a matching prebuilt wheel on Windows — both installers check this before attempting work that's doomed to fail).
 
 ---
 
@@ -124,6 +124,7 @@ If you're on Windows or macOS, the [upstream project](https://github.com/timonco
 | **Backend** | Express.js, SQLite, better-sqlite3 |
 | **AI Engine** | [ACE-Step 1.5](https://github.com/ace-step/ACE-Step-1.5) (Gradio API) |
 | **Audio Tools** | AudioMass (multitrack), Demucs, basic-pitch, FFmpeg |
+| **Python tooling** | [`uv`](https://github.com/astral-sh/uv) — faster, more reliable dependency resolution than plain `pip`, same tool on both Linux and Windows |
 
 ---
 
@@ -131,17 +132,19 @@ If you're on Windows or macOS, the [upstream project](https://github.com/timonco
 
 | Requirement | Specification |
 |-------------|---------------|
-| **OS** | Linux (developed on Linux Mint / Ubuntu 24.04) |
+| **OS** | Linux (developed on Linux Mint / Ubuntu 24.04) or Windows 10/11 |
 | **Node.js** | 22 LTS |
-| **Python** | 3.12 (main env), 3.11 (isolated, for MIDI conversion only) |
+| **Python** | Managed automatically by `uv` — 3.12 on Linux, 3.11 on Windows for the main environment; a separate isolated 3.11 environment on both platforms for MIDI conversion |
 | **NVIDIA GPU** | 4GB+ VRAM (works without LLM), 12GB+ recommended (with LLM) |
-| **CUDA compiler (`nvcc`)** | 12.8+ if you want `flash-attn` on Blackwell (RTX 50-series) — older cards work with older `nvcc` too, the installer checks and falls back to SDPA if not |
+| **CUDA compiler (`nvcc`)** | Linux only, 12.8+ if you want `flash-attn` on Blackwell (RTX 50-series) — older cards work with older `nvcc` too, the installer checks and falls back to SDPA if not. Windows uses a prebuilt `flash-attn` wheel instead, no local compiler needed |
 | **FFmpeg, libsndfile** | Installed automatically by the installer if missing |
-| **uv** | Python package manager — installed automatically if missing |
+| **uv** | Python package manager — installed automatically by both installers if missing |
 
 ---
 
 ## ⚡ Quick Start
+
+### Linux
 
 ```bash
 # 1. Clone this repo and ACE-Step-1.5 side by side (see full install below)
@@ -156,6 +159,20 @@ cd ace-step-studio
 ./run.sh
 ```
 
+### Windows
+
+```powershell
+# 1. Clone this repo and ACE-Step-1.5 side by side (see full install below)
+git clone https://github.com/Sion971/ace-step-studio.git
+cd ace-step-studio
+
+# 2. Run the installer — same idea as Linux, uv-managed Python throughout
+install.bat
+
+# 3. Start everything (frontend + backend + AI engine) in one terminal
+run.bat
+```
+
 That's it — the UI opens automatically at `http://localhost:3001`.
 
 ---
@@ -168,9 +185,12 @@ That's it — the UI opens automatically at `http://localhost:3001`.
 git clone https://github.com/ace-step/ACE-Step-1.5.git
 ```
 
-Place it alongside this repo — `run.sh` expects `../ACE-Step-1.5` relative to this project by default (configurable).
+Place it alongside this repo — the launcher expects `../ACE-Step-1.5` relative to this project by default (configurable).
 
 ### 2. Clone this repo and run the installer
+
+<details>
+<summary><strong>Linux</strong></summary>
 
 ```bash
 git clone https://github.com/Sion971/ace-step-studio.git
@@ -178,24 +198,57 @@ cd ace-step-studio
 ./install.sh
 ```
 
-The installer walks through twelve steps, all self-checking and safe to re-run:
+The installer walks through thirteen steps, all self-checking and safe to re-run:
 
 1. System dependencies (FFmpeg, libsndfile) via apt, only if missing
 2. Working directory structure
-3. GPU / CUDA selection (Pascal through Blackwell, or CPU-only)
-4. Python virtual environment (via `uv`)
-5. Build tools
-6. PyTorch, matched to your selected CUDA version
-7. NVIDIA NPP (a `torchcodec` runtime dependency that PyTorch doesn't pull in on its own)
-8. ACE-Step dependencies, including a real compute-capability check before attempting `flash-attn` — skips it cleanly (falling back to SDPA) rather than burning hours on a build that can't succeed on your hardware
-9. `torchcodec` load verification
-10. Node.js check, npm install, frontend build
-11. Database migration (playlist/workspace schema) — idempotent, safe on every reinstall
-12. Isolated `basic-pitch` environment for MIDI conversion (Python 3.11 via deadsnakes PPA)
+3. GPU / CUDA selection (Pascal through Blackwell, or CPU-only) and Python virtual environment (via `uv`)
+4. Build tools
+5. PyTorch, matched to your selected CUDA version
+5b. NVIDIA NPP (a `torchcodec` runtime dependency that PyTorch doesn't pull in on its own)
+6. ACE-Step dependencies, including a real compute-capability check before attempting `flash-attn` — skips it cleanly (falling back to SDPA) rather than burning hours on a build that can't succeed on your hardware
+7. `pytorch_wavelets` patch — works around a `pkg_resources` removal in modern `setuptools` that otherwise silently disables the optional DCW sampler correction
+8. `torchcodec` load verification
+9. Node.js check
+10. npm install (frontend and server)
+11. Frontend build
+12. Database migration (playlist/workspace schema) — idempotent, safe on every reinstall
+13. Isolated `basic-pitch` environment for MIDI conversion (Python 3.11 via deadsnakes PPA)
+
+</details>
+
+<details>
+<summary><strong>Windows</strong></summary>
+
+```powershell
+git clone https://github.com/Sion971/ace-step-studio.git
+cd ace-step-studio
+install.bat
+```
+
+The installer walks through ten steps, all self-checking and safe to re-run:
+
+1. `uv` install (if missing) and GPU / CUDA selection (Pascal through Blackwell, or CPU-only)
+2. Python 3.11 virtual environment (via `uv`)
+3. PyTorch, matched to your selected CUDA version
+4. ACE-Step dependencies, including `flash-attn` — a prebuilt wheel on Blackwell (RTX 50-series), verified specifically for Python 3.11 + PyTorch 2.7 + CUDA 12.8, no local compiler needed
+5. `pytorch_wavelets` patch — same `pkg_resources` fix as Linux, same reasoning
+6. Node.js
+7. npm install (frontend and server)
+8. Frontend build (FFmpeg is downloaded automatically around this point too, if missing)
+9. Database migration (playlist/workspace schema) — idempotent, safe on every reinstall
+10. Isolated `basic-pitch` environment for MIDI conversion, its own `uv`-managed venv to avoid a `tensorboard`/`tensorflow` version conflict with ACE-Step's own pin
+
+If `torchaudio` fails to load with `Could not find module ... (or one of its dependencies)`, install the [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) — a very common missing piece for compiled Python extensions on a fresh Windows install, unrelated to this project specifically.
+
+</details>
 
 Models download automatically on first run (~5GB).
 
 ### 3. Start the app
+
+<details>
+<summary><strong>Linux</strong></summary>
 
 ```bash
 ./run.sh
@@ -209,6 +262,19 @@ Models download automatically on first run (~5GB).
 | `--gradio-only` | ACE-Step's own Gradio UI only (port 8001), no Express/React frontend — needed for dataset labeling |
 | `--no-browser` | Don't auto-open a browser tab |
 | `--port <n>` | Web server port (default 3001) |
+
+</details>
+
+<details>
+<summary><strong>Windows</strong></summary>
+
+```powershell
+run.bat
+```
+
+Same flags as Linux (`--no-lm`, `--gradio-only`, `--no-browser`, `--port <n>`).
+
+</details>
 
 ---
 
@@ -246,11 +312,13 @@ Generate several variations of the same prompt in one pass to compare results qu
 
 | Issue | Solution |
 |-------|----------|
-| **ACE-Step not reachable** | Ensure Gradio server is running with `--enable-api` (handled automatically by `run.sh`) |
+| **ACE-Step not reachable** | Ensure Gradio server is running with `--enable-api` (handled automatically by the launcher) |
 | **CUDA out of memory** | Set batch size to **1**, reduce duration, or disable Thinking Mode |
 | **4GB GPU — Out of memory** | Batch size **1**, Thinking Mode **off**. LLM features need 12GB+ |
-| **`flash-attn` build fails or errors at runtime** | Check your `nvcc` version supports your GPU's compute capability — see `install.sh` step 8, or fall back to `--no-lm` if you just need generation working now |
-| **Songs show 0:00 duration** | `sudo apt install ffmpeg` |
+| **`flash-attn` build fails or errors at runtime (Linux)** | Check your `nvcc` version supports your GPU's compute capability — see `install.sh` step 6, or fall back to `--no-lm` if you just need generation working now |
+| **`torchaudio` fails to load with "Could not find module ... (or one of its dependencies)" (Windows)** | Install the [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) |
+| **DCW disabled with a `pytorch_wavelets` warning** | Both installers patch this automatically (step 7 on Linux, step 5 on Windows) — if it's still happening, run `patch-pytorch-wavelets.py` manually against the relevant environment |
+| **Songs show 0:00 duration** | Linux: `sudo apt install ffmpeg`. Windows: delete the `ffmpeg\` folder and re-run the installer |
 | **LAN access not working** | Check firewall allows the port you're running on (default 3001) |
 
 More detail in `TROUBLESHOOTING.md`.

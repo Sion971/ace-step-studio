@@ -22,7 +22,7 @@ export TMP="$SCRIPT_DIR/temp"
 # === 0. Dépendances système ==================================================
 # FFmpeg et libsndfile sont testés séparément : sur une machine où FFmpeg est
 # déjà présent, la branche unique d'origine sautait aussi libsndfile1.
-echo "[1/12] Dépendances système..."
+echo "[1/13] Dépendances système..."
 
 MISSING_PKGS=""
 command -v ffmpeg &> /dev/null || MISSING_PKGS="$MISSING_PKGS ffmpeg"
@@ -43,7 +43,7 @@ if command -v ffmpeg &> /dev/null; then
 fi
 
 # === 1. Arborescence =========================================================
-echo "[2/12] Création des répertoires de travail..."
+echo "[2/13] Création des répertoires de travail..."
 mkdir -p downloads temp models cache output
 mkdir -p app/data app/server/public/audio
 
@@ -112,7 +112,7 @@ if ! command -v uv &> /dev/null; then
     source "$HOME/.local/bin/env" 2>/dev/null || true
 fi
 
-echo "[3/12] Environnement virtuel Python 3.12.3..."
+echo "[3/13] Environnement virtuel Python 3.12.3..."
 if [ -d ".venv" ]; then
     echo "Suppression de l'ancien venv pour un reset propre..."
     rm -rf .venv
@@ -122,11 +122,11 @@ uv venv --python 3.12.3 .venv
 source .venv/bin/activate
 
 # === 4. Outils de build ======================================================
-echo "[4/12] Outils de build (hatchling, cmake, ninja)..."
+echo "[4/13] Outils de build (hatchling, cmake, ninja)..."
 uv pip install hatchling editables cmake "ninja>=1.13.0" setuptools wheel
 
 # === 5. PyTorch ==============================================================
-echo "[5/12] PyTorch 2.10.0 ($CUDA_NAME)..."
+echo "[5/13] PyTorch 2.10.0 ($CUDA_NAME)..."
 if [ "$CUDA_VERSION" = "cpu" ]; then
     uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 else
@@ -148,12 +148,12 @@ fi
 # ATTENTION : --index-url ci-dessus REMPLACE PyPI. Ce paquet doit donc être
 # installé dans un appel séparé, sans index-url, pour être trouvé sur PyPI.
 if [ "$CUDA_VERSION" != "cpu" ]; then
-    echo "[5b/12] NVIDIA NPP (requis par torchcodec)..."
+    echo "[5b/13] NVIDIA NPP (requis par torchcodec)..."
     uv pip install nvidia-npp-cu12
 fi
 
 # === 6. Dépendances Python d'ACE-Step ========================================
-echo "[6/12] Dépendances ACE-Step..."
+echo "[6/13] Dépendances ACE-Step..."
 
 if [ -d "ACE-Step-1.5/acestep/third_parts/nano-vllm" ]; then
     uv pip install -e ACE-Step-1.5/acestep/third_parts/nano-vllm/
@@ -252,9 +252,29 @@ if [ -d "ACE-Step-1.5" ]; then
     uv pip install -e ACE-Step-1.5/ --no-deps
 fi
 
+echo "[7/13] Correctif pytorch_wavelets (pkg_resources)..."
+# pytorch_wavelets (dependance de DCW, voir DCW.md) utilise encore
+# "from pkg_resources import resource_stream" pour charger ses coefficients
+# de filtres. Depuis setuptools 82 (8 fevrier 2026), pkg_resources n'est
+# plus fourni par defaut, et l'import echoue silencieusement — DCW se
+# desactive alors proprement (voir ACE-Step-1.5, pas de plantage), mais
+# sans l'acceleration attendue. Meme piege que basic-pitch/resampy, mais
+# ici dans l'environnement PRINCIPAL (torch/transformers/ACE-Step) : y
+# retrograder setuptools globalement serait bien plus risque que pour un
+# venv isole. Correctif chirurgical du fichier lui-meme a la place —
+# remplace l'import par un equivalent importlib.resources natif a
+# Python 3.9+, sans toucher a la version de setuptools. Idempotent.
+if [ -f "patch-pytorch-wavelets.py" ]; then
+    .venv/bin/python patch-pytorch-wavelets.py
+else
+    echo "  ATTENTION : patch-pytorch-wavelets.py introuvable, correctif ignore."
+    echo "  DCW restera desactive (repli automatique, pas de plantage)."
+fi
+
+
 # === 7. Vérification torchcodec ==============================================
 # Test précoce : mieux vaut échouer ici qu'au premier fichier audio généré.
-echo "[7/12] Vérification de torchcodec..."
+echo "[8/13] Vérification de torchcodec..."
 if [ "$CUDA_VERSION" != "cpu" ]; then
     if .venv/bin/python -c "import torchcodec" 2>/dev/null; then
         echo "  OK — torchcodec se charge correctement."
@@ -266,7 +286,7 @@ if [ "$CUDA_VERSION" != "cpu" ]; then
 fi
 
 # === 8. Node.js ==============================================================
-echo "[8/12] Vérification de Node.js..."
+echo "[9/13] Vérification de Node.js..."
 if ! command -v node &> /dev/null; then
     echo "ERREUR: Node.js n'est pas installé. Veuillez installer Node.js 22 LTS."
     exit 1
@@ -274,14 +294,14 @@ fi
 echo "  Node.js $(node -v)"
 
 # === 9. npm & build frontend =================================================
-echo "[9/12] Dépendances npm (frontend et serveur)..."
+echo "[10/13] Dépendances npm (frontend et serveur)..."
 (cd app && npm install)
 (cd app/server && npm install)
 
-echo "[10/12] Compilation du frontend..."
+echo "[11/13] Compilation du frontend..."
 (cd app && npx vite build)
 
-echo "[11/12] Migration base de données (séparation Playlists/Espaces de travail)..."
+echo "[12/13] Migration base de données (séparation Playlists/Espaces de travail)..."
 # Colonne 'kind' sur la table playlists — voir app/server/run-migration-kind.mjs
 # pour le detail complet. Idempotent (verifie lui-meme si la colonne existe
 # deja) et cree sa propre sauvegarde avant toute modification : sans danger
@@ -296,7 +316,7 @@ else
     echo "  La separation Playlists/Espaces de travail pourrait ne pas fonctionner."
 fi
 
-echo "[12/12] Environnement basic-pitch (conversion audio -> MIDI)..."
+echo "[13/13] Environnement basic-pitch (conversion audio -> MIDI)..."
 # Venv Python ISOLE, distinct de .venv (ACE-Step) — evite tout conflit avec
 # ses versions figees de torch/torchaudio/numpy. basic-pitch exige
 # tensorflow<2.15.1 (meme avec l'extra [onnx]), sans roue compatible Python
