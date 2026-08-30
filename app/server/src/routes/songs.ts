@@ -317,6 +317,58 @@ router.get('/:id/full', optionalAuthMiddleware, async (req: AuthenticatedRequest
   }
 });
 
+// Upload raw audio for direct song creation (voir VoiceRecorder.tsx —
+// enregistrement au micro, hors generation IA). Reutilise le MEME
+// fournisseur de stockage que reference-tracks/generation, mais SANS
+// creer de ligne persistee visible dans la bibliotheque : contrairement a
+// /api/reference-tracks, dont chaque entree s'affiche independamment dans
+// SongList (fonctionnalite volontaire, permet de reutiliser un audio
+// televerse pour une future generation) — confirme en pratique par une
+// entree fantome "recording-XXXX / Unknown" apparue apres reutilisation
+// de cette route pour un tout autre usage. Supprimer l'entree apres coup
+// n'est pas une option : la route de suppression de reference-tracks
+// efface aussi le FICHIER en stockage, cassant la lecture de la chanson
+// qui pointe vers ce meme fichier. Cette route dediee evite le probleme a
+// la racine plutot que de le contourner.
+const audioUploadOnly = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max
+  fileFilter: (_req, file, cb) => {
+    const allowedTypes = [
+      'audio/mpeg', 'audio/wav', 'audio/flac', 'audio/mp3',
+      'audio/x-wav', 'audio/x-flac', 'audio/mp4', 'audio/x-m4a',
+      'audio/aac', 'video/mp4',
+    ];
+    if (allowedTypes.includes(file.mimetype) || file.mimetype.startsWith('audio/webm') || file.originalname.match(/\.(mp3|wav|flac|m4a|mp4|webm)$/i)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only MP3, WAV, FLAC, M4A, MP4, and WEBM are allowed.'));
+    }
+  }
+});
+
+router.post('/upload-audio', authMiddleware, audioUploadOnly.single('audio'), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: 'No file uploaded' });
+      return;
+    }
+    const userId = req.user!.id;
+    const ext = req.file.originalname.match(/\.\w+$/)?.[0] || '.webm';
+    const key = `song-uploads/${userId}/${Date.now()}${ext}`;
+
+    const storage = getStorageProvider();
+    await storage.upload(key, req.file.buffer, req.file.mimetype);
+    const audioUrl = storage.getPublicUrl(key);
+
+    res.status(201).json({ audioUrl });
+  } catch (error) {
+    console.error('Upload song audio error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to upload audio', details: errorMessage });
+  }
+});
+
 // Create song (manual, not from generation)
 router.post('/', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {

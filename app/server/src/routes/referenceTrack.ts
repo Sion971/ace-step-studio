@@ -29,8 +29,12 @@ const upload = multer({
       'audio/x-m4a',
       'audio/aac',
       'video/mp4',
+      // Format natif du navigateur pour MediaRecorder (voir VoiceRecorder.tsx
+      // — enregistrement direct au micro). Opus/webm est un format audio
+      // legitime et courant, pas un cas limite a exclure.
+      'audio/webm',
     ];
-    if (allowedTypes.includes(file.mimetype) || file.originalname.match(/\.(mp3|wav|flac|m4a|mp4)$/i)) {
+    if (allowedTypes.includes(file.mimetype) || file.mimetype.startsWith('audio/webm') || file.originalname.match(/\.(mp3|wav|flac|m4a|mp4|webm)$/i)) {
       cb(null, true);
     } else {
       cb(new Error('Invalid file type. Only MP3, WAV, FLAC, M4A, and MP4 are allowed.'));

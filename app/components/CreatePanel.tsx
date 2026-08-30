@@ -13,6 +13,7 @@ import { LmParametersPanel } from './LmParametersPanel';
 import { AudioTransformPanel } from './AudioTransformPanel';
 import { AudioModeHeader } from './AudioModeHeader';
 import { AudioPlayerPanel } from './AudioPlayerPanel';
+import { VoiceRecorder } from './VoiceRecorder';
 import { LmSettings } from './LmSettings';
 import { ModelMenu } from './ModelMenu';
 import { isTurboModel } from '../utils/modelNames';
@@ -120,6 +121,10 @@ interface CreatePanelProps {
   createdSongs?: Song[];
   pendingAudioSelection?: { target: 'reference' | 'source'; url: string; title?: string; mode?: AudioModeId } | null;
   onAudioSelectionApplied?: () => void;
+  /** Notifie le parent (App.tsx) qu'une nouvelle chanson vient d'etre creee
+   *  directement (voir VoiceRecorder — enregistrement au micro, hors
+   *  generation IA), pour qu'il puisse rafraichir sa propre liste. */
+  onSongCreated?: (song: Song) => void;
   /** Returns a promise that resolves when all currently-running generation
    *  jobs have completed. Used to serialize bulk clicks: the next click's
    *  LLM pre-flight + POST happen only after the previous track is fully
@@ -175,6 +180,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   createdSongs = [],
   pendingAudioSelection,
   onAudioSelectionApplied,
+  onSongCreated,
   waitForJobsToDrain,
   incrementPendingClicks,
   decrementPendingClicks,
@@ -2150,6 +2156,10 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             Simple / Personnalisé. Les deux modes construisaient des charges
             utiles divergentes, source de plusieurs bugs (voir §12). */}
           <div className="space-y-5">
+            {/* Enregistrement direct au micro — independant de la
+                generation IA, voir VoiceRecorder.tsx */}
+            <VoiceRecorder token={token} onSongCreated={(song) => onSongCreated?.(song as Song)} t={t} tf={tf} />
+
             {/* Song Description */}
             <div className="bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 overflow-hidden">
               <div className="px-3 py-2.5 flex items-center justify-between border-b border-zinc-100 dark:border-white/5 bg-zinc-50 dark:bg-white/5">
