@@ -104,6 +104,21 @@ export TEMP="$SCRIPT_DIR/temp"
 export TMP="$SCRIPT_DIR/temp"
 mkdir -p "$TEMP"
 
+# Cache interne de Gradio (temp/gradio/) — fichiers copies avant chaque
+# envoi au frontend, pour eviter qu'un fichier soit ecrase pendant qu'un
+# autre utilisateur le consulte encore. Purement ephemere par conception :
+# une fois la session precedente terminee, rien n'a plus besoin d'y
+# survivre. Sans nettoyage, s'accumule indefiniment — confirme en
+# pratique a 7,7 Go apres une semaine de tests, avec un meme fichier de
+# reference duplique jusqu'a huit fois. Videe au demarrage plutot qu'a
+# l'arret : survit a un plantage ou un Ctrl+C brutal qui sauterait un
+# nettoyage en sortie.
+if [ -d "$TEMP/gradio" ]; then
+    GRADIO_CACHE_SIZE=$(du -sh "$TEMP/gradio" 2>/dev/null | cut -f1)
+    rm -rf "${TEMP:?}/gradio"/*
+    echo "Cache Gradio vide (etait : ${GRADIO_CACHE_SIZE:-inconnu})"
+fi
+
 export HF_HOME="$SCRIPT_DIR/models"
 export HUGGINGFACE_HUB_CACHE="$SCRIPT_DIR/models"
 export HF_HUB_ENABLE_HF_TRANSFER=1
