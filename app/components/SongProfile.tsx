@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Song } from '../types';
-import { songsApi, getAudioUrl } from '../services/api';
+import { songsApi, getAudioUrl, getCoverUrl } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useI18n } from '../context/I18nContext';
 import { ArrowLeft, Play, Pause, Heart, Share2, MoreHorizontal, ThumbsDown, Music as MusicIcon, Edit3, Eye } from 'lucide-react';
@@ -115,7 +115,7 @@ export const SongProfile: React.FC<SongProfileProps> = ({ songId, onBack, onPlay
                 title: response.song.title,
                 lyrics: response.song.lyrics,
                 style: response.song.style,
-                coverUrl: `https://picsum.photos/seed/${response.song.id}/400/400`,
+                coverUrl: getCoverUrl(response.song.id),
                 duration: response.song.duration
                     ? `${Math.floor(response.song.duration / 60)}:${String(Math.floor(response.song.duration % 60)).padStart(2, '0')}`
                     : '0:00',

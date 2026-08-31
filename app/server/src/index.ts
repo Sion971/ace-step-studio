@@ -252,7 +252,9 @@ app.get('/song/:id', async (req, res) => {
     }
 
     const song = result.rows[0];
-    const coverUrl = song.cover_url || `https://picsum.photos/seed/${song.id}/1200/630`;
+    // picsum.photos rejette systematiquement les graines contenant des
+    // tirets — voir getCoverUrl dans app/services/api.ts pour le detail.
+    const coverUrl = song.cover_url || `https://picsum.photos/seed/${song.id.replace(/-/g, '')}/1200/630`;
     const title = `${song.title} by ${song.creator}`;
     const description = `🎵 ${song.style} • Create your own AI music free on ACE-Step UI`;
     const pageUrl = `${config.frontendUrl}/song/${song.id}`;

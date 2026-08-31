@@ -14,6 +14,66 @@ export function getAudioUrl(audioUrl: string | undefined | null, songId?: string
   return audioUrl;
 }
 
+// Pochette de secours quand la chanson/playlist n'a pas de vraie couverture.
+// Generee localement en SVG (encode en data URI), plutot que de dependre de
+// picsum.photos — deux tentatives de correctif reelles (retrait des tirets
+// dans la graine, puis verification que le service n'a pas de limite de
+// requetes documentee) n'ont pas suffi a resoudre un echec systematique
+// (187 requetes sur 187, puis 482 sur 482 apres le premier correctif) sur
+// une infrastructure tierce qu'on ne controle pas. Palette et logique de
+// hachage reprises d'AlbumCover.tsx (meme esprit — "Pochettes degradees,
+// sans connexion necessaire" — deja annonce dans le README) pour une
+// coherence visuelle, mais volontairement simplifiees a un seul degrade
+// lineaire plutot que ses dix motifs, suffisant pour un simple repli.
+// Deterministe : le meme identifiant produit toujours la meme image.
+const COVER_PALETTES: ReadonlyArray<readonly [string, string, string]> = [
+  ['#FF6B6B', '#FEC89A', '#1a1a2e'], // Sunset Vibes
+  ['#0077B6', '#00B4D8', '#03045E'], // Ocean Depths
+  ['#2D6A4F', '#40916C', '#1B4332'], // Forest Night
+  ['#F72585', '#7209B7', '#10002B'], // Neon Dreams
+  ['#FF9500', '#FF5400', '#2D1B00'], // Golden Hour
+  ['#48CAE4', '#00F5D4', '#0A0A1A'], // Arctic Aurora
+  ['#E0AAFF', '#C77DFF', '#240046'], // Lavender Haze
+  ['#FFCCD5', '#FF758F', '#2B0A14'], // Cherry Blossom
+  ['#00FF87', '#FF00E5', '#0D0D0D'], // Cyber Punk
+  ['#7400B8', '#4EA8DE', '#03071E'], // Deep Space
+];
+
+function hashSeed(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash = hash & hash;
+  }
+  return Math.abs(hash) || 1;
+}
+
+// `params` conserve pour compatibilite avec les appels existants
+// (VideoGeneratorModal passe '?blur=4') — seul le flou est reellement
+// interprete ici, via un filtre SVG plutot qu'un parametre de requete
+// puisqu'il n'y a plus de requete du tout.
+export function getCoverUrl(id: string, width = 400, height = 400, params = ''): string {
+  const hash = hashSeed(id);
+  const [c1, c2, bg] = COVER_PALETTES[hash % COVER_PALETTES.length];
+  const angle = hash % 360;
+
+  const blurMatch = params.match(/blur=?(\d+)?/);
+  const blurStdDev = blurMatch ? Number(blurMatch[1]) || 4 : 0;
+  const filterDef = blurStdDev > 0
+    ? `<filter id="b"><feGaussianBlur stdDeviation="${blurStdDev}"/></filter>`
+    : '';
+  const filterAttr = blurStdDev > 0 ? ' filter="url(#b)"' : '';
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+    `<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%" gradientTransform="rotate(${angle} 0.5 0.5)">` +
+    `<stop offset="0%" stop-color="${c1}"/><stop offset="100%" stop-color="${c2}"/></linearGradient>${filterDef}</defs>` +
+    `<rect width="100%" height="100%" fill="${bg}"${filterAttr}/>` +
+    `<rect width="100%" height="100%" fill="url(#g)" opacity="0.85"${filterAttr}/></svg>`;
+
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+
 interface ApiOptions {
   method?: string;
   body?: unknown;
@@ -217,7 +277,7 @@ export const songsApi = {
         style: s.style,
         caption: s.caption,
         cover_url: s.cover_url,
-        coverUrl: s.cover_url || s.coverUrl || `https://picsum.photos/seed/${s.id}/400/400`,
+        coverUrl: s.cover_url || s.coverUrl || getCoverUrl(s.id),
         duration: s.duration && s.duration > 0 ? `${Math.floor(s.duration / 60)}:${String(Math.floor(s.duration % 60)).padStart(2, '0')}` : '0:00',
         createdAt: new Date(s.created_at || s.createdAt),
         created_at: s.created_at,

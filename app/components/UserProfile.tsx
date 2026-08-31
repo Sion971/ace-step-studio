@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Song, Playlist } from '../types';
-import { usersApi, getAudioUrl, UserProfile as UserProfileType, songsApi } from '../services/api';
+import { usersApi, getAudioUrl, getCoverUrl, UserProfile as UserProfileType, songsApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, Play, Pause, Heart, Eye, Users, Music as MusicIcon, ChevronRight, Share2, MoreHorizontal, Edit3, X, Camera, Image as ImageIcon, Upload, Loader2, Move } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
@@ -111,7 +111,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
                 title: s.title,
                 lyrics: s.lyrics,
                 style: s.style,
-                coverUrl: `https://picsum.photos/seed/${s.id}/400/400`,
+                coverUrl: getCoverUrl(s.id),
                 duration: s.duration ? `${Math.floor(s.duration / 60)}:${String(Math.floor(s.duration % 60)).padStart(2, '0')}` : '0:00',
                 createdAt: new Date(s.created_at),
                 tags: s.tags || [],

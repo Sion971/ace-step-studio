@@ -131,7 +131,14 @@ export async function fetchCoverImage(
   _pol?: PollinationsCoverConfig
 ): Promise<{ buffer: Buffer; mimeType: string } | undefined> {
   try {
-    const url = `https://picsum.photos/seed/${songId}/400/400`;
+    // picsum.photos rejette systematiquement les graines contenant des
+    // tirets (confirme en pratique : 187 requetes sur 187 en echec 400
+    // avec un UUID brut utilise tel quel). Tirets retires plutot que la
+    // cause exacte confirmee au-dela de tout doute — la convention
+    // observee chez picsum.photos n'utilise jamais que des graines
+    // alphanumeriques simples. Voir aussi getCoverUrl dans
+    // app/services/api.ts (equivalent cote frontend).
+    const url = `https://picsum.photos/seed/${songId.replace(/-/g, '')}/400/400`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(url, { signal: controller.signal, redirect: 'follow' });

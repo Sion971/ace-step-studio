@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Play, Pause, Heart, ChevronRight, ChevronLeft, Copy, Check, X, Loader2 } from 'lucide-react';
 import { Song, Playlist } from '../types';
-import { songsApi, usersApi, playlistsApi, searchApi, UserProfile, getAudioUrl } from '../services/api';
+import { songsApi, usersApi, playlistsApi, searchApi, UserProfile, getAudioUrl, getCoverUrl } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { GENRE_KEYS } from '../data/genres';
 
@@ -58,7 +58,7 @@ export const SearchPage: React.FC<SearchPageProps> = ({
     title: s.title,
     lyrics: s.lyrics || '',
     style: s.style || s.caption || '',
-    coverUrl: s.cover_url || s.coverUrl || `https://picsum.photos/seed/${s.id}/400/400`,
+    coverUrl: s.cover_url || s.coverUrl || getCoverUrl(s.id),
     duration: s.duration ? (typeof s.duration === 'string' ? s.duration : `${Math.floor(s.duration / 60)}:${String(Math.floor(s.duration % 60)).padStart(2, '0')}`) : '0:00',
     createdAt: new Date(s.created_at || s.createdAt),
     tags: s.tags || [],
@@ -575,7 +575,7 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({
     >
       <div className="aspect-square rounded-lg overflow-hidden mb-2 shadow-md relative bg-zinc-200 dark:bg-zinc-800">
         <img
-          src={playlist.cover_url || `https://picsum.photos/seed/${playlist.id}/400/400`}
+          src={playlist.cover_url || getCoverUrl(playlist.id)}
           alt={playlist.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />

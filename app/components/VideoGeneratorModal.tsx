@@ -3,6 +3,7 @@ import { useI18n } from '../context/I18nContext';
 import { Song } from '../types';
 import { X, Play, Pause, Download, Wand2, Image as ImageIcon, Music, Video, Loader2, Palette, Layers, Zap, Type, Monitor, Aperture, Activity, Circle, Grid, Box, BarChart2, Waves, Disc, Upload, Plus, Trash2, Settings2, MousePointer2, Search, ExternalLink, Sun, Film, Minus } from 'lucide-react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { getCoverUrl } from '../services/api';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { useResponsive } from '../context/ResponsiveContext';
 
@@ -490,7 +491,7 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
       img.src = customImage;
     } else {
       const bgRes = RESOLUTIONS[config.aspectRatio || '16:9'];
-      img.src = `https://picsum.photos/seed/${backgroundSeed}/${bgRes.width}/${bgRes.height}?blur=4`;
+      img.src = getCoverUrl(String(backgroundSeed), bgRes.width, bgRes.height, '?blur=4');
     }
     img.onload = () => {
       bgImageRef.current = img;
@@ -754,14 +755,26 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
       bgVideo.src = videoUrl;
       bgVideo.muted = true;
       bgVideo.playsInline = true;
+      bgVideo.preload = 'auto';
       await new Promise<void>((resolve) => {
-        bgVideo!.onloadeddata = () => resolve();
-        bgVideo!.onerror = () => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          bgVideo!.removeEventListener('canplaythrough', onReady);
+          bgVideo!.removeEventListener('error', onError);
+          resolve();
+        };
+        const onReady = () => finish();
+        const onError = () => {
           console.warn('Failed to load background video, falling back to image');
           bgVideo = null;
           setVideoBgError(true);
-          resolve();
+          finish();
         };
+        bgVideo!.addEventListener('canplaythrough', onReady);
+        bgVideo!.addEventListener('error', onError);
+        setTimeout(finish, 15000);
         bgVideo!.load();
       });
     } else if (bgImageRef.current) {
@@ -948,18 +961,22 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
 
       if (bgVideo) {
         // Seek video to current frame time (loop if video is shorter)
-        const videoTime = time % (bgVideo.duration || 1);
-        bgVideo.currentTime = videoTime;
-        // Wait for seek to complete
-        await new Promise<void>((resolve) => {
-          const onSeeked = () => {
-            bgVideo!.removeEventListener('seeked', onSeeked);
-            resolve();
-          };
-          bgVideo!.addEventListener('seeked', onSeeked);
-          // Fallback timeout in case seeked never fires
-          setTimeout(resolve, 50);
-        });
+        // En supprimant le setTimeout(resolve, 50) et en utilisant requestVideoFrameCallback,
+        // le rendu    attend que la frame vidéo soit réellement décodée par la carte graphique avant de
+        // continuer.
+       const videoTime = time % (bgVideo.duration || 1);
+       bgVideo.currentTime = videoTime;
+       await new Promise((resolve) => {
+         if ('requestVideoFrameCallback' in bgVideo) {
+           (bgVideo as HTMLVideoElement).requestVideoFrameCallback(() => resolve());
+         } else {
+           const onSeeked = () => {
+             bgVideo!.removeEventListener('seeked', onSeeked);
+             resolve();
+           };
+           bgVideo!.addEventListener('seeked', onSeeked);
+        }
+      });
         bgSource = bgVideo;
       }
 
