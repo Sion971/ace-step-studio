@@ -31,8 +31,10 @@ echo   3. NVIDIA RTX 30xx (Ampere)
 echo   4. NVIDIA RTX 40xx (Ada Lovelace)
 echo   5. NVIDIA RTX 50xx (Blackwell)
 echo   6. CPU only (no GPU)
+echo   7. AMD GPU (ROCm)
+echo   8. Intel GPU (XPU)
 echo.
-set /p GPU_CHOICE="Enter number (1-6): "
+set /p GPU_CHOICE="Enter number (1-8): "
 
 if "%GPU_CHOICE%"=="1" goto :gpu_10xx
 if "%GPU_CHOICE%"=="2" goto :gpu_20xx
@@ -40,6 +42,8 @@ if "%GPU_CHOICE%"=="3" goto :gpu_30xx
 if "%GPU_CHOICE%"=="4" goto :gpu_40xx
 if "%GPU_CHOICE%"=="5" goto :gpu_50xx
 if "%GPU_CHOICE%"=="6" goto :gpu_cpu
+if "%GPU_CHOICE%"=="7" goto :gpu_rocm
+if "%GPU_CHOICE%"=="8" goto :gpu_xpu
 echo Invalid choice!
 pause
 exit /b 1
@@ -85,6 +89,49 @@ set "CUDA_NAME=CPU only"
 set "TORCH_VERSION=2.7.1"
 set "TORCHAUDIO_VERSION=2.7.1"
 goto :gpu_done
+
+:gpu_rocm
+:gpu_xpu
+REM AMD (ROCm) et Intel (XPU) ne sont PAS geres par cet installateur - non
+REM par choix, mais par honnetete : contrairement au chemin NVIDIA/CUDA,
+REM valide en conditions reelles sur plusieurs sessions, personne n'a de
+REM materiel AMD ou Intel pour verifier quoi que ce soit ici. Recherche
+REM menee avant d'ecarter une implementation maison : ROCm sous Windows
+REM n'utilise pas un simple --index-url comme CUDA, mais des roues
+REM specifiques a CHAQUE architecture GPU exacte (gfx1151, gfx1201, etc.),
+REM avec un bug documente et actuellement ouvert cote AMD lui-meme ou leur
+REM propre procedure d'installation officielle peut se faire ecraser
+REM silencieusement par une version CPU de PyTorch recuperee depuis PyPI.
+REM
+REM Le vrai projet ACE-Step-1.5 maintient ses propres scripts dedies,
+REM testes par une equipe qui a reellement ce materiel - s'appuyer dessus
+REM plutot que de reimplementer a l'aveugle une logique qu'on ne peut pas
+REM verifier.
+echo.
+echo ========================================
+echo   AMD/Intel GPU support
+echo ========================================
+echo.
+echo Ce Studio integre (terminal unique, pipeline gere, espaces de travail,
+echo conversion MIDI, editeur multipiste...) est construit et teste
+echo specifiquement pour NVIDIA/CUDA. AMD (ROCm) et Intel (XPU) ne sont pas
+echo verifies avec cet installateur.
+echo.
+echo Pour utiliser ACE-Step 1.5 sur GPU AMD ou Intel, suivez le guide
+echo d'installation officiel du projet directement dans le dossier
+echo ACE-Step-1.5 :
+echo.
+echo   AMD (ROCm)   : start_gradio_ui_rocm.bat
+echo   Intel (XPU)  : setup_xpu.bat, puis start_gradio_ui_xpu.bat
+echo.
+echo Guide complet : https://github.com/ace-step/ACE-Step-1.5/blob/main/docs/en/INSTALL.md
+echo.
+echo Cela lance l'interface Gradio native du projet - une experience
+echo differente et plus simple que ce Studio, mais la seule reellement
+echo verifiee pour ce materiel.
+echo.
+pause
+exit /b 0
 
 :gpu_done
 echo.
