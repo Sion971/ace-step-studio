@@ -111,7 +111,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
                 title: s.title,
                 lyrics: s.lyrics,
                 style: s.style,
-                coverUrl: getCoverUrl(s.id),
+                coverUrl: (s as any).cover_url || (s as any).coverUrl || getCoverUrl(s.id),
                 duration: s.duration ? `${Math.floor(s.duration / 60)}:${String(Math.floor(s.duration % 60)).padStart(2, '0')}` : '0:00',
                 createdAt: new Date(s.created_at),
                 tags: s.tags || [],
