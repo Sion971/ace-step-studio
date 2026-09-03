@@ -315,19 +315,18 @@ echo "[11/13] Compilation du frontend..."
 (cd app && npx vite build)
 
 echo "[12/13] Migration base de données (séparation Playlists/Espaces de travail)..."
-# Colonne 'kind' sur la table playlists — voir app/server/run-migration-kind.mjs
-# pour le detail complet. Idempotent (verifie lui-meme si la colonne existe
-# deja) et cree sa propre sauvegarde avant toute modification : sans danger
-# a relancer sur une reinstallation ou une base deja migree.
-#
-# Necessite better-sqlite3, installe juste au-dessus (npm install dans
-# app/server) — doit donc rester APRES cette etape, jamais avant.
-if [ -f "app/server/run-migration-kind.mjs" ]; then
-    (cd app/server && node run-migration-kind.mjs)
-else
-    echo "  ATTENTION : app/server/run-migration-kind.mjs introuvable, migration ignorée."
-    echo "  La separation Playlists/Espaces de travail pourrait ne pas fonctionner."
-fi
+# La colonne 'kind' est desormais ajoutee directement dans
+# app/server/src/db/migrate.ts, qui s'execute automatiquement et de facon
+# fiable a CHAQUE demarrage de run.sh — plus besoin de ce script separe.
+# Ancienne approche (run-migration-kind.mjs, appele ici une seule fois
+# pendant l'installation) genait un vrai probleme sur une installation
+# neuve : ce script s'executait AVANT que la base existe, abandonnant
+# poliment sans jamais ajouter la colonne, puisque rien ne le rappelait
+# ensuite — confirme en pratique par une erreur "no such column: p.kind"
+# au moment de creer une playlist. La base de migrate.ts, elle, tourne a
+# chaque lancement, jamais seulement a l'installation : plus robuste par
+# construction face a ce genre de probleme de timing.
+echo "  Geree automatiquement au demarrage de run.sh — rien a faire ici."
 
 echo "[13/13] Environnement basic-pitch (conversion audio -> MIDI)..."
 # Venv Python ISOLE, distinct de .venv (ACE-Step) — evite tout conflit avec

@@ -155,6 +155,17 @@ function migrate(): void {
     try { db.exec('ALTER TABLE songs ADD COLUMN generation_time INTEGER'); } catch {}
     try { db.exec('ALTER TABLE songs ADD COLUMN lrc_content TEXT'); } catch {}
     try { db.exec('ALTER TABLE songs ADD COLUMN openrouter_model TEXT'); } catch {}
+    // Distingue playlists et espaces de travail — auparavant ajoutee par un
+    // script separe (run-migration-kind.mjs, execute une seule fois pendant
+    // install.sh) plutot qu'ici, dans la migration qui tourne reellement a
+    // chaque demarrage. Sur une installation neuve, ce script separe
+    // s'executait AVANT que la base existe (creee par CETTE migration-ci,
+    // juste en dessous), le laissant abandonner poliment sans jamais
+    // reussir a ajouter la colonne — confirme en pratique par une vraie
+    // erreur "no such column: p.kind" au moment de creer une playlist.
+    // Integree ici, elle beneficie de la meme garantie de fiabilite que
+    // toutes les autres colonnes ajoutees au fil du temps sur cette liste.
+    try { db.exec("ALTER TABLE playlists ADD COLUMN kind TEXT DEFAULT 'playlist'"); } catch {}
     console.log('Migrations completed successfully!');
   } catch (error) {
     // Check if it's just "already exists" errors
