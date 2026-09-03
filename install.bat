@@ -202,8 +202,19 @@ REM  Step 5: ACE-Step dependencies
 REM ============================================================
 echo [4/10] Installing ACE-Step dependencies...
 uv pip install hatchling editables
-REM Install nano-vllm first (local package, needed before ace-step)
-uv pip install -e ACE-Step-1.5/acestep/third_parts/nano-vllm/
+REM Install nano-vllm first (local package, needed before ace-step).
+REM CPU-only : --no-deps est INDISPENSABLE ici. Le pyproject.toml de
+REM nano-vllm epingle en dur flash-attn sur une roue CUDA (sdbds/
+REM flash-attention-for-windows, cu128) sans condition de plateforme -
+REM confirme en pratique : uv l'installait meme avec CUDA_VERSION=cpu,
+REM telechargement inutile d'une roue qui ne pourra de toute facon jamais
+REM se charger sans GPU NVIDIA. Sur les builds GPU, on garde les deps
+REM completes de nano-vllm (flash-attn y est reellement utilise).
+if "%CUDA_VERSION%"=="cpu" (
+    uv pip install -e ACE-Step-1.5/acestep/third_parts/nano-vllm/ --no-deps
+) else (
+    uv pip install -e ACE-Step-1.5/acestep/third_parts/nano-vllm/
+)
 REM Install all deps before ace-step to avoid resolver warnings
 REM torchao fixe a 0.13.0 (pas la fourchette >=0.16.0 d'origine, presente
 REM aussi dans le fichier upstream avant tout correctif) : torchao 0.16.0
