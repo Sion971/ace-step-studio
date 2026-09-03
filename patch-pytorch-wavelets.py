@@ -24,11 +24,35 @@ Usage :
 
 import sys
 
+# Deux cas bien distincts, a ne pas confondre :
+# 1. pytorch_wavelets vraiment absent (paquet jamais installe) — rien a
+#    corriger, message informatif normal.
+# 2. pytorch_wavelets installe mais son IMPORT echoue pour une AUTRE
+#    raison (incompatibilite avec une version plus recente de torch,
+#    dependance interne cassee, etc.) — la trace complete est essentielle
+#    pour diagnostiquer, jamais a masquer derriere un message generique.
+# Confirme en pratique : le paquet apparaissait bien installe avec succes
+# a l'etape precedente d'install.sh (pytorch-wavelets==1.3.0 dans le
+# journal), pourtant ce script rapportait "non installe" — parce que
+# l'ancien except ImportError, trop large, capturait silencieusement une
+# erreur venant d'une dependance INTERNE au module, pas de son absence
+# reelle. Import isole du reste, pour distinguer precisement les deux cas.
 try:
     import pytorch_wavelets
-except ImportError:
-    print("  pytorch_wavelets n'est pas installe — rien a corriger.")
-    sys.exit(0)
+except ModuleNotFoundError as e:
+    if e.name == 'pytorch_wavelets':
+        print("  pytorch_wavelets n'est pas installe — rien a corriger.")
+        sys.exit(0)
+    else:
+        print(f"  ATTENTION : pytorch_wavelets est installe mais son import echoue")
+        print(f"  a cause d'une dependance manquante : {e.name}")
+        print(f"  Trace complete : {e}")
+        sys.exit(1)
+except Exception as e:
+    print(f"  ATTENTION : pytorch_wavelets est installe mais son import echoue")
+    print(f"  pour une raison inattendue (pas juste une absence) :")
+    print(f"  {type(e).__name__}: {e}")
+    sys.exit(1)
 
 from pathlib import Path
 
@@ -52,8 +76,17 @@ if NEW_CODE.splitlines()[0] in content:
     sys.exit(0)
 
 if OLD_IMPORT not in content:
-    print(f"  ATTENTION : ligne attendue absente de {coeffs_path} — le fichier a peut-etre change de forme, correctif ignore.")
-    print(f"  Verification manuelle recommandee.")
+    # L'ancienne ligne problematique est absente, mais pas exactement sous
+    # la forme attendue par la verification ci-dessus — confirme en
+    # pratique : une session anterieure avait deja applique ce meme
+    # correctif, avec un nom de variable legerement different
+    # ("resources" plutot que "_importlib_resources"), invisible a la
+    # verification stricte precedente. Ce qui compte reellement, c'est
+    # l'absence de pkg_resources, pas le nom exact choisi pour la
+    # variable de remplacement — l'import a deja ete teste plus haut et a
+    # reussi, donc le fichier fonctionne deja correctement quelle que
+    # soit la forme exacte du correctif en place.
+    print(f"  [OK] pytorch_wavelets deja corrige (forme differente de la reference, mais l'import fonctionne).")
     sys.exit(0)
 
 new_content = content.replace(OLD_IMPORT, NEW_CODE)

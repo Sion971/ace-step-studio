@@ -191,10 +191,19 @@ REM ============================================================
 REM  Step 4: PyTorch
 REM ============================================================
 echo [3/10] Installing PyTorch %TORCH_VERSION% (%CUDA_NAME%)...
+REM torchvision et torchcodec epingles ici aussi, pas seulement torch/
+REM torchaudio — jusqu'ici laisses sans version precise, torchvision se
+REM resolvait correctement via uv en pratique (compatible avec le torch
+REM demande), mais torchcodec restait installe plus loin dans la grande
+REM liste de dependances SANS version du tout, avec un vrai risque de
+REM derive vers une version incompatible avec torch 2.7.1 avec le temps
+REM (voir torchao==0.13.0 plus bas, deja fige pour la meme raison).
+REM torchvision==0.22.1 et torchcodec==0.5.0 confirmes comme les versions
+REM compagnes officielles de torch==2.7.1.
 if "%CUDA_VERSION%"=="cpu" (
-    uv pip install torch==%TORCH_VERSION% torchaudio==%TORCHAUDIO_VERSION% torchvision --index-url https://download.pytorch.org/whl/cpu
+    uv pip install torch==%TORCH_VERSION% torchaudio==%TORCHAUDIO_VERSION% torchvision==0.22.1 torchcodec==0.5.0 --index-url https://download.pytorch.org/whl/cpu
 ) else (
-    uv pip install torch==%TORCH_VERSION% torchaudio==%TORCHAUDIO_VERSION% torchvision --index-url https://download.pytorch.org/whl/%CUDA_VERSION%
+    uv pip install torch==%TORCH_VERSION% torchaudio==%TORCHAUDIO_VERSION% torchvision==0.22.1 torchcodec==0.5.0 --index-url https://download.pytorch.org/whl/%CUDA_VERSION%
 )
 
 REM ============================================================
@@ -215,7 +224,7 @@ REM lui-meme (issue #98). torchao 0.13.0 est explicitement liste comme
 REM compatible avec torch 2.7.1 dans cette meme table. Cote Linux
 REM (install.sh), torch==2.10.0 correspond deja exactement a ce que veut
 REM torchao 0.16.0 - la paire y est deja coherente, rien a changer.
-uv pip install "transformers>=4.51.0,<4.58.0" diffusers gradio==6.2.0 matplotlib scipy soundfile loguru einops accelerate fastapi diskcache "uvicorn[standard]" numba vector-quantize-pytorch torchcodec "torchao==0.13.0" toml peft modelscope tensorboard typer-slim hf_transfer hf_xet lightning lycoris-lora safetensors xxhash "pytorch-wavelets>=1.3.0" "pywavelets>=1.9.0" "bitsandbytes>=0.50.0"
+uv pip install "transformers>=4.51.0,<4.58.0" diffusers gradio==6.2.0 matplotlib scipy soundfile loguru einops accelerate fastapi diskcache "uvicorn[standard]" numba vector-quantize-pytorch "torchao==0.13.0" toml peft modelscope tensorboard typer-slim hf_transfer hf_xet lightning lycoris-lora safetensors xxhash "pytorch-wavelets>=1.3.0" "pywavelets>=1.9.0" "bitsandbytes>=0.50.0"
 REM Install triton-windows for torch.compile + CUDA graphs (skip on CPU-only)
 if not "%CUDA_VERSION%"=="cpu" (
     echo Installing Triton for torch.compile...

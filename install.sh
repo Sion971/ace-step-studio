@@ -128,7 +128,20 @@ uv pip install hatchling editables cmake "ninja>=1.13.0" setuptools wheel
 # === 5. PyTorch ==============================================================
 echo "[5/13] PyTorch 2.10.0 ($CUDA_NAME)..."
 if [ "$CUDA_VERSION" = "cpu" ]; then
-    uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+    # Meme epinglage que le chemin GPU juste en dessous (torch 2.10.0, seul
+    # torchao 0.16.0 compatible selon sa propre table officielle — voir
+    # l'incident deja rencontre cote Windows, torch==2.7.1 non pin avec
+    # torchao>=0.16.0 provoquant "Skipping import of cpp extensions"). Sans
+    # cet epinglage, uv installe la derniere version stable disponible
+    # (2.14.0 au moment ou ce correctif a ete signale), incompatible.
+    # torchcodec ajoute aussi : absent du chemin CPU jusqu'ici, alors que
+    # le chemin GPU l'installe deja a cette meme etape.
+    uv pip install \
+        torch==2.10.0 \
+        torchvision==0.25.0 \
+        torchaudio==2.10.0 \
+        torchcodec==0.10.0 \
+        --index-url https://download.pytorch.org/whl/cpu
 else
     uv pip install \
         torch==2.10.0+$CUDA_VERSION \
@@ -326,7 +339,16 @@ echo "[13/13] Environnement basic-pitch (conversion audio -> MIDI)..."
 if ! command -v python3.11 &> /dev/null; then
     echo "  Python 3.11 introuvable — ajout du PPA deadsnakes..."
     sudo add-apt-repository -y ppa:deadsnakes/ppa
-    sudo apt update
+    # "|| true" delibere : contrairement a l'etape 1 (ou apt update est
+    # chaine avec && install, ce qui evite le declenchement de set -e sur
+    # son propre echec), celui-ci etait isole sur sa propre ligne — si
+    # UN SEUL depot tiers du systeme echoue (observe en pratique : un
+    # depot Spotify non signe, sans aucun rapport avec ce projet), apt
+    # update renvoie un code d'erreur global meme quand deadsnakes
+    # lui-meme s'est correctement mis a jour, et set -e arretait alors le
+    # script entier, silencieusement, sans le moindre message d'erreur —
+    # exactement le symptome observe (arret net juste apres cette ligne).
+    sudo apt update || true
     sudo apt install -y python3.11 python3.11-venv
 fi
 

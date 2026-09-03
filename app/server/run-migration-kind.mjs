@@ -32,11 +32,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.join(__dirname, 'data', 'acestep.db');
 
 if (!existsSync(DB_PATH)) {
-  console.error(`Base introuvable : ${DB_PATH}`);
-  console.error('Verifie DATABASE_PATH dans ton .env reel — si le chemin');
-  console.error('differe de la valeur par defaut, ajuste DB_PATH ci-dessus');
-  console.error('avant de relancer ce script.');
-  process.exit(1);
+  // Cas normal sur une premiere installation, pas une erreur : la base
+  // n'existe qu'a partir du premier demarrage reel du serveur (run.sh),
+  // jamais creee par install.sh lui-meme. Une base ainsi creee aura DEJA
+  // le bon schema des le depart (colonne "kind" incluse) — rien a migrer,
+  // par definition, pour une base qui n'existe pas encore. Corrige apres
+  // un cas reel : traite auparavant comme une erreur fatale (exit 1),
+  // ce qui arretait l'installation entiere a cette etape via `set -e`
+  // dans install.sh, sur ce qui n'etait pourtant qu'une situation
+  // parfaitement normale.
+  console.log(`Base de donnees pas encore creee (${DB_PATH}) — normal sur une premiere installation.`);
+  console.log('Elle sera creee avec le schema a jour au premier demarrage (run.sh) ; rien a migrer.');
+  process.exit(0);
 }
 
 const BACKUP_PATH = `${DB_PATH}.backup-before-kind-migration`;
