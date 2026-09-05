@@ -114,7 +114,10 @@ if not exist "%TEMP%" mkdir "%TEMP%"
 
 set "HF_HOME=%SCRIPT_DIR%models"
 set "HUGGINGFACE_HUB_CACHE=%SCRIPT_DIR%models"
-set "TRANSFORMERS_CACHE=%SCRIPT_DIR%models"
+REM TRANSFORMERS_CACHE retiree : deprecie par la bibliotheque Transformers
+REM elle-meme (avertissement FutureWarning, retrait prevu en v5), et
+REM redondante ici — HF_HOME ci-dessus couvre deja exactement le meme
+REM usage.
 set "HF_HUB_ENABLE_HF_TRANSFER=1"
 if not exist "%HF_HOME%" mkdir "%HF_HOME%"
 
