@@ -158,17 +158,28 @@ export const SamplingSettings: React.FC<SamplingSettingsProps> = ({
           </div>
         </div>
 
-        {/* DCW (Differential Correction in Wavelet domain) — CVPR 2026 quality boost */}
-        <div className="rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50/50 dark:bg-black/10 p-3 space-y-2">
+        {/* DCW (Differential Correction in Wavelet domain) — CVPR 2026 quality boost.
+            Grise pour les modeles non-turbo : dcwEnabled=true y produit un
+            son deforme/granuleux (voir TROUBLESHOOTING #11). Le message
+            explique pourquoi plutot que de laisser un controle
+            mysterieusement inaccessible — un utilisateur qui ne connait pas
+            cette limite ne devinerait pas la raison d'un simple grisage. */}
+        <div className={`rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50/50 dark:bg-black/10 p-3 space-y-2 ${!turboActive ? 'opacity-60' : ''}`}>
           <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
             <input
               type="checkbox"
               checked={dcwEnabled}
               onChange={(e) => onDcwEnabledChange(e.target.checked)}
-              className="w-3.5 h-3.5 rounded accent-pink-500"
+              disabled={!turboActive}
+              className="w-3.5 h-3.5 rounded accent-pink-500 disabled:cursor-not-allowed"
             />
             {tf('dcwEnabledLabel', 'DCW Quality Correction')}
           </label>
+          {!turboActive && (
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-500">
+              {tf('dcwTurboOnlyNotice', 'Disponible uniquement pour les modeles turbo — produit un son deforme sur les autres.')}
+            </p>
+          )}
           {dcwEnabled && (
             <>
               <div className="grid grid-cols-2 gap-2">

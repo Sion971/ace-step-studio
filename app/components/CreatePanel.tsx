@@ -381,7 +381,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const [samplerMode, setSamplerMode] = useState('euler');
   const [schedulerType, setSchedulerType] = useState('linear');
   // DCW (Differential Correction in Wavelet domain) — CVPR 2026 quality boost.
-  // Default ON per upstream v0.1.7. No-op when pytorch_wavelets is missing.
+  // Valeur initiale sans importance : ecrasee immediatement par l'effet
+  // d'ajustement automatique ci-dessous (isTurboModel), qui s'execute aussi
+  // au premier chargement. No-op quand pytorch_wavelets est absent.
   const [dcwEnabled, setDcwEnabled] = useState(true);
   const [dcwMode, setDcwMode] = useState<'low' | 'high' | 'double' | 'pix'>('double');
   const [dcwScaler, setDcwScaler] = useState(0.05);
@@ -696,6 +698,14 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       return;
     }
     const turbo = isTurboModel(selectedModel);
+    // DCW (Differential Correction in Wavelet domain) — l'etat initial
+    // (useState(true)) restait fige quel que soit le modele, envoyant
+    // systematiquement dcwEnabled=true au serveur, y compris pour les
+    // modeles non-turbo (base/sft) — un son deforme/granuleux en resultait,
+    // meme apres avoir corrige le repli cote serveur (acestep.ts), puisque
+    // cette valeur explicite ne laissait jamais ce repli s'appliquer.
+    // Aligne desormais sur turbo, comme les autres reglages ci-dessous.
+    setDcwEnabled(turbo);
     // Steps & guidance
     if (turbo) {
       setInferenceSteps(8);

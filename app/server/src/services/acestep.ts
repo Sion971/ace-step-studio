@@ -206,7 +206,15 @@ async function buildGradioArgs(params: GenerationParams): Promise<Record<string,
     velocity_norm_threshold: params.velocityNormThreshold ?? 0.0,
     velocity_ema_factor: params.velocityEmaFactor ?? 0.0,
     // DCW (Differential Correction in Wavelet domain) — CVPR 2026 quality boost
-    dcw_enabled: params.dcwEnabled ?? true,
+    // Repli sur isTurbo (deja calcule plus haut, deja utilise pour
+    // inference_steps) plutot que true fixe — confirme en pratique : ACE-
+    // Step-1.5 lui-meme n'implemente pas de resolution automatique
+    // turbo/non-turbo pour ce reglage cote API (contrairement a son
+    // interface Gradio native, qui a ce comportement depuis longtemps).
+    // Sans repli explicite ici, tout modele non-turbo (base/sft) recevait
+    // dcw_enabled=true par defaut, produisant un son deforme/granuleux —
+    // voir upstream issue #1259.
+    dcw_enabled: params.dcwEnabled ?? isTurbo,
     dcw_mode: params.dcwMode || 'double',
     dcw_scaler: params.dcwScaler ?? 0.05,
     dcw_high_scaler: params.dcwHighScaler ?? 0.02,
