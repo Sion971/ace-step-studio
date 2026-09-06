@@ -284,6 +284,21 @@ else
     echo "  DCW restera desactive (repli automatique, pas de plantage)."
 fi
 
+# sitecustomize.py — filtre un FutureWarning generique de diffusers
+# (AutoencoderOobleck caste directement via .to() plutot que via
+# torch_dtype= a from_pretrained()), sans consequence reelle dans notre
+# cas (liste des modules a risque vide : []), mais visible a chaque
+# lancement. Mecanisme standard Python (module site), charge
+# automatiquement au demarrage de l'interpreteur avant meme le code
+# d'ACE-Step-1.5 — evite de toucher au code amont pour autant.
+if [ -f "sitecustomize.py" ]; then
+    SITE_PACKAGES=$(.venv/bin/python -c "import site; print(site.getsitepackages()[0])")
+    cp sitecustomize.py "$SITE_PACKAGES/sitecustomize.py"
+    echo "  [OK] sitecustomize.py deploye : $SITE_PACKAGES/sitecustomize.py"
+else
+    echo "  ATTENTION : sitecustomize.py introuvable, avertissement diffusers non filtre."
+fi
+
 
 # === 7. Vérification torchcodec ==============================================
 # Test précoce : mieux vaut échouer ici qu'au premier fichier audio généré.
