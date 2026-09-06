@@ -2261,6 +2261,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         isOpen={isCreatePlaylistModalOpen}
         onClose={() => setIsCreatePlaylistModalOpen(false)}
         onCreate={createPlaylist}
+        kind={creatingPlaylistKind}
       />
       <AddToPlaylistModal
         isOpen={isAddToPlaylistModalOpen}

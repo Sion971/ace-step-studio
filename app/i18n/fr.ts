@@ -719,6 +719,12 @@ export const fr = {
     addToWorkspace: 'Ajouter à l\'espace de travail',
     createNewPlaylist: 'Créer une nouvelle playlist',
     noExistingPlaylists: 'Aucune playlist existante.',
+    // Textes propres a la variante "espace de travail" de la meme modale
+    // (CreatePlaylistModal, voir kind dans App.tsx/creatingPlaylistKind) —
+    // playlist et workspace partagent le meme composant, distingues
+    // seulement par ces deux cles.
+    createWorkspaceModalTitle: 'Créer un Espace de travail',
+    workspaceNameLabel: 'Nom de l\'espace de travail',
 
     // Edit Profile Modal (Settings)
     usernameLabel: 'Nom d’utilisateur',

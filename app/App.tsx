@@ -59,7 +59,7 @@ function useResizablePanel(key: string, defaultWidth: number, min: number, max: 
 
   return { width, handle };
 }
-import { generateApi, songsApi, playlistsApi, getAudioUrl } from './services/api';
+import { generateApi, songsApi, playlistsApi, getAudioUrl, getCoverUrl } from './services/api';
 import { useAuth } from './context/AuthContext';
 import { useResponsive } from './context/ResponsiveContext';
 import { I18nProvider, useI18n } from './context/I18nContext';
@@ -141,7 +141,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
       title: descriptionPreview.slice(0, 60) || (t('generating') || 'Generating…'),
       lyrics: '',
       style: '',
-      coverUrl: 'https://picsum.photos/200/200?blur=10',
+      coverUrl: getCoverUrl(tempId),
       duration: '--:--',
       createdAt: new Date(),
       isGenerating: true,
@@ -525,8 +525,9 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
           lyrics: s.lyrics,
           style: s.style,
           // Prefer the real cover saved by the audio-gen pipeline (Pollinations).
-          // Fallback to a seeded picsum for legacy songs without cover_url.
-          coverUrl: s.cover_url || s.coverUrl || `https://picsum.photos/seed/${s.id}/400/400`,
+          // Fallback vers une pochette generee localement pour les
+          // chansons sans cover_url (voir getCoverUrl dans services/api.ts).
+          coverUrl: s.cover_url || s.coverUrl || getCoverUrl(s.id),
           duration: s.duration && s.duration > 0 ? `${Math.floor(s.duration / 60)}:${String(Math.floor(s.duration % 60)).padStart(2, '0')}` : '0:00',
           createdAt: new Date(s.created_at || s.createdAt),
           tags: s.tags || [],
@@ -1058,7 +1059,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         lyrics: s.lyrics,
         style: s.style,
         // Prefer real cover saved by Pollinations integration.
-        coverUrl: (s as any).cover_url || (s as any).coverUrl || `https://picsum.photos/seed/${s.id}/400/400`,
+        coverUrl: (s as any).cover_url || (s as any).coverUrl || getCoverUrl(s.id),
         duration: s.duration && s.duration > 0 ? `${Math.floor(s.duration / 60)}:${String(Math.floor(s.duration % 60)).padStart(2, '0')}` : '0:00',
         createdAt: new Date(s.created_at),
         tags: s.tags || [],
@@ -1175,7 +1176,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     title: params.title || t('generating') || 'Generating...',
     lyrics: '',
     style: params.style || params.songDescription || '',
-    coverUrl: 'https://picsum.photos/200/200?blur=10',
+    coverUrl: getCoverUrl(tempId),
     duration: '--:--',
     createdAt: createdAt ? new Date(createdAt) : new Date(),
     isGenerating: true,
@@ -1236,7 +1237,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         title: params.title || t('generating') || 'Generating...',
         lyrics: '',
         style: params.style,
-        coverUrl: 'https://picsum.photos/200/200?blur=10',
+        coverUrl: getCoverUrl(tempId),
         duration: '--:--',
         createdAt: new Date(),
         isGenerating: true,
@@ -2052,6 +2053,36 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
                 createdSongs={songs}
                 pendingAudioSelection={pendingAudioSelection}
                 onAudioSelectionApplied={() => setPendingAudioSelection(null)}
+                onSongCreated={(song: any) => {
+                  // Le backend renvoie la ligne brute en snake_case — sans
+                  // cette conversion, la chanson reste techniquement dans
+                  // songs[] mais s'affiche mal (audioUrl/coverUrl/createdAt
+                  // absents), invisible jusqu'a un rechargement complet qui
+                  // repasse par le VRAI chemin de recuperation (mapSong,
+                  // ci-dessus dans ce fichier). Champs specifiques a la
+                  // generation IA (ditModel, lmModel, etc.) volontairement
+                  // absents ici : une chanson enregistree au micro n'en a
+                  // jamais.
+                  setSongs(prev => [{
+                    id: song.id,
+                    title: song.title,
+                    lyrics: song.lyrics,
+                    style: song.style,
+                    coverUrl: song.cover_url || song.coverUrl || getCoverUrl(song.id),
+                    duration: song.duration && song.duration > 0
+                      ? `${Math.floor(song.duration / 60)}:${String(Math.floor(song.duration % 60)).padStart(2, '0')}`
+                      : '0:00',
+                    createdAt: new Date(song.created_at || song.createdAt),
+                    tags: song.tags || [],
+                    audioUrl: getAudioUrl(song.audio_url, song.id),
+                    isPublic: song.is_public,
+                    likeCount: song.like_count || 0,
+                    viewCount: song.view_count || 0,
+                    userId: song.user_id,
+                    creator: song.creator,
+                  } as Song, ...prev]);
+                  refreshWorkspaceSongIds();
+                }}
                 waitForJobsToDrain={waitForJobsToDrain}
                 incrementPendingClicks={incrementPendingClicks}
                 decrementPendingClicks={decrementPendingClicks}

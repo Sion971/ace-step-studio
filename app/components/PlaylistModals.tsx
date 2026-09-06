@@ -7,9 +7,12 @@ interface CreatePlaylistModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreate: (name: string, description: string) => void;
+  /** Playlist et espace de travail partagent cette meme modale, distingues
+   *  uniquement par ce parametre — voir creatingPlaylistKind dans App.tsx. */
+  kind?: 'playlist' | 'workspace';
 }
 
-export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({ isOpen, onClose, onCreate }) => {
+export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({ isOpen, onClose, onCreate, kind = 'playlist' }) => {
   const { t } = useI18n();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -26,18 +29,20 @@ export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({ isOpen
     }
   };
 
+  const isWorkspace = kind === 'workspace';
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 dark:bg-black/80 backdrop-blur-sm p-4">
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl w-full max-w-md p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-zinc-900 dark:text-white">{t('createPlaylist')}</h2>
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-white">{isWorkspace ? t('createWorkspaceModalTitle') : t('createPlaylist')}</h2>
           <button onClick={onClose} className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white">
             <X size={20} />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase mb-1">{t('playlistName')}</label>
+            <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase mb-1">{isWorkspace ? t('workspaceNameLabel') : t('playlistName')}</label>
             <input
               type="text"
               value={name}
