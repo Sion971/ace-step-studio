@@ -643,5 +643,20 @@
     "description": "Clean Double bass, Clean Jazz piano, Clean Jazz drum, Drum Style: Minimal, dry, lo-fi kit centered on muted snare and soft kick; cymbals used only as occasional accents, never continuous, Vocal: soft, airy female vocal; whispery, intimate, breathy tone, No belting, no shouting, no vibrato exaggeration, no dramatic lift, Vocals float lightly with mild reverb; slightly nostalgic but warm, Atmosphere: winter street, warm window lights, gentle breeze, evening glow, Keep the mood calm, friendly, cozy, not dramatic, Mix: soft and open, warm mids, bright but thin top-end, gentle stereo spread",
     "instrumental": false,
     "vocal_language": "en"
+  },
+  {
+    "description": "postrock, mellow, shoegaze, smoothjazz, steelpan, synthesizer",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "Japanese indie pop, dub pop, distinct drum intro, dry acoustic drums, tight drum break, deep bass groove, dreamy clean guitar, delay effect, floating atmosphere, mellow, nostalgic, mid-tempo",
+    "instrumental": false,
+    "vocal_language": "en"
+  },
+  {
+    "description": "BPM 107, 4/4 with a slightly behind-the-beat pocket, A mashup style with distinctive riffs for each instrument, A dry drum kit plays a steady kick pattern with a low, compact snare and loose closed hi-hat, The bass plays syncopated eighth-note phrases with short rests, frequently entering just after the kick, One clean electric martin guitar plays a repeating two-bar motif made of single notes and partial chords in the middle register, The guitar phrase repeats throughout most of the song with small rhythmic variations, A second electric guitar appears only as sustained notes and short answering phrases at section transitions, A warm electric piano plays compact seventh and ninth chords with sparse voicings, mostly on offbeats, Use a minor-key verse with extended chords and a chorus that shifts toward brighter major-color harmony without changing tempo or rhythmic feel, Female vocal in a warm middle register, sung with connected legato phrasing and rounded vowels, ‑finger-snap",
+    "instrumental": false,
+    "vocal_language": "en"
   }
 ]
