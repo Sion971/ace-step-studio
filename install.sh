@@ -216,6 +216,17 @@ fi
 
 if [ "$FLASH_ATTN_OK" = true ]; then
     echo "  Installation de flash-attn (peut prendre plusieurs minutes)..."
+    # psutil : dependance de BUILD de flash-attn (utilisee par son propre
+    # setup.py, probablement pour dimensionner la parallelisation de la
+    # compilation), jamais declaree comme telle par le paquet lui-meme.
+    # Absente sur une installation vraiment neuve — confirme en pratique
+    # via un clonage complet independant, ou aucune autre dependance ne
+    # l'avait encore installee de facon transitoire comme sur les machines
+    # deja utilisees tout au long du developpement. Sans elle :
+    # "ModuleNotFoundError: No module named 'psutil'" en plein milieu de la
+    # compilation, avec le message d'aide de uv lui-meme suggerant cette
+    # meme installation prealable.
+    uv pip install psutil
     # Purge du cache AVANT toute chose : un cache issu d'une compilation
     # anterieure (avant le correctif ci-dessous) contient un binaire cible
     # sur le mauvais jeu d'architectures — uv le reutiliserait sinon
