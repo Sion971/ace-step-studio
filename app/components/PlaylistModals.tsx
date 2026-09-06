@@ -89,17 +89,21 @@ interface AddToPlaylistModalProps {
   playlists: Playlist[];
   onSelect: (playlistId: string) => void;
   onCreateNew?: () => void;
+  /** Meme principe que CreatePlaylistModal — voir addingToKind dans App.tsx. */
+  kind?: 'playlist' | 'workspace';
 }
 
-export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ isOpen, onClose, playlists, onSelect, onCreateNew }) => {
+export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ isOpen, onClose, playlists, onSelect, onCreateNew, kind = 'playlist' }) => {
   const { t } = useI18n();
   if (!isOpen) return null;
+
+  const isWorkspace = kind === 'workspace';
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 dark:bg-black/80 backdrop-blur-sm p-4">
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl w-full max-w-sm p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-bold text-zinc-900 dark:text-white">{t('addToPlaylist')}</h2>
+          <h2 className="text-lg font-bold text-zinc-900 dark:text-white">{isWorkspace ? t('addToWorkspace') : t('addToPlaylist')}</h2>
           <button onClick={onClose} className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white">
             <X size={20} />
           </button>
@@ -114,7 +118,7 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ isOpen, 
             <Plus size={20} />
           </div>
           <div className="text-left">
-            <div className="font-semibold text-zinc-700 dark:text-white/90 group-hover:text-zinc-900 dark:group-hover:text-white">{t('createNewPlaylist')}</div>
+            <div className="font-semibold text-zinc-700 dark:text-white/90 group-hover:text-zinc-900 dark:group-hover:text-white">{isWorkspace ? t('createNewWorkspace') : t('createNewPlaylist')}</div>
           </div>
         </button>
 

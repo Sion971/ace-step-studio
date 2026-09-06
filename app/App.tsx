@@ -2261,10 +2261,12 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         isOpen={isCreatePlaylistModalOpen}
         onClose={() => setIsCreatePlaylistModalOpen(false)}
         onCreate={createPlaylist}
+        kind={creatingPlaylistKind}
       />
       <AddToPlaylistModal
         isOpen={isAddToPlaylistModalOpen}
         onClose={() => setIsAddToPlaylistModalOpen(false)}
+        kind={addingToKind}
         playlists={addingToKind === 'workspace' ? workspaces : regularPlaylists}
         onSelect={addSongToPlaylist}
         onCreateNew={() => {
