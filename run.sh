@@ -140,7 +140,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # === 5. Configuration du pipeline ACE-Step ===================================
 export PYTHON_PATH="$SCRIPT_DIR/.venv/bin/python"
 export ACESTEP_PATH="$SCRIPT_DIR/ACE-Step-1.5"
-export DEFAULT_MODEL="${DEFAULT_MODEL:-acestep-v15-base}"
+export DEFAULT_MODEL="${DEFAULT_MODEL:-acestep-v15-xl-turbo-bf16}"
 export MANAGE_PIPELINE="true"
 export PORT="$WEB_PORT"
 
