@@ -35,7 +35,16 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
 }) => {
   /* -- État local --------------------------------------------------------- */
   const [showPanel, setShowPanel] = useState(false);
-  const [loraPath, setLoraPath] = useState('./lora_output/final/adapter');
+  // Chemin par defaut reellement valide (pas un simple exemple) pour qui
+  // vient de terminer un entrainement : training-runner.ts sauvegarde
+  // directement dans lora_output/final/ (adapter_config.json +
+  // .safetensors a la racine de ce dossier), sans sous-dossier "adapter"
+  // supplementaire — confirme par le message de fin d'entrainement lui-
+  // meme ("LoRA saved to lora_output/final"). L'ancien defaut
+  // ('./lora_output/final/adapter') ne correspondait a aucune structure
+  // reelle, faisant systematiquement echouer quiconque l'acceptait tel
+  // quel sans le modifier.
+  const [loraPath, setLoraPath] = useState('./lora_output/final');
   const [loraEnabled, setLoraEnabled] = useState(true);
   const [loraScale, setLoraScale] = useState(1.0);
   const [loraError, setLoraError] = useState<string | null>(null);
