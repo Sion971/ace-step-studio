@@ -19,6 +19,15 @@ if not exist "cache" mkdir cache
 if not exist "app\data" mkdir "app\data"
 if not exist "app\server\public\audio" mkdir "app\server\public\audio"
 
+REM Les datasets et sorties LoRA vivent sous ACE-Step-1.5\, jamais a la
+REM racine : run.bat definit DATASETS_DIR=...\ACE-Step-1.5\datasets et le
+REM moteur resout ses chemins relatifs depuis ACE-Step-1.5\. Les creer a la
+REM racine du Studio (confirme en pratique comme source de confusion reelle
+REM lors d'un chargement de LoRA) les rend invisibles au pipeline.
+if not exist "ACE-Step-1.5\datasets\uploads" mkdir "ACE-Step-1.5\datasets\uploads"
+if not exist "ACE-Step-1.5\datasets\preprocessed_tensors" mkdir "ACE-Step-1.5\datasets\preprocessed_tensors"
+if not exist "ACE-Step-1.5\lora_output" mkdir "ACE-Step-1.5\lora_output"
+
 REM ============================================================
 REM  Step 1: GPU Selection
 REM ============================================================
@@ -355,12 +364,12 @@ REM  Step 10: Database migration (Playlists/Workspaces separation)
 REM ============================================================
 REM La colonne 'kind' est desormais ajoutee directement dans
 REM app/server/src/db/migrate.ts, qui s'execute automatiquement et de
-REM facon fiable a CHAQUE demarrage de run.bat — plus besoin de ce script
+REM facon fiable a CHAQUE demarrage de run.bat - plus besoin de ce script
 REM separe. Ancienne approche (run-migration-kind.mjs, appele ici une
 REM seule fois pendant l'installation) causait un vrai probleme sur une
 REM installation neuve : ce script s'executait AVANT que la base existe,
 REM abandonnant poliment sans jamais ajouter la colonne, puisque rien ne
-REM le rappelait ensuite — confirme en pratique par une erreur
+REM le rappelait ensuite - confirme en pratique par une erreur
 REM "no such column: p.kind" au moment de creer une playlist. La base de
 REM migrate.ts, elle, tourne a chaque lancement, jamais seulement a
 REM l'installation : plus robuste par construction face a ce genre de

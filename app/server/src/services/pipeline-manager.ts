@@ -76,6 +76,15 @@ class PipelineManager {
     const initLlm = process.env.INIT_LLM !== 'false';
     const lmModel = process.env.LM_MODEL || 'acestep-5Hz-lm-0.6B';
     const lmBackend = process.env.LM_BACKEND || 'pt';
+    // Quantification INT8 auto-activee par ACE-Step-1.5 lui-meme sur les
+    // GPU <20 Go — mais incompatible avec le chargement de LoRA
+    // (conflit PEFT/TorchAO documente en amont). Aucun moyen d'ajuster
+    // ca depuis notre interface une fois le pipeline demarre (processus
+    // de longue duree, la quantification est fixee au lancement) — d'ou
+    // cette variable d'environnement, au meme niveau que LM_BACKEND/
+    // INIT_LLM ci-dessus. Vide par defaut : preserve la detection
+    // automatique existante pour qui n'a pas besoin de LoRA.
+    const quantization = process.env.ACESTEP_QUANTIZATION || '';
     // Gradio ne sert que les fichiers de son répertoire de travail. Sans ce
     // chemin, construire un dataset depuis un dossier personnel échoue avec
     // InvalidPathError. GRADIO_ALLOWED_PATHS est inopérant ici : le pipeline
@@ -97,6 +106,7 @@ class PipelineManager {
       '--enable-api',
       ...extraAllowedPaths.flatMap(p => ['--allowed-path', p]),
       '--offload_to_cpu', 'true',
+      ...(quantization ? ['--quantization', quantization] : []),
     ];
 
     console.log(`[Pipeline] Starting: ${pythonPath} ${args.join(' ')}`);
