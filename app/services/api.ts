@@ -626,6 +626,20 @@ export const generateApi = {
     active: boolean;
   }> => api('/api/lora/toggle', { method: 'POST', body: params, token }),
 
+  // Quantification INT8 du DiT — incompatible avec le chargement de LoRA
+  // (conflit PEFT/TorchAO documente en amont). Permet de la desactiver
+  // sans editer .env ni redemarrer completement run.sh/run.bat.
+  getQuantizationStatus: (token: string): Promise<{
+    quantization_enabled: boolean;
+  }> => api('/api/lora/quantization-status', { token }),
+
+  toggleQuantization: (params: {
+    enabled: boolean;
+  }, token: string): Promise<{
+    message: string;
+    quantization_enabled: boolean;
+  }> => api('/api/lora/toggle-quantization', { method: 'POST', body: params, token }),
+
   getLoraStatus: (token: string): Promise<{
     loaded: boolean;
     active: boolean;

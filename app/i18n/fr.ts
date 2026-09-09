@@ -726,6 +726,11 @@ export const fr = {
     createWorkspaceModalTitle: 'Créer un Espace de travail',
     workspaceNameLabel: 'Nom de l\'espace de travail',
 
+    // Quantification INT8 / LoRA — panneau LoRA (LoraPanel.tsx)
+    quantizationToggleLabel: 'Quantification INT8',
+    quantizationToggleHint: 'Desactiver pour pouvoir charger un LoRA (conflit connu entre quantification et LoRA) — reactive prend ~1 minute (reinitialisation du service, sans redemarrage complet).',
+    quantizationBlocksLora: 'Quantification active — desactivez-la pour charger un LoRA.',
+
     // Edit Profile Modal (Settings)
     usernameLabel: 'Nom d’utilisateur',
     usernamePlaceholder: 'nom d’utilisateur',
