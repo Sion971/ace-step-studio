@@ -61,18 +61,38 @@ export MODELSCOPE_CACHE="$SCRIPT_DIR/models"
 # === 2. Sélection GPU / CUDA =================================================
 echo ""
 echo "Sélectionnez votre GPU :"
-echo "  1. NVIDIA GTX 10xx (Pascal) -> CUDA 11.8"
-echo "  2. NVIDIA RTX 20xx / 30xx   -> CUDA 12.6"
-echo "  3. NVIDIA RTX 40xx / 50xx   -> CUDA 12.8"
-echo "  4. CPU uniquement (pas de GPU)"
+echo "  1. NVIDIA GTX 10xx (Pascal)      -> CUDA 11.8"
+echo "  2. NVIDIA RTX 20xx (Turing)      -> CUDA 12.6"
+echo "  3. NVIDIA RTX 30xx (Ampere)      -> CUDA 12.6"
+echo "  4. NVIDIA RTX 40xx (Ada Lovelace) -> CUDA 12.8"
+echo "  5. NVIDIA RTX 50xx (Blackwell)   -> CUDA 12.8"
+echo "  6. CPU uniquement (pas de GPU)"
+echo "  7. AMD GPU (ROCm)"
 echo ""
-read -p "Entrez votre choix (1-4) : " GPU_CHOICE
+read -p "Entrez votre choix (1-7) : " GPU_CHOICE
 
 case "$GPU_CHOICE" in
   1) CUDA_VERSION="cu118"; CUDA_NAME="CUDA 11.8" ;;
   2) CUDA_VERSION="cu126"; CUDA_NAME="CUDA 12.6" ;;
-  3) CUDA_VERSION="cu128"; CUDA_NAME="CUDA 12.8" ;;
-  4) CUDA_VERSION="cpu";   CUDA_NAME="CPU only" ;;
+  3) CUDA_VERSION="cu126"; CUDA_NAME="CUDA 12.6" ;;
+  4) CUDA_VERSION="cu128"; CUDA_NAME="CUDA 12.8" ;;
+  5) CUDA_VERSION="cu128"; CUDA_NAME="CUDA 12.8" ;;
+  6) CUDA_VERSION="cpu";   CUDA_NAME="CPU only" ;;
+  7)
+    # ROCm : pas reimplemente ici, redirection vers le script dedie
+    # d'ACE-Step-1.5, deja autonome (son propre venv_rocm, son propre
+    # lancement direct du pipeline sans passer par notre serveur Node) —
+    # meme principe que install.bat sous Windows (redirection vers
+    # start_gradio_ui_rocm.bat plutot que reimplementation : l'architecture
+    # de roue est specifique a chaque GPU exact, et un bug du resolveur pip
+    # documente cote AMD rend une gestion generique peu fiable).
+    echo ""
+    echo "Le support AMD/ROCm n'est pas gere par ce script."
+    echo "Utilisez le lanceur dedie d'ACE-Step-1.5 a la place :"
+    echo "  cd ACE-Step-1.5 && ./start_gradio_ui_rocm.sh"
+    echo "Voir les instructions completes en tete de ce fichier."
+    exit 0
+    ;;
   *) echo "Choix invalide !"; exit 1 ;;
 esac
 
@@ -126,28 +146,42 @@ echo "[4/13] Outils de build (hatchling, cmake, ninja)..."
 uv pip install hatchling editables cmake "ninja>=1.13.0" setuptools wheel
 
 # === 5. PyTorch ==============================================================
-echo "[5/13] PyTorch 2.10.0 ($CUDA_NAME)..."
+echo "[5/13] PyTorch 2.11.0 ($CUDA_NAME)..."
+# Installation via pip CLASSIQUE, pas uv, pour ce paquet precis — uv
+# echouait de facon reproductible avec "The wheel is invalid: Invalid
+# Wheel-Version in WHEEL file: None" sur nvidia-nccl-cu12, une roue NVIDIA
+# tierce dont le format semble declencher un bug de validation cote uv.
+# torchvision/torchcodec volontairement NON epingles (voir l'incident deja
+# rencontre cote Windows avec un pin explicite devenu incompatible) — le
+# resolveur de pip choisit automatiquement la version compagnon correcte
+# de torch==2.11.0.
+# torchaudio EST epingle, a l'inverse, et deliberement : le projet est
+# officiellement en fin de vie a partir de torch 2.11 (torchaudio 2.11.0
+# est la DERNIERE version jamais publiee, construite sur l'ABI stable de
+# PyTorch pour rester fonctionnelle avec toutes les versions futures sans
+# necessiter de nouvelle publication — confirme sur docs.pytorch.org).
+# Laisser "torchaudio" sans version pourrait tenter de resoudre autre
+# chose de facon imprevisible vu ce changement d'architecture recent ;
+# 2.11.0 est la seule version qui existera desormais, correspondant
+# precisement a torch 2.11.0.
+uv pip install --upgrade pip
 if [ "$CUDA_VERSION" = "cpu" ]; then
-    # Meme epinglage que le chemin GPU juste en dessous (torch 2.10.0, seul
-    # torchao 0.16.0 compatible selon sa propre table officielle — voir
-    # l'incident deja rencontre cote Windows, torch==2.7.1 non pin avec
-    # torchao>=0.16.0 provoquant "Skipping import of cpp extensions"). Sans
-    # cet epinglage, uv installe la derniere version stable disponible
-    # (2.14.0 au moment ou ce correctif a ete signale), incompatible.
-    # torchcodec ajoute aussi : absent du chemin CPU jusqu'ici, alors que
-    # le chemin GPU l'installe deja a cette meme etape.
-    uv pip install \
-        torch==2.10.0 \
-        torchvision==0.25.0 \
-        torchaudio==2.10.0 \
-        torchcodec==0.10.0 \
+    # torchao 0.17.0+ compatible avec torch 2.11.0 selon sa propre table
+    # officielle (voir plus bas, meme principe que l'incident Windows :
+    # torchao 0.16.0 etait le pendant exact de torch 2.10.0, 0.17.0+ l'est
+    # desormais de 2.11.0+).
+    .venv/bin/python -m pip install \
+        torch==2.11.0 \
+        torchvision \
+        torchaudio==2.11.0 \
+        torchcodec \
         --index-url https://download.pytorch.org/whl/cpu
 else
-    uv pip install \
-        torch==2.10.0+$CUDA_VERSION \
-        torchvision==0.25.0+$CUDA_VERSION \
-        torchaudio==2.10.0+$CUDA_VERSION \
-        torchcodec==0.10.0+$CUDA_VERSION \
+    .venv/bin/python -m pip install \
+        torch==2.11.0 \
+        torchvision \
+        torchaudio==2.11.0 \
+        torchcodec \
         --index-url https://download.pytorch.org/whl/$CUDA_VERSION
 fi
 
@@ -182,7 +216,27 @@ fi
 # par defaut l'empecherait de le voir. Peut prendre plusieurs minutes
 # (compilation depuis les sources si aucune roue precompilee ne correspond
 # exactement a cette version de torch/CUDA/Python).
-if [ "$FLASH_ATTN_OK" = true ]; then
+FLASH_ATTN_PREBUILT_DONE=false
+if [ "$FLASH_ATTN_OK" = true ] && [ "$CUDA_VERSION" = "cu128" ] && [ "$FLASH_ATTN_ARCH" -ge 120 ]; then
+    # Blackwell/sm_120 + cu128 : une roue precompilee existe (projet
+    # communautaire actif, mjun0812/flash-attention-prebuild-wheels),
+    # evitant entierement la compilation depuis les sources (plusieurs
+    # minutes, et le risque de nvcc trop ancien documente plus bas).
+    # Specifique a Python 3.12 (cp312) — correspond a notre venv, voir
+    # Etape 3 plus haut. Si indisponible ou echoue pour une raison
+    # quelconque, repli silencieux sur la compilation habituelle
+    # ci-dessous (FLASH_ATTN_PREBUILT_DONE reste false).
+    echo "  Blackwell detecte — tentative de roue flash-attn precompilee..."
+    FLASH_WHEEL_URL="https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.4/flash_attn-2.8.3+cu128torch2.11-cp312-cp312-linux_x86_64.whl"
+    if uv pip install "$FLASH_WHEEL_URL"; then
+        echo "  OK — flash-attn installe via roue precompilee (pas de compilation)."
+        FLASH_ATTN_PREBUILT_DONE=true
+    else
+        echo "  ATTENTION : roue precompilee indisponible ou incompatible — repli sur la compilation."
+    fi
+fi
+
+if [ "$FLASH_ATTN_OK" = true ] && [ "$FLASH_ATTN_PREBUILT_DONE" = false ]; then
     # Verification du compilateur systeme AVANT toute tentative — vecu en
     # pratique (RTX 5060, 3 tentatives) : un nvcc trop ancien "reussit"
     # silencieusement en ignorant l'architecture demandee des qu'aucune
@@ -214,7 +268,7 @@ if [ "$FLASH_ATTN_OK" = true ]; then
     fi
 fi
 
-if [ "$FLASH_ATTN_OK" = true ]; then
+if [ "$FLASH_ATTN_OK" = true ] && [ "$FLASH_ATTN_PREBUILT_DONE" = false ]; then
     echo "  Installation de flash-attn (peut prendre plusieurs minutes)..."
     # psutil : dependance de BUILD de flash-attn (utilisee par son propre
     # setup.py, probablement pour dimensionner la parallelisation de la
@@ -244,19 +298,22 @@ if [ "$FLASH_ATTN_OK" = true ]; then
     # entier attendu ("120"), pas la notation decimale de nvidia-smi
     # ("12.0") — voir FLASH_ATTN_ARCH plus haut.
     FLASH_ATTN_CUDA_ARCHS="$FLASH_ATTN_ARCH" uv pip install flash-attn==2.8.3.post1 --no-build-isolation
+fi
 
+if [ "$FLASH_ATTN_OK" = true ]; then
     # Verification OBJECTIVE — importer le module reussit meme quand le
     # binaire cible la mauvaise architecture (observe en pratique : import
     # sans erreur, mais "CUDA error: no kernel image is available for
     # execution on the device" au premier vrai appel, en cours de
-    # generation). On inspecte directement le binaire compile plutot que
-    # de faire confiance au simple succes de la commande d'installation.
+    # generation). On inspecte directement le binaire installe plutot que
+    # de faire confiance au simple succes de la commande d'installation —
+    # s'applique aussi bien a la roue precompilee qu'a la compilation.
     FLASH_ATTN_SO=$(find .venv/lib -iname "flash_attn_2_cuda*.so" 2>/dev/null | head -1)
     if [ -n "$FLASH_ATTN_SO" ] && command -v cuobjdump &> /dev/null; then
         if cuobjdump --list-elf "$FLASH_ATTN_SO" 2>/dev/null | grep -q "sm_${FLASH_ATTN_ARCH}"; then
-            echo "  OK — flash-attn compile pour sm_${FLASH_ATTN_ARCH} (confirme via cuobjdump)."
+            echo "  OK — flash-attn configure pour sm_${FLASH_ATTN_ARCH} (confirme via cuobjdump)."
         else
-            echo "  ATTENTION : sm_${FLASH_ATTN_ARCH} absent du binaire flash-attn compile."
+            echo "  ATTENTION : sm_${FLASH_ATTN_ARCH} absent du binaire flash-attn."
             echo "  L'import fonctionnera, mais la generation echouera avec :"
             echo "  \"CUDA error: no kernel image is available for execution on the device\"."
             echo "  Voir TROUBLESHOOTING.md."
@@ -268,7 +325,7 @@ fi
 # PyTorch : ils sont volontairement absents de cette liste.
 uv pip install "transformers>=4.51.0,<4.58.0" diffusers gradio==6.2.0 matplotlib \
     scipy soundfile loguru einops accelerate fastapi diskcache "uvicorn[standard]" \
-    numba vector-quantize-pytorch "torchao>=0.16.0,<0.17.0" toml peft modelscope \
+    numba vector-quantize-pytorch "torchao>=0.17.0" toml peft modelscope \
     tensorboard typer-slim hf_transfer hf_xet lightning lycoris-lora safetensors \
     xxhash "pytorch-wavelets>=1.3.0" "pywavelets>=1.9.0" "bitsandbytes>=0.50.0"
 
