@@ -4,7 +4,18 @@ setlocal enabledelayedexpansion
 
 echo ========================================
 echo   ACE-Step Studio - Install
+echo   [EXPERIMENTAL] Blackwell natif (RTX 50xx)
 echo ========================================
+echo.
+echo   ATTENTION : variante experimentale, uniquement pour RTX 50xx.
+echo   - Torch 2.10.0/CUDA 13.0, support natif sm_120, pas de repli PTX
+echo   - Roue flash-attn COMMUNAUTAIRE non officielle
+echo   - Export MP3 actuellement casse, bug amont torchcodec - utiliser
+echo     FLAC ou WAV en attendant un correctif
+echo.
+echo   Pour l'installation standard, eprouvee, utiliser install.bat.
+echo.
+pause
 
 set "SCRIPT_DIR=%~dp0"
 cd /d "%SCRIPT_DIR%"
@@ -90,19 +101,41 @@ set "TORCHAO_VERSION===0.13.0"
 goto :gpu_done
 
 :gpu_50xx
-set "CUDA_VERSION=cu128"
-set "CUDA_NAME=CUDA 12.8 (RTX 50xx)"
-set "TORCH_VERSION=2.7.1"
-set "TORCHAUDIO_VERSION=2.7.1"
-set "TORCHAO_VERSION===0.13.0"
-REM Support Blackwell natif (sm_120, torch 2.10.0/cu130) disponible en
-REM version experimentale separee : install-blackwell-native.bat. Gain de
-REM performance reel (evite le mode de compatibilite PTX, 20-30% plus
-REM lent), mais s'appuie sur une roue flash-attn communautaire non
-REM officielle et casse actuellement l'export MP3 (bug amont torchcodec
-REM connu sur cette combinaison precise, FLAC/WAV non affectes). Ce
-REM fichier-ci reste le choix eprouve par defaut, identique au chemin
-REM RTX 40xx.
+REM CUDA 13.0 + torch 2.10.0 : les versions stables de PyTorch, jusqu'a
+REM tres recemment, ne compilaient nativement que jusqu'a sm_90 (Hopper) -
+REM sm_120 (Blackwell, RTX 50xx) en etait exclu, retombant sur un mode de
+REM compatibilite PTX (perte de 20-30% de performance, optimisations
+REM Blackwell absentes). torch 2.10.0 est la premiere version a ajouter le
+REM support natif sm_120 - confirme via pytorch.org/get-started/previous-
+REM versions (cu130 y est explicitement liste comme index officiel pour
+REM cette version). Python reste sur 3.11 (voir Step 3 plus haut) : les
+REM roues flash-attn pour ce combo precis sont documentees comme cassees
+REM sous Python 3.12 (erreurs d'import DLL _fused), meme quand elles
+REM existent nominalement pour cp312.
+set "CUDA_VERSION=cu130"
+set "CUDA_NAME=CUDA 13.0 (RTX 50xx, Blackwell sm_120)"
+set "TORCH_VERSION=2.10.0"
+set "TORCHAUDIO_VERSION=2.10.0"
+REM torchao restreint a la serie 0.16.x - PAS >=0.16.0 seul. La table
+REM officielle pytorch/ao#2919 (extensions C++) est precise par version :
+REM 0.16.0 -> torch 2.10.0, mais 0.17.0+ -> torch 2.11.0+. Confirme en
+REM pratique : >=0.16.0 laissait le resolveur choisir 0.18.0 (la plus
+REM recente disponible), provoquant "Skipping import of cpp extensions
+REM due to incompatible torch version. Please upgrade to torch >= 2.11.0"
+REM au demarrage du service - optimisation silencieusement desactivee,
+REM pas bloquant mais degradant les performances sans raison.
+set "TORCHAO_VERSION=>=0.16.0,<0.17.0"
+REM LIMITATION CONNUE, cote amont (torchcodec), pas quelque chose que ce
+REM script puisse corriger : torch 2.10.0+cu130 sous Windows casse le
+REM chargement des DLL de torchcodec ("Could not load this library:
+REM ...libtorchcodec_image.dll"), bloquant specifiquement l'export MP3.
+REM Confirme comme un vrai bug amont ouvert, largement documente sur
+REM plusieurs tickets meta-pytorch/torchcodec (ex: issues #1233, #1289,
+REM #1006 - meme trio torch 2.9/2.10+cu130+Windows a chaque fois).
+REM Le FLAC (et probablement le WAV) restent fonctionnels : ils passent
+REM par soundfile en repli, jamais par torchcodec. En attendant un
+REM correctif amont, choisir FLAC comme format de sortie sur cette
+REM branche precise evite completement le probleme.
 goto :gpu_done
 
 :gpu_cpu
