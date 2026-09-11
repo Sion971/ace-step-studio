@@ -146,46 +146,50 @@ echo "[4/13] Outils de build (hatchling, cmake, ninja)..."
 uv pip install hatchling editables cmake "ninja>=1.13.0" setuptools wheel
 
 # === 5. PyTorch ==============================================================
-echo "[5/13] PyTorch 2.10.0 ($CUDA_NAME)..."
-# torch 2.11.0 teste puis abandonne (retour a 2.10.0) : un vrai bug
-# bloquant decouvert en conditions reelles — torchao >=0.17.0 (necessaire
-# pour la compatibilite ABI stable avec torch 2.11+) a change la structure
-# interne de ses tenseurs quantifies (Int8Tensor, stockage dans des
-# attributs internes .qdata/.scale plutot que le stockage standard).
-# ACE-Step-1.5 deplace encore ses tenseurs via le motif naif
-# param.data.to(device), incompatible avec cette nouvelle structure —
-# meme bug deja identifie et corrige par l'equipe diffusers de HuggingFace
-# (huggingface/diffusers#13276, fusionne avril 2026), mais jamais porte
-# vers ACE-Step-1.5. Resultat en pratique : "RuntimeError: Attempted to
-# set the storage of a tensor on device cuda:0 to a storage on different
-# device cpu" des qu'un dechargement CPU/GPU intervient sur un modele
-# quantifie — soit le chemin par defaut sur tout GPU <20 Go de VRAM.
-# Desactiver la quantification contourne ce bug precis, mais echoue a son
-# tour avec un veritable manque de VRAM sur les cartes les plus limitees
-# (confirme en pratique, RTX 5060 8 Go). Retour a 2.10.0 en attendant un
-# correctif amont cote ACE-Step-1.5.
-#
+echo "[5/13] PyTorch 2.11.0 ($CUDA_NAME)..."
 # Installation via pip CLASSIQUE, pas uv, pour ce paquet precis — uv
 # echouait de facon reproductible avec "The wheel is invalid: Invalid
 # Wheel-Version in WHEEL file: None" sur nvidia-nccl-cu12, une roue NVIDIA
-# tierce dont le format semble declencher un bug de validation cote uv
-# (ce correctif reste valable independamment de la version de torch).
+# tierce dont le format semble declencher un bug de validation cote uv.
+# torchvision/torchcodec volontairement NON epingles (voir l'incident deja
+# rencontre cote Windows avec un pin explicite devenu incompatible) — le
+# resolveur de pip choisit automatiquement la version compagnon correcte
+# de torch==2.11.0.
+# torchaudio EST epingle, a l'inverse, et deliberement : le projet est
+# officiellement en fin de vie a partir de torch 2.11 (torchaudio 2.11.0
+# est la DERNIERE version jamais publiee, construite sur l'ABI stable de
+# PyTorch pour rester fonctionnelle avec toutes les versions futures sans
+# necessiter de nouvelle publication — confirme sur docs.pytorch.org).
+# Laisser "torchaudio" sans version pourrait tenter de resoudre autre
+# chose de facon imprevisible vu ce changement d'architecture recent ;
+# 2.11.0 est la seule version qui existera desormais, correspondant
+# precisement a torch 2.11.0.
 uv pip install --upgrade pip
 if [ "$CUDA_VERSION" = "cpu" ]; then
-    # torchao 0.16.0 est le seul compatible avec torch 2.10.0 selon sa
-    # propre table officielle (0.17.0+ exige torch 2.11.0+).
+    # torchao doit rester DANS la serie 0.17.x — PAS >=0.17.0 seul.
+    # >=0.17.0 sans plafond a deja provoque un vrai plantage bloquant en
+    # conditions reelles : le resolveur grimpait jusqu'a 0.18.0, dont la
+    # nouvelle structure de tenseurs quantifies (Int8Tensor, stockage
+    # dans des attributs internes .qdata/.scale) est incompatible avec le
+    # motif de dechargement CPU/GPU utilise par ACE-Step-1.5
+    # (param.data.to(device)), provoquant "RuntimeError: Attempted to set
+    # the storage of a tensor on device cuda:0 to a storage on different
+    # device cpu" des qu'un modele quantifie est decharge — soit le
+    # chemin par defaut sur tout GPU <20 Go de VRAM. torchao==0.17.0
+    # (plafonne) confirme fonctionnel en conditions reelles, generation
+    # complete reussie (RTX 5060, 8 Go, MP3 sauvegarde sans erreur).
     .venv/bin/python -m pip install \
-        torch==2.10.0 \
-        torchvision==0.25.0 \
-        torchaudio==2.10.0 \
-        torchcodec==0.10.0 \
+        torch==2.11.0 \
+        torchvision \
+        torchaudio==2.11.0 \
+        torchcodec \
         --index-url https://download.pytorch.org/whl/cpu
 else
     .venv/bin/python -m pip install \
-        torch==2.10.0 \
-        torchvision==0.25.0 \
-        torchaudio==2.10.0 \
-        torchcodec==0.10.0 \
+        torch==2.11.0 \
+        torchvision \
+        torchaudio==2.11.0 \
+        torchcodec \
         --index-url https://download.pytorch.org/whl/$CUDA_VERSION
 fi
 
@@ -231,12 +235,7 @@ if [ "$FLASH_ATTN_OK" = true ] && [ "$CUDA_VERSION" = "cu128" ] && [ "$FLASH_ATT
     # quelconque, repli silencieux sur la compilation habituelle
     # ci-dessous (FLASH_ATTN_PREBUILT_DONE reste false).
     echo "  Blackwell detecte — tentative de roue flash-attn precompilee..."
-    # URL non re-verifiee directement pour ce combo apres le retour a
-    # 2.10.0 (la confirmation initiale de fonctionnement portait sur
-    # torch2.11, avant la decouverte du bug d'offloading quantifie).
-    # Sans danger d'essayer : repli automatique sur la compilation
-    # ci-dessous en cas d'echec (404 ou autre).
-    FLASH_WHEEL_URL="https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.4/flash_attn-2.8.3+cu128torch2.10-cp312-cp312-linux_x86_64.whl"
+    FLASH_WHEEL_URL="https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.4/flash_attn-2.8.3+cu128torch2.11-cp312-cp312-linux_x86_64.whl"
     if uv pip install "$FLASH_WHEEL_URL"; then
         echo "  OK — flash-attn installe via roue precompilee (pas de compilation)."
         FLASH_ATTN_PREBUILT_DONE=true
@@ -334,7 +333,7 @@ fi
 # PyTorch : ils sont volontairement absents de cette liste.
 uv pip install "transformers>=4.51.0,<4.58.0" diffusers gradio==6.2.0 matplotlib \
     scipy soundfile loguru einops accelerate fastapi diskcache "uvicorn[standard]" \
-    numba vector-quantize-pytorch "torchao>=0.16.0,<0.17.0" toml peft modelscope \
+    numba vector-quantize-pytorch "torchao>=0.17.0,<0.18.0" toml peft modelscope \
     tensorboard typer-slim hf_transfer hf_xet lightning lycoris-lora safetensors \
     xxhash "pytorch-wavelets>=1.3.0" "pywavelets>=1.9.0" "bitsandbytes>=0.50.0"
 
