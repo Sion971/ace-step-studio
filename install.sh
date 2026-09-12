@@ -337,6 +337,53 @@ uv pip install "transformers>=4.51.0,<4.58.0" diffusers gradio==6.2.0 matplotlib
     tensorboard typer-slim hf_transfer hf_xet lightning lycoris-lora safetensors \
     xxhash "pytorch-wavelets>=1.3.0" "pywavelets>=1.9.0" "bitsandbytes>=0.50.0"
 
+if [ "$FLASH_ATTN_ARCH" -ge 120 ] 2>/dev/null && command -v nvcc &> /dev/null; then
+    # torchao 0.16.0, compile depuis les sources avec ciblage explicite
+    # sm_120 (Blackwell) — OPTIONNEL, tente une amelioration par rapport
+    # au torchao>=0.17.0,<0.18.0 (deja installe ci-dessus, roue generique)
+    # : confirme en pratique sans l'avertissement cosmetique "Unable to
+    # import torchao Tensor objects" que 0.17.0 affiche (0.16.0 utilise
+    # encore l'architecture AffineQuantizedTensor d'origine, avant la
+    # restructuration Int8Tensor de 0.17+), et cible nativement le GPU
+    # exact plutot qu'une roue generique multi-architecture.
+    # Sans danger d'echouer : en cas de probleme quelconque (reseau,
+    # compilation, permissions...), le torchao 0.17.0 deja installe
+    # ci-dessus reste en place, deja confirme fonctionnel.
+    echo ""
+    echo "Blackwell detecte — tentative de compilation torchao 0.16.0 (sm_120 natif)..."
+    TORCHAO_BUILD_DIR=$(mktemp -d)
+    if git clone --branch v0.16.0 --depth 1 https://github.com/pytorch/ao.git "$TORCHAO_BUILD_DIR" 2>/dev/null; then
+        # Corrige un SyntaxWarning present sous Python 3.12 : un antislash
+        # litteral (\.) dans une docstring triple-guillemets, interprete
+        # comme sequence d'echappement invalide sans prefixe r""". Motif
+        # de recherche plutot que numero de ligne fixe, plus resistant a
+        # un futur decalage de lignes dans le fichier amont.
+        sed -i 's/^\(\s*\)"""Configuration class for applying different quantization configs/\1r"""Configuration class for applying different quantization configs/' \
+            "$TORCHAO_BUILD_DIR/torchao/quantization/quant_api.py" 2>/dev/null
+        CUDA_HOME_DETECTED=$(dirname "$(dirname "$(command -v nvcc)")")
+        if (
+            cd "$TORCHAO_BUILD_DIR" && \
+            VERSION_SUFFIX="+cu128" \
+            TORCH_CUDA_ARCH_LIST="12.0" \
+            MAX_JOBS=2 \
+            CUDA_HOME="$CUDA_HOME_DETECTED" \
+            uv build --wheel --out-dir dist/ --no-build-isolation --python "$SCRIPT_DIR/.venv/bin/python"
+        ); then
+            TORCHAO_WHEEL=$(find "$TORCHAO_BUILD_DIR/dist" -name "torchao-*.whl" | head -1)
+            if [ -n "$TORCHAO_WHEEL" ] && uv pip install "$TORCHAO_WHEEL" --force-reinstall; then
+                echo "  OK — torchao compile nativement pour sm_120 installe."
+            else
+                echo "  ATTENTION : echec d'installation de la roue compilee — torchao 0.17.0 (roue generique) reste actif."
+            fi
+        else
+            echo "  ATTENTION : echec de compilation — torchao 0.17.0 (roue generique) reste actif."
+        fi
+    else
+        echo "  ATTENTION : clonage impossible (reseau ?) — torchao 0.17.0 (roue generique) reste actif."
+    fi
+    rm -rf "$TORCHAO_BUILD_DIR"
+fi
+
 if [ -d "ACE-Step-1.5" ]; then
     uv pip install -e ACE-Step-1.5/ --no-deps
 fi
