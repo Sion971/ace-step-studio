@@ -4,7 +4,7 @@ import { resolvePythonPath } from '../services/acestep.js';
 import { config } from '../config/index.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync, statSync, readdirSync } from 'fs';
+import { existsSync, statSync, readdirSync, readFileSync } from 'fs';
 import { spawn, ChildProcess } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -48,6 +48,31 @@ router.get('/models', authMiddleware, async (_req: AuthenticatedRequest, res: Re
       isBf16: boolean;
     }> = [];
 
+    // Determine si un modele est deja en BF16 en lisant reellement son
+    // config.json ("dtype" ou "torch_dtype") — pas seulement en cherchant
+    // "bf16" dans le nom du dossier. Confirme en pratique : un modele
+    // authentiquement en bfloat16 (config.json le declare explicitement)
+    // mais SANS ce mot dans son nom (ex: "acestep-v15-base") se
+    // retrouvait propose comme candidat a la conversion, alors qu'il n'y
+    // a rien a convertir — la conversion aboutissait sans la moindre
+    // reduction de taille (dtype source == dtype cible). Repli sur
+    // l'ancienne heuristique par nom si config.json est absent ou
+    // illisible, pour ne jamais faire echouer completement la detection.
+    function detectIsBf16(entryPath: string, entryName: string): boolean {
+      try {
+        const configPath = path.join(entryPath, 'config.json');
+        if (existsSync(configPath)) {
+          const modelConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
+          const dtype = (modelConfig.dtype || modelConfig.torch_dtype || '').toLowerCase();
+          if (dtype.includes('bf16') || dtype.includes('bfloat16')) return true;
+          if (dtype) return false; // dtype explicitement declare et non-bf16 : fiable, pas besoin du repli
+        }
+      } catch {
+        // config.json illisible/malformé — repli silencieux sur le nom
+      }
+      return entryName.toLowerCase().includes('bf16');
+    }
+
     // Scan top-level folders
     for (const entry of readdirSync(checkpointsDir)) {
       const entryPath = path.join(checkpointsDir, entry);
@@ -70,7 +95,7 @@ router.get('/models', authMiddleware, async (_req: AuthenticatedRequest, res: Re
           path: entryPath,
           sizeMb: Math.round(totalSize / 1024 / 1024 * 10) / 10,
           safetensorCount: safetensors.length,
-          isBf16: entry.toLowerCase().includes('bf16'),
+          isBf16: detectIsBf16(entryPath, entry),
         });
       } catch {}
     }
@@ -97,7 +122,7 @@ router.get('/models', authMiddleware, async (_req: AuthenticatedRequest, res: Re
             path: subPath,
             sizeMb: Math.round(totalSize / 1024 / 1024 * 10) / 10,
             safetensorCount: safetensors.length,
-            isBf16: sub.toLowerCase().includes('bf16'),
+            isBf16: detectIsBf16(subPath, sub),
           });
         }
       } catch {}
