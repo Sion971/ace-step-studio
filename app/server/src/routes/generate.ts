@@ -1156,6 +1156,15 @@ import('../services/pipeline-manager.js').then(({ pipelineManager }) => {
 let generationInProgress = false;
 export function setGenerationInProgress(v: boolean) { generationInProgress = v; }
 
+// Expose le modele reellement actif, suivi de facon fiable cote serveur —
+// contrairement au composant Gradio "Main Model Path" (/config, id 46),
+// qui reste bloque sur la valeur de demarrage et ne reflete jamais un
+// changement de modele fait en cours de route (confirme en pratique).
+// Toute autre route rappelant init_service_wrapper doit passer CETTE
+// valeur explicitement en override, plutot que de faire confiance a la
+// preservation automatique de /config pour ce champ precis.
+export function getActiveLoadedModel(): string { return activeLoadedModel; }
+
 router.post('/switch-model', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   const { model, lmModel, lmBackend } = req.body;
   if (!model) {
@@ -1163,9 +1172,8 @@ router.post('/switch-model', authMiddleware, async (req: AuthenticatedRequest, r
     return;
   }
 
-  const { resetGradioClient } = await import('../services/gradio-client.js');
+  const { resetGradioClient, callInitServiceWrapper, MAIN_MODEL_PATH_COMPONENT_ID } = await import('../services/gradio-client.js');
   const { pipelineManager } = await import('../services/pipeline-manager.js');
-  const ACESTEP_API = config.acestep.apiUrl;
 
   // Wait for active generation to finish before switching model
   // CUDA graph capture during generation = instant crash
@@ -1204,53 +1212,43 @@ router.post('/switch-model', authMiddleware, async (req: AuthenticatedRequest, r
   }
 
   try {
-    // Call Gradio's /v1/init — handles unload, download, and reload in-process
-    const initRes = await fetch(`${ACESTEP_API}/v1/init`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        init_llm: !!lmModel,
-        lm_model_path: lmModel || undefined,
-        lm_backend: lmBackend || 'pt',
-      }),
-      signal: AbortSignal.timeout(300_000), // 5 min timeout for model download + load
-    });
-
-    if (!initRes.ok) {
-      const errText = await initRes.text().catch(() => '');
-      console.error(`[Model] /v1/init failed: ${initRes.status} ${errText}`);
-      modelLoadingStatus = { state: 'error', model: errText || `HTTP ${initRes.status}` };
-      res.status(500).json({ error: `Model switch failed: ${errText || initRes.status}` });
-      return;
+    // Rappelle init_service_wrapper (API Gradio native), PAS /v1/init —
+    // confirme comme non fiable pour la quantification par un rapport de
+    // bug independant sur ce meme projet (ace-step/ACE-Step#415 :
+    // "Quantization appears available in the Gradio/handler path, but
+    // support through the local REST API server startup/init path was
+    // not confirmed"). callInitServiceWrapper lit l'etat LIVE actuel via
+    // /config et ne modifie QUE le modele demande ici — la quantification
+    // (et tout le reste) reste donc celle deja active, peu importe ce
+    // qu'elle etait avant cet appel. C'est precisement ce qui manquait :
+    // /v1/init ignorait silencieusement toute tentative de preserver la
+    // quantification au fil des changements de modele.
+    const overrides = new Map<number, unknown>([[MAIN_MODEL_PATH_COMPONENT_ID, model]]);
+    // Composants LM (voir gradio-client.ts) : ne forcer que si explicitement
+    // demande par l'appelant, sinon callInitServiceWrapper preserve l'etat
+    // LM actuel automatiquement (meme principe que pour la quantification).
+    if (lmModel) {
+      overrides.set(57, true); // Initialize 5Hz LM
+      overrides.set(53, lmModel); // 5Hz LM Model Path
     }
-
-    const result = await initRes.json() as any;
-    console.log(`[Model] Switch result:`, JSON.stringify(result));
-
-    // Check for error in response body (Gradio returns 200 with error in JSON)
-    if (result?.code && result.code >= 400) {
-      console.error(`[Model] Switch failed (API error):`, result.error);
-      modelLoadingStatus = { state: 'error', model: result.error || 'Unknown error' };
-      res.status(500).json({ error: `Model switch failed: ${result.error}` });
-      return;
+    if (lmBackend) {
+      overrides.set(54, lmBackend); // 5Hz LM Backend
     }
+    const statusMessage = await callInitServiceWrapper(overrides);
 
     // Reset Gradio client to reconnect with new model state
     resetGradioClient();
 
-    activeLoadedModel = result?.data?.loaded_model || model;
-    activeLmModel = result?.data?.loaded_lm_model || lmModel || activeLmModel;
+    activeLoadedModel = model;
+    if (lmModel) activeLmModel = lmModel;
     if (lmBackend) activeLmBackend = lmBackend;
-    // Parse LM status for backend info (e.g. "Model: ...\nDevice: ...")
-    const lmStatus = result?.data?.lm_status || '';
-    if (lmStatus.includes('Low GPU Memory Mode: True')) activeLmBackend = 'pt';
     console.log(`[Model] Active: DiT=${activeLoadedModel}, LM=${activeLmModel} (${activeLmBackend})`);
     modelLoadingStatus = { state: 'ready', model };
 
     console.log(`[Model] Switched to ${model} successfully (in-process, no restart)`);
+    console.log(`[Model] Status: ${statusMessage}`);
     pipelineManager.resumeHealthCheck();
-    res.json({ success: true, model, result: result?.data || result });
+    res.json({ success: true, model, result: statusMessage });
   } catch (error: any) {
     console.error(`[Model] Switch failed:`, error);
     modelLoadingStatus = { state: 'error', model: error.message };

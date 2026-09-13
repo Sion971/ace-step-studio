@@ -20,7 +20,7 @@ function getAudioDuration(filePath: string): number {
 }
 import { fileURLToPath } from 'url';
 import { config } from '../config/index.js';
-import { getGradioClient, resetGradioClient, isGradioAvailable } from './gradio-client.js';
+import { getGradioClient, resetGradioClient, isGradioAvailable, callInitServiceWrapper, fetchCurrentInitServiceValues, MAIN_MODEL_PATH_COMPONENT_ID } from './gradio-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -471,11 +471,13 @@ export async function checkSpaceHealth(): Promise<boolean> {
 
 async function getActiveModel(): Promise<string | null> {
   try {
-    const res = await fetch(`${ACESTEP_API}/v1/models`);
-    if (!res.ok) return null;
-    const data = await res.json() as any;
-    const models = data?.data?.models || data?.models || [];
-    return models[0]?.name || null;
+    // Lit depuis la MEME source que callInitServiceWrapper (/config),
+    // plutot que /v1/models — coherence avec le reste : eviter une
+    // troisieme source d'etat potentiellement, elle aussi, deconnectee
+    // de ce que init_service_wrapper considere reellement comme actif.
+    const values = await fetchCurrentInitServiceValues();
+    const model = values.get(MAIN_MODEL_PATH_COMPONENT_ID);
+    return typeof model === 'string' ? model : null;
   } catch {
     return null;
   }
@@ -522,16 +524,19 @@ async function switchModelIfNeeded(ditModel: string): Promise<void> {
   await ensureModelDownloaded(ditModel);
 
   console.log(`[Model] Switching from '${activeModel ?? 'unknown'}' to '${ditModel}'`);
-  const res = await fetch(`${ACESTEP_API}/v1/init`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: ditModel, init_llm: false }),
-  });
 
-  if (!res.ok) {
-    const err = await res.text().catch(() => '');
-    throw new Error(`Model switch to '${ditModel}' failed: ${res.status} ${err}`);
-  }
+  // Passe par le MEME mecanisme que la bascule de quantification
+  // (init_service_wrapper, lisant l'etat live via /config), plutot que
+  // par l'ancien /v1/init REST — confirme en pratique par Sion971 :
+  // ces deux points d'entree ne partageaient pas leur propre notion de
+  // "l'etat actuel", provoquant une regression silencieuse et surprenante
+  // (basculer la quantification APRES un changement de modele via
+  // /v1/init rechargeait le modele de DEMARRAGE, /v1/init ne mettant
+  // jamais a jour l'etat que lit init_service_wrapper). Un seul point
+  // d'entree partage elimine ce risque de desynchronisation par
+  // construction.
+  await callInitServiceWrapper(new Map([[MAIN_MODEL_PATH_COMPONENT_ID, ditModel]]));
+
   console.log(`[Model] Switched to '${ditModel}'`);
 }
 

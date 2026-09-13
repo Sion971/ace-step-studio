@@ -1,7 +1,6 @@
 import { Router, Response } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
-import { getGradioClient } from '../services/gradio-client.js';
-import { config } from '../config/index.js';
+import { getGradioClient, callInitServiceWrapper, fetchCurrentInitServiceValues, QUANTIZATION_COMPONENT_ID, MAIN_MODEL_PATH_COMPONENT_ID } from '../services/gradio-client.js';
 
 const router = Router();
 
@@ -92,55 +91,6 @@ router.post('/toggle', authMiddleware, async (req: AuthenticatedRequest, res: Re
   }
 });
 
-// Composants Gradio lus/reconstruits pour rappeler init_service_wrapper —
-// identifies par introspection de http://localhost:8001/config (id, label,
-// type, valeur). Fragile par nature : ces id sont propres a la mise en page
-// ACTUELLE de l'interface Gradio native d'ACE-Step-1.5, et pourraient
-// changer si une mise a jour amont ajoute/retire des composants avant
-// eux dans l'arbre. Si un id attendu venait a disparaitre ou a changer
-// de type, GRADIO_INIT_SERVICE_COMPONENTS ci-dessous devrait etre revu.
-const GRADIO_INIT_SERVICE_COMPONENTS = [
-  { id: 41, label: 'Checkpoint File' },
-  { id: 46, label: 'Main Model Path' },
-  { id: 47, label: 'Device' },
-  { id: 57, label: 'Initialize 5Hz LM' },
-  { id: 53, label: '5Hz LM Model Path' },
-  { id: 54, label: '5Hz LM Backend' },
-  { id: 58, label: 'Use Flash Attention' },
-  { id: 59, label: 'Offload to CPU' },
-  { id: 60, label: 'Offload DiT to CPU' },
-  { id: 61, label: 'Compile Model (torch.compile)' },
-  { id: 62, label: 'INT8 Quantization' },
-  { id: 63, label: 'MLX DiT (Apple Silicon)' },
-  { id: 176, label: 'Generation Mode' },
-  { id: 299, label: 'Batch Size' },
-  { id: 50, label: 'VAE' },
-] as const;
-
-const QUANTIZATION_COMPONENT_ID = 62;
-
-/** Lit les valeurs actuelles des composants Gradio via /config, pour ne
- *  jamais ecraser un reglage en cours avec une valeur par defaut perimee
- *  lors du rappel de init_service_wrapper. */
-async function fetchCurrentInitServiceValues(): Promise<Map<number, unknown>> {
-  const response = await fetch(`${config.acestep.apiUrl}/config`);
-  if (!response.ok) {
-    throw new Error(`Impossible de lire la configuration Gradio (HTTP ${response.status})`);
-  }
-  const data = await response.json() as { components?: Array<{ id: number; props?: { value?: unknown } }> };
-  const components = data.components ?? [];
-
-  const values = new Map<number, unknown>();
-  for (const { id, label } of GRADIO_INIT_SERVICE_COMPONENTS) {
-    const found = components.find((c) => c.id === id);
-    if (!found) {
-      throw new Error(`Composant Gradio introuvable (id ${id}, attendu : "${label}") — la mise en page a peut-etre change en amont.`);
-    }
-    values.set(id, found.props?.value);
-  }
-  return values;
-}
-
 // POST /api/lora/toggle-quantization — Active/desactive la quantification
 // INT8 du DiT sans redemarrer le service complet. Necessaire pour charger
 // un LoRA (incompatible avec la quantification, conflit PEFT/TorchAO
@@ -153,14 +103,18 @@ router.post('/toggle-quantization', authMiddleware, async (req: AuthenticatedReq
       return;
     }
 
-    const currentValues = await fetchCurrentInitServiceValues();
-    const orderedParams = GRADIO_INIT_SERVICE_COMPONENTS.map(({ id }) =>
-      id === QUANTIZATION_COMPONENT_ID ? enabled : currentValues.get(id)
-    );
-
-    const client = await getGradioClient();
-    const result = await client.predict('/init_service_wrapper', orderedParams);
-    const status = (result.data as unknown[])[0] as string;
+    // Inclut explicitement le modele reellement actif (suivi cote
+    // serveur dans generate.ts) — le composant Gradio "Main Model Path"
+    // lu via /config reste bloque sur la valeur de demarrage et ne
+    // reflete jamais un changement de modele fait en cours de route,
+    // confirme en pratique. Sans cet override explicite, basculer la
+    // quantification APRES un changement de modele rechargeait
+    // silencieusement le modele de demarrage.
+    const { getActiveLoadedModel } = await import('../routes/generate.js');
+    const status = await callInitServiceWrapper(new Map<number, unknown>([
+      [QUANTIZATION_COMPONENT_ID, enabled],
+      [MAIN_MODEL_PATH_COMPONENT_ID, getActiveLoadedModel()],
+    ]));
 
     res.json({ message: status, quantization_enabled: enabled });
   } catch (error) {
