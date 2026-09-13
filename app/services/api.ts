@@ -638,6 +638,7 @@ export const generateApi = {
   }, token: string): Promise<{
     message: string;
     quantization_enabled: boolean;
+    lora_auto_unloaded: boolean;
   }> => api('/api/lora/toggle-quantization', { method: 'POST', body: params, token }),
 
   getLoraStatus: (token: string): Promise<{
@@ -646,6 +647,10 @@ export const generateApi = {
     scale: number;
     path: string;
   }> => api('/api/lora/status', { token }),
+
+  getAvailableLoras: (token: string): Promise<{
+    loras: Array<{ name: string; path: string }>;
+  }> => api('/api/lora/available', { token }),
 };
 
 // Users API

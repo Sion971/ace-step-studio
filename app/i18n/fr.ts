@@ -730,6 +730,7 @@ export const fr = {
     quantizationToggleLabel: 'Quantification INT8',
     quantizationToggleHint: 'Desactiver pour pouvoir charger un LoRA (conflit connu entre quantification et LoRA) — reactive prend ~1 minute (reinitialisation du service, sans redemarrage complet).',
     quantizationBlocksLora: 'Quantification active — desactivez-la pour charger un LoRA.',
+    quantizationAutoUnloadedLora: 'LoRA decharge automatiquement (incompatible avec la quantification).',
 
     // Edit Profile Modal (Settings)
     usernameLabel: 'Nom d’utilisateur',

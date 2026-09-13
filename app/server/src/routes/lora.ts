@@ -1,6 +1,16 @@
 import { Router, Response } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { getGradioClient, callInitServiceWrapper, fetchCurrentInitServiceValues, QUANTIZATION_COMPONENT_ID, MAIN_MODEL_PATH_COMPONENT_ID } from '../services/gradio-client.js';
+import { readdirSync, statSync, existsSync, renameSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// app/server/src/routes/lora.ts -> remonte jusqu'a la racine du Studio,
+// puis descend dans ACE-Step-1.5/lora_output — meme convention que
+// tools.ts pour localiser les dossiers geres par ACE-Step-1.5.
+const LORA_OUTPUT_DIR = path.join(__dirname, '../../../../ACE-Step-1.5/lora_output');
 
 const router = Router();
 
@@ -103,6 +113,22 @@ router.post('/toggle-quantization', authMiddleware, async (req: AuthenticatedReq
       return;
     }
 
+    // Securite : la quantification est structurellement incompatible avec
+    // un LoRA charge (conflit PEFT/TorchAO, voir la constante du fichier).
+    // Activer la quantification pendant qu'un LoRA reste charge risquerait
+    // un etat confus, voire un plantage similaire a ceux deja rencontres
+    // avec le decalage d'appareil des tenseurs quantifies. Decharge
+    // automatiquement AVANT de proceder, plutot que de laisser
+    // l'utilisateur decouvrir le probleme plus tard.
+    let loraAutoUnloaded = false;
+    if (enabled && loraState.loaded) {
+      console.log('[LoRA] Dechargement automatique avant activation de la quantification');
+      const client = await getGradioClient();
+      await client.predict('/unload_lora', []);
+      loraState = { loaded: false, active: false, scale: 1.0, path: '' };
+      loraAutoUnloaded = true;
+    }
+
     // Inclut explicitement le modele reellement actif (suivi cote
     // serveur dans generate.ts) — le composant Gradio "Main Model Path"
     // lu via /config reste bloque sur la valeur de demarrage et ne
@@ -116,7 +142,7 @@ router.post('/toggle-quantization', authMiddleware, async (req: AuthenticatedReq
       [MAIN_MODEL_PATH_COMPONENT_ID, getActiveLoadedModel()],
     ]));
 
-    res.json({ message: status, quantization_enabled: enabled });
+    res.json({ message: status, quantization_enabled: enabled, lora_auto_unloaded: loraAutoUnloaded });
   } catch (error) {
     console.error('[LoRA] Toggle quantization error:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to toggle quantization' });
@@ -140,6 +166,72 @@ router.get('/quantization-status', authMiddleware, async (_req: AuthenticatedReq
 // GET /api/lora/status — Get current LoRA state
 router.get('/status', authMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
   res.json(loraState);
+});
+
+// GET /api/lora/available — Liste les LoRA valides dans lora_output/, en
+// excluant "checkpoints" (points de sauvegarde intermediaires
+// d'entrainement, pas un adaptateur pret a charger) et "runs" (journaux
+// d'entrainement, sans rapport). Ne retient que les dossiers contenant
+// reellement un adapter_config.json + un .safetensors — evite de
+// proposer un dossier vide ou incomplet dans le menu.
+const EXCLUDED_LORA_DIRS = new Set(['checkpoints', 'runs']);
+
+router.get('/available', authMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!existsSync(LORA_OUTPUT_DIR)) {
+      res.json({ loras: [] });
+      return;
+    }
+
+    const entries = readdirSync(LORA_OUTPUT_DIR);
+    const loras: Array<{ name: string; path: string }> = [];
+
+    for (const entry of entries) {
+      if (EXCLUDED_LORA_DIRS.has(entry)) continue;
+      const entryPath = path.join(LORA_OUTPUT_DIR, entry);
+      if (!statSync(entryPath).isDirectory()) continue;
+
+      // PEFT exige precisement le nom "adapter_model.safetensors" — un
+      // fichier .safetensors present mais nomme differemment (courant
+      // pour les LoRA telecharges depuis HuggingFace, qui gardent souvent
+      // le nom d'origine de leur propre depot) semblerait valide ici sans
+      // correction, mais echouerait au chargement avec un message confus
+      // ("Failed to load LoRA: 'module name can't contain \".\"'" ou une
+      // erreur de decalage de dimensions sans rapport avec le vrai
+      // probleme). Renomme automatiquement quand c'est SANS AMBIGUITE :
+      // un seul fichier .safetensors present, et il n'a pas deja le bon
+      // nom. Ne renomme jamais si plusieurs candidats existent (ambigu,
+      // mieux vaut laisser une intervention manuelle) ou si le fichier
+      // correctement nomme existe deja (rien a faire).
+      const hasConfig = existsSync(path.join(entryPath, 'adapter_config.json'));
+      const correctlyNamedPath = path.join(entryPath, 'adapter_model.safetensors');
+      let hasSafetensors = existsSync(correctlyNamedPath);
+
+      if (hasConfig && !hasSafetensors) {
+        const safetensorFiles = readdirSync(entryPath).filter((f) => f.endsWith('.safetensors'));
+        if (safetensorFiles.length === 1) {
+          const oldPath = path.join(entryPath, safetensorFiles[0]);
+          try {
+            renameSync(oldPath, correctlyNamedPath);
+            console.log(`[LoRA] Renomme automatiquement : ${entry}/${safetensorFiles[0]} -> adapter_model.safetensors`);
+            hasSafetensors = true;
+          } catch (renameError) {
+            console.error(`[LoRA] Echec du renommage automatique pour ${entry}:`, renameError);
+          }
+        }
+      }
+
+      if (!hasConfig || !hasSafetensors) continue;
+
+      loras.push({ name: entry, path: `./lora_output/${entry}` });
+    }
+
+    loras.sort((a, b) => a.name.localeCompare(b.name));
+    res.json({ loras });
+  } catch (error) {
+    console.error('[LoRA] Available list error:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to list available LoRAs' });
+  }
 });
 
 export default router;

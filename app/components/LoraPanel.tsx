@@ -45,6 +45,7 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
   // reelle, faisant systematiquement echouer quiconque l'acceptait tel
   // quel sans le modifier.
   const [loraPath, setLoraPath] = useState('./lora_output/final');
+  const [availableLoras, setAvailableLoras] = useState<Array<{ name: string; path: string }>>([]);
   const [loraEnabled, setLoraEnabled] = useState(true);
   const [loraScale, setLoraScale] = useState(1.0);
   const [loraError, setLoraError] = useState<string | null>(null);
@@ -135,6 +136,15 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
     try {
       const result = await generateApi.toggleQuantization({ enabled: targetEnabled }, token);
       setQuantizationEnabled(result.quantization_enabled);
+      // Securite cote serveur : un LoRA charge est automatiquement
+      // decharge si la quantification s'active (incompatibilite
+      // structurelle) — repercuter ce changement ici, sinon l'interface
+      // continuerait d'afficher le LoRA comme charge alors qu'il ne
+      // l'est plus reellement.
+      if (result.lora_auto_unloaded) {
+        onLoadedChange(false);
+        setLoraError(t('quantizationAutoUnloadedLora') || 'LoRA decharge automatiquement (incompatible avec la quantification).');
+      }
       console.log('Quantization toggled:', result?.message);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Echec du changement de quantification';
@@ -143,7 +153,7 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
     } finally {
       setIsTogglingQuantization(false);
     }
-  }, [token]);
+  }, [token, onLoadedChange, t]);
 
   /* -- Verifie l'etat reel de la quantification a l'ouverture du panneau --- */
   useEffect(() => {
@@ -155,6 +165,29 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
       })
       .catch((err) => {
         console.error('Failed to check quantization status:', err);
+      });
+    return () => { cancelled = true; };
+  }, [showPanel, token]);
+
+  /* -- Charge la liste des LoRA disponibles a l'ouverture du panneau -------- */
+  useEffect(() => {
+    if (!showPanel || !token) return;
+    let cancelled = false;
+    generateApi.getAvailableLoras(token)
+      .then((result) => {
+        if (cancelled) return;
+        setAvailableLoras(result.loras);
+        // Si la valeur actuelle ne correspond a aucun LoRA reellement
+        // disponible (ex: le defaut "./lora_output/final" qui n'existe
+        // pas forcement chez tout le monde), bascule sur le premier de
+        // la liste plutot que de laisser un menu deroulant sans
+        // correspondance visible.
+        if (result.loras.length > 0 && !result.loras.some((l) => l.path === loraPath)) {
+          setLoraPath(result.loras[0].path);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load available LoRAs:', err);
       });
     return () => { cancelled = true; };
   }, [showPanel, token]);
@@ -188,13 +221,18 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
           {/* Chemin de l'adaptateur */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('loraPath')}</label>
-            <input
-              type="text"
+            <select
               value={loraPath}
               onChange={(e) => setLoraPath(e.target.value)}
-              placeholder={t('loraPathPlaceholder')}
-              className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 transition-colors"
-            />
+              className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 transition-colors"
+            >
+              {availableLoras.length === 0 && (
+                <option value={loraPath}>{loraPath}</option>
+              )}
+              {availableLoras.map((lora) => (
+                <option key={lora.path} value={lora.path}>{lora.name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Chargement / déchargement */}
