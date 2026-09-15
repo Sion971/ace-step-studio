@@ -15,6 +15,18 @@ if not exist ".venv\Scripts\python.exe" (
     exit /b 1
 )
 
+REM hf_transfer accelere significativement les telechargements HuggingFace
+REM (implementation Rust, plusieurs connexions paralleles) - mais
+REM HF_HUB_ENABLE_HF_TRANSFER=1 seul ne fait rien si le paquet n'est pas
+REM installe : huggingface_hub retombe silencieusement sur le mode normal
+REM avec un simple avertissement, sans que l'utilisateur s'en rende compte.
+REM Verifie et installe au besoin, une seule fois.
+.venv\Scripts\python.exe -c "import hf_transfer" >nul 2>&1
+if errorlevel 1 (
+    echo Installation de hf_transfer ^(telechargement accelere^)...
+    uv pip install hf_transfer
+)
+
 echo ========================================
 echo   ACE-Step-Studio - Download Models
 echo ========================================
@@ -23,7 +35,7 @@ echo Select model to download:
 echo.
 echo   1. XL Turbo - 18.8 GB, fast, 8 steps
 echo   2. XL SFT - 18.8 GB, best quality, 50 steps
-echo   3. XL Turbo BF16 - 7.5 GB, compact, less VRAM
+echo   3. XL Turbo BF16 - 9.3 GB, compact, less VRAM
 echo   4. Download all three
 echo.
 set /p MODEL_CHOICE="Enter number 1-4: "
@@ -39,19 +51,19 @@ exit /b 1
 :dl_turbo
 echo.
 echo Downloading ACE-Step XL Turbo...
-.venv\Scripts\python.exe -m huggingface_hub.commands.huggingface_cli download ACE-Step/acestep-v15-xl-turbo --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-turbo"
+.venv\Scripts\hf.exe download ACE-Step/acestep-v15-xl-turbo --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-turbo"
 goto :done
 
 :dl_sft
 echo.
 echo Downloading ACE-Step XL SFT...
-.venv\Scripts\python.exe -m huggingface_hub.commands.huggingface_cli download ACE-Step/acestep-v15-xl-sft --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-sft"
+.venv\Scripts\hf.exe download ACE-Step/acestep-v15-xl-sft --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-sft"
 goto :done
 
 :dl_bf16
 echo.
 echo Downloading ACE-Step XL Turbo BF16...
-.venv\Scripts\python.exe -m huggingface_hub.commands.huggingface_cli download marcorez8/acestep-v15-xl-turbo-bf16 --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-turbo-bf16"
+.venv\Scripts\hf.exe download marcorez8/acestep-v15-xl-turbo-bf16 --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-turbo-bf16"
 goto :done
 
 :dl_all
@@ -59,13 +71,13 @@ echo.
 echo Downloading all three models...
 echo.
 echo [1/3] XL Turbo...
-.venv\Scripts\python.exe -m huggingface_hub.commands.huggingface_cli download ACE-Step/acestep-v15-xl-turbo --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-turbo"
+.venv\Scripts\hf.exe download ACE-Step/acestep-v15-xl-turbo --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-turbo"
 echo.
 echo [2/3] XL SFT...
-.venv\Scripts\python.exe -m huggingface_hub.commands.huggingface_cli download ACE-Step/acestep-v15-xl-sft --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-sft"
+.venv\Scripts\hf.exe download ACE-Step/acestep-v15-xl-sft --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-sft"
 echo.
 echo [3/3] XL Turbo BF16...
-.venv\Scripts\python.exe -m huggingface_hub.commands.huggingface_cli download marcorez8/acestep-v15-xl-turbo-bf16 --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-turbo-bf16"
+.venv\Scripts\hf.exe download marcorez8/acestep-v15-xl-turbo-bf16 --local-dir "ACE-Step-1.5\checkpoints\acestep-v15-xl-turbo-bf16"
 goto :done
 
 :done

@@ -27,6 +27,17 @@ mkdir -p "$HF_HOME"
 
 source "$SCRIPT_DIR/.venv/bin/activate"
 
+# hf_transfer accelere significativement les telechargements HuggingFace
+# (implementation Rust, plusieurs connexions paralleles) — mais
+# HF_HUB_ENABLE_HF_TRANSFER=1 seul ne fait rien si le paquet n'est pas
+# installe : huggingface_hub retombe silencieusement sur le mode normal
+# avec un simple avertissement, sans que l'utilisateur s'en rende compte.
+# Verifie et installe au besoin, une seule fois.
+if ! python -c "import hf_transfer" 2>/dev/null; then
+    echo "Installation de hf_transfer (telechargement accelere)..."
+    uv pip install hf_transfer
+fi
+
 echo "========================================"
 echo "   ACE-Step Studio - Telechargement de modeles"
 echo "========================================"
@@ -35,7 +46,7 @@ echo "Selectionnez le modele a telecharger :"
 echo ""
 echo "  1. XL Turbo - 18.8 Go, rapide, 8 etapes"
 echo "  2. XL SFT - 18.8 Go, meilleure qualite, 50 etapes"
-echo "  3. XL Turbo BF16 - 7.5 Go, compact, moins de VRAM"
+echo "  3. XL Turbo BF16 - 9.3 Go, compact, moins de VRAM"
 echo "  4. Telecharger les trois"
 echo ""
 read -p "Entrez un numero (1-4) : " MODEL_CHOICE
@@ -43,21 +54,21 @@ read -p "Entrez un numero (1-4) : " MODEL_CHOICE
 download_turbo() {
     echo ""
     echo "Telechargement de ACE-Step XL Turbo..."
-    python -m huggingface_hub.commands.huggingface_cli download ACE-Step/acestep-v15-xl-turbo \
+    hf download ACE-Step/acestep-v15-xl-turbo \
         --local-dir "ACE-Step-1.5/checkpoints/acestep-v15-xl-turbo"
 }
 
 download_sft() {
     echo ""
     echo "Telechargement de ACE-Step XL SFT..."
-    python -m huggingface_hub.commands.huggingface_cli download ACE-Step/acestep-v15-xl-sft \
+    hf download ACE-Step/acestep-v15-xl-sft \
         --local-dir "ACE-Step-1.5/checkpoints/acestep-v15-xl-sft"
 }
 
 download_bf16() {
     echo ""
     echo "Telechargement de ACE-Step XL Turbo BF16..."
-    python -m huggingface_hub.commands.huggingface_cli download marcorez8/acestep-v15-xl-turbo-bf16 \
+    hf download marcorez8/acestep-v15-xl-turbo-bf16 \
         --local-dir "ACE-Step-1.5/checkpoints/acestep-v15-xl-turbo-bf16"
 }
 
