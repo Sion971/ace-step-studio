@@ -39,7 +39,7 @@
         ::-webkit-scrollbar-thumb { background: var(--zinc-700); border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--zinc-600); }
 
-        .container { max-width: 900px; margin: 0 auto; padding: 2rem 1rem; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem 1rem; }
 
         .header { text-align: center; margin-bottom: 2rem; }
         .header h1 {
@@ -99,6 +99,36 @@
             margin-bottom: 1rem;
         }
         .processing-header h3 { font-weight: 600; }
+
+        .model-flavor-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+        }
+        .model-flavor-label {
+            font-size: 0.8125rem;
+            color: var(--zinc-400);
+            font-weight: 500;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        .model-flavor-select {
+            flex: 1;
+            width: 100%;
+            padding: 0.625rem 0.875rem;
+            background: var(--suno-panel);
+            color: #fff;
+            border: 1px solid var(--suno-border);
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-family: inherit;
+            cursor: pointer;
+        }
+        .model-flavor-select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
         .btn {
             padding: 0.5rem 1rem;
@@ -235,6 +265,8 @@
         .track-icon.bass { background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.2); }
         .track-icon.other { background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); }
         .track-icon.vocals { background: rgba(236, 72, 153, 0.1); border: 1px solid rgba(236, 72, 153, 0.2); }
+        .track-icon.guitar { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); }
+        .track-icon.piano { background: rgba(45, 212, 191, 0.1); border: 1px solid rgba(45, 212, 191, 0.2); }
 
         .track-name { font-weight: 600; }
         .track-duration { font-size: 0.75rem; color: var(--zinc-500); }
@@ -281,6 +313,8 @@
         .track-progress-fill.bass { background: linear-gradient(to right, #a855f7, #8b5cf6); }
         .track-progress-fill.other { background: linear-gradient(to right, #3b82f6, #06b6d4); }
         .track-progress-fill.vocals { background: linear-gradient(to right, #ec4899, #f43f5e); }
+        .track-progress-fill.guitar { background: linear-gradient(to right, #f59e0b, #eab308); }
+        .track-progress-fill.piano { background: linear-gradient(to right, #2dd4bf, #14b8a6); }
 
         .track-time {
             font-size: 0.75rem;
@@ -333,6 +367,13 @@
 
         <!-- Processing Card -->
         <div class="card">
+            <div class="model-flavor-row">
+                <label for="modelFlavorSelect" class="model-flavor-label">Modele</label>
+                <select id="modelFlavorSelect" class="model-flavor-select">
+                    <option value="htdemucs">4 pistes (standard) — ~173 Mo</option>
+                    <option value="htdemucs_6s">6 pistes — guitare + piano (experimental) — ~258 Mo</option>
+                </select>
+            </div>
             <div class="processing-header">
                 <h3>Processing</h3>
                 <button id="processBtn" class="btn btn-primary" disabled>Extract Stems</button>

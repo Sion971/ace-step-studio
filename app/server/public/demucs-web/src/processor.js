@@ -10,8 +10,7 @@ const { SAMPLE_RATE, FFT_SIZE, HOP_SIZE, TRAINING_SAMPLES, MODEL_SPEC_BINS, MODE
 /**
  * Convert model frequency output to complex spectrogram per track
  */
-export function standaloneMask(freqOutput) {
-  const numTracks = 4;
+export function standaloneMask(freqOutput, numTracks = 4) {
   const numChannels = 4;
   const numBins = MODEL_SPEC_BINS;
   const numFrames = MODEL_SPEC_FRAMES;
@@ -142,6 +141,10 @@ export class DemucsProcessor {
     this.ort = options.ort || null;
     this.session = null;
     this.modelPath = options.modelPath || './htdemucs_embedded.onnx';
+    // Repli sur TRACKS (4 pistes) si non precise — compatibilite
+    // descendante avec tout appelant qui ne connait pas encore la variante
+    // 6 pistes (voir MODEL_FLAVORS dans constants.js).
+    this.tracks = options.tracks || TRACKS;
     this.sessionOptions = options.sessionOptions || {};
     this.onProgress = options.onProgress || (() => {});
     this.onLog = options.onLog || (() => {});
@@ -160,6 +163,13 @@ export class DemucsProcessor {
       modelBuffer = modelPathOrBuffer;
     } else {
       const response = await fetch(modelPathOrBuffer || this.modelPath);
+      // Sans ce controle, une reponse d'erreur (404, page HTML) etait lue
+      // comme un modele et faisait echouer le parseur protobuf avec un
+      // message sans rapport avec la cause reelle.
+      this.onLog('model', `fetch ${response.url} -> ${response.status} ${response.headers.get('Content-Type')} / ${response.headers.get('Content-Length')}`);
+      if (!response.ok) {
+        throw new Error(`Modele inaccessible : HTTP ${response.status} sur ${response.url}`);
+      }
 
       // Check if we can track progress
       const contentLength = response.headers.get('Content-Length');
@@ -174,7 +184,10 @@ export class DemucsProcessor {
           if (done) break;
           chunks.push(value);
           loadedSize += value.length;
-          this.onDownloadProgress(loadedSize, totalSize);
+          // Le troisieme argument distingue disque local et CDN : sans lui,
+          // le meme libelle « Downloading » servait pour les deux, ce qui a
+          // fait croire a un telechargement alors que tout venait de /models/.
+          this.onDownloadProgress(loadedSize, totalSize, response.url);
         }
 
         // Combine chunks into single ArrayBuffer
@@ -214,7 +227,7 @@ export class DemucsProcessor {
     const stride = Math.floor(TRAINING_SAMPLES * (1 - SEGMENT_OVERLAP));
     const numSegments = Math.ceil((totalSamples - TRAINING_SAMPLES) / stride) + 1;
 
-    const outputs = TRACKS.map(() => ({
+    const outputs = this.tracks.map(() => ({
       left: new Float32Array(totalSamples),
       right: new Float32Array(totalSamples)
     }));
@@ -266,10 +279,10 @@ export class DemucsProcessor {
 
       let combinedOutputs = null;
       if (freqData) {
-        const trackSpecs = standaloneMask(freqData);
+        const trackSpecs = standaloneMask(freqData, this.tracks.length);
         combinedOutputs = [];
 
-        for (let t = 0; t < 4; t++) {
+        for (let t = 0; t < this.tracks.length; t++) {
           const freqOutput = standaloneIspec(trackSpecs[t], TRAINING_SAMPLES);
           const numChannels = timeShape[2];
           const samples = timeShape[3];
@@ -333,7 +346,7 @@ export class DemucsProcessor {
       });
     }
 
-    for (let t = 0; t < TRACKS.length; t++) {
+    for (let t = 0; t < this.tracks.length; t++) {
       for (let i = 0; i < totalSamples; i++) {
         if (weights[i] > 0) {
           outputs[t].left[i] /= weights[i];
@@ -342,11 +355,13 @@ export class DemucsProcessor {
       }
     }
 
-    return {
-      drums: outputs[0],
-      bass: outputs[1],
-      other: outputs[2],
-      vocals: outputs[3]
-    };
+    // Construit dynamiquement selon this.tracks plutot qu'un objet fige a
+    // 4 cles — seule facon de faire fonctionner la variante 6 pistes
+    // (guitar, piano en plus) sans dupliquer cette fonction entiere.
+    const result = {};
+    this.tracks.forEach((name, i) => {
+      result[name] = outputs[i];
+    });
+    return result;
   }
 }

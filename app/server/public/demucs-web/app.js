@@ -18,6 +18,10 @@ ort.env.wasm.wasmPaths = '/vendor/onnxruntime/';
 // preferable a l'inference la plus rapide possible.
 ort.env.wasm.numThreads = 4;
 import { DemucsProcessor, CONSTANTS } from './src/index.js';
+// Import direct depuis constants.js (pas via le relais src/index.js, dont
+// le contenu exact des reexports n'est pas verifie ici) — evite tout
+// risque de casser un fichier non vu pour ajouter un seul nouvel export.
+import { MODEL_FLAVORS } from './src/constants.js';
 // Conversion audio -> MIDI (basic-pitch de Spotify) : desormais cote
 // SERVEUR, dans un venv Python isole (voir app/server/src/routes/midi.ts
 // et setup-basic-pitch-venv.sh). L'ancienne tentative navigateur via
@@ -27,14 +31,17 @@ import { DemucsProcessor, CONSTANTS } from './src/index.js';
 // L'inference native cote serveur convertit le meme stem en moins de
 // 20 secondes. Voir TROUBLESHOOTING #28-29 pour l'historique complet.
 
-const { SAMPLE_RATE, TRAINING_SAMPLES, TRACKS, DEFAULT_MODEL_URL } = CONSTANTS;
-
-const LOCAL_MODEL_URL = '../models/htdemucs_embedded.onnx';
+// TRACKS et DEFAULT_MODEL_URL retires de cette destructuration — remplaces
+// partout par MODEL_FLAVORS (constants.js), qui couvre desormais aussi la
+// variante 6 pistes. LOCAL_MODEL_URL egalement retire, remplace par
+// flavor.localUrl dans loadFlavor().
+const { SAMPLE_RATE, TRAINING_SAMPLES } = CONSTANTS;
 
 let processor = null;
 let audioContext = null;
 let audioBuffer = null;
 let isProcessing = false;
+let currentFlavorId = 'htdemucs';
 
 // Encode un stem stereo (Float32Array 44100 Hz) en WAV PCM 16 bits — format
 // que la route serveur /api/midi/convert accepte en televersement multipart.
@@ -81,6 +88,7 @@ function encodeWavStereo(left, right, sampleRate) {
 
 // DOM elements
 const dropZone = document.getElementById('dropZone');
+const modelFlavorSelect = document.getElementById('modelFlavorSelect');
 const fileInput = document.getElementById('fileInput');
 const processBtn = document.getElementById('processBtn');
 const progressFill = document.getElementById('progressFill');
@@ -116,38 +124,51 @@ function formatTime(seconds) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-async function init() {
-    let backend = 'wasm';
+// Cree le processeur et charge le modele pour la variante donnee (voir
+// MODEL_FLAVORS dans constants.js) — factorise depuis l'ancien contenu de
+// init(), pour que le changement de selecteur puisse reutiliser exactement
+// la meme logique local-d'abord/distant-en-repli, plutot que la dupliquer.
+async function loadFlavor(flavorId) {
+    const flavor = MODEL_FLAVORS[flavorId];
+    if (!flavor) {
+        console.error('[demucs] variante de modele inconnue :', flavorId);
+        return;
+    }
 
-    if ('gpu' in navigator) {
+    // Libere explicitement l'ancienne session avant d'en creer une
+    // nouvelle — sans ca, onnxruntime-web (backend WASM) retient les
+    // ressources natives de CHAQUE InferenceSession creee, y compris
+    // celles dont plus aucune reference JS n'existe (le ramasse-miettes
+    // classique de JavaScript ne recupere pas la memoire WASM sous-
+    // jacente). Concretement : passer du 4 pistes (~180 Mo) au 6 pistes
+    // (~258 Mo) sans cette ligne les CUMULE en memoire plutot que de
+    // remplacer l'un par l'autre — potentiellement LA vraie cause des
+    // echecs "Aborted()" constates en pratique, pas necessairement une
+    // limite materielle. Voir microsoft/onnxruntime#13391. Entoure d'un
+    // try/catch : release() n'existe que dans les versions recentes
+    // d'onnxruntime-web, prudence sur la version embarquee exacte ici.
+    if (processor && processor.session && typeof processor.session.release === 'function') {
         try {
-            const gpuAdapter = await navigator.gpu.requestAdapter();
-            if (gpuAdapter) {
-                backend = 'webgpu';
-            }
-        } catch (e) {
-            console.log('WebGPU not available:', e);
+            log('model', 'Liberation de la session precedente...');
+            await processor.session.release();
+        } catch (releaseErr) {
+            console.warn('[demucs] echec de la liberation de session (non bloquant) :', releaseErr);
         }
     }
 
-    // Ne PAS reecrire numThreads ici : la valeur voulue (4, voir le
-    // commentaire en tete de fichier) etait ecrasee par cette ligne,
-    // qui s'execute apres le reglage initial et remettait le nombre de
-    // threads au maximum (navigator.hardwareConcurrency).
-
-    if (backend === 'webgpu') {
-        ort.env.webgpu = ort.env.webgpu || {};
-        ort.env.webgpu.powerPreference = 'high-performance';
-        backendBadge.textContent = 'WebGPU (GPU)';
-        backendBadge.className = 'badge badge-gpu';
-    } else {
-        const threads = navigator.hardwareConcurrency || 4;
-        backendBadge.textContent = `WASM (${threads} threads)`;
-        backendBadge.className = 'badge badge-cpu';
-    }
+    // Teste en conditions reelles (machine a 16 Go de RAM, deja chargee) :
+    // la variante 6 pistes echoue au chargement WASM avec "Aborted()"
+    // (manque de memoire fatal dans le runtime Emscripten), identiquement
+    // a 258 Mo comme 136 Mo, et a 1 comme 4 threads — ni la taille du
+    // fichier ni le nombre de threads n'etaient le facteur limitant. Reglage
+    // uniforme a 4 threads restaure, coherent avec ce qui fonctionne deja
+    // pour le modele 4 pistes. La fonctionnalite 6 pistes reste disponible
+    // dans le menu (utile sur une machine avec davantage de RAM), avec son
+    // libelle "experimental" deja explicite sur ce risque.
 
     processor = new DemucsProcessor({
         ort,
+        tracks: flavor.tracks,
         onProgress: ({ progress, currentSegment, totalSegments }) => {
             progressFill.style.width = (5 + progress * 90) + '%';
 
@@ -181,26 +202,63 @@ async function init() {
     status.textContent = 'Loading AI model...';
 
     try {
-        // Local d'abord : le modele pese 173 Mo et etait retelecharge a
-        // chaque session. Le distant ne sert plus que si le fichier local
-        // est absent (installation incomplete). Voir fetch-assets.sh.
+        // Local d'abord : le modele pese jusqu'a 258 Mo (variante 6 pistes)
+        // et etait retelecharge a chaque session. Le distant ne sert plus
+        // que si le fichier local est absent — pour la variante 6 pistes,
+        // c'est le cas par defaut (telechargement a la demande uniquement,
+        // jamais pre-depose a l'installation, choix delibere vu sa taille
+        // et son statut experimental). Voir fetch-assets.sh.
         try {
             status.textContent = 'Chargement du modele local...';
-            await processor.loadModel(LOCAL_MODEL_URL);
+            await processor.loadModel(flavor.localUrl);
         } catch (localErr) {
             // Ce catch attrape TOUTE erreur de loadModel, pas seulement un
             // fichier absent : runtime ONNX non initialise, memoire, fichier
             // corrompu... Le message d'origine etait donc trompeur.
             console.error('[demucs] echec du modele local :', localErr);
             status.textContent = 'Modele local KO (' + (localErr?.message || localErr) + ') — telechargement...';
-            await processor.loadModel(DEFAULT_MODEL_URL);
+            await processor.loadModel(flavor.remoteUrl);
         }
+        currentFlavorId = flavorId;
         status.textContent = 'Ready - Select an audio file';
         progressFill.style.width = '0%';
     } catch (e) {
         status.textContent = 'Failed to load model: ' + e.message;
         console.error('Failed to load model:', e);
     }
+}
+
+async function init() {
+    let backend = 'wasm';
+
+    if ('gpu' in navigator) {
+        try {
+            const gpuAdapter = await navigator.gpu.requestAdapter();
+            if (gpuAdapter) {
+                backend = 'webgpu';
+            }
+        } catch (e) {
+            console.log('WebGPU not available:', e);
+        }
+    }
+
+    // Ne PAS reecrire numThreads ici : la valeur voulue (4, voir le
+    // commentaire en tete de fichier) etait ecrasee par cette ligne,
+    // qui s'execute apres le reglage initial et remettait le nombre de
+    // threads au maximum (navigator.hardwareConcurrency).
+
+    if (backend === 'webgpu') {
+        ort.env.webgpu = ort.env.webgpu || {};
+        ort.env.webgpu.powerPreference = 'high-performance';
+        backendBadge.textContent = 'WebGPU (GPU)';
+        backendBadge.className = 'badge badge-gpu';
+    } else {
+        const threads = navigator.hardwareConcurrency || 4;
+        backendBadge.textContent = `WASM (${threads} threads)`;
+        backendBadge.className = 'badge badge-cpu';
+    }
+
+    await loadFlavor(currentFlavorId);
 
     audioContext = new (window.AudioContext || window.webkitAudioContext)({
         sampleRate: SAMPLE_RATE
@@ -228,11 +286,13 @@ async function loadAudioFromUrl(url) {
         audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
         const duration = audioBuffer.duration.toFixed(1);
-        status.textContent = `Loaded: ${duration}s - Starting extraction...`;
+        status.textContent = `Loaded: ${duration}s - Choisis un modele puis clique sur Extract Stems`;
         processBtn.disabled = false;
 
-        // Auto-start extraction
-        setTimeout(() => startProcessing(), 500);
+        // Ancien auto-demarrage retire : avec le choix entre 4 et 6 pistes
+        // desormais possible, il ne laissait aucun temps pour changer le
+        // modele avant que l'extraction ne parte deja avec le repli par
+        // defaut. Un clic explicite est desormais toujours necessaire.
     } catch (e) {
         status.textContent = 'Failed to load audio: ' + e.message;
         console.error('Failed to load audio from URL:', e);
@@ -260,6 +320,21 @@ fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) handleFile(file);
 });
+
+// Changement de variante de modele — desactive pendant un traitement en
+// cours pour eviter un echange de modele en plein calcul (voir l'attribut
+// disabled correspondant sur processBtn dans startProcessing()).
+if (modelFlavorSelect) {
+    modelFlavorSelect.addEventListener('change', async (e) => {
+        const flavorId = e.target.value;
+        if (flavorId === currentFlavorId || isProcessing) return;
+        modelFlavorSelect.disabled = true;
+        processBtn.disabled = true;
+        await loadFlavor(flavorId);
+        modelFlavorSelect.disabled = false;
+        processBtn.disabled = !audioBuffer;
+    });
+}
 
 async function handleFile(file) {
     audioFileName.textContent = file.name;
@@ -329,7 +404,7 @@ async function startProcessing() {
         const speedRatio = (audioBuffer.duration / parseFloat(totalTime)).toFixed(2);
 
         log('Done', `Completed in ${totalTime}s (${speedRatio}x realtime)`);
-        status.textContent = `Complete! Extracted 4 stems in ${totalTime}s`;
+        status.textContent = `Complete! Extracted ${Object.keys(separatedTracks).length} stems in ${totalTime}s`;
         progressFill.style.width = '100%';
 
     } catch (e) {
@@ -351,11 +426,18 @@ function displayResults(tracks) {
     trackUrls = {};
     trackBuffers = {};
 
+    // 'other' recoit un symbole musical generique plutot que 🎹 — libere
+    // pour la piste piano, qui en a l'usage semantique bien plus direct
+    // (variante 6 pistes, voir MODEL_FLAVORS). 'guitar' utilise 🪕, faute
+    // d'emoji distinct pour guitare electrique/acoustique face a 🎸 deja
+    // pris par bass.
     const TRACK_CONFIG = {
         drums: { icon: '🥁', label: 'Drums' },
         bass: { icon: '🎸', label: 'Bass' },
-        other: { icon: '🎹', label: 'Instrumental' },
-        vocals: { icon: '🎤', label: 'Vocals' }
+        other: { icon: '🎵', label: 'Instrumental' },
+        vocals: { icon: '🎤', label: 'Vocals' },
+        guitar: { icon: '🪕', label: 'Guitar' },
+        piano: { icon: '🎹', label: 'Piano' }
     };
 
     for (const [name, track] of Object.entries(tracks)) {
