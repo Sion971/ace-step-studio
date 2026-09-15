@@ -1047,7 +1047,7 @@ router.get('/endpoints', authMiddleware, async (_req: AuthenticatedRequest, res:
 // Model loading status (real-time) - initialized after activeLoadedModel
 let modelLoadingStatus: { state: string; model: string; progress?: string } = {
   state: 'ready',
-  model: 'marcorez8/acestep-v15-xl-turbo-bf16',
+  model: 'acestep-v15-xl-turbo-bf16',
 };
 
 let lmSynced = false;
@@ -1130,7 +1130,7 @@ router.get('/system-info', async (_req, res: Response) => {
 });
 
 // Hot-swap model via Gradio /v1/init API (no process restart)
-const DEFAULT_MODEL = process.env.DEFAULT_MODEL || 'marcorez8/acestep-v15-xl-turbo-bf16';
+const DEFAULT_MODEL = process.env.DEFAULT_MODEL || 'acestep-v15-xl-turbo-bf16';
 let activeLoadedModel: string = DEFAULT_MODEL;
 let activeLmModel: string = process.env.INIT_LLM === 'false' ? '' : 'acestep-5Hz-lm-0.6B';
 let activeLmBackend: string = process.env.INIT_LLM === 'false' ? '' : 'pt';
@@ -1268,7 +1268,7 @@ router.get('/download-model', authMiddleware, async (req: AuthenticatedRequest, 
   const MODEL_HF_REPOS: Record<string, string> = {
     'acestep-v15-xl-turbo': 'ACE-Step/acestep-v15-xl-turbo',
     'acestep-v15-xl-sft': 'ACE-Step/acestep-v15-xl-sft',
-    'marcorez8/acestep-v15-xl-turbo-bf16': 'marcorez8/acestep-v15-xl-turbo-bf16',
+    'acestep-v15-xl-turbo-bf16': 'marcorez8/acestep-v15-xl-turbo-bf16',
     'acestep-v15-xl-merge-sft-turbo': 'jeankassio/acestep_v1.5_merge_sft_turbo_xl',
   };
 
@@ -1357,7 +1357,13 @@ router.get('/models', async (_req, res: Response) => {
     const ALL_DIT_MODELS = [
       'acestep-v15-xl-turbo',                    // XL Turbo (8 steps, no CFG)
       'acestep-v15-xl-sft',                      // XL SFT (50 steps, with CFG)
-      'marcorez8/acestep-v15-xl-turbo-bf16',     // XL Turbo BF16 (community, smaller)
+      // Sans le prefixe "marcorez8/" : le vrai nom de dossier sur le
+      // disque (download_model.sh) et l'alias interne d'ACE-Step-1.5
+      // lui-meme n'ont jamais ce prefixe. Le garder ici en plus de sa
+      // forme sans prefixe creait un doublon visible dans le menu — le
+      // meme modele liste deux fois, avec une taille reelle pour l'un
+      // et une estimation figee pour l'autre.
+      'acestep-v15-xl-turbo-bf16',                // XL Turbo BF16 (community, smaller)
       'acestep-v15-xl-merge-sft-turbo',          // XL SFT+Turbo merge (community, 50 steps)
     ];
 
@@ -1447,7 +1453,6 @@ router.get('/models', async (_req, res: Response) => {
       'acestep-v15-xl-sft',
       'acestep-v15-xl-turbo',
       'acestep-v15-xl-turbo-bf16',
-      'marcorez8/acestep-v15-xl-turbo-bf16',
       'acestep-v15-xl-merge-sft-turbo',
     ]);
 

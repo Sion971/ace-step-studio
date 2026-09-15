@@ -41,7 +41,15 @@ interface ModelMenuProps {
 const FIXED_ORDER = [
   'acestep-v15-xl-turbo',
   'acestep-v15-xl-sft',
-  'marcorez8/acestep-v15-xl-turbo-bf16',
+  // Sans le prefixe "marcorez8/" : le vrai nom de dossier sur le disque
+  // (download_model.sh) et l'alias interne d'ACE-Step-1.5 lui-meme
+  // (confirme via son propre journal de telechargement automatique)
+  // n'ont jamais ce prefixe. Le garder ici creait un doublon dans le
+  // menu — le meme modele apparaissant deux fois avec des tailles
+  // differentes (l'une reelle, l'autre une estimation figee), le
+  // rapprochement par egalite de chaine echouant silencieusement entre
+  // les deux formes.
+  'acestep-v15-xl-turbo-bf16',
   'acestep-v15-xl-merge-sft-turbo',
 ];
 

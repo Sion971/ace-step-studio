@@ -484,10 +484,16 @@ async function getActiveModel(): Promise<string | null> {
 }
 
 // HuggingFace repo mapping for auto-download
+// La cle n'a jamais le prefixe "marcorez8/" — elle doit correspondre
+// exactement au nom de dossier reel sur le disque et a l'alias interne
+// qu'ACE-Step-1.5 utilise lui-meme pour son propre telechargement
+// automatique (confirme via son journal : "DiT model
+// 'acestep-v15-xl-turbo-bf16' not found"). Le prefixe "marcorez8/"
+// n'apparait que dans la VALEUR, le vrai depot HuggingFace complet.
 const MODEL_HF_REPOS: Record<string, string> = {
   'acestep-v15-xl-turbo': 'ACE-Step/acestep-v15-xl-turbo',
   'acestep-v15-xl-sft': 'ACE-Step/acestep-v15-xl-sft',
-  'marcorez8/acestep-v15-xl-turbo-bf16': 'marcorez8/acestep-v15-xl-turbo-bf16',
+  'acestep-v15-xl-turbo-bf16': 'marcorez8/acestep-v15-xl-turbo-bf16',
 };
 
 async function ensureModelDownloaded(ditModel: string): Promise<void> {
