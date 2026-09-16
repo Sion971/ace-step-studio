@@ -7,7 +7,13 @@ cd /d "%SCRIPT_DIR%"
 
 set "HF_HOME=%SCRIPT_DIR%models"
 set "HUGGINGFACE_HUB_CACHE=%SCRIPT_DIR%models"
+REM HF_HUB_ENABLE_HF_TRANSFER : mecanisme historique, ignore silencieusement
+REM a partir de huggingface_hub>=1.0 (remplace par Xet). HF_XET_HIGH_PERFORMANCE :
+REM le reglage equivalent pour Xet, actif par defaut depuis huggingface_hub
+REM >=0.32.0 - les deux sont fixes ensemble pour couvrir toute version
+REM installee (0.36.x comme 1.x), sans avoir a savoir laquelle est active.
 set "HF_HUB_ENABLE_HF_TRANSFER=1"
+set "HF_XET_HIGH_PERFORMANCE=1"
 
 if not exist ".venv\Scripts\python.exe" (
     echo ERROR: Python not found! Run install.bat first.

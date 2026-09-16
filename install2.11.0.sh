@@ -71,6 +71,12 @@ mkdir -p ACE-Step-1.5/lora_output
 
 export HF_HOME="$SCRIPT_DIR/models"
 export MODELSCOPE_CACHE="$SCRIPT_DIR/models"
+# Xet est le mecanisme de transfert actif par defaut depuis
+# huggingface_hub>=0.32.0 (confirme officiellement) — ce reglage
+# accelere les telechargements/televersements en saturant la bande
+# passante et les coeurs CPU disponibles, quelle que soit la version
+# de huggingface_hub installee (0.36.x ou 1.x).
+export HF_XET_HIGH_PERFORMANCE=1
 
 # === 2. Sélection GPU / CUDA =================================================
 echo ""

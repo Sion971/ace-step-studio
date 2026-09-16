@@ -22,7 +22,13 @@ fi
 
 export HF_HOME="$SCRIPT_DIR/models"
 export HUGGINGFACE_HUB_CACHE="$SCRIPT_DIR/models"
+# HF_HUB_ENABLE_HF_TRANSFER : mecanisme historique, ignore silencieusement
+# a partir de huggingface_hub>=1.0 (remplace par Xet). HF_XET_HIGH_PERFORMANCE :
+# le reglage equivalent pour Xet, actif par defaut depuis huggingface_hub
+# >=0.32.0 — les deux sont fixes ensemble pour couvrir toute version
+# installee (0.36.x comme 1.x), sans avoir a savoir laquelle est active.
 export HF_HUB_ENABLE_HF_TRANSFER=1
+export HF_XET_HIGH_PERFORMANCE=1
 mkdir -p "$HF_HOME"
 
 source "$SCRIPT_DIR/.venv/bin/activate"

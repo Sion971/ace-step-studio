@@ -10,6 +10,11 @@ set "SCRIPT_DIR=%~dp0"
 cd /d "%SCRIPT_DIR%"
 set "TEMP=%SCRIPT_DIR%temp"
 set "TMP=%SCRIPT_DIR%temp"
+REM Xet est le mecanisme de transfert actif par defaut depuis
+REM huggingface_hub>=0.32.0 - accelere tout telechargement/televersement
+REM eventuel pendant l'installation, quelle que soit la version de
+REM huggingface_hub installee (0.36.x ou 1.x).
+set "HF_XET_HIGH_PERFORMANCE=1"
 
 REM === Create directories ===
 if not exist "downloads" mkdir downloads
