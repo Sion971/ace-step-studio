@@ -14,18 +14,16 @@ echo "   ACE-Step Studio - Install (Linux)"
 echo "   [EXPERIMENTAL] PyTorch 2.11.0"
 echo "========================================"
 echo ""
-echo "  ATTENTION : variante experimentale, reservee aux GPU avec"
-echo "  20 Go de VRAM ou plus (RTX 5080/5090 par exemple)."
-echo "  torch 2.11.0 exige torchao>=0.17.0, dont la structure de"
-echo "  tenseurs quantifies plante lors du dechargement CPU/GPU sur"
-echo "  tout GPU <20 Go (ou la quantification s'active automatiquement)."
-echo "  Sans danger UNIQUEMENT si votre carte a assez de VRAM pour ne"
-echo "  jamais activer la quantification."
+echo "  Variante experimentale (torch 2.11.0, plus recent que"
+echo "  l'installation standard). Fonctionne desormais sur toute"
+echo "  carte, quantification comprise (confirme en pratique sur"
+echo "  8 Go de VRAM) : necessite huggingface-hub<1.0 (voir plus"
+echo "  bas), torchao dans la serie 0.17.x, et diffusers>=0.40.0 -"
+echo "  tous trois deja epingles dans ce script."
 echo ""
-echo "  Pour l'installation standard, eprouvee sur toutes les cartes,"
+echo "  Pour l'installation standard, plus longuement eprouvee,"
 echo "  utiliser install.sh."
 echo ""
-read -p "VRAM >= 20 Go confirmee ? Appuyez sur Entree pour continuer, Ctrl+C pour annuler..."
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -166,14 +164,14 @@ echo "[4/13] Outils de build (hatchling, cmake, ninja)..."
 uv pip install hatchling editables cmake "ninja>=1.13.0" setuptools wheel
 
 # === 5. PyTorch ==============================================================
-echo "[5/13] PyTorch 2.11.0 EXPERIMENTAL ($CUDA_NAME) — necessite >=20 Go de VRAM..."
-# Variante experimentale : voir l'avertissement affiche au tout debut de
-# ce fichier. torchao>=0.17.0 (necessaire pour torch 2.11.0) a une
-# structure de tenseurs quantifies (Int8Tensor) incompatible avec le
-# motif de dechargement CPU/GPU utilise par ACE-Step-1.5, plantage
-# bloquant confirme sur tout GPU <20 Go de VRAM (ou la quantification
-# s'active automatiquement). Sans danger uniquement si la quantification
-# ne s'active jamais, donc reserve aux cartes bien pourvues en VRAM.
+echo "[5/13] PyTorch 2.11.0 EXPERIMENTAL ($CUDA_NAME)..."
+# Variante experimentale : torch 2.11.0, plus recent que l'installation
+# standard. La combinaison huggingface-hub<1.0 (voir plus bas) +
+# torchao dans la serie 0.17.x + diffusers>=0.40.0 fonctionne
+# desormais correctement, quantification comprise — confirme en
+# pratique sur 8 Go de VRAM, generation complete reussie sans erreur.
+# Aucune restriction de VRAM minimale n'est necessaire avec ces
+# versions precises.
 #
 # torchvision/torchcodec volontairement NON epingles (voir l'incident
 # deja rencontre cote Windows avec un pin explicite devenu incompatible)
@@ -342,7 +340,20 @@ fi
 
 # torch, torchaudio et torchcodec sont déjà installés plus haut depuis l'index
 # PyTorch : ils sont volontairement absents de cette liste.
-uv pip install "transformers>=4.51.0,<4.58.0" diffusers gradio==6.2.0 matplotlib \
+# diffusers>=0.40.0 (plancher explicite, pas seulement "diffusers" sans
+# version) : sans ce plancher, uv installait 0.39.0 malgre l'absence de
+# contrainte apparente — probablement une contrainte indirecte ailleurs
+# dans la chaine de resolution. 0.40.0 confirme fonctionnel en pratique
+# (generation reussie, XL Turbo BF16) avec huggingface-hub<1.0 et
+# transformers<4.58.0.
+#
+# huggingface-hub<1.0 rendu EXPLICITE ici (pas seulement une consequence
+# indirecte du plafond sur transformers) : ACE-Step-1.5 refuse de
+# demarrer avec huggingface-hub>=1.0 ("ImportError:
+# huggingface-hub>=0.34.0,<1.0 is required..."), confirme en pratique.
+# S'appuyer uniquement sur la propagation indirecte via transformers
+# serait fragile face a un futur changement de cette contrainte.
+uv pip install "transformers>=4.51.0,<4.58.0" "diffusers>=0.40.0" "huggingface-hub<1.0" gradio==6.2.0 matplotlib \
     scipy soundfile loguru einops accelerate fastapi diskcache "uvicorn[standard]" \
     numba vector-quantize-pytorch "torchao>=0.17.0,<0.18.0" toml peft modelscope \
     tensorboard typer-slim hf_transfer hf_xet lightning lycoris-lora safetensors \
