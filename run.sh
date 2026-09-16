@@ -121,7 +121,11 @@ fi
 
 export HF_HOME="$SCRIPT_DIR/models"
 export HUGGINGFACE_HUB_CACHE="$SCRIPT_DIR/models"
-export HF_HUB_ENABLE_HF_TRANSFER=1
+# HF_XET_HIGH_PERFORMANCE : le reglage equivalent pour Xet, actif par
+# defaut depuis huggingface_hub>=0.32.0 - fixe aux cotes du reglage
+# ci-dessus pour couvrir toute version installee (0.36.x comme 1.x),
+# sans avoir a determiner laquelle est active.
+export HF_XET_HIGH_PERFORMANCE=1
 mkdir -p "$HF_HOME"
 
 export TORCH_HOME="$SCRIPT_DIR/models/torch"
