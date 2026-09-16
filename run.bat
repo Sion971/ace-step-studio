@@ -119,6 +119,11 @@ REM elle-meme (avertissement FutureWarning, retrait prevu en v5), et
 REM redondante ici — HF_HOME ci-dessus couvre deja exactement le meme
 REM usage.
 set "HF_HUB_ENABLE_HF_TRANSFER=1"
+REM HF_XET_HIGH_PERFORMANCE : le reglage equivalent pour Xet, actif par
+REM defaut depuis huggingface_hub>=0.32.0 - fixe aux cotes du reglage
+REM ci-dessus pour couvrir toute version installee (0.36.x comme 1.x),
+REM sans avoir a determiner laquelle est active.
+set "HF_XET_HIGH_PERFORMANCE=1"
 if not exist "%HF_HOME%" mkdir "%HF_HOME%"
 
 set "TORCH_HOME=%SCRIPT_DIR%models\torch"
