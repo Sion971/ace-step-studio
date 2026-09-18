@@ -342,7 +342,7 @@ Built with [Claude](https://claude.ai) (Anthropic) as a development pair — mos
 
 ## 🤝 Contributing
 
-This started as a personal project to get ACE-Step Studio running well on Linux, and it's grown from there. It's not actively looking for contributors, but issues, questions, and pull requests are welcome if something's broken or you've got an improvement in mind.
+This started as a personal project to get ACE-Step Studio running well on Linux, and it's grown from there. Development happens in short, focused sessions rather than on a fixed schedule, so don't expect instant replies — but issues, questions, and pull requests are genuinely welcome. If something's broken, tell us. If you've got an idea, open a discussion. If you've fixed something yourself, a PR is very welcome.
 
 ---
 
