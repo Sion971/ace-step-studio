@@ -18,7 +18,7 @@ echo "  Variante experimentale (torch 2.11.0, plus recent que"
 echo "  l'installation standard). Fonctionne desormais sur toute"
 echo "  carte, quantification comprise (confirme en pratique sur"
 echo "  8 Go de VRAM) : necessite huggingface-hub<1.0 (voir plus"
-echo "  bas), torchao dans la serie 0.17.x, et diffusers>=0.40.0 -"
+echo "  bas), torchao dans la serie 0.17.x, et diffusers==0.40.0 -"
 echo "  tous trois deja epingles dans ce script."
 echo ""
 echo "  Pour l'installation standard, plus longuement eprouvee,"
@@ -167,7 +167,7 @@ uv pip install hatchling editables cmake "ninja>=1.13.0" setuptools wheel
 echo "[5/13] PyTorch 2.11.0 EXPERIMENTAL ($CUDA_NAME)..."
 # Variante experimentale : torch 2.11.0, plus recent que l'installation
 # standard. La combinaison huggingface-hub<1.0 (voir plus bas) +
-# torchao dans la serie 0.17.x + diffusers>=0.40.0 fonctionne
+# torchao dans la serie 0.17.x + diffusers==0.40.0 fonctionne
 # desormais correctement, quantification comprise — confirme en
 # pratique sur 8 Go de VRAM, generation complete reussie sans erreur.
 # Aucune restriction de VRAM minimale n'est necessaire avec ces
@@ -339,25 +339,35 @@ if [ "$FLASH_ATTN_OK" = true ]; then
 fi
 
 # torch, torchaudio et torchcodec sont déjà installés plus haut depuis l'index
-# PyTorch : ils sont volontairement absents de cette liste.
-# diffusers>=0.40.0 (plancher explicite, pas seulement "diffusers" sans
-# version) : sans ce plancher, uv installait 0.39.0 malgre l'absence de
-# contrainte apparente — probablement une contrainte indirecte ailleurs
-# dans la chaine de resolution. 0.40.0 confirme fonctionnel en pratique
-# (generation reussie, XL Turbo BF16) avec huggingface-hub<1.0 et
-# transformers<4.58.0.
-#
-# huggingface-hub<1.0 rendu EXPLICITE ici (pas seulement une consequence
-# indirecte du plafond sur transformers) : ACE-Step-1.5 refuse de
-# demarrer avec huggingface-hub>=1.0 ("ImportError:
-# huggingface-hub>=0.34.0,<1.0 is required..."), confirme en pratique.
-# S'appuyer uniquement sur la propagation indirecte via transformers
-# serait fragile face a un futur changement de cette contrainte.
-uv pip install "transformers>=4.51.0,<4.58.0" "diffusers>=0.40.0" "huggingface-hub<1.0" gradio==6.2.0 matplotlib \
+# PyTorch : ils sont volontairement absents de cette liste. diffusers est
+# EGALEMENT absent d'ici — installe separement juste en dessous avec
+# --no-deps (voir ce commentaire pour le pourquoi).
+uv pip install "transformers>=4.51.0,<4.58.0" "huggingface-hub<1.0" gradio==6.2.0 matplotlib \
     scipy soundfile loguru einops accelerate fastapi diskcache "uvicorn[standard]" \
     numba vector-quantize-pytorch "torchao>=0.17.0,<0.18.0" toml peft modelscope \
     tensorboard typer-slim hf_transfer hf_xet lightning lycoris-lora safetensors \
     xxhash "pytorch-wavelets>=1.3.0" "pywavelets>=1.9.0" "bitsandbytes>=0.50.0"
+
+# diffusers==0.40.0 installe avec --no-deps, DELIBEREMENT : ses propres
+# metadonnees exigent huggingface-hub>=1.23.0,<2.0 (confirme directement
+# par le refus explicite d'uv, "No solution found when resolving
+# dependencies", des que diffusers est inclus dans une resolution
+# combinee avec huggingface-hub<1.0 ci-dessus — impossible a satisfaire
+# simultanement selon les regles strictes du resolveur). En pratique
+# cependant, diffusers 0.40.0 fonctionne correctement avec
+# huggingface-hub 0.36.x pour l'usage d'ACE-Step-1.5 (generation
+# complete reussie, XL Turbo BF16) — la partie de son code qui
+# necessiterait reellement huggingface-hub>=1.23.0 n'est simplement
+# jamais exercee par ce pipeline. --no-deps permet d'obtenir le code de
+# diffusers 0.40.0 sans que sa propre contrainte, plus stricte que ce
+# qui est reellement necessaire ici, ne bloque toute la resolution.
+# Ses AUTRES dependances (Pillow, safetensors, accelerate, filelock,
+# numpy, regex...) sont deja couvertes par les lignes ci-dessus et par
+# torch/transformers, installes avant ce point.
+# Meme principe deja utilise dans ce script pour nano-vllm et ace-step
+# lui-meme (voir plus haut / plus bas) — variante EXPERIMENTALE,
+# assumee comme telle.
+uv pip install "diffusers==0.40.0" --no-deps
 
 if [ -d "ACE-Step-1.5" ]; then
     uv pip install -e ACE-Step-1.5/ --no-deps
