@@ -299,7 +299,17 @@ REM lui-meme (issue #98). torchao 0.13.0 est explicitement liste comme
 REM compatible avec torch 2.7.1 dans cette meme table. Cote Linux
 REM (install.sh), torch==2.10.0 correspond deja exactement a ce que veut
 REM torchao 0.16.0 - la paire y est deja coherente, rien a changer.
-uv pip install "transformers>=4.51.0,<4.58.0" diffusers gradio==6.2.0 matplotlib scipy soundfile loguru einops accelerate fastapi diskcache "uvicorn[standard]" numba vector-quantize-pytorch torchcodec "torchao%TORCHAO_VERSION%" toml peft modelscope tensorboard typer-slim hf_transfer hf_xet lightning lycoris-lora safetensors xxhash "pytorch-wavelets>=1.3.0" "pywavelets>=1.9.0" "bitsandbytes>=0.50.0"
+REM diffusers==0.39.0 (pas "diffusers" sans version) : epingle par
+REM coherence avec install.sh, qui utilise la meme base torch 2.10.0.
+REM huggingface-hub<1.0 rendu EXPLICITE : ACE-Step-1.5 refuse de
+REM demarrer avec huggingface-hub>=1.0 ("ImportError:
+REM huggingface-hub>=0.34.0,<1.0 is required..."), confirme en pratique
+REM (voir install2.11.0.sh, meme constat sur une autre base torch).
+REM diffusers>=0.40.0 exige lui-meme huggingface-hub>=1.23.0 (confirme
+REM par un refus explicite d'uv, "No solution found when resolving
+REM dependencies", sur install2.11.0.sh) - 0.39.0 n'a pas cette
+REM exigence, pas besoin ici du contournement --no-deps utilise la-bas.
+uv pip install "transformers>=4.51.0,<4.58.0" "diffusers==0.39.0" "huggingface-hub<1.0" gradio==6.2.0 matplotlib scipy soundfile loguru einops accelerate fastapi diskcache "uvicorn[standard]" numba vector-quantize-pytorch torchcodec "torchao%TORCHAO_VERSION%" toml peft modelscope tensorboard typer-slim hf_transfer hf_xet lightning lycoris-lora safetensors xxhash "pytorch-wavelets>=1.3.0" "pywavelets>=1.9.0" "bitsandbytes>=0.50.0"
 REM Install triton-windows for torch.compile + CUDA graphs (skip on CPU-only)
 if not "%CUDA_VERSION%"=="cpu" (
     echo Installing Triton for torch.compile...
