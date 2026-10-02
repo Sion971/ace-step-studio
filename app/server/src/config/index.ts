@@ -40,6 +40,33 @@ export const config = {
     // proprement que bloquer indefiniment.
     timeoutMs: 120_000,
   },
+  // Separation de stems (Demucs, Meta AI). Environnement Python ISOLE,
+  // distinct du venv ACE-Step (pipeline.pythonPath) ET du venv basic-pitch
+  // (basicPitch.pythonPath) — meme principe de separation que ce dernier,
+  // evite tout conflit de version avec les deux autres. Remplace la
+  // separation precedente, cote navigateur uniquement (demucs-web/, WASM) :
+  // fonctionnelle mais plafonnee par la RAM du poste client, en particulier
+  // pour le mode 6 stems. L'inference Python native cote serveur n'a pas
+  // cette limite.
+  demucs: {
+    pythonPath: process.env.DEMUCS_PYTHON_PATH || path.join(__dirname, '../../demucs-venv/bin/python3'),
+    scriptPath: path.join(__dirname, '../../scripts/demucs_separate.py'),
+    // Confirme en pratique : ~53s sur CPU pour un morceau complet (modele
+    // 6 stems, htdemucs_6s). Marge genereuse pour des morceaux plus longs
+    // ou un premier appel incluant le telechargement du modele.
+    timeoutMs: 600_000,
+  },
+
+  // Zone de depot pour les stems separes (Demucs), un sous-dossier par
+  // requete (uuid). Purge automatique par age plutot que sur demande :
+  // contrairement a audioEditorStaging (un seul fichier, recupere
+  // presque immediatement), le navigateur charge ici plusieurs stems
+  // successivement, donc une purge trop agressive sur le premier acces
+  // couperait les suivants.
+  demucsStaging: {
+    dir: process.env.DEMUCS_STAGING_DIR || path.join(__dirname, '../../temp/demucs-staging'),
+    ttlMs: 30 * 60 * 1000, // 30 min — le temps de charger/ecouter tous les stems
+  },
 
   // SQLite database
   database: {
