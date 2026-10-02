@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useI18n } from '../context/I18nContext';
 import { SongDropdownMenu } from './SongDropdownMenu';
 import { ShareModal } from './ShareModal';
+import { StemSeparationModal } from './StemSeparationModal';
 import { AlbumCover } from './AlbumCover';
 
 interface RightSidebarProps {
@@ -33,6 +34,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
     const [isOwner, setIsOwner] = useState(false);
     const [tagsExpanded, setTagsExpanded] = useState(false);
     const [shareModalOpen, setShareModalOpen] = useState(false);
+    const [showStemModal, setShowStemModal] = useState(false);
     const [copiedStyle, setCopiedStyle] = useState(false);
     const [copiedLyrics, setCopiedLyrics] = useState(false);
     const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -328,11 +330,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
                         <button
                             onClick={() => {
                                 if (!song?.audioUrl) return;
-                                const baseUrl = window.location.port === '3000'
-                                    ? `${window.location.protocol}//${window.location.hostname}:3001`
-                                    : window.location.origin;
-                                const audioUrl = song.audioUrl.startsWith('http') ? song.audioUrl : `${baseUrl}${song.audioUrl}`;
-                                window.open(`${baseUrl}/demucs-web/?audioUrl=${encodeURIComponent(audioUrl)}`, '_blank');
+                                setShowStemModal(true);
                             }}
                             title={t('extractStems')}
                             className="p-3 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white hover:bg-zinc-300/50 dark:hover:bg-white/10 rounded-xl transition-all duration-200"
@@ -665,6 +663,13 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
                     isOpen={shareModalOpen}
                     onClose={() => setShareModalOpen(false)}
                     song={song}
+                />
+            )}
+            {showStemModal && song?.audioUrl && (
+                <StemSeparationModal
+                    audioUrl={song.audioUrl}
+                    songTitle={song.title}
+                    onClose={() => setShowStemModal(false)}
                 />
             )}
         </div>
