@@ -7,9 +7,10 @@
  * progression, puis chaque stem avec lecture et telechargement individuel.
  * ==========================================================================*/
 
-import React, { useState, useRef } from 'react';
-import { X, Layers, Download, Loader2, Play, Pause } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { X, Layers, Download, Loader2, Play, Pause, Volume2, VolumeX, Edit3 } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
+import { AudioWaveform } from './AudioWaveform';
 
 interface StemSeparationModalProps {
   audioUrl: string;
@@ -44,8 +45,18 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SeparateResponse | null>(null);
-  const [playingStem, setPlayingStem] = useState<string | null>(null);
+  // Lecture synchronisee : un seul etat de lecture pour TOUTES les
+  // pistes (plus de lecture independante par piste) ; chaque piste a son
+  // propre etat muet/son a la place. currentTime/duration suivent une
+  // piste de reference (la premiere) — les autres sont systematiquement
+  // alignees sur elle a chaque play/pause/deplacement, jamais laissees
+  // deriver independamment.
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [mutedStems, setMutedStems] = useState<Record<string, boolean>>({});
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
   const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
+  const stemOrder = useRef<string[]>([]);
 
   const handleSeparate = async () => {
     setIsLoading(true);
@@ -80,25 +91,74 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
     }
   };
 
-  const togglePlay = (stemName: string) => {
-    // Un seul stem joue a la fois — met en pause les autres avant de
-    // demarrer celui demande, evite une cacophonie si l'utilisateur
-    // clique sur plusieurs pistes a la suite.
-    Object.entries(audioRefs.current).forEach(([name, el]) => {
-      if (name !== stemName && el) el.pause();
-    });
+  // Piste de reference pour la progression affichee — la premiere de la
+  // liste, fixee une seule fois quand le resultat arrive (pas recalculee
+  // a chaque rendu, pour ne jamais changer de reference en cours de
+  // lecture).
+  useEffect(() => {
+    if (result?.stems) stemOrder.current = Object.keys(result.stems);
+  }, [result]);
 
-    const el = audioRefs.current[stemName];
-    if (!el) return;
+  useEffect(() => {
+    const refStemName = stemOrder.current[0];
+    const refEl = refStemName ? audioRefs.current[refStemName] : null;
+    if (!refEl) return;
 
-    if (playingStem === stemName) {
-      el.pause();
-      setPlayingStem(null);
+    const onTimeUpdate = () => setCurrentTime(refEl.currentTime);
+    const onLoadedMetadata = () => setDuration(refEl.duration);
+    const onEnded = () => setIsPlaying(false);
+
+    refEl.addEventListener('timeupdate', onTimeUpdate);
+    refEl.addEventListener('loadedmetadata', onLoadedMetadata);
+    refEl.addEventListener('ended', onEnded);
+    return () => {
+      refEl.removeEventListener('timeupdate', onTimeUpdate);
+      refEl.removeEventListener('loadedmetadata', onLoadedMetadata);
+      refEl.removeEventListener('ended', onEnded);
+    };
+  }, [result]);
+
+  const togglePlayAll = () => {
+    const elements = Object.values(audioRefs.current).filter(Boolean) as HTMLAudioElement[];
+    if (isPlaying) {
+      elements.forEach((el) => el.pause());
+      setIsPlaying(false);
     } else {
-      void el.play();
-      setPlayingStem(stemName);
+      // Realigne toutes les pistes sur la reference avant de demarrer —
+      // evite qu'une piste restee en avance/retard d'une pause/reprise
+      // precedente ne desynchronise l'ensemble.
+      elements.forEach((el) => { el.currentTime = currentTime; });
+      elements.forEach((el) => void el.play());
+      setIsPlaying(true);
     }
   };
+
+  const toggleMute = (stemName: string) => {
+    setMutedStems((prev) => ({ ...prev, [stemName]: !prev[stemName] }));
+  };
+
+  const handleSeek = (newTime: number) => {
+    Object.values(audioRefs.current).forEach((el) => {
+      if (el) el.currentTime = newTime;
+    });
+    setCurrentTime(newTime);
+  };
+
+  const formatTime = (seconds: number): string => {
+    if (!Number.isFinite(seconds)) return '0:00';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  // Applique l'etat muet au DOM a chaque changement — React ne pilote pas
+  // la propriete "muted" d'un <audio> depuis un attribut passe une seule
+  // fois au montage, elle doit etre reappliquee explicitement.
+  useEffect(() => {
+    Object.entries(audioRefs.current).forEach(([name, el]) => {
+      if (el) el.muted = !!mutedStems[name];
+    });
+  }, [mutedStems]);
 
   const handleDownload = (stemName: string, url: string) => {
     const link = document.createElement('a');
@@ -107,6 +167,23 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Ouvre toutes les pistes dans l'editeur AudioMass multipiste (page
+  // SEPAREE, /editor), meme convention deja etablie par l'ancienne
+  // version navigateur (voir demucs-web/app.js, "Open all in editor") :
+  // listes separees par des virgules, chaque valeur encodee
+  // individuellement. Contrairement a cette ancienne version, nos stems
+  // ont deja une vraie URL serveur directe (/api/demucs/stems/...) —
+  // pas besoin de les deposer d'abord via /api/audio-editor/stage, cette
+  // etape n'etait necessaire que pour d'anciens buffers en memoire sans
+  // fichier serveur reel.
+  const handleOpenAllInEditor = () => {
+    if (!result?.stems) return;
+    const entries = Object.entries(result.stems);
+    const audioUrls = entries.map(([, url]) => encodeURIComponent(url)).join(',');
+    const audioNames = entries.map(([name]) => encodeURIComponent(STEM_LABELS[name] || name)).join(',');
+    window.open(`/editor?audioUrls=${audioUrls}&audioNames=${audioNames}`, '_blank');
   };
 
   return (
@@ -197,39 +274,86 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
           )}
 
           {result?.stems && (
-            <div className="space-y-2">
-              <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                {Object.keys(result.stems).length} pistes separees en {result.elapsedSeconds}s
-              </p>
-              {Object.entries(result.stems).map(([stemName, url]) => (
-                <div
-                  key={stemName}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-zinc-50 dark:bg-black/20 border border-zinc-100 dark:border-white/5"
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                  {Object.keys(result.stems).length} pistes separees en {result.elapsedSeconds}s
+                </p>
+                <button
+                  onClick={handleOpenAllInEditor}
+                  className="flex items-center gap-1.5 text-[11px] font-medium text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 transition-colors"
                 >
-                  <button
-                    onClick={() => togglePlay(stemName)}
-                    className="w-8 h-8 flex-shrink-0 rounded-full bg-pink-500 text-white flex items-center justify-center hover:bg-pink-600 transition-colors"
-                  >
-                    {playingStem === stemName ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
-                  </button>
-                  <span className="flex-1 text-sm font-medium text-zinc-800 dark:text-zinc-200 capitalize">
-                    {STEM_LABELS[stemName] || stemName}
-                  </span>
-                  <button
-                    onClick={() => handleDownload(stemName, url)}
-                    className="p-2 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white rounded-lg hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors"
-                    title="Telecharger"
-                  >
-                    <Download size={15} />
-                  </button>
-                  <audio
-                    ref={(el) => { audioRefs.current[stemName] = el; }}
-                    src={url}
-                    onEnded={() => setPlayingStem(null)}
-                    className="hidden"
+                  <Edit3 size={12} />
+                  Ouvrir tout dans l'editeur
+                </button>
+              </div>
+
+              {/* Lecture maitre + progression partagee */}
+              <div className="flex items-center gap-3 px-1">
+                <button
+                  onClick={togglePlayAll}
+                  className="w-10 h-10 flex-shrink-0 rounded-full bg-pink-500 text-white flex items-center justify-center hover:bg-pink-600 transition-colors shadow-lg shadow-pink-500/20"
+                  title={isPlaying ? 'Pause' : 'Lecture de toutes les pistes'}
+                >
+                  {isPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
+                </button>
+                <span className="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums w-9 text-right">
+                  {formatTime(currentTime)}
+                </span>
+                {/* Forme d'onde de la piste de reference (la meme qui pilote
+                    currentTime/duration) — reutilise AudioWaveform tel quel,
+                    deja utilise ailleurs dans le projet (decodage Web Audio,
+                    clic pour se deplacer). */}
+                <div className="flex-1">
+                  <AudioWaveform
+                    url={result.stems[stemOrder.current[0]]}
+                    currentTime={currentTime}
+                    duration={duration}
+                    height={32}
+                    onClick={(pct) => handleSeek(pct * duration)}
                   />
                 </div>
-              ))}
+                <span className="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums w-9">
+                  {formatTime(duration)}
+                </span>
+              </div>
+
+              {Object.entries(result.stems).map(([stemName, url]) => {
+                const isMuted = !!mutedStems[stemName];
+                return (
+                  <div
+                    key={stemName}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-zinc-50 dark:bg-black/20 border border-zinc-100 dark:border-white/5"
+                  >
+                    <button
+                      onClick={() => toggleMute(stemName)}
+                      className={`w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center transition-colors ${
+                        isMuted
+                          ? 'bg-zinc-300 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
+                          : 'bg-pink-500 text-white hover:bg-pink-600'
+                      }`}
+                      title={isMuted ? 'Reactiver le son' : 'Couper le son'}
+                    >
+                      {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                    </button>
+                    <span className="flex-1 text-sm font-medium text-zinc-800 dark:text-zinc-200 capitalize">
+                      {STEM_LABELS[stemName] || stemName}
+                    </span>
+                    <button
+                      onClick={() => handleDownload(stemName, url)}
+                      className="p-2 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white rounded-lg hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors"
+                      title="Telecharger"
+                    >
+                      <Download size={15} />
+                    </button>
+                    <audio
+                      ref={(el) => { audioRefs.current[stemName] = el; }}
+                      src={url}
+                      className="hidden"
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
