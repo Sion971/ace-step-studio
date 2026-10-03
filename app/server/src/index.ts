@@ -80,6 +80,14 @@ app.use(helmet({
       objectSrc: ["'none'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.tailwindcss.com', 'https://esm.sh'],
       scriptSrcAttr: ["'none'"],
+      // `blob:` — Tone.js (lecture MIDI du piano roll, voir
+      // MidiPianoRoll.tsx) demarre en interne un worker via une URL
+      // blob:, pour le traitement audio. Sans cette directive, le
+      // navigateur bloque silencieusement sa creation (worker-src
+      // retombe sinon sur script-src, qui n'autorise pas blob:) — le
+      // piano roll s'affiche normalement, mais aucun son n'est produit,
+      // sans la moindre erreur visible hors de la console elle-meme.
+      workerSrc: ["'self'", 'blob:'],
       styleSrc: ["'self'", 'https:', "'unsafe-inline'"],
       connectSrc: ["'self'", 'https://esm.sh', 'https://openrouter.ai', 'https://image.pollinations.ai', 'https://gen.pollinations.ai', 'http://localhost:*', 'ws://localhost:*'],
       upgradeInsecureRequests: [],

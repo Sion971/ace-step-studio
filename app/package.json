@@ -17,11 +17,13 @@
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@openrouter/sdk": "^0.12.26",
+    "@tonejs/midi": "^2.0.28",
     "lucide-react": "^0.563.0",
     "partial-json": "^0.1.7",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-resizable-panels": "^4.9.0"
+    "react-resizable-panels": "^4.9.0",
+    "tone": "^15.1.22"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",

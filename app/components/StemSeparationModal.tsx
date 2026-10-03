@@ -8,9 +8,10 @@
  * ==========================================================================*/
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Layers, Download, Loader2, Play, Pause, Volume2, VolumeX, Edit3 } from 'lucide-react';
+import { X, Layers, Download, Loader2, Play, Pause, Volume2, VolumeX, Edit3, Music } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
 import { AudioWaveform } from './AudioWaveform';
+import { MidiPianoRoll } from './MidiPianoRoll';
 
 interface StemSeparationModalProps {
   audioUrl: string;
@@ -55,6 +56,7 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
   const [mutedStems, setMutedStems] = useState<Record<string, boolean>>({});
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [midiStemName, setMidiStemName] = useState<string | null>(null);
   const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
   const stemOrder = useRef<string[]>([]);
 
@@ -187,6 +189,7 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
   };
 
   return (
+    <>
     <div
       className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
       onClick={onClose}
@@ -340,6 +343,13 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
                       {STEM_LABELS[stemName] || stemName}
                     </span>
                     <button
+                      onClick={() => setMidiStemName(stemName)}
+                      className="p-2 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white rounded-lg hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors"
+                      title="Convertir en MIDI"
+                    >
+                      <Music size={15} />
+                    </button>
+                    <button
                       onClick={() => handleDownload(stemName, url)}
                       className="p-2 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white rounded-lg hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors"
                       title="Telecharger"
@@ -359,5 +369,13 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
         </div>
       </div>
     </div>
+    {midiStemName && result?.stems?.[midiStemName] && (
+      <MidiPianoRoll
+        audioUrl={result.stems[midiStemName]}
+        stemName={STEM_LABELS[midiStemName] || midiStemName}
+        onClose={() => setMidiStemName(null)}
+      />
+    )}
+    </>
   );
 };
