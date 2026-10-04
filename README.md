@@ -26,8 +26,10 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
 **What's different from upstream:**
 
 - **Playlists vs. Workspaces** — a real separation between curated playlists and working sessions, with exclusive workspace membership (a song lives in one workspace at a time) and a virtual "default" view computed by exclusion.
-- **MIDI conversion, server-side** — [basic-pitch](https://github.com/spotify/basic-pitch) running in an isolated Python 3.11 environment (its TensorFlow dependency doesn't ship wheels for newer Python), converting stems to MIDI in seconds rather than tens of minutes in-browser.
-- **AudioMass, updated and wired in** — upgraded to the multitrack build, with direct-load support: open a single stem or all four Demucs stems together as separate tracks, straight from the browser, no manual export/import round-trip.
+- **Stem separation, server-side** — [Demucs](https://github.com/facebookresearch/demucs) running in its own isolated environment, in 4 or 6 stems (adding guitar and piano). Synchronized playback with a per-stem mute, and no more browser RAM ceiling on the 6-stem model.
+- **MIDI conversion, server-side** — [basic-pitch](https://github.com/spotify/basic-pitch) running in an isolated Python 3.11 environment (its TensorFlow dependency doesn't ship wheels for newer Python), converting stems to MIDI in seconds rather than tens of minutes in-browser, with a piano roll and built-in synthesizer to hear the result.
+- **Loudness normalization** — normalize a track to a streaming platform's LUFS target (Spotify, Apple Music, YouTube, ...) with two-pass `ffmpeg` loudnorm, and compare before/after before downloading.
+- **AudioMass, updated and wired in** — upgraded to the multitrack build, with direct-load support: open a single stem or all of a song's stems together as separate tracks, straight from the browser, no manual export/import round-trip.
 - **LoRA training from the UI** — the full scan → label → preprocess → train pipeline, drivable from React without dropping into Gradio directly.
 - **One installer per platform, both `uv`-based and GPU-aware** — detects your actual compute capability and compiler version, not just a menu choice, and knows when `flash-attn` will and won't build correctly for your hardware (Blackwell/RTX 50-series needs CUDA 12.8+ to compile it at all on Linux, or a matching prebuilt wheel on Windows — both installers check this before attempting work that's doomed to fail).
 
@@ -107,9 +109,10 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
 ### 🛠️ Built-in Tools
 | Feature | Description |
 |---------|-------------|
-| **Multitrack Audio Editor** | Trim, fade, and mix with AudioMass — open single stems or all four together as separate tracks |
-| **Stem Extraction** | Separate vocals, drums, bass, and other with Demucs, in-browser |
-| **MIDI Conversion** | Turn any stem into MIDI server-side, in seconds |
+| **Multitrack Audio Editor** | Trim, fade, and mix with AudioMass — open single stems or all of them together as separate tracks |
+| **Stem Extraction** | Separate a song into 4 stems (vocals, drums, bass, other) or 6 (adding guitar and piano) with Demucs, server-side, with synchronized playback and per-stem mute |
+| **MIDI Conversion** | Turn any stem into MIDI server-side, in seconds, with a piano roll and built-in synthesizer to hear it |
+| **Loudness Normalization** | Normalize a track to a streaming platform's LUFS target, with before/after listening |
 | **LoRA Training** | Full training pipeline, driven from the UI |
 | **Video Generator** | Create music videos with Pexels backgrounds |
 | **Gradient Covers** | Procedural album art, no internet needed |
@@ -134,7 +137,7 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
 |-------------|---------------|
 | **OS** | Linux (developed on Linux Mint / Ubuntu 24.04) or Windows 10/11 |
 | **Node.js** | 22 LTS |
-| **Python** | Managed automatically by `uv` — 3.12 on Linux, 3.11 on Windows for the main environment; a separate isolated 3.11 environment on both platforms for MIDI conversion |
+| **Python** | Managed automatically by `uv` — 3.12 on Linux, 3.11 on Windows for the main environment; a separate isolated 3.11 environment on both platforms for MIDI conversion (and, on Linux, another for stem separation, created by its own setup script) |
 | **NVIDIA GPU** | 4GB+ VRAM (works without LLM), 12GB+ recommended (with LLM) |
 | **CUDA compiler (`nvcc`)** | Linux only, 12.8+ if you want `flash-attn` on Blackwell (RTX 50-series) — older cards work with older `nvcc` too, the installer checks and falls back to SDPA if not. Windows uses a prebuilt `flash-attn` wheel instead, no local compiler needed |
 | **FFmpeg, libsndfile** | Installed automatically by the installer if missing |
@@ -154,6 +157,10 @@ cd ace-step-studio
 # 2. Run the installer — handles GPU detection, PyTorch, dependencies,
 #    database migration, and the isolated MIDI conversion environment
 ./install.sh
+
+# 2b. Optional — stem separation has its own isolated environment, set up
+#     separately for now (needs python3.11, which step 2 already provides)
+(cd app/server && ./setup-demucs-venv.sh)
 
 # 3. Start everything (frontend + backend + AI engine) in one terminal
 ./run.sh
@@ -215,6 +222,15 @@ The installer walks through thirteen steps, all self-checking and safe to re-run
 12. Database migration (playlist/workspace schema) — idempotent, safe on every reinstall
 13. Isolated `basic-pitch` environment for MIDI conversion (Python 3.11 via deadsnakes PPA)
 
+The installer does not create the stem separation environment yet. After it finishes, run its setup script once:
+
+```bash
+cd app/server
+./setup-demucs-venv.sh
+```
+
+It creates `app/server/demucs-venv` (isolated from ACE-Step's pinned PyTorch/NumPy) and pre-downloads the 6-stem model, so the first separation isn't slow. If you skip it, the stem button shows an error pointing back to this script.
+
 </details>
 
 <details>
@@ -240,6 +256,8 @@ The installer walks through ten steps, all self-checking and safe to re-run:
 10. Isolated `basic-pitch` environment for MIDI conversion, its own `uv`-managed venv to avoid a `tensorboard`/`tensorflow` version conflict with ACE-Step's own pin
 
 If `torchaudio` fails to load with `Could not find module ... (or one of its dependencies)`, install the [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) — a very common missing piece for compiled Python extensions on a fresh Windows install, unrelated to this project specifically.
+
+Server-side stem separation doesn't have a Windows setup script yet (planned).
 
 </details>
 
@@ -296,11 +314,13 @@ Generate several variations of the same prompt in one pass to compare results qu
 
 ## 🔧 Built-in Tools
 
-**Audio Editor (AudioMass, multitrack)** — trim, fade, apply effects. Open a single stem directly from your library, or send all four Demucs stems over together as separate tracks in one editor session.
+**Audio Editor (AudioMass, multitrack)** — trim, fade, apply effects. Open a single stem directly from your library, or send all of a song's stems over together as separate tracks in one editor session.
 
-**Stem Extraction (Demucs)** — runs in-browser via ONNX, separates vocals/drums/bass/other. Each stem can be downloaded, converted to MIDI, or sent straight to the editor.
+**Stem Extraction (Demucs)** — runs server-side in its own isolated environment (see the one-time setup under Installation). Separates into 4 stems (vocals, drums, bass, other) or 6 (adding guitar and piano) — 4 is generally cleaner, 6 is for when there's a real guitar or piano worth isolating. One play button starts every stem in sync, each stem has its own mute, and each can be downloaded, converted to MIDI, or sent straight to the editor.
 
-**MIDI Conversion (basic-pitch)** — runs server-side in its own isolated environment, converts any stem to MIDI in seconds.
+**MIDI Conversion (basic-pitch)** — runs server-side in its own isolated environment, converts any stem to MIDI in seconds. A piano roll shows the notes and a built-in synthesizer plays them back; the `.mid` file can be downloaded.
+
+**Loudness Normalization** — in a song's menu, **Télécharger normalisé…** adjusts the track to a platform's integrated-LUFS target using a two-pass `ffmpeg` loudnorm (measure, then apply an exact linear correction that preserves dynamics). Presets for Spotify, YouTube, Tidal, Amazon Music, Deezer and Apple Music, or a custom target, with before/after listening.
 
 **LoRA Training** — scan your dataset, label, preprocess, and train, all from the UI.
 
