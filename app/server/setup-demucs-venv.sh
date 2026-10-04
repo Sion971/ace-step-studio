@@ -47,14 +47,28 @@ echo "=== Installation de PyTorch (CPU) ==="
 # deja le GPU pendant la generation. Un futur ajustement GPU reste
 # possible si la vitesse s'avere un vrai probleme en pratique.
 "$VENV_DIR/bin/pip" install --upgrade pip
-"$VENV_DIR/bin/pip" install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+# Versions FIGEES : jeu valide en conditions reelles sur une installation
+# neuve (separation 6 stems de bout en bout). Ce projet a deja ete casse
+# plusieurs fois par des mises a jour non figees (huggingface-hub 1.x,
+# transformers 5.x, diffusers) : un venv Demucs "toujours a la derniere
+# version" finirait par faire de meme.
+# "==2.14.1" accepte bien la roue "2.14.1+cpu" (etiquette locale ignoree).
+# torch 2.14.1 + torchaudio 2.11.0 : la combinaison effectivement testee.
+# Pour changer un numero : le modifier ici, supprimer app/server/demucs-venv,
+# relancer ce script, puis retester une separation complete avant de
+# committer.
+"$VENV_DIR/bin/pip" install "torch==2.14.1" "torchaudio==2.11.0" --index-url https://download.pytorch.org/whl/cpu
 
 echo ""
 echo "=== Installation de Demucs ==="
 # numpy explicite : pas toujours tire automatiquement comme dependance
 # transitive selon la resolution exacte, confirme en pratique
 # (ModuleNotFoundError sur demucs/transformer.py sans cette ligne).
-"$VENV_DIR/bin/pip" install demucs numpy
+# Seuls ces quatre paquets directs sont figes (avec torch/torchaudio
+# ci-dessus) : leurs dependances indirectes (huggingface-hub, sphn,
+# julius...) restent libres. Un gel complet serait possible si l'une
+# d'elles venait un jour a deriver.
+"$VENV_DIR/bin/pip" install "demucs==4.1.0" "numpy==2.4.6"
 
 echo ""
 echo "=== Verification ==="

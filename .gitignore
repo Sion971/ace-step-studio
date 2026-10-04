@@ -38,3 +38,4 @@ torchcodec/
 app/server/public/models/
 app/server/public/vendor/
 app/server/basic-pitch-venv/
+app/server/demucs-venv/
