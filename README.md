@@ -137,7 +137,7 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
 |-------------|---------------|
 | **OS** | Linux (developed on Linux Mint / Ubuntu 24.04) or Windows 10/11 |
 | **Node.js** | 22 LTS |
-| **Python** | Managed automatically by `uv` — 3.12 on Linux, 3.11 on Windows for the main environment; a separate isolated 3.11 environment on both platforms for MIDI conversion (and, on Linux, another for stem separation, created by its own setup script) |
+| **Python** | Managed automatically by `uv` — 3.12 on Linux, 3.11 on Windows for the main environment; a separate isolated 3.11 environment on both platforms for MIDI conversion (and, on Linux, another for stem separation) |
 | **NVIDIA GPU** | 4GB+ VRAM (works without LLM), 12GB+ recommended (with LLM) |
 | **CUDA compiler (`nvcc`)** | Linux only, 12.8+ if you want `flash-attn` on Blackwell (RTX 50-series) — older cards work with older `nvcc` too, the installer checks and falls back to SDPA if not. Windows uses a prebuilt `flash-attn` wheel instead, no local compiler needed |
 | **FFmpeg, libsndfile** | Installed automatically by the installer if missing |
@@ -155,12 +155,9 @@ git clone https://github.com/Sion971/ace-step-studio.git
 cd ace-step-studio
 
 # 2. Run the installer — handles GPU detection, PyTorch, dependencies,
-#    database migration, and the isolated MIDI conversion environment
+#    database migration, and the isolated MIDI conversion and stem
+#    separation environments
 ./install.sh
-
-# 2b. Optional — stem separation has its own isolated environment, set up
-#     separately for now (needs python3.11, which step 2 already provides)
-(cd app/server && ./setup-demucs-venv.sh)
 
 # 3. Start everything (frontend + backend + AI engine) in one terminal
 ./run.sh
@@ -205,7 +202,7 @@ cd ace-step-studio
 ./install.sh
 ```
 
-The installer walks through thirteen steps, all self-checking and safe to re-run:
+The installer walks through fourteen steps, all self-checking and safe to re-run:
 
 1. System dependencies (FFmpeg, libsndfile) via apt, only if missing
 2. Working directory structure
@@ -221,15 +218,14 @@ The installer walks through thirteen steps, all self-checking and safe to re-run
 11. Frontend build
 12. Database migration (playlist/workspace schema) — idempotent, safe on every reinstall
 13. Isolated `basic-pitch` environment for MIDI conversion (Python 3.11 via deadsnakes PPA)
+14. Isolated Demucs environment for stem separation — delegates to `app/server/setup-demucs-venv.sh`, which creates `app/server/demucs-venv` (isolated from ACE-Step's pinned PyTorch/NumPy) and pre-downloads the 6-stem model so the first separation isn't slow. Skipped on re-runs if the environment already works; if it fails, the rest of the install still completes
 
-The installer does not create the stem separation environment yet. After it finishes, run its setup script once:
+To redo that environment on its own at any time:
 
 ```bash
 cd app/server
 ./setup-demucs-venv.sh
 ```
-
-It creates `app/server/demucs-venv` (isolated from ACE-Step's pinned PyTorch/NumPy) and pre-downloads the 6-stem model, so the first separation isn't slow. If you skip it, the stem button shows an error pointing back to this script.
 
 </details>
 
@@ -316,7 +312,7 @@ Generate several variations of the same prompt in one pass to compare results qu
 
 **Audio Editor (AudioMass, multitrack)** — trim, fade, apply effects. Open a single stem directly from your library, or send all of a song's stems over together as separate tracks in one editor session.
 
-**Stem Extraction (Demucs)** — runs server-side in its own isolated environment (see the one-time setup under Installation). Separates into 4 stems (vocals, drums, bass, other) or 6 (adding guitar and piano) — 4 is generally cleaner, 6 is for when there's a real guitar or piano worth isolating. One play button starts every stem in sync, each stem has its own mute, and each can be downloaded, converted to MIDI, or sent straight to the editor.
+**Stem Extraction (Demucs)** — runs server-side in its own isolated environment (created by the Linux installer; no Windows equivalent yet). Separates into 4 stems (vocals, drums, bass, other) or 6 (adding guitar and piano) — 4 is generally cleaner, 6 is for when there's a real guitar or piano worth isolating. One play button starts every stem in sync, each stem has its own mute, and each can be downloaded, converted to MIDI, or sent straight to the editor.
 
 **MIDI Conversion (basic-pitch)** — runs server-side in its own isolated environment, converts any stem to MIDI in seconds. A piano roll shows the notes and a built-in synthesizer plays them back; the `.mid` file can be downloaded.
 

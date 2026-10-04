@@ -34,7 +34,7 @@ export TMP="$SCRIPT_DIR/temp"
 # === 0. Dépendances système ==================================================
 # FFmpeg et libsndfile sont testés séparément : sur une machine où FFmpeg est
 # déjà présent, la branche unique d'origine sautait aussi libsndfile1.
-echo "[1/13] Dépendances système..."
+echo "[1/14] Dépendances système..."
 
 MISSING_PKGS=""
 command -v ffmpeg &> /dev/null || MISSING_PKGS="$MISSING_PKGS ffmpeg"
@@ -55,7 +55,7 @@ if command -v ffmpeg &> /dev/null; then
 fi
 
 # === 1. Arborescence =========================================================
-echo "[2/13] Création des répertoires de travail..."
+echo "[2/14] Création des répertoires de travail..."
 mkdir -p downloads temp models cache output
 mkdir -p app/data app/server/public/audio
 
@@ -150,7 +150,7 @@ if ! command -v uv &> /dev/null; then
     source "$HOME/.local/bin/env" 2>/dev/null || true
 fi
 
-echo "[3/13] Environnement virtuel Python 3.12.3..."
+echo "[3/14] Environnement virtuel Python 3.12.3..."
 if [ -d ".venv" ]; then
     echo "Suppression de l'ancien venv pour un reset propre..."
     rm -rf .venv
@@ -160,11 +160,11 @@ uv venv --python 3.12.3 .venv
 source .venv/bin/activate
 
 # === 4. Outils de build ======================================================
-echo "[4/13] Outils de build (hatchling, cmake, ninja)..."
+echo "[4/14] Outils de build (hatchling, cmake, ninja)..."
 uv pip install hatchling editables cmake "ninja>=1.13.0" setuptools wheel
 
 # === 5. PyTorch ==============================================================
-echo "[5/13] PyTorch 2.11.0 EXPERIMENTAL ($CUDA_NAME)..."
+echo "[5/14] PyTorch 2.11.0 EXPERIMENTAL ($CUDA_NAME)..."
 # Variante experimentale : torch 2.11.0, plus recent que l'installation
 # standard. La combinaison huggingface-hub<1.0 (voir plus bas) +
 # torchao dans la serie 0.17.x + diffusers==0.40.0 fonctionne
@@ -212,12 +212,12 @@ fi
 # ATTENTION : --index-url ci-dessus REMPLACE PyPI. Ce paquet doit donc être
 # installé dans un appel séparé, sans index-url, pour être trouvé sur PyPI.
 if [ "$CUDA_VERSION" != "cpu" ]; then
-    echo "[5b/13] NVIDIA NPP (requis par torchcodec)..."
+    echo "[5b/14] NVIDIA NPP (requis par torchcodec)..."
     uv pip install nvidia-npp-cu12
 fi
 
 # === 6. Dépendances Python d'ACE-Step ========================================
-echo "[6/13] Dépendances ACE-Step..."
+echo "[6/14] Dépendances ACE-Step..."
 
 if [ -d "ACE-Step-1.5/acestep/third_parts/nano-vllm" ]; then
     uv pip install -e ACE-Step-1.5/acestep/third_parts/nano-vllm/
@@ -373,7 +373,7 @@ if [ -d "ACE-Step-1.5" ]; then
     uv pip install -e ACE-Step-1.5/ --no-deps
 fi
 
-echo "[7/13] Correctif pytorch_wavelets (pkg_resources)..."
+echo "[7/14] Correctif pytorch_wavelets (pkg_resources)..."
 # pytorch_wavelets (dependance de DCW, voir DCW.md) utilise encore
 # "from pkg_resources import resource_stream" pour charger ses coefficients
 # de filtres. Depuis setuptools 82 (8 fevrier 2026), pkg_resources n'est
@@ -410,7 +410,7 @@ fi
 
 # === 7. Vérification torchcodec ==============================================
 # Test précoce : mieux vaut échouer ici qu'au premier fichier audio généré.
-echo "[8/13] Vérification de torchcodec..."
+echo "[8/14] Vérification de torchcodec..."
 if [ "$CUDA_VERSION" != "cpu" ]; then
     if .venv/bin/python -c "import torchcodec" 2>/dev/null; then
         echo "  OK — torchcodec se charge correctement."
@@ -422,7 +422,7 @@ if [ "$CUDA_VERSION" != "cpu" ]; then
 fi
 
 # === 8. Node.js ==============================================================
-echo "[9/13] Vérification de Node.js..."
+echo "[9/14] Vérification de Node.js..."
 if ! command -v node &> /dev/null; then
     echo "ERREUR: Node.js n'est pas installé. Veuillez installer Node.js 22 LTS."
     exit 1
@@ -430,14 +430,14 @@ fi
 echo "  Node.js $(node -v)"
 
 # === 9. npm & build frontend =================================================
-echo "[10/13] Dépendances npm (frontend et serveur)..."
+echo "[10/14] Dépendances npm (frontend et serveur)..."
 (cd app && npm install)
 (cd app/server && npm install)
 
-echo "[11/13] Compilation du frontend..."
+echo "[11/14] Compilation du frontend..."
 (cd app && npx vite build)
 
-echo "[12/13] Migration base de données (séparation Playlists/Espaces de travail)..."
+echo "[12/14] Migration base de données (séparation Playlists/Espaces de travail)..."
 # La colonne 'kind' est desormais ajoutee directement dans
 # app/server/src/db/migrate.ts, qui s'execute automatiquement et de facon
 # fiable a CHAQUE demarrage de run.sh — plus besoin de ce script separe.
@@ -451,7 +451,7 @@ echo "[12/13] Migration base de données (séparation Playlists/Espaces de trava
 # construction face a ce genre de probleme de timing.
 echo "  Geree automatiquement au demarrage de run.sh — rien a faire ici."
 
-echo "[13/13] Environnement basic-pitch (conversion audio -> MIDI)..."
+echo "[13/14] Environnement basic-pitch (conversion audio -> MIDI)..."
 # Venv Python ISOLE, distinct de .venv (ACE-Step) — evite tout conflit avec
 # ses versions figees de torch/torchaudio/numpy. basic-pitch exige
 # tensorflow<2.15.1 (meme avec l'extra [onnx]), sans roue compatible Python
@@ -509,6 +509,33 @@ if [ "$AUDIOMASS_OK" = true ]; then
     echo "  OK — éditeur audio correctement en place."
 fi
 
+
+echo "[14/14] Environnement Demucs (séparation de stems)..."
+# Venv Python ISOLE pour Demucs, distinct de .venv (ACE-Step) ET de celui de
+# basic-pitch — meme raison : eviter tout conflit avec les versions figees de
+# torch/numpy qu'ACE-Step exige. Python 3.11 est deja garanti par l'etape 13.
+#
+# Delegue a app/server/setup-demucs-venv.sh (utilisable seul aussi) plutot que
+# de dupliquer sa logique ici : une seule source de verite pour cette install.
+#
+# Idempotent : sans-op si l'environnement existant fonctionne deja. Comme pour
+# basic-pitch, un echec n'arrete pas l'installation — le reste de
+# l'application reste utilisable sans la separation de stems.
+DEMUCS_VENV="app/server/demucs-venv"
+if [ -x "$DEMUCS_VENV/bin/python3" ] && "$DEMUCS_VENV/bin/python3" -c "import demucs.api" 2>/dev/null; then
+    echo "  OK — environnement Demucs déjà en place."
+else
+    # Absent ou casse : on repart de zero. Sans ca, le script de setup poserait
+    # une question interactive ("le supprimer et recommencer ?") qui
+    # bloquerait l'installateur.
+    rm -rf "$DEMUCS_VENV"
+    if bash app/server/setup-demucs-venv.sh; then
+        echo "  OK — Demucs installé."
+    else
+        echo "  ATTENTION : l'installation de Demucs ne s'est pas terminée correctement."
+        echo "  Vérifie ta connexion, puis relance : cd app/server && ./setup-demucs-venv.sh"
+    fi
+fi
 
 echo "$CUDA_VERSION" > cuda_version.txt
 

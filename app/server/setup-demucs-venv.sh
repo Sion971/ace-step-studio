@@ -51,7 +51,10 @@ echo "=== Installation de PyTorch (CPU) ==="
 
 echo ""
 echo "=== Installation de Demucs ==="
-"$VENV_DIR/bin/pip" install demucs
+# numpy explicite : pas toujours tire automatiquement comme dependance
+# transitive selon la resolution exacte, confirme en pratique
+# (ModuleNotFoundError sur demucs/transformer.py sans cette ligne).
+"$VENV_DIR/bin/pip" install demucs numpy
 
 echo ""
 echo "=== Verification ==="
