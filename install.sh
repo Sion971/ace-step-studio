@@ -12,6 +12,7 @@ set -e
 echo "========================================"
 echo "   ACE-Step Studio - Install (Linux)"
 echo "========================================"
+echo ""
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -152,38 +153,44 @@ echo "[4/14] Outils de build (hatchling, cmake, ninja)..."
 uv pip install hatchling editables cmake "ninja>=1.13.0" setuptools wheel
 
 # === 5. PyTorch ==============================================================
-echo "[5/14] PyTorch 2.10.0 ($CUDA_NAME)..."
-# Torch 2.11.0 teste puis abandonne comme base par defaut : necessite
-# torchao>=0.17.0, dont la structure de tenseurs quantifies (Int8Tensor)
-# est incompatible avec le motif de dechargement CPU/GPU utilise par
-# ACE-Step-1.5, provoquant un plantage bloquant sur tout GPU <20 Go de
-# VRAM (chemin ou la quantification s'active automatiquement — voir
-# TROUBLESHOOTING.md et l'issue signalee en amont). torch 2.11.0 reste
-# disponible en variante experimentale separee (install2.11.0.sh),
-# reservee aux cartes >=20 Go de VRAM ou la quantification ne
-# s'active jamais, evitant ce probleme entierement.
+echo "[5/14] PyTorch 2.11.0 ($CUDA_NAME)..."
+# Base unique Linux : torch 2.11.0. L'ancienne base torch 2.10.0 +
+# torchao 0.16 a ete retiree : sa roue flash-attn precompilee
+# (torch2.10) n'existe pas dans la release v0.9.4 (404), d'ou une
+# compilation longue a chaque installation. La combinaison
+# huggingface-hub<1.0 (voir plus bas) +
+# torchao dans la serie 0.17.x + diffusers==0.40.0 fonctionne
+# desormais correctement, quantification comprise — confirme en
+# pratique sur 8 Go de VRAM, generation complete reussie sans erreur.
+# Aucune restriction de VRAM minimale n'est necessaire avec ces
+# versions precises.
+#
+# torchvision/torchcodec volontairement NON epingles (voir l'incident
+# deja rencontre cote Windows avec un pin explicite devenu incompatible)
+# — le resolveur de pip choisit la version compagnon correcte de
+# torch==2.11.0. torchaudio EST epingle, a l'inverse, deliberement : le
+# projet est en fin de vie a partir de torch 2.11 (torchaudio 2.11.0 est
+# la DERNIERE version jamais publiee, ABI stable, fonctionnelle avec
+# toutes les versions futures sans nouvelle publication necessaire).
 #
 # Installation via pip CLASSIQUE, pas uv, pour ce paquet precis — uv
 # echouait de facon reproductible avec "The wheel is invalid: Invalid
 # Wheel-Version in WHEEL file: None" sur nvidia-nccl-cu12, une roue NVIDIA
-# tierce dont le format semble declencher un bug de validation cote uv
-# (ce correctif reste valable independamment de la version de torch).
+# tierce dont le format semble declencher un bug de validation cote uv.
 uv pip install --upgrade pip
 if [ "$CUDA_VERSION" = "cpu" ]; then
-    # torchao 0.16.0 est le seul compatible avec torch 2.10.0 selon sa
-    # propre table officielle (0.17.0+ exige torch 2.11.0+).
     .venv/bin/python -m pip install \
-        torch==2.10.0 \
-        torchvision==0.25.0 \
-        torchaudio==2.10.0 \
-        torchcodec==0.10.0 \
+        torch==2.11.0 \
+        torchvision \
+        torchaudio==2.11.0 \
+        torchcodec \
         --index-url https://download.pytorch.org/whl/cpu
 else
     .venv/bin/python -m pip install \
-        torch==2.10.0 \
-        torchvision==0.25.0 \
-        torchaudio==2.10.0 \
-        torchcodec==0.10.0 \
+        torch==2.11.0 \
+        torchvision \
+        torchaudio==2.11.0 \
+        torchcodec \
         --index-url https://download.pytorch.org/whl/$CUDA_VERSION
 fi
 
@@ -229,7 +236,7 @@ if [ "$FLASH_ATTN_OK" = true ] && [ "$CUDA_VERSION" = "cu128" ] && [ "$FLASH_ATT
     # quelconque, repli silencieux sur la compilation habituelle
     # ci-dessous (FLASH_ATTN_PREBUILT_DONE reste false).
     echo "  Blackwell detecte — tentative de roue flash-attn precompilee..."
-    FLASH_WHEEL_URL="https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.4/flash_attn-2.8.3+cu128torch2.10-cp312-cp312-linux_x86_64.whl"
+    FLASH_WHEEL_URL="https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.4/flash_attn-2.8.3+cu128torch2.11-cp312-cp312-linux_x86_64.whl"
     if uv pip install "$FLASH_WHEEL_URL"; then
         echo "  OK — flash-attn installe via roue precompilee (pas de compilation)."
         FLASH_ATTN_PREBUILT_DONE=true
@@ -324,58 +331,35 @@ if [ "$FLASH_ATTN_OK" = true ]; then
 fi
 
 # torch, torchaudio et torchcodec sont déjà installés plus haut depuis l'index
-# PyTorch : ils sont volontairement absents de cette liste.
-uv pip install "transformers>=4.51.0,<4.58.0" diffusers gradio==6.2.0 matplotlib \
+# PyTorch : ils sont volontairement absents de cette liste. diffusers est
+# EGALEMENT absent d'ici — installe separement juste en dessous avec
+# --no-deps (voir ce commentaire pour le pourquoi).
+uv pip install "transformers>=4.51.0,<4.58.0" "huggingface-hub<1.0" gradio==6.2.0 matplotlib \
     scipy soundfile loguru einops accelerate fastapi diskcache "uvicorn[standard]" \
-    numba vector-quantize-pytorch "torchao>=0.16.0,<0.17.0" toml peft modelscope \
+    numba vector-quantize-pytorch "torchao>=0.17.0,<0.18.0" toml peft modelscope \
     tensorboard typer-slim hf_transfer hf_xet lightning lycoris-lora safetensors \
     xxhash "pytorch-wavelets>=1.3.0" "pywavelets>=1.9.0" "bitsandbytes>=0.50.0"
 
-if [ "$FLASH_ATTN_ARCH" -ge 120 ] 2>/dev/null && command -v nvcc &> /dev/null; then
-    # torchao 0.16.0, compile depuis les sources avec ciblage explicite
-    # sm_120 (Blackwell) — OPTIONNEL, tente une amelioration par rapport
-    # au torchao>=0.16.0,<0.17.0 deja installe ci-dessus (roue generique,
-    # deja fonctionnelle) : confirme en pratique sans l'avertissement
-    # cosmetique "Unable to import torchao Tensor objects" que la roue
-    # generique affiche encore, et cible nativement le GPU exact plutot
-    # qu'une roue generique multi-architecture.
-    # Sans danger d'echouer : en cas de probleme quelconque (reseau,
-    # compilation, permissions...), le torchao 0.16.0 (roue generique)
-    # deja installe ci-dessus reste en place, deja confirme fonctionnel.
-    echo ""
-    echo "Blackwell detecte — tentative de compilation torchao 0.16.0 (sm_120 natif)..."
-    TORCHAO_BUILD_DIR=$(mktemp -d)
-    if git clone --branch v0.16.0 --depth 1 https://github.com/pytorch/ao.git "$TORCHAO_BUILD_DIR" 2>/dev/null; then
-        # Corrige un SyntaxWarning present sous Python 3.12 : un antislash
-        # litteral (\.) dans une docstring triple-guillemets, interprete
-        # comme sequence d'echappement invalide sans prefixe r""". Motif
-        # de recherche plutot que numero de ligne fixe, plus resistant a
-        # un futur decalage de lignes dans le fichier amont.
-        sed -i 's/^\(\s*\)"""Configuration class for applying different quantization configs/\1r"""Configuration class for applying different quantization configs/' \
-            "$TORCHAO_BUILD_DIR/torchao/quantization/quant_api.py" 2>/dev/null
-        CUDA_HOME_DETECTED=$(dirname "$(dirname "$(command -v nvcc)")")
-        if (
-            cd "$TORCHAO_BUILD_DIR" && \
-            VERSION_SUFFIX="+cu128" \
-            TORCH_CUDA_ARCH_LIST="12.0" \
-            MAX_JOBS=2 \
-            CUDA_HOME="$CUDA_HOME_DETECTED" \
-            uv build --wheel --out-dir dist/ --no-build-isolation --python "$SCRIPT_DIR/.venv/bin/python"
-        ); then
-            TORCHAO_WHEEL=$(find "$TORCHAO_BUILD_DIR/dist" -name "torchao-*.whl" | head -1)
-            if [ -n "$TORCHAO_WHEEL" ] && uv pip install "$TORCHAO_WHEEL" --force-reinstall; then
-                echo "  OK — torchao compile nativement pour sm_120 installe."
-            else
-                echo "  ATTENTION : echec d'installation de la roue compilee — torchao 0.16.0 (roue generique) reste actif."
-            fi
-        else
-            echo "  ATTENTION : echec de compilation — torchao 0.16.0 (roue generique) reste actif."
-        fi
-    else
-        echo "  ATTENTION : clonage impossible (reseau ?) — torchao 0.16.0 (roue generique) reste actif."
-    fi
-    rm -rf "$TORCHAO_BUILD_DIR"
-fi
+# diffusers==0.40.0 installe avec --no-deps, DELIBEREMENT : ses propres
+# metadonnees exigent huggingface-hub>=1.23.0,<2.0 (confirme directement
+# par le refus explicite d'uv, "No solution found when resolving
+# dependencies", des que diffusers est inclus dans une resolution
+# combinee avec huggingface-hub<1.0 ci-dessus — impossible a satisfaire
+# simultanement selon les regles strictes du resolveur). En pratique
+# cependant, diffusers 0.40.0 fonctionne correctement avec
+# huggingface-hub 0.36.x pour l'usage d'ACE-Step-1.5 (generation
+# complete reussie, XL Turbo BF16) — la partie de son code qui
+# necessiterait reellement huggingface-hub>=1.23.0 n'est simplement
+# jamais exercee par ce pipeline. --no-deps permet d'obtenir le code de
+# diffusers 0.40.0 sans que sa propre contrainte, plus stricte que ce
+# qui est reellement necessaire ici, ne bloque toute la resolution.
+# Ses AUTRES dependances (Pillow, safetensors, accelerate, filelock,
+# numpy, regex...) sont deja couvertes par les lignes ci-dessus et par
+# torch/transformers, installes avant ce point.
+# Meme principe deja utilise dans ce script pour nano-vllm et ace-step
+# lui-meme (voir plus haut / plus bas) — compromis de dependances
+# assume : a re-verifier si diffusers ou huggingface-hub evoluent.
+uv pip install "diffusers==0.40.0" --no-deps
 
 if [ -d "ACE-Step-1.5" ]; then
     uv pip install -e ACE-Step-1.5/ --no-deps
