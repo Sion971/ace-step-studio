@@ -32,6 +32,7 @@ import renderVideoRoutes from './routes/render-video.js';
 import toolsRoutes from './routes/tools.js';
 import midiRoutes from './routes/midi.js';
 import demucsRoutes from './routes/demucs.js';
+import loudnormRoutes from './routes/loudnorm.js';
 import audioEditorRoutes from './routes/audio-editor.js';
 import { pipelineManager } from './services/pipeline-manager.js';
 import { pool } from './db/pool.js';
@@ -550,6 +551,7 @@ app.use('/api/render-video', express.json({ limit: '500mb' }), renderVideoRoutes
 app.use('/api/tools', toolsRoutes);
 app.use('/api/midi', midiRoutes);
 app.use('/api/demucs', demucsRoutes);
+app.use('/api/loudnorm', loudnormRoutes);
 app.use('/api/audio-editor', audioEditorRoutes);
 
 // GET /api/changelog — serve CHANGELOG.md as plain text

@@ -2,10 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Song } from '../types';
 import { useI18n } from '../context/I18nContext';
 import { StemSeparationModal } from './StemSeparationModal';
+import { LoudnessNormalizationModal } from './LoudnessNormalizationModal';
 import {
     Video,
     Edit3,
     Layers,
+    Gauge,
     Repeat,
     ListPlus,
     FolderPlus,
@@ -87,6 +89,7 @@ export const SongDropdownMenu: React.FC<SongDropdownMenuProps> = ({
     const { t } = useI18n();
     const menuRef = useRef<HTMLDivElement>(null);
     const [showStemModal, setShowStemModal] = useState(false);
+    const [showLoudnormModal, setShowLoudnormModal] = useState(false);
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -116,7 +119,7 @@ export const SongDropdownMenu: React.FC<SongDropdownMenuProps> = ({
     // du menu (handleExtractStems ferme le menu en l'ouvrant) — rendu
     // independamment du isOpen du menu lui-meme, jamais dans la meme
     // branche de retour anticipe.
-    if (!isOpen && !showStemModal) return null;
+    if (!isOpen && !showStemModal && !showLoudnormModal) return null;
 
     const handleAction = (action?: () => void) => {
         if (action) {
@@ -137,6 +140,12 @@ export const SongDropdownMenu: React.FC<SongDropdownMenuProps> = ({
     const handleExtractStems = () => {
         if (!song.audioUrl) return;
         setShowStemModal(true);
+        onClose();
+    };
+
+    const handleDownloadNormalized = () => {
+        if (!song.audioUrl) return;
+        setShowLoudnormModal(true);
         onClose();
     };
 
@@ -241,6 +250,15 @@ export const SongDropdownMenu: React.FC<SongDropdownMenuProps> = ({
                 label={t('download')}
                 onClick={onDownload ? () => handleAction(onDownload) : handleDownload}
             />
+            {/* Action d'export, pas de creation : placee sous "Telecharger"
+                plutot que parmi les actions creatives. Libelle hardcode,
+                comme les modaux de stems/MIDI (pas encore de cle i18n). */}
+            <MenuItem
+                icon={<Gauge size={14} />}
+                label="Télécharger normalisé…"
+                onClick={handleDownloadNormalized}
+                disabled={!song.audioUrl}
+            />
             <MenuItem
                 icon={<Share2 size={14} />}
                 label={t('share')}
@@ -266,6 +284,13 @@ export const SongDropdownMenu: React.FC<SongDropdownMenuProps> = ({
                 audioUrl={song.audioUrl}
                 songTitle={song.title}
                 onClose={() => setShowStemModal(false)}
+            />
+        )}
+        {showLoudnormModal && song.audioUrl && (
+            <LoudnessNormalizationModal
+                audioUrl={song.audioUrl}
+                songTitle={song.title}
+                onClose={() => setShowLoudnormModal(false)}
             />
         )}
         </>
