@@ -1589,8 +1589,17 @@ cartes ; `Entrée` l'accepte, un choix explicite l'emporte), calcule le palier A
 `hardware_profile.env`, que `run.sh` lit.
 
 Le palier reprend **les seuils exacts** de `acestep/gpu_config.py::get_gpu_tier`
-(`≤4`, `≤6`, `≤8`, `≤12`, `<15,5`, `<20`, `≤24` Gio ; `nvidia-smi` en Mio ÷ 1024). Vérifié
-contre cette fonction, extraite de leur code, sur 1 158 valeurs de VRAM : aucun écart.
+(`≤4`, `≤6`, `≤8`, `≤12`, `<15,5`, `<20`, `≤24` Gio). Les seuils sont vérifiés contre cette
+fonction, extraite de leur code, sur 1 158 valeurs de VRAM : aucun écart.
+
+**Quelle mesure de VRAM ?** ACE-Step lit `torch.cuda.get_device_properties(0).total_memory`, plus
+**petit** que le `memory.total` de `nvidia-smi` : sur une RTX 5060, 7,609 Gio contre 7,960
+(8151 Mio), soit 0,351 Gio (4,4 %). L'installateur affiche d'abord le palier d'après `nvidia-smi`
+(PyTorch n'est pas encore installé) ; en fin d'installation, le profil enregistre le palier calculé
+d'après **la mesure de PyTorch**, c'est-à-dire celui que le moteur verra (`HW_VRAM_TORCH_MIB`), avec
+`nvidia-smi` en repli. La **classe nominale** (8 Go pour une « 8 Go », qui choisit le modèle par
+défaut) reste calculée d'après `nvidia-smi` : un écart de 4 % ne doit pas faire passer une carte de
+8 Go sous le seuil de 8 Go du Studio.
 
 | VRAM | Palier | Modèle DiT par défaut | Modèle de langage |
 |---|---|---|---|

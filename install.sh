@@ -127,8 +127,11 @@ hw_suggest_option() {
     }'
 }
 
-# Palier ACE-Step 1.5 : MEMES seuils que acestep/gpu_config.py::get_gpu_tier (VRAM en Gio,
-# soit nvidia-smi en Mio / 1024 — c'est total_memory / 1024**3 cote PyTorch).
+# Palier ACE-Step 1.5 : MEMES seuils que acestep/gpu_config.py::get_gpu_tier (VRAM en Gio).
+# ATTENTION a la source du nombre : ACE-Step lit torch.cuda.get_device_properties(0).total_memory,
+# environ 4 % de MOINS que le memory.total de nvidia-smi (7,609 contre 7,960 Gio sur une RTX 5060).
+# Avant l'installation de PyTorch on n'a que nvidia-smi (estimation) ; le profil ecrit en fin
+# d'installation utilise la mesure de PyTorch.
 hw_ace_tier() {
     awk -v m="$1" 'BEGIN {
         g = m / 1024
@@ -774,14 +777,31 @@ echo "$CUDA_VERSION" > cuda_version.txt
 # === Profil materiel : modeles par defaut selon la VRAM ======================
 # Lu par run.sh. Fichier propre a la machine (ignore par git) : relancer install.sh pour le
 # refaire. Sans GPU (option CPU), ACE-Step applique lui-meme les limites du palier 1.
-if [ "$CUDA_VERSION" = "cpu" ]; then HW_PROFILE_VRAM_MIB=0; else HW_PROFILE_VRAM_MIB="${HW_VRAM_MIB:-0}"; fi
-HW_PROFILE_TIER=$(hw_ace_tier "$HW_PROFILE_VRAM_MIB")
+# Palier : la mesure du MOTEUR. ACE-Step lit torch.cuda.get_device_properties(0).total_memory, plus
+# petit que le memory.total de nvidia-smi (7,609 Gio contre 7,960 sur une RTX 5060, soit 4,4 %).
+# PyTorch est installe a ce stade : on l'interroge ; nvidia-smi sert de repli. La CLASSE nominale
+# (qui choisit le modele par defaut) reste calculee d'apres nvidia-smi : un ecart de 4 % ne doit pas
+# faire passer une carte de 8 Go sous le seuil de 8 Go du Studio.
+HW_PROFILE_TORCH_MIB=""
+if [ "$CUDA_VERSION" = "cpu" ]; then
+    HW_PROFILE_VRAM_MIB=0
+else
+    HW_PROFILE_VRAM_MIB="${HW_VRAM_MIB:-0}"
+    HW_PROFILE_TORCH_MIB=$(.venv/bin/python -c "import torch; print(int(torch.cuda.get_device_properties(0).total_memory // (1024 * 1024)))" 2>/dev/null || true)
+fi
+if [ -n "$HW_PROFILE_TORCH_MIB" ] && [ "$HW_PROFILE_TORCH_MIB" -gt 0 ] 2>/dev/null; then
+    HW_PROFILE_TIER=$(hw_ace_tier "$HW_PROFILE_TORCH_MIB")
+else
+    HW_PROFILE_TORCH_MIB=""
+    HW_PROFILE_TIER=$(hw_ace_tier "$HW_PROFILE_VRAM_MIB")
+fi
 HW_PROFILE_CLASS=$(hw_vram_class "$HW_PROFILE_VRAM_MIB")
 cat > hardware_profile.env <<EOF
 # Profil matériel — généré par install.sh le $(date +%Y-%m-%d). Ne pas éditer : relancer install.sh.
 # Pour imposer un autre modèle : définir DEFAULT_MODEL dans l'environnement ou dans ACE-Step-1.5/.env.
 HW_GPU_NAME="${HW_GPU_NAME:-aucun GPU NVIDIA}"
 HW_VRAM_MIB="$HW_PROFILE_VRAM_MIB"
+HW_VRAM_TORCH_MIB="$HW_PROFILE_TORCH_MIB"
 HW_VRAM_CLASS_GB="$HW_PROFILE_CLASS"
 HW_COMPUTE_CAP="${HW_COMPUTE_CAP:-}"
 HW_DRIVER_CUDA="${DRIVER_CUDA:-}"
