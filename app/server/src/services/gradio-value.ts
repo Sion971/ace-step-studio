@@ -36,3 +36,21 @@ export function dataframeRowCount(v: unknown): number {
   const frame = gv(v) as { data?: unknown } | undefined;
   return Array.isArray(frame?.data) ? (frame!.data as unknown[]).length : 0;
 }
+
+/**
+ * Message d'erreur a renvoyer au front. Le client Gradio leve un objet simple
+ * ({ type: 'status', message, ... }) et non une Error : `error instanceof Error`
+ * etait donc faux et le texte generique masquait la vraie cause.
+ */
+export function gradioErrorMessage(error: unknown, fallback: string): string {
+  let message: string | undefined;
+  if (error instanceof Error) {
+    message = error.message;
+  } else if (typeof error === 'object' && error !== null) {
+    const m = (error as { message?: unknown }).message;
+    if (typeof m === 'string') message = m;
+  }
+  message = message?.trim();
+  if (!message) return fallback;
+  return message.length > 600 ? message.slice(0, 600) + '…' : message;
+}
