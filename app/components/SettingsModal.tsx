@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, User as UserIcon, Palette, Info, Edit3, ExternalLink, Globe, ChevronDown, Github } from 'lucide-react';
+import { X, User as UserIcon, Palette, Info, Edit3, ExternalLink, Globe, ChevronDown, GitBranch } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useI18n } from '../context/I18nContext';
 import type { Language } from '../i18n/translations';
@@ -234,7 +234,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, t
                                             rel="noopener noreferrer"
                                             className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-800 dark:bg-zinc-700 text-white rounded-lg text-sm font-medium hover:bg-zinc-700 dark:hover:bg-zinc-600 transition-colors"
                                         >
-                                            <Github size={16} />
+                                            <GitBranch size={16} />
                                             GitHub Repo
                                         </a>
                                     </div>

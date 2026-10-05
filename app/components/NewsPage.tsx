@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Newspaper, X, Star, Github, FileText } from 'lucide-react';
+import { Newspaper, X, Star, GitBranch, FileText } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
 import newsData from '../data/news.json';
 
@@ -362,7 +362,7 @@ export const NewsPage: React.FC = () => {
           rel="noopener noreferrer"
           className="flex items-center gap-3 mb-6 px-5 py-4 rounded-2xl border border-zinc-200 dark:border-white/5 bg-white dark:bg-suno-card hover:border-zinc-300 dark:hover:border-white/10 transition-all group"
         >
-          <Github size={20} className="text-zinc-500 dark:text-zinc-400 flex-shrink-0" />
+          <GitBranch size={20} className="text-zinc-500 dark:text-zinc-400 flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Sion971/ace-step-studio</p>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('starRepo')}</p>
