@@ -186,13 +186,10 @@ def _download_from_huggingface_internal(
         "token": token,
     }
 
-    # For main model repo: skip DiT model weights (downloaded separately via ensure_dit_model)
+    # For main model repo: skip the folders of MAIN_REPO_ON_DEMAND (DiT weights and the 1.7B LM),
+    # fetched on demand via download_main_subfolder()
     if repo_id == MAIN_MODEL_REPO:
-        kwargs["ignore_patterns"] = [
-            "acestep-v15-turbo/*",
-            "acestep-v15-base/*",
-            "acestep-v15-sft/*",
-        ]
+        kwargs["ignore_patterns"] = [f"{folder}/*" for folder in MAIN_REPO_ON_DEMAND]
 
     snapshot_download(**kwargs)
 
@@ -317,14 +314,27 @@ SUBMODEL_REGISTRY: Dict[str, str] = {
     "acestep-v15-xl-merge-sft-turbo-bf16": "jeankassio/acestep-v15-xl-merge-sft-turbo-bf16",
 }
 
-# Components that come from the main model repo (ACE-Step/Ace-Step1.5)
+# Components of the main model repo (ACE-Step/Ace-Step1.5) that are ALWAYS required.
+# Studio: the LM is NOT one of them. acestep-5Hz-lm-0.6B lives in its own repo
+# (ACE-Step/acestep-5Hz-lm-0.6B, see SUBMODEL_REGISTRY) and is only fetched when the LM is active
+# (ensure_lm_model). Listing it here made the main model look "incomplete" whenever the LM was not
+# installed: a network call at EVERY launch, and a failure when offline with the LM disabled.
 MAIN_MODEL_COMPONENTS = [
     "vae",                     # VAE for audio encoding/decoding
     "Qwen3-Embedding-0.6B",    # Text encoder
-    "acestep-5Hz-lm-0.6B",     # Default LM model (0.6B, lightest)
 ]
 
-# Default LM model (included in main model)
+# Folders of the main repo that are NOT downloaded by default but fetched ON DEMAND
+# (download_main_subfolder). Measured sizes: acestep-v15-turbo 4.46 GB; acestep-5Hz-lm-1.7B 3.50 GB
+# (the Studio uses the 0.6B LM, so skipping the 1.7B one saves 3.5 GB for everybody).
+MAIN_REPO_ON_DEMAND = [
+    "acestep-v15-turbo",
+    "acestep-v15-base",
+    "acestep-v15-sft",
+    "acestep-5Hz-lm-1.7B",
+]
+
+# Default LM model (own repo ACE-Step/acestep-5Hz-lm-0.6B, see SUBMODEL_REGISTRY)
 DEFAULT_LM_MODEL = "acestep-5Hz-lm-0.6B"
 
 # Optional community-finetuned VAE checkpoints. Each entry maps a short
@@ -461,13 +471,13 @@ def download_main_model(
     """
     Download the main ACE-Step model from HuggingFace or ModelScope.
 
-    The main model includes:
+    The main model includes the shared components that are always required:
     - vae (audio encoder/decoder)
     - Qwen3-Embedding-0.6B (text encoder)
-    - acestep-5Hz-lm-0.6B (default LM model)
 
-    DiT model weights are skipped here and downloaded separately via
-    ensure_dit_model() to allow flexible model selection.
+    The DiT weights (acestep-v15-turbo/base/sft) and the 1.7B LM are skipped here and fetched on
+    demand (ensure_dit_model() / ensure_lm_model() -> download_main_subfolder()). The 0.6B LM lives
+    in its own repo (SUBMODEL_REGISTRY). Note: the ModelScope path downloads the whole repository.
 
     Args:
         checkpoints_dir: Custom checkpoints directory (optional)
@@ -599,6 +609,60 @@ def download_all_models(
     return all_success, messages
 
 
+def download_main_subfolder(
+    folder: str,
+    checkpoints_dir: Optional[Path] = None,
+    token: Optional[str] = None,
+) -> Tuple[bool, str]:
+    """
+    Download ONE folder of the main repo (ACE-Step/Ace-Step1.5), without the rest.
+
+    Used for the folders of MAIN_REPO_ON_DEMAND (e.g. the 2B turbo DiT, 4.46 GB). HuggingFace only:
+    the ModelScope path of download_main_model() downloads the whole repository, so these folders
+    are already present there.
+
+    Args:
+        folder: Folder name, one of MAIN_REPO_ON_DEMAND
+        checkpoints_dir: Custom checkpoints directory (optional)
+        token: HuggingFace token for private repos (optional)
+
+    Returns:
+        Tuple of (success, message)
+    """
+    if folder not in MAIN_REPO_ON_DEMAND:
+        return False, f"'{folder}' is not an on-demand folder of {MAIN_MODEL_REPO}"
+    if checkpoints_dir is None:
+        checkpoints_dir = get_checkpoints_dir()
+    elif isinstance(checkpoints_dir, str):
+        checkpoints_dir = Path(checkpoints_dir)
+    checkpoints_dir.mkdir(parents=True, exist_ok=True)
+    target = checkpoints_dir / folder
+    if _contains_model_weights(target):
+        return True, f"'{folder}' already exists at {target}"
+
+    print(f"Downloading {folder} from {MAIN_MODEL_REPO}...")
+    print(f"Destination: {target}")
+    try:
+        from huggingface_hub import snapshot_download
+
+        snapshot_download(
+            repo_id=MAIN_MODEL_REPO,
+            local_dir=str(checkpoints_dir),
+            allow_patterns=[f"{folder}/*"],
+            token=token,
+        )
+    except Exception as e:
+        logger.error(f"[Model Download] Failed to download {folder}: {e}")
+        return False, f"Failed to download '{folder}' from {MAIN_MODEL_REPO}: {e}"
+    if not _contains_model_weights(target):
+        return False, f"Downloaded {MAIN_MODEL_REPO}/{folder} but found no model weights in {target}"
+    if folder in _CHECKPOINT_TO_VARIANT:
+        synced = _sync_model_code_files(folder, checkpoints_dir)
+        if synced:
+            logger.info(f"[Model Download] Synced code files for {folder}: {synced}")
+    return True, f"Successfully downloaded {folder} from HuggingFace: {MAIN_MODEL_REPO}"
+
+
 def ensure_main_model(
     checkpoints_dir: Optional[Path] = None,
     token: Optional[str] = None,
@@ -660,6 +724,10 @@ def ensure_lm_model(
     if check_model_exists(model_name, checkpoints_dir):
         return True, f"LM model '{model_name}' is available"
 
+    # The 1.7B LM is a folder of the main repo, skipped by default (3.5 GB): fetch it on demand.
+    if model_name == "acestep-5Hz-lm-1.7B":
+        return download_main_subfolder(model_name, checkpoints_dir, token=token)
+
     # Check if this is a known LM model
     if model_name not in SUBMODEL_REGISTRY:
         # Check if it might be a variant name
@@ -703,9 +771,15 @@ def ensure_dit_model(
     if check_model_exists(model_name, checkpoints_dir):
         return True, f"DiT model '{model_name}' is available"
 
-    # Check if this is the default turbo model (part of main)
+    # Default 2B turbo model: a folder of the main repo, fetched ON DEMAND. ensure_main_model() only
+    # guarantees the shared components (VAE, text encoder); it never fetches the DiT, which
+    # download_main_model() skips. Answering "Main model is available" here left the DiT weights
+    # missing, and the DiT initialisation then failed.
     if model_name == "acestep-v15-turbo":
-        return ensure_main_model(checkpoints_dir, token, prefer_source)
+        ok, msg = ensure_main_model(checkpoints_dir, token, prefer_source)
+        if not ok:
+            return ok, msg
+        return download_main_subfolder("acestep-v15-turbo", checkpoints_dir, token=token)
 
     # Check if it's a known sub-model
     if model_name in SUBMODEL_REGISTRY:

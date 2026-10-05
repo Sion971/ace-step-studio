@@ -1630,9 +1630,34 @@ dit avant d'installer et demande confirmation pour continuer (voir aussi les pla
   ACE-Step pour le palier est notée dans le profil (`HW_ACE_RECOMMENDED_LM`) à titre informatif.
 - Pour les paliers 3 et 4, garder `xl-turbo-bf16` s'écarte du tableau amont (XL non pris en
   charge sous 12 Go) : c'est le choix du Studio, validé en pratique sur 8 Go.
-- Le téléchargement n'est pas encore réglé par palier. Le dépôt principal d'ACE-Step
-  contient `acestep-v15-turbo` **et** le LM 1,7B (`INSTALL.md`) : sur une carte de 6 Go ou
-  moins, un téléchargement par défaut pourrait récupérer un LM inutilisable. Comment le
-  Studio déclenche ce téléchargement n'a pas été vérifié.
+- **Téléchargement des modèles.** Il se déclenche au premier lancement, dans ACE-Step
+  (`initialize_service` : paquet principal, puis DiT demandé ; le LM seulement s'il est actif),
+  pas dans `run.sh`. Le bouton de l'interface et `download_model.sh` ne gèrent que les modèles XL.
+  Le profil règle donc ce qui est téléchargé : DiT par défaut, LM actif ou non. Composition
+  **mesurée** du dépôt `ACE-Step/Ace-Step1.5` (tailles en Go décimaux, comme les affiche Hugging Face) :
+  turbo 2B 4,79 Go, LM 1,7B 3,76 Go, encodeur de texte 1,20 Go, VAE 0,34 Go ; le LM 0,6B a son
+  propre dépôt.
+
+  Trois défauts du téléchargeur embarqué (`ACE-Step-1.5/acestep/model_downloader.py`, modifié au
+  portage Linux), constatés en simulant le premier lancement avec le vrai code : (1) le DiT turbo
+  2B n'était **jamais** téléchargé — le paquet principal l'exclut, et `ensure_dit_model` répondait
+  « Main model is available » sans regarder les poids : le chargement échouait sur toute carte de
+  moins de 8 Go ; (2) le LM 1,7B, inutilisé par le Studio, était téléchargé pour tout le monde ;
+  (3) le paquet principal exigeait le LM 0,6B, absent de ce dépôt : jamais « complet » quand le LM
+  est désactivé, donc un appel réseau à chaque lancement et un échec hors ligne. Corrigé : le
+  paquet principal se réduit au VAE et à l'encodeur de texte ; le turbo 2B et le LM 1,7B se
+  téléchargent à la demande (`download_main_subfolder`). Volume du premier lancement (en Go décimaux ; le profil, lui, raisonne en Gio de VRAM) :
+
+  | Profil | Avant | Après |
+  |---|---|---|
+  | ≤ 6 Gio (turbo 2B, sans LM) | 5,3 Go, DiT absent : échec | ≈ 6,3 Go |
+  | 6–8 Gio (turbo 2B, LM 0,6B) | 6,5 Go, DiT absent : échec | ≈ 7,5 Go |
+  | ≥ 8 Gio (XL BF16, LM 0,6B) | ≈ 15,8 Go | ≈ 12,0 Go |
+
+  Le LM 0,6B (≈ 1,2 Go) est une estimation (0,6 milliard de paramètres sur 2 octets) ; le XL BF16
+  (9,3 Go) est la taille annoncée par le Studio. Validé par un vrai téléchargement du DiT 2B
+  (6,3 Go mesurés : paquet principal en 14 fichiers sans turbo ni LM 1,7B, puis le turbo seul). Le chemin ModelScope, inchangé, télécharge le dépôt
+  entier. Contournement manuel, si besoin :
+  `hf download ACE-Step/Ace-Step1.5 --include "acestep-v15-turbo/*" --local-dir ACE-Step-1.5/checkpoints`.
 - Logique simulée avec un `nvidia-smi` factice (18 cartes, parcours de menu, priorités de
   `run.sh`) ; non passée sur une machine réellement équipée d'une petite carte.
