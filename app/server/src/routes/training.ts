@@ -4,6 +4,7 @@ import { pipelineManager } from '../services/pipeline-manager.js';
 import { Router, Request, Response } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { getGradioClient } from '../services/gradio-client.js';
+import { parseDatasetSettings } from '../services/dataset-settings.js';
 import { gv, dataframeRowCount, gradioErrorMessage } from '../services/gradio-value.js';
 import { healDatasetAudioPaths } from '../services/dataset-paths.js';
 import { config } from '../config/index.js';
@@ -772,10 +773,40 @@ router.post('/save-sample', authMiddleware, async (req: AuthenticatedRequest, re
   }
 });
 
-// POST /api/training/update-settings — Update dataset global settings
-// Settings are applied directly when saving (via REST API), so no Gradio call needed here.
-router.post('/update-settings', authMiddleware, (_req: AuthenticatedRequest, res: Response) => {
-  res.json({ success: true });
+// POST /api/training/update-settings — Appliquer les réglages du dataset (étiquette
+// d'activation, position, « tout instrumental », ratio de genre) à la session Gradio.
+//
+// Ces réglages vivent dans le builder_state de la session Python. Dans l'interface Gradio
+// d'ACE-Step, update_settings est branché sur l'événement .change de chaque champ, et
+// save_dataset ne reçoit AUCUN réglage : il écrit l'état tel quel. Cette route renvoyait
+// { success: true } sans rien faire (le commentaire d'origine supposait une écriture « via
+// REST » qui n'existe plus) : les réglages n'atteignaient donc jamais le JSON sauvegardé
+// ni le prétraitement.
+// Limites d'ACE-Step : une étiquette vide est ignorée (on ne peut pas effacer une étiquette
+// déjà posée), et sans dataset chargé il n'y a rien à mettre à jour.
+router.post('/update-settings', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const settings = parseDatasetSettings(req.body);
+    if ('error' in settings) {
+      res.status(400).json({ error: settings.error });
+      return;
+    }
+
+    // Ordre = signature de update_settings(custom_tag, tag_position, all_instrumental, genre_ratio) ;
+    // le builder_state (gr.State) n'est pas un paramètre d'API.
+    const client = await getGradioClient();
+    await client.predict('/update_settings', [
+      settings.customTag,
+      settings.tagPosition,
+      settings.allInstrumental,
+      settings.genreRatio,
+    ]);
+
+    res.json({ success: true, applied: settings });
+  } catch (error) {
+    console.error('[Training] Update settings error:', error);
+    res.status(500).json({ error: gradioErrorMessage(error, 'Failed to update settings') });
+  }
 });
 
 // POST /api/training/save-dataset — Save the dataset to a JSON file
