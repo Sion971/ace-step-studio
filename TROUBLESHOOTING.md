@@ -1,7 +1,8 @@
 # TROUBLESHOOTING — ACE-Step Studio (portage Linux)
 
 Problèmes rencontrés lors du portage sous Linux Mint 22 (Ubuntu 24.04),
-RTX 5060 8 Go, PyTorch 2.10.0+cu128, Python 3.12.3.
+RTX 5060 8 Go, PyTorch 2.10.0+cu128 à l'origine (aujourd'hui 2.11.0+cu128 ou
+2.14.1+cu130 selon la pile choisie, voir §33), Python 3.12.3.
 
 Le dépôt amont (`timoncool/ACE-Step-Studio`) ne fournit que des scripts
 Windows (`.bat`). Les problèmes ci-dessous sont propres au portage ou à la
@@ -237,6 +238,15 @@ samples » puis « Éditer l'échantillon (1/0) ».
 
 **Correctif.** Déballer côté serveur avant de renvoyer au front. Voir
 `app/server/src/services/gradio-value.ts` (`gv()`, `dataframeRowCount()`).
+
+**Mise à jour (04/10).** Ce correctif était décrit ici, mais `gradio-value.ts`
+n'existait **pas** dans le dépôt : `training.ts` recopiait toujours `data[i]` tel
+quel (66 lectures brutes, dont le code fautif cité ci-dessus). Il est désormais
+réellement appliqué : 65 lectures enveloppées dans `gv()`, comptage par
+`dataframeRowCount()`. `gv()` rend la valeur d'une sortie, la *nouvelle* valeur d'un
+`gr.update(value=…)`, ou `undefined` pour un `gr.update()` sans valeur (que
+`JSON.stringify` omet) ; `0`, `''` et `false` restent des valeurs. Même défaut dans
+une autre route ? Utiliser ce helper, pas un nouveau contournement.
 
 ---
 
@@ -1384,3 +1394,227 @@ la cause exacte — mais celle-ci reste à élucider si elle se reproduit.
 divergent de la forme canonique), cause différente cette fois.
 Décoder la boucle une seule fois vers un tableau d'images serait la bonne
 approche.
+
+---
+
+## 30. Dataset copié d'une autre installation — chemins audio périmés
+
+**Symptôme.** Après avoir copié `datasets/` d'une installation à une autre,
+« Charger » échoue avec `500: Failed to load dataset`. Le log serveur, lui, dit :
+
+```
+gradio.exceptions.InvalidPathError: Cannot move
+  /home/studio/ACE-Step-Studio-master/ACE-Step-1.5/datasets/uploads/my_lora_dataset/6. Le Cri du Retour.mp3
+  to the gradio cache dir because it was not created by the application or it is not
+  located in either the current working directory or your system's temp directory.
+```
+
+**Fausses pistes.** Ce n'est ni torch ni la version de CUDA. Et sur une installation
+neuve, « Dataset not found » n'est pas un mauvais dossier : c'est le bon
+(`ACE-Step-1.5/datasets/`), le fichier n'y existe simplement pas encore.
+
+**Cause.** Le JSON d'un dataset enregistre des chemins audio **absolus**. Copié
+ailleurs, il pointe vers l'ancienne installation. Gradio ne sert un fichier que s'il est
+sous le dossier courant (`ACE-Step-1.5/`) ou le `temp` du projet : l'aperçu du premier
+échantillon est refusé. Le script de prétraitement lirait les mêmes chemins.
+
+**Correctif.** `healDatasetAudioPaths()` (`app/server/src/services/dataset-paths.ts`)
+est appelée avant « Charger » et avant le prétraitement. Elle retrouve les fichiers
+déplacés — même position relative sous `datasets/`, à défaut même nom sous
+`uploads/<nom du dataset>/` — et corrige les chemins **dans le JSON**, en écrivant une
+sauvegarde `<fichier>.bak-paths` une seule fois. Elle gère les chemins Windows
+(`C:\…`) et les noms accentués ou avec apostrophe.
+
+Garde-fous : seuls les JSON situés sous `datasets/` sont lus et écrits ; un chemin de
+remplacement n'est accepté que sous ce dossier (un JSON importé ne peut pas faire
+pointer l'aperçu ailleurs avec des `..`) ; un chemin sans correspondance est laissé
+tel quel.
+
+**Limite.** Elle *retrouve* des fichiers, elle n'en crée pas : les audios doivent être
+présents dans la nouvelle installation.
+
+```bash
+cp -r ~/ancienne-installation/ACE-Step-1.5/datasets/uploads/<nom> \
+      ~/nouvelle-installation/ACE-Step-1.5/datasets/uploads/
+```
+
+---
+
+## 31. « Failed to … » — le vrai message d'erreur de Gradio était masqué
+
+**Symptôme.** L'interface n'affiche qu'un texte générique (« Failed to load dataset »)
+alors que le log serveur contient la cause exacte.
+
+**Cause.** Le client Gradio lève un objet simple `{ type: 'status', message, … }`, pas
+une `Error`. Dix-neuf blocs `catch` de `training.ts` faisaient
+`error instanceof Error ? error.message : '<texte>'` : le test était faux, et le texte
+générique masquait la cause.
+
+**Correctif.** `gradioErrorMessage(error, fallback)` (`gradio-value.ts`) renvoie le
+vrai message, tronqué à 600 caractères. À utiliser dans toute nouvelle route qui
+appelle Gradio.
+
+---
+
+## 32. « Appliquer les paramètres » du dataset sans effet
+
+**Symptôme.** Le bouton ne change rien : le JSON sauvegardé ne contient ni
+l'étiquette d'activation, ni la position, ni le ratio de genre. Pour un LoRA, c'est
+l'étiquette (`custom_tag`) qui manque au prétraitement.
+
+**Cause.** La route `POST /api/training/update-settings` répondait
+`{ success: true }` sans rien appeler. Son commentaire disait que les réglages étaient
+« appliqués à la sauvegarde via l'API REST » : cet endpoint n'existe pas, et
+`/save-dataset` ne lit que `savePath` et `datasetName`, même si le client lui envoie les
+quatre réglages.
+
+Côté ACE-Step, ces réglages vivent dans le `builder_state` de la **session Gradio**. Un
+seul endroit les y inscrit : `update_settings(custom_tag, tag_position,
+all_instrumental, genre_ratio)`. `save_dataset(save_path, dataset_name)` n'en reçoit
+aucun et écrit l'état tel quel. L'interface native d'ACE-Step branche d'ailleurs
+`update_settings` sur l'événement `.change` de chaque champ : elle n'a pas de bouton
+« Appliquer ».
+
+**Correctif.** La route appelle l'endpoint Gradio `/update_settings`, dans l'ordre de la
+signature Python, après validation (`services/dataset-settings.ts`) :
+`tag_position` ∈ `prepend | append | replace`, `genre_ratio` borné à 0–100, booléen
+strict. Une valeur invalide donne un 400 explicite plutôt qu'un ratio converti en 0.
+
+Vérifié de bout en bout : après « Appliquer » puis « Sauvegarder », le JSON contient
+`custom_tag: 'mady'`, `tag_position: 'prepend'`, `all_instrumental: False`,
+`genre_ratio: 45`.
+
+```bash
+# l'endpoint existe-t-il dans la session Gradio ? (serveur lancé)
+curl -s http://127.0.0.1:8001/gradio_api/info | python3 -c \
+  "import sys,json; print([k for k in json.load(sys.stdin)['named_endpoints'] if 'update_settings' in k])"
+# attendu : ['/update_settings', '/update_settings_1', '/update_settings_2', '/update_settings_3']
+```
+
+**Limites d'ACE-Step.** Une étiquette vide est ignorée (on ne peut pas effacer une
+étiquette déjà posée), et sans dataset chargé il n'y a rien à mettre à jour : le bouton
+ne signale alors aucune erreur. `/save-dataset` ignore toujours les réglages que lui
+envoie le client — il faut cliquer « Appliquer » avant « Sauvegarder ».
+
+---
+
+## 33. Piles CUDA — 13.0 par défaut, 12.8 et 12.6
+
+**Le menu.** `install.sh` lit le GPU (`nvidia-smi`) et **suggère** une famille ; `Entrée` l'accepte.
+
+| Famille | Pile | PyTorch | Pilote NVIDIA | flash-attn |
+|---|---|---|---|---|
+| RTX 20xx et plus récentes | **CUDA 13.0** (défaut si le pilote la permet) | 2.14.1 | **580 ou plus** | roue précompilée v0.10.0 (`cu130torch2.14`), testée sur le GPU |
+| id., pilote plus ancien | CUDA 12.8 | 2.11.0 | 525 ou plus ; **570 ou plus** pour une RTX 50xx | roue v0.9.4 (Blackwell), sinon compilation |
+| GTX 10xx (Pascal), Volta | CUDA 12.6 | 2.11.0 | 525 ou plus | SDPA (flash-attn exige une capacité de calcul ≥ 8.0) |
+
+**Pourquoi 13.0 pour tout Turing et plus.** CUDA 13.x couvre toutes les cartes à partir de
+Turing (NVIDIA a retiré Maxwell, Pascal et Volta en 13.0 : le seuil est la capacité de calcul
+7.5, donc Volta, à 7.0, est exclue aussi). CUDA 13.0 est le défaut de PyTorch (PyPI : `cuda-toolkit`
+13.0.x). PyTorch 2.14 est la dernière série à publier des roues CUDA 12.x (la 2.15 est
+annoncée en CUDA 13.x seulement) : Pascal et Volta restent sur la pile 12.6 tant que la 2.14
+est disponible.
+
+**Planchers de pilote** (NVIDIA, « CUDA minor version compatibility ») : CUDA 13.x → pilote
+**≥ 580** ; CUDA 12.x → **≥ 525** ; toute RTX 50xx → **≥ 570** (CUDA 12.8 : ≥ 570.26). Le
+595.58.03 souvent cité est le pilote *livré avec* le toolkit CUDA 13.2 Update 1, pas le minimum
+requis par une roue PyTorch, qui embarque son propre runtime. L'installateur contrôle le
+plancher de la pile choisie avant de télécharger quoi que ce soit.
+
+**Symptôme — `torch.cuda.is_available()` vaut `False`.** Le pilote est plus ancien que la pile :
+PyTorch ne voit pas le GPU. Mettre à jour le pilote, ou relancer `install.sh` et choisir la
+pile CUDA 12.8.
+
+**`cu118` a disparu.** Pour `cu118`, l'index PyTorch s'arrête à **torch 2.7.1** (vérifié :
+`curl -s https://download.pytorch.org/whl/cu118/torch/`). L'ancienne option « Pascal » demandait
+`torch==2.11.0` en `cu118` : elle ne pouvait pas s'installer. Elle utilise désormais `cu126`.
+Plus généralement, l'installateur vérifie **avant de télécharger** que l'index propose
+`torch <version>` pour la pile choisie, et s'arrête avec la dernière version disponible plutôt
+que par un échec cryptique du résolveur pip.
+
+**Pourquoi pas CUDA 13.2.** PyTorch l'a introduit comme build *expérimental* (2.12) et garde
+13.0 comme défaut en 2.14 (les nightlies de la 2.15 passent 13.2 en stable). La roue
+`flash-attn` `cu132torch2.14` existe, mais `torchaudio` (dernière version : 2.11.0) et
+`torchcodec` en cu132 n'ont pas été vérifiés. À reconsidérer avec la 2.15.
+
+**flash-attn : test fonctionnel.** Une roue précompilée qui ne contient pas l'architecture de la
+carte s'importe sans erreur, puis échoue au premier vrai appel (`no kernel image is available`).
+Après installation d'une roue précompilée, l'installateur lance un vrai `flash_attn_func` sur le
+GPU ; en cas d'échec, `flash-attn` est retiré et SDPA prend le relais (sans compilation de
+plusieurs heures). Ce test, plus que `cuobjdump` (absent de beaucoup de machines), décide si
+la roue cu130 convient à une carte Ampere ou Ada.
+
+**Avertissement inédit en 2.14 — `register_constant()`.** Au lancement, torchao 0.17
+affiche que `register_constant()` sur les enums est « déprécié et sera une erreur dans
+une future version ». Sans effet aujourd'hui. Le plafond `torchao<0.18.0` n'est **pas** à
+lever pour le faire disparaître : torchao 0.18 supprime `AffineQuantizedTensor` et les
+layouts v1, que le code d'ACE-Step nomme (message `model.to() raised NotImplementedError
+(AffineQuantizedTensor…)`). Garder aussi `torch==2.14.1` exact.
+
+**NPP (étape 5b).** Sautée sur la pile 13.0 : `nvidia-npp-cu12` n'y est pas installé. Vérifié
+paquet désinstallé : `torchaudio.load()` d'un MP3 stéréo 48 kHz, puis `torchaudio.save()` en
+WAV, FLAC et MP3 fonctionnent. Le §1 reste valable pour la pile cu128, où l'échec a été
+diagnostiqué ; les piles cu126 et cu128 gardent l'étape par prudence.
+
+**Validé sur RTX 5060 8 Go** (pile 13.0) : installation neuve, génération de 4 minutes,
+chargement d'un LoRA, Cover, DCW. **Non validé** : l'entraînement complet sur cette pile ; les
+piles 12.8 et 12.6 (non exercées depuis le changement de menu) ; une carte Ampere ou Ada sur la
+pile 13.0 (la roue `flash-attn` y est testée à l'installation, mais pas encore sur ces cartes).
+
+---
+
+## 34. Profil matériel — modèle par défaut selon la VRAM
+
+**Symptôme.** Sur une carte de 4 à 6 Go, le Studio échouait au premier lancement ou
+ramait, et le modèle de langage restait activé alors qu'ACE-Step n'en propose aucun sous
+6 Gio.
+
+**Cause.** `run.sh` imposait `acestep-v15-xl-turbo-bf16` à tout le monde. Le Studio annonce
+lui-même 8 Go minimum pour ce modèle (`vramMin` dans `utils/modelNames.ts`), et la doc
+d'ACE-Step classe les modèles XL « non pris en charge » sous 12 Go (`GPU_COMPATIBILITY.md`).
+Le serveur, lui, active le LM par défaut (`INIT_LLM`).
+
+**Correctif.** `install.sh` lit le GPU 0 (`nvidia-smi` : nom, VRAM, capacité de calcul),
+**suggère** la famille du menu (capacité de calcul ≥ 7.5 : RTX 20xx et plus ; sinon anciennes
+cartes ; `Entrée` l'accepte, un choix explicite l'emporte), calcule le palier ACE-Step et écrit
+`hardware_profile.env`, que `run.sh` lit.
+
+Le palier reprend **les seuils exacts** de `acestep/gpu_config.py::get_gpu_tier`
+(`≤4`, `≤6`, `≤8`, `≤12`, `<15,5`, `<20`, `≤24` Gio ; `nvidia-smi` en Mio ÷ 1024). Vérifié
+contre cette fonction, extraite de leur code, sur 1 158 valeurs de VRAM : aucun écart.
+
+| VRAM | Palier | Modèle DiT par défaut | Modèle de langage |
+|---|---|---|---|
+| ≤ 4 Gio | 1 | `acestep-v15-turbo` (2B) | désactivé |
+| 4–6 Gio | 2 | `acestep-v15-turbo` (2B) | désactivé |
+| 6–8 Gio | 3 | XL Turbo BF16 si la VRAM *nominale* est ≥ 8 Go, sinon `acestep-v15-turbo` | activé |
+| ≥ 8 Gio | 4 et plus | `acestep-v15-xl-turbo-bf16` | activé |
+
+La VRAM nominale est la valeur arrondie : une carte « 8 Go » mesure 7,96 Gio et reste
+dans la classe 8. **Pour une carte de 8 Go ou plus, rien ne change** : seules les cartes
+sous 8 Go reçoivent un autre défaut.
+
+**Priorités.** Un `DEFAULT_MODEL` ou un `INIT_LLM` déjà défini dans l'environnement l'emporte,
+puis `ACE-Step-1.5/.env`, puis le profil, puis l'ancien défaut. Sans `hardware_profile.env`
+(installation existante), le comportement est strictement l'ancien. Le fichier est propre à
+la machine (ignoré par git) : relancer `install.sh` pour le refaire.
+
+**Sécurité.** Le profil est lu par `source` : le nom du GPU est restreint à un jeu de
+caractères sûr (lettres, chiffres, espace, `._+()/-`), sinon un nom contenant `$(…)` s'exécuterait.
+
+**Garde-fou Blackwell.** Une RTX 50xx exige un pilote 570 ou plus (CUDA 12.8 : ≥ 570.26) ;
+la pile CUDA 13.0 demande 580 ou plus. Sous 570, aucune pile ne fonctionne : l'installateur le
+dit avant d'installer et demande confirmation pour continuer (voir aussi les planchers du §33).
+
+**Limites.**
+- `LM_MODEL` et `LM_BACKEND` ne sont **pas** pilotés : le Studio les fixe à `0.6B` / `pt`, et
+  `routes/generate.ts` les code en dur pour l'état affiché. La taille de LM recommandée par
+  ACE-Step pour le palier est notée dans le profil (`HW_ACE_RECOMMENDED_LM`) à titre informatif.
+- Pour les paliers 3 et 4, garder `xl-turbo-bf16` s'écarte du tableau amont (XL non pris en
+  charge sous 12 Go) : c'est le choix du Studio, validé en pratique sur 8 Go.
+- Le téléchargement n'est pas encore réglé par palier. Le dépôt principal d'ACE-Step
+  contient `acestep-v15-turbo` **et** le LM 1,7B (`INSTALL.md`) : sur une carte de 6 Go ou
+  moins, un téléchargement par défaut pourrait récupérer un LM inutilisable. Comment le
+  Studio déclenche ce téléchargement n'a pas été vérifié.
+- Logique simulée avec un `nvidia-smi` factice (18 cartes, parcours de menu, priorités de
+  `run.sh`) ; non passée sur une machine réellement équipée d'une petite carte.

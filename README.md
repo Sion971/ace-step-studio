@@ -139,7 +139,8 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
 | **Node.js** | 22 LTS |
 | **Python** | Managed automatically by `uv` — 3.12 on Linux, 3.11 on Windows for the main environment; a separate isolated 3.11 environment on both platforms for MIDI conversion (and, on Linux, another for stem separation) |
 | **NVIDIA GPU** | 4GB+ VRAM (works without LLM), 12GB+ recommended (with LLM) |
-| **CUDA compiler (`nvcc`)** | Linux only, 12.8+ if you want `flash-attn` on Blackwell (RTX 50-series) — older cards work with older `nvcc` too, the installer checks and falls back to SDPA if not. Windows uses a prebuilt `flash-attn` wheel instead, no local compiler needed |
+| **NVIDIA driver (Linux)** | **580 or newer** for the CUDA 13.0 stack (the default for RTX 20-series and newer); **525 or newer** for the older CUDA 12.x stacks; **570 or newer** for any RTX 50-series card. The installer reads `nvidia-smi`, suggests the newest stack your driver allows, and warns before installing if the driver is too old |
+| **CUDA compiler (`nvcc`)** | Linux only, and only when `flash-attn` has to be compiled: on the CUDA 12.x stacks for RTX 30/40-series cards, or if a prebuilt wheel cannot be downloaded — `nvcc` must then support your card (the installer checks and falls back to SDPA if not). The CUDA 13.0 stack and RTX 50-series installs use a prebuilt wheel that is tested on your GPU after installation. Windows uses a prebuilt wheel too, no local compiler needed |
 | **FFmpeg, libsndfile** | Installed automatically by the installer if missing |
 | **uv** | Python package manager — installed automatically by both installers if missing |
 
@@ -206,11 +207,11 @@ The installer walks through fourteen steps, all self-checking and safe to re-run
 
 1. System dependencies (FFmpeg, libsndfile) via apt, only if missing
 2. Working directory structure
-3. GPU / CUDA selection (Pascal through Blackwell, or CPU-only) and Python virtual environment (via `uv`)
+3. GPU detection (`nvidia-smi`: name, VRAM, compute capability, driver) with a suggested menu option — Enter accepts it. RTX 20-series and newer choose between CUDA 13.0 (suggested when your driver allows it) and CUDA 12.8; older cards (Pascal, Volta) use CUDA 12.6. Driver checks run before anything is installed. The VRAM tier sets the default model, recorded in `hardware_profile.env`, and Python virtual environment (via `uv`)
 4. Build tools
-5. PyTorch, matched to your selected CUDA version
-5b. NVIDIA NPP (a `torchcodec` runtime dependency that PyTorch doesn't pull in on its own)
-6. ACE-Step dependencies, including a real compute-capability check before attempting `flash-attn` — skips it cleanly (falling back to SDPA) rather than burning hours on a build that can't succeed on your hardware
+5. PyTorch, matched to your selected CUDA version — 2.14.1 on the CUDA 13.0 stack, 2.11.0 on the others; the installer first checks that the PyTorch index actually offers that version
+5b. NVIDIA NPP (a `torchcodec` runtime dependency that PyTorch doesn't pull in on its own) — skipped on the CUDA 13.0 stack, which doesn't need it
+6. ACE-Step dependencies, including a real compute-capability check before attempting `flash-attn` — skips it cleanly (falling back to SDPA) rather than burning hours on a build that can't succeed on your hardware. Prebuilt wheels (CUDA 13.0 stack, RTX 50-series) are tested on your GPU after installation and removed if they do not run
 7. `pytorch_wavelets` patch — works around a `pkg_resources` removal in modern `setuptools` that otherwise silently disables the optional DCW sampler correction
 8. `torchcodec` load verification
 9. Node.js check
@@ -332,6 +333,9 @@ Generate several variations of the same prompt in one pass to compare results qu
 | **CUDA out of memory** | Set batch size to **1**, reduce duration, or disable Thinking Mode |
 | **4GB GPU — Out of memory** | Batch size **1**, Thinking Mode **off**. LLM features need 12GB+ |
 | **`flash-attn` build fails or errors at runtime (Linux)** | Check your `nvcc` version supports your GPU's compute capability — see `install.sh` step 6, or fall back to `--no-lm` if you just need generation working now |
+| **PyTorch doesn't see the GPU (`torch.cuda.is_available()` is `False`) after the CUDA 13.0 stack (Linux)** | Your NVIDIA driver is too old for CUDA 13. Update it to 580 or newer, or re-run `install.sh` and choose the CUDA 12.8 stack. Check with `nvidia-smi`: it must show `CUDA Version: 13.0` or higher |
+| **`install.sh` stops with « the PyTorch index does not offer torch X for cuYY »** | That stack is no longer published for that PyTorch version (the old CUDA 11.8 option, for instance, stopped at torch 2.7.1). Pick another stack in the menu |
+| **Studio is slow or fails on a small GPU (6 GB or less)** | The default model is chosen from your VRAM when you run `install.sh` (2B Turbo and no language model below 8 GB). Re-run `install.sh` to regenerate `hardware_profile.env`, or set `DEFAULT_MODEL` in `ACE-Step-1.5/.env` — it always wins |
 | **`torchaudio` fails to load with "Could not find module ... (or one of its dependencies)" (Windows)** | Install the [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) |
 | **DCW disabled with a `pytorch_wavelets` warning** | Both installers patch this automatically (step 7 on Linux, step 5 on Windows) — if it's still happening, run `patch-pytorch-wavelets.py` manually against the relevant environment |
 | **Songs show 0:00 duration** | Linux: `sudo apt install ffmpeg`. Windows: delete the `ffmpeg\` folder and re-run the installer |
