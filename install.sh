@@ -65,27 +65,140 @@ export MODELSCOPE_CACHE="$SCRIPT_DIR/models"
 # de huggingface_hub installee (0.36.x ou 1.x).
 export HF_XET_HIGH_PERFORMANCE=1
 
+# Version CUDA maximale prise en charge par le pilote NVIDIA (ligne « CUDA Version » de
+# nvidia-smi). Sert a PRESELECTIONNER la pile et a controler le plancher de pilote.
+DRIVER_CUDA=""
+if command -v nvidia-smi &> /dev/null; then
+    DRIVER_CUDA=$(nvidia-smi 2>/dev/null | sed -n 's/.*CUDA Version: *\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -1)
+fi
+
+# === Detection du materiel (lecture seule) ===================================
+# Rien n'est installe ici. Sert a SUGGERER une option du menu, a conseiller une mise a jour
+# du pilote, et a regler les modeles par defaut selon la VRAM (hardware_profile.env, ecrit
+# en fin d'installation et lu par run.sh). GPU 0 uniquement, comme le moteur.
+HW_GPU_NAME=""; HW_VRAM_MIB=""; HW_COMPUTE_CAP=""
+if command -v nvidia-smi &> /dev/null; then
+    # Le nom est ecrit dans hardware_profile.env, que run.sh EXECUTE (source) : jeu de
+    # caracteres restreint, donc aucune metacaractere shell possible.
+    HW_GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | sed 's/^ *//;s/ *$//' | tr -cd '[:alnum:] ._+()/-')
+    HW_VRAM_MIB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d '[:space:]')
+    HW_COMPUTE_CAP=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 | tr -d '[:space:]')
+fi
+
+# Famille du menu : CUDA 13.x couvre toutes les cartes a partir de Turing (capacite 7.5) ;
+# en dessous (Pascal 6.x, Volta 7.0, Maxwell 5.x) : pile CUDA 12.6, derniere a les couvrir.
+hw_suggest_option() {
+    awk -v c="$1" 'BEGIN {
+        if (c == "") exit
+        if (c >= 7.5) print 1
+        else print 2
+    }'
+}
+
+# Palier ACE-Step 1.5 : MEMES seuils que acestep/gpu_config.py::get_gpu_tier (VRAM en Gio,
+# soit nvidia-smi en Mio / 1024 — c'est total_memory / 1024**3 cote PyTorch).
+hw_ace_tier() {
+    awk -v m="$1" 'BEGIN {
+        g = m / 1024
+        if (g <= 4) t = "1"
+        else if (g <= 6) t = "2"
+        else if (g <= 8) t = "3"
+        else if (g <= 12) t = "4"
+        else if (g < 15.5) t = "5"
+        else if (g < 20) t = "6a"
+        else if (g <= 24) t = "6b"
+        else t = "unlimited"
+        print t
+    }'
+}
+
+# VRAM « nominale » en Go, celle du constructeur : 7,96 Gio -> 8.
+hw_vram_class() { awk -v m="$1" 'BEGIN { printf "%d", m / 1024 + 0.5 }'; }
+
+# Modele DiT par defaut. XL BF16 : VRAM min annoncee par le Studio = 8 Go. En dessous,
+# le DiT 2B turbo (min annoncee 6 Go ; pris en charge des 4 Go par ACE-Step, INT8 + deport CPU).
+hw_default_model() {
+    if [ "${1:-0}" -ge 8 ]; then echo "acestep-v15-xl-turbo-bf16"; else echo "acestep-v15-turbo"; fi
+}
+# ACE-Step ne propose aucun LM aux paliers 1 et 2 (<= 6 Gio).
+hw_init_llm() { case "$1" in 1|2) echo "false" ;; *) echo "true" ;; esac; }
+hw_recommended_lm() { case "$1" in 1|2) echo "aucun" ;; 3|4) echo "0.6B" ;; 5|6a|6b) echo "1.7B" ;; *) echo "4B" ;; esac; }
+
 # === 2. Sélection GPU / CUDA =================================================
 echo ""
-echo "Sélectionnez votre GPU :"
-echo "  1. NVIDIA GTX 10xx (Pascal)      -> CUDA 11.8"
-echo "  2. NVIDIA RTX 20xx (Turing)      -> CUDA 12.6"
-echo "  3. NVIDIA RTX 30xx (Ampere)      -> CUDA 12.6"
-echo "  4. NVIDIA RTX 40xx (Ada Lovelace) -> CUDA 12.8"
-echo "  5. NVIDIA RTX 50xx (Blackwell)   -> CUDA 12.8"
-echo "  6. CPU uniquement (pas de GPU)"
-echo "  7. AMD GPU (ROCm)"
+HW_SUGGESTED_OPTION=""
+if [ -n "$HW_GPU_NAME" ]; then
+    HW_SUGGESTED_OPTION=$(hw_suggest_option "$HW_COMPUTE_CAP")
+    echo "GPU détecté : $HW_GPU_NAME — $(hw_vram_class "${HW_VRAM_MIB:-0}") Go de VRAM (palier ACE-Step $(hw_ace_tier "${HW_VRAM_MIB:-0}")), capacité de calcul $HW_COMPUTE_CAP"
+    if [ -n "$DRIVER_CUDA" ]; then
+        echo "Pilote NVIDIA : prend en charge CUDA $DRIVER_CUDA au maximum"
+    fi
+    if [ -n "$HW_SUGGESTED_OPTION" ]; then
+        echo "Option suggérée : $HW_SUGGESTED_OPTION (Entrée pour l'accepter)"
+    fi
+else
+    echo "Aucun GPU NVIDIA détecté (nvidia-smi absent ou muet)."
+    echo "Si vous avez une carte NVIDIA, installez d'abord son pilote propriétaire, puis relancez ce script."
+fi
 echo ""
-read -p "Entrez votre choix (1-7) : " GPU_CHOICE
+echo "Sélectionnez votre GPU :"
+echo "  1. NVIDIA RTX 20xx ou plus récente (Turing, Ampere, Ada, Blackwell) -> CUDA 13.0 ou 12.8"
+echo "  2. NVIDIA GTX 10xx (Pascal) ou Volta                              -> CUDA 12.6 (anciennes cartes)"
+echo "  3. CPU uniquement (pas de GPU)"
+echo "  4. AMD GPU (ROCm)"
+echo ""
+read -p "Entrez votre choix (1-4)${HW_SUGGESTED_OPTION:+ [suggestion : $HW_SUGGESTED_OPTION]} : " GPU_CHOICE
+GPU_CHOICE="${GPU_CHOICE:-$HW_SUGGESTED_OPTION}"
 
 case "$GPU_CHOICE" in
-  1) CUDA_VERSION="cu118"; CUDA_NAME="CUDA 11.8" ;;
-  2) CUDA_VERSION="cu126"; CUDA_NAME="CUDA 12.6" ;;
-  3) CUDA_VERSION="cu126"; CUDA_NAME="CUDA 12.6" ;;
-  4) CUDA_VERSION="cu128"; CUDA_NAME="CUDA 12.8" ;;
-  5) CUDA_VERSION="cu128"; CUDA_NAME="CUDA 12.8" ;;
-  6) CUDA_VERSION="cpu";   CUDA_NAME="CPU only" ;;
-  7)
+  1)
+    # Une RTX 50xx n'est reconnue qu'a partir du pilote 570 (CUDA 12.8) : en dessous, AUCUNE
+    # pile ne fonctionne. Le dire avant d'installer plusieurs Go de paquets.
+    if [ -n "$HW_COMPUTE_CAP" ] && [ -n "$DRIVER_CUDA" ] && awk "BEGIN {exit !($HW_COMPUTE_CAP >= 10.0 && $DRIVER_CUDA < 12.8)}" 2>/dev/null; then
+        echo ""
+        echo "ERREUR : votre pilote NVIDIA ne gère que CUDA $DRIVER_CUDA."
+        echo "  Une RTX 50xx exige un pilote 570 ou plus (CUDA 12.8) ; 580 ou plus pour la pile CUDA 13.0."
+        echo "  Mettez à jour le pilote (gestionnaire de pilotes de votre distribution), puis relancez ce script."
+        read -p "Continuer malgré tout ? [o/N] " -n 1 -r
+        echo
+        [[ $REPLY =~ ^[Oo]$ ]] || exit 1
+    fi
+    # Pile CUDA : la plus recente que le pilote permet. La detection ne fait que PRESELECTIONNER.
+    #   CUDA 13.0 + PyTorch 2.14.1 : defaut de PyTorch ; exige un pilote NVIDIA 580 ou plus.
+    #   CUDA 12.8 + PyTorch 2.11.0 : pour les pilotes plus anciens (derniere pile cu128).
+    # CUDA 13.2 n'est pas propose : classe experimental par PyTorch, et torchaudio (derniere
+    # version 2.11.0) / torchcodec en cu132 ne sont pas verifies.
+    if [ -n "$DRIVER_CUDA" ] && awk "BEGIN {exit !($DRIVER_CUDA >= 13.0)}" 2>/dev/null; then
+        ST_DEFAULT=1
+    else
+        ST_DEFAULT=2
+    fi
+    echo ""
+    echo "Pile CUDA :"
+    echo "  1. CUDA 13.0 — PyTorch 2.14.1  (la plus récente et stable ; exige un pilote NVIDIA 580 ou plus)"
+    echo "  2. CUDA 12.8 — PyTorch 2.11.0  (pour les pilotes plus anciens)"
+    if [ -n "$DRIVER_CUDA" ]; then
+        echo "  Pilote détecté : CUDA $DRIVER_CUDA — suggestion : option $ST_DEFAULT."
+        if [ "$ST_DEFAULT" = 2 ]; then
+            echo "  (La pile CUDA 13.0 demande un pilote NVIDIA 580 ou plus.)"
+        fi
+    else
+        echo "  Pilote NVIDIA non détecté (nvidia-smi) — suggestion prudente : option 2."
+    fi
+    read -p "Votre choix [$ST_DEFAULT] : " ST_CHOICE
+    case "${ST_CHOICE:-$ST_DEFAULT}" in
+      1) CUDA_VERSION="cu130"; CUDA_NAME="CUDA 13.0" ;;
+      2) CUDA_VERSION="cu128"; CUDA_NAME="CUDA 12.8" ;;
+      *) echo "Choix invalide !"; exit 1 ;;
+    esac
+    ;;
+  2)
+    # Pascal (6.x), Volta (7.0), Maxwell (5.x) : CUDA 13.x ne les prend plus en charge. CUDA 12.6
+    # est la derniere pile a les couvrir ; PyTorch 2.14 est la derniere serie a la publier.
+    # (cu118 a disparu : l'index PyTorch s'arrete a torch 2.7.1.)
+    CUDA_VERSION="cu126"; CUDA_NAME="CUDA 12.6 (anciennes cartes)" ;;
+  3) CUDA_VERSION="cpu";   CUDA_NAME="CPU only" ;;
+  4)
     # ROCm : pas reimplemente ici, redirection vers le script dedie
     # d'ACE-Step-1.5, deja autonome (son propre venv_rocm, son propre
     # lancement direct du pipeline sans passer par notre serveur Node) —
@@ -105,6 +218,32 @@ esac
 
 echo "Option sélectionnée : $CUDA_NAME"
 echo ""
+
+# === 2a. Pilote NVIDIA : plancher de chaque pile ==============================
+# PyTorch ne voit pas le GPU si le pilote est plus ancien que la pile (torch.cuda.is_available()
+# renvoie False) : autant le dire avant d'installer. Planchers (NVIDIA, « CUDA minor version
+# compatibility ») : CUDA 13.x -> pilote >= 580 ; CUDA 12.x -> pilote >= 525.
+HW_DRIVER_NEEDED=""
+case "$CUDA_VERSION" in
+    cu130)       HW_DRIVER_NEEDED="13.0"; HW_DRIVER_SERIES="580" ;;
+    cu126|cu128) HW_DRIVER_NEEDED="12.0"; HW_DRIVER_SERIES="525" ;;
+esac
+if [ -n "$HW_DRIVER_NEEDED" ]; then
+    if [ -z "$DRIVER_CUDA" ]; then
+        echo "ATTENTION : version CUDA du pilote illisible (nvidia-smi) — vérification ignorée."
+    elif awk "BEGIN {exit !($DRIVER_CUDA >= $HW_DRIVER_NEEDED)}" 2>/dev/null; then
+        echo "Pilote NVIDIA : CUDA $DRIVER_CUDA — compatible avec la pile $CUDA_VERSION."
+    else
+        echo "ERREUR : votre pilote NVIDIA ne gère que CUDA $DRIVER_CUDA."
+        echo "  La pile $CUDA_NAME exige un pilote de la série $HW_DRIVER_SERIES ou plus récente :"
+        echo "  PyTorch ne verrait pas votre GPU. Mettez à jour le pilote (gestionnaire de pilotes de"
+        echo "  votre distribution), puis relancez ce script."
+        read -p "Continuer malgré tout ? [o/N] " -n 1 -r
+        echo
+        [[ $REPLY =~ ^[Oo]$ ]] || exit 1
+    fi
+    echo ""
+fi
 
 # === 2b. Detection reelle de la capacite de calcul (pour flash-attn) ========
 # Le menu ci-dessus regroupe Turing (RTX 20xx, capacite 7.5) et Ampere
@@ -153,7 +292,14 @@ echo "[4/14] Outils de build (hatchling, cmake, ninja)..."
 uv pip install hatchling editables cmake "ninja>=1.13.0" setuptools wheel
 
 # === 5. PyTorch ==============================================================
-echo "[5/14] PyTorch 2.11.0 ($CUDA_NAME)..."
+# Deux piles selon le choix de GPU : cu130 -> torch 2.14.1 ; les autres -> torch 2.11.0.
+# PyTorch ne publie plus de roues CUDA 12.8 a partir de la 2.12, et la 2.14 est la derniere
+# serie a publier des roues CUDA 12.x : la 2.11 est donc la derniere pile cu128. La pile
+# cu130 est le defaut de PyTorch (valide sur RTX 5060 8 Go : generation, chargement de LoRA,
+# Cover, DCW ; entrainement complet non valide). Sur cu130, torchaudio reste epingle a
+# 2.11.0 (sa derniere version ; la roue +cu130 existe), comme sur les autres piles.
+if [ "$CUDA_VERSION" = "cu130" ]; then PYTORCH_VERSION="2.14.1"; else PYTORCH_VERSION="2.11.0"; fi
+echo "[5/14] PyTorch $PYTORCH_VERSION ($CUDA_NAME)..."
 # Base unique Linux : torch 2.11.0. L'ancienne base torch 2.10.0 +
 # torchao 0.16 a ete retiree : sa roue flash-attn precompilee
 # (torch2.10) n'existe pas dans la release v0.9.4 (404), d'ou une
@@ -177,6 +323,20 @@ echo "[5/14] PyTorch 2.11.0 ($CUDA_NAME)..."
 # echouait de facon reproductible avec "The wheel is invalid: Invalid
 # Wheel-Version in WHEEL file: None" sur nvidia-nccl-cu12, une roue NVIDIA
 # tierce dont le format semble declencher un bug de validation cote uv.
+# Garde AVANT telechargement : l'index PyTorch propose-t-il torch $PYTORCH_VERSION pour cette
+# pile ? Sans elle, une pile dont les roues ont disparu de l'index (cu118 s'arrete a torch
+# 2.7.1) echoue au milieu d'un resolveur pip cryptique. Silencieuse si curl est absent ou
+# si l'index est injoignable : pip dira alors lui-meme ce qui ne va pas.
+if [ "$CUDA_VERSION" != "cpu" ] && command -v curl &> /dev/null; then
+    PT_INDEX_HTML=$(curl -s --max-time 25 "https://download.pytorch.org/whl/$CUDA_VERSION/torch/" 2>/dev/null || true)
+    if [ -n "$PT_INDEX_HTML" ] && ! echo "$PT_INDEX_HTML" | grep -Eq "torch-${PYTORCH_VERSION}(\+|%2[Bb])${CUDA_VERSION}-cp312-cp312-manylinux[^\"< ]*x86_64\.whl"; then
+        PT_LATEST=$(echo "$PT_INDEX_HTML" | grep -Eo "torch-[0-9.]+(\+|%2[Bb])${CUDA_VERSION}-cp312-cp312-manylinux[^\"< ]*x86_64\.whl" | sed -E 's/^torch-([0-9.]+)(\+|%2[Bb]).*/\1/' | sort -uV | tail -1)
+        echo "ERREUR : l'index PyTorch ne propose pas torch $PYTORCH_VERSION pour $CUDA_VERSION (Python 3.12, Linux x86_64)."
+        echo "  Dernière version disponible pour cette pile : ${PT_LATEST:-aucune}."
+        echo "  Choisissez une autre pile, ou ouvrez un ticket : cette pile n'est plus installable telle quelle."
+        exit 1
+    fi
+fi
 uv pip install --upgrade pip
 if [ "$CUDA_VERSION" = "cpu" ]; then
     .venv/bin/python -m pip install \
@@ -185,6 +345,13 @@ if [ "$CUDA_VERSION" = "cpu" ]; then
         torchaudio==2.11.0 \
         torchcodec \
         --index-url https://download.pytorch.org/whl/cpu
+elif [ "$CUDA_VERSION" = "cu130" ]; then
+    .venv/bin/python -m pip install \
+        torch==2.14.1 \
+        torchvision \
+        torchaudio==2.11.0 \
+        torchcodec \
+        --index-url https://download.pytorch.org/whl/cu130
 else
     .venv/bin/python -m pip install \
         torch==2.11.0 \
@@ -203,7 +370,11 @@ fi
 # La génération audio produit alors le son mais ne peut plus écrire de fichier.
 # ATTENTION : --index-url ci-dessus REMPLACE PyPI. Ce paquet doit donc être
 # installé dans un appel séparé, sans index-url, pour être trouvé sur PyPI.
-if [ "$CUDA_VERSION" != "cpu" ]; then
+# Pile cu130 : torchcodec 0.17.0+cu130 charge sa bibliotheque, lit ET ecrit l'audio SANS ce
+# paquet (verifie sur RTX 5060, nvidia-npp-cu12 desinstalle : torchaudio.load d'un MP3 stereo
+# 48 kHz, puis torchaudio.save en wav, flac et mp3). C'est de plus un paquet CUDA 12,
+# depareille avec la pile 13.0. Les autres piles le gardent : voir TROUBLESHOOTING.md §1.
+if [ "$CUDA_VERSION" != "cpu" ] && [ "$CUDA_VERSION" != "cu130" ]; then
     echo "[5b/14] NVIDIA NPP (requis par torchcodec)..."
     uv pip install nvidia-npp-cu12
 fi
@@ -242,6 +413,43 @@ if [ "$FLASH_ATTN_OK" = true ] && [ "$CUDA_VERSION" = "cu128" ] && [ "$FLASH_ATT
         FLASH_ATTN_PREBUILT_DONE=true
     else
         echo "  ATTENTION : roue precompilee indisponible ou incompatible — repli sur la compilation."
+    fi
+fi
+
+if [ "$FLASH_ATTN_OK" = true ] && [ "$CUDA_VERSION" = "cu130" ]; then
+    # Pile CUDA 13.0 : roue precompilee torch 2.14 / cu130 / cp312 (release v0.10.0 du meme
+    # projet que la roue cu128 ci-dessus). Meme repli : si elle est indisponible ou echoue,
+    # compilation depuis les sources ci-dessous.
+    echo "  Pile CUDA 13.0 — tentative de roue flash-attn precompilee (torch 2.14)..."
+    FLASH_WHEEL_URL="https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.10.0/flash_attn-2.8.3+cu130torch2.14-cp312-cp312-linux_x86_64.whl"
+    if uv pip install "$FLASH_WHEEL_URL"; then
+        echo "  OK — flash-attn installe via roue precompilee (pas de compilation)."
+        FLASH_ATTN_PREBUILT_DONE=true
+    else
+        echo "  ATTENTION : roue precompilee indisponible ou incompatible — repli sur la compilation."
+    fi
+fi
+
+# Roue precompilee : verification FONCTIONNELLE sur le GPU reel. Une roue qui ne contient pas
+# l'architecture de la carte s'importe sans erreur puis echoue au premier vrai appel
+# (« no kernel image is available for execution on the device »). cuobjdump n'est pas toujours
+# installe ; un appel reel, si. Echec : flash-attn est retire, SDPA prend le relais.
+if [ "$FLASH_ATTN_PREBUILT_DONE" = true ]; then
+    if .venv/bin/python - <<'PYTEST' > /dev/null 2>&1
+import torch
+from flash_attn import flash_attn_func
+q = torch.randn(1, 128, 8, 64, device="cuda", dtype=torch.bfloat16)
+flash_attn_func(q, q, q)
+torch.cuda.synchronize()
+PYTEST
+    then
+        echo "  OK — flash-attn s'execute sur ce GPU (test fonctionnel)."
+    else
+        echo "  ATTENTION : la roue precompilee ne s'execute pas sur ce GPU (architecture absente ?)."
+        echo "  flash-attn est retire ; SDPA prendra le relais (fonctionnel, juste sans cette acceleration)."
+        uv pip uninstall flash-attn || true
+        FLASH_ATTN_PREBUILT_DONE=false
+        FLASH_ATTN_OK=false
     fi
 fi
 
@@ -530,6 +738,28 @@ else
 fi
 
 echo "$CUDA_VERSION" > cuda_version.txt
+
+# === Profil materiel : modeles par defaut selon la VRAM ======================
+# Lu par run.sh. Fichier propre a la machine (ignore par git) : relancer install.sh pour le
+# refaire. Sans GPU (option CPU), ACE-Step applique lui-meme les limites du palier 1.
+if [ "$CUDA_VERSION" = "cpu" ]; then HW_PROFILE_VRAM_MIB=0; else HW_PROFILE_VRAM_MIB="${HW_VRAM_MIB:-0}"; fi
+HW_PROFILE_TIER=$(hw_ace_tier "$HW_PROFILE_VRAM_MIB")
+HW_PROFILE_CLASS=$(hw_vram_class "$HW_PROFILE_VRAM_MIB")
+cat > hardware_profile.env <<EOF
+# Profil matériel — généré par install.sh le $(date +%Y-%m-%d). Ne pas éditer : relancer install.sh.
+# Pour imposer un autre modèle : définir DEFAULT_MODEL dans l'environnement ou dans ACE-Step-1.5/.env.
+HW_GPU_NAME="${HW_GPU_NAME:-aucun GPU NVIDIA}"
+HW_VRAM_MIB="$HW_PROFILE_VRAM_MIB"
+HW_VRAM_CLASS_GB="$HW_PROFILE_CLASS"
+HW_COMPUTE_CAP="${HW_COMPUTE_CAP:-}"
+HW_DRIVER_CUDA="${DRIVER_CUDA:-}"
+HW_ACE_TIER="$HW_PROFILE_TIER"
+HW_DEFAULT_MODEL="$(hw_default_model "$HW_PROFILE_CLASS")"
+HW_INIT_LLM="$(hw_init_llm "$HW_PROFILE_TIER")"
+# Informatif : taille de LM recommandée par ACE-Step pour ce palier. LM_MODEL n'est pas piloté ici.
+HW_ACE_RECOMMENDED_LM="$(hw_recommended_lm "$HW_PROFILE_TIER")"
+EOF
+echo "Profil matériel : palier ACE-Step $HW_PROFILE_TIER — modèle par défaut : $(hw_default_model "$HW_PROFILE_CLASS")"
 
 echo ""
 echo "========================================"

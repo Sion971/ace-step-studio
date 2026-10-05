@@ -144,7 +144,17 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # === 5. Configuration du pipeline ACE-Step ===================================
 export PYTHON_PATH="$SCRIPT_DIR/.venv/bin/python"
 export ACESTEP_PATH="$SCRIPT_DIR/ACE-Step-1.5"
-export DEFAULT_MODEL="${DEFAULT_MODEL:-acestep-v15-xl-turbo-bf16}"
+# Profil materiel (ecrit par install.sh) : modele par defaut selon la VRAM. Priorites
+# inchangees : un DEFAULT_MODEL / INIT_LLM deja defini (environnement, ACE-Step-1.5/.env,
+# lu plus bas) l'emporte. Sans profil : ancien comportement.
+if [ -f "$SCRIPT_DIR/hardware_profile.env" ]; then
+    source "$SCRIPT_DIR/hardware_profile.env"
+fi
+export DEFAULT_MODEL="${DEFAULT_MODEL:-${HW_DEFAULT_MODEL:-acestep-v15-xl-turbo-bf16}}"
+if [ "${HW_INIT_LLM:-true}" = "false" ] && [ -z "${INIT_LLM:-}" ]; then
+    export INIT_LLM="false"
+    export ACESTEP_INIT_LLM="false"
+fi
 export MANAGE_PIPELINE="true"
 export PORT="$WEB_PORT"
 
@@ -183,6 +193,11 @@ $NO_BROWSER && export NO_AUTO_BROWSER="true"
 
 if [ -f "cuda_version.txt" ]; then
     echo "Configuration GPU/CUDA : $(cat cuda_version.txt)"
+fi
+if [ -n "${HW_GPU_NAME:-}" ]; then
+    echo "Profil matériel        : $HW_GPU_NAME — ${HW_VRAM_CLASS_GB} Go, palier ACE-Step ${HW_ACE_TIER}"
+    if [ "${INIT_LLM:-true}" = "false" ]; then LM_STATE="désactivé"; else LM_STATE="activé"; fi
+    echo "Modèle par défaut      : $DEFAULT_MODEL (modèle de langage : $LM_STATE)"
 fi
 
 # === 7. Mode Gradio seul =====================================================

@@ -19,6 +19,7 @@ app/node_modules/
 app/server/node_modules/
 *.db
 cuda_version.txt
+hardware_profile.env
 
 # --- Portage Linux ---
 .venv/
