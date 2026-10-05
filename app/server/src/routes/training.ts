@@ -4,6 +4,7 @@ import { pipelineManager } from '../services/pipeline-manager.js';
 import { Router, Request, Response } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { getGradioClient } from '../services/gradio-client.js';
+import { gv, dataframeRowCount } from '../services/gradio-value.js';
 import { config } from '../config/index.js';
 import { resolvePythonPath } from '../services/acestep.js';
 import multer from 'multer';
@@ -202,31 +203,31 @@ router.post('/build-dataset', authMiddleware, async (req: AuthenticatedRequest, 
       const data = result.data as unknown[];
 
       res.json({
-        status: data[0],
-        dataframe: data[1],
+        status: gv(data[0]),
+        dataframe: gv(data[1]),
         sampleCount: samples.length,
         sample: {
-          index: data[2],
-          audio: data[3],
-          filename: data[4],
-          caption: data[5],
-          genre: data[6],
-          promptOverride: data[7],
-          lyrics: data[8],
-          bpm: data[9],
-          key: data[10],
-          timeSignature: data[11],
-          duration: data[12],
-          language: data[13],
-          instrumental: data[14],
-          rawLyrics: data[15],
+          index: gv(data[2]),
+          audio: gv(data[3]),
+          filename: gv(data[4]),
+          caption: gv(data[5]),
+          genre: gv(data[6]),
+          promptOverride: gv(data[7]),
+          lyrics: gv(data[8]),
+          bpm: gv(data[9]),
+          key: gv(data[10]),
+          timeSignature: gv(data[11]),
+          duration: gv(data[12]),
+          language: gv(data[13]),
+          instrumental: gv(data[14]),
+          rawLyrics: gv(data[15]),
         },
         settings: {
-          datasetName: data[16],
-          customTag: data[17],
-          tagPosition: data[18],
-          allInstrumental: data[19],
-          genreRatio: data[20],
+          datasetName: gv(data[16]),
+          customTag: gv(data[17]),
+          tagPosition: gv(data[18]),
+          allInstrumental: gv(data[19]),
+          genreRatio: gv(data[20]),
         },
         datasetPath: jsonPath,
       });
@@ -492,8 +493,8 @@ router.post('/auto-label', authMiddleware, async (req: AuthenticatedRequest, res
       ]);
       const data = result.data as unknown[];
       res.json({
-        dataframe: data[0],
-        status: data[1],
+        dataframe: gv(data[0]),
+        status: gv(data[1]),
       });
     } catch (gradioError) {
       // Lambda endpoints aren't named — suggest using Gradio UI
@@ -545,8 +546,8 @@ router.post('/init-model', authMiddleware, async (req: AuthenticatedRequest, res
       ]);
       const data = result.data as unknown[];
       res.json({
-        status: data[0],
-        modelReady: !!data[1],
+        status: gv(data[0]),
+        modelReady: !!gv(data[1]),
       });
     } catch (gradioError) {
       // Lambda endpoints aren't named — suggest using Gradio UI
@@ -654,31 +655,31 @@ router.post('/load-dataset', authMiddleware, async (req: AuthenticatedRequest, r
     //           promptOverride, lyrics, bpm, key, timesig, duration, language, instrumental,
     //           rawLyrics, datasetName, customTag, tagPosition, allInstrumental, genreRatio]
     res.json({
-      status: data[0],
-      dataframe: data[1],
-      sampleCount: Array.isArray((data[1] as any)?.data) ? (data[1] as any).data.length : 0,
+      status: gv(data[0]),
+      dataframe: gv(data[1]),
+      sampleCount: dataframeRowCount(data[1]),
       sample: {
-        index: data[2],
-        audio: data[3],
-        filename: data[4],
-        caption: data[5],
-        genre: data[6],
-        promptOverride: data[7],
-        lyrics: data[8],
-        bpm: data[9],
-        key: data[10],
-        timeSignature: data[11],
-        duration: data[12],
-        language: data[13],
-        instrumental: data[14],
-        rawLyrics: data[15],
+        index: gv(data[2]),
+        audio: gv(data[3]),
+        filename: gv(data[4]),
+        caption: gv(data[5]),
+        genre: gv(data[6]),
+        promptOverride: gv(data[7]),
+        lyrics: gv(data[8]),
+        bpm: gv(data[9]),
+        key: gv(data[10]),
+        timeSignature: gv(data[11]),
+        duration: gv(data[12]),
+        language: gv(data[13]),
+        instrumental: gv(data[14]),
+        rawLyrics: gv(data[15]),
       },
       settings: {
-        datasetName: data[16],
-        customTag: data[17],
-        tagPosition: data[18],
-        allInstrumental: data[19],
-        genreRatio: data[20],
+        datasetName: gv(data[16]),
+        customTag: gv(data[17]),
+        tagPosition: gv(data[18]),
+        allInstrumental: gv(data[19]),
+        genreRatio: gv(data[20]),
       },
     });
   } catch (error) {
@@ -698,19 +699,19 @@ router.get('/sample-preview', authMiddleware, async (req: AuthenticatedRequest, 
 
     // Returns: [audio, filename, caption, genre, promptOverride, lyrics, bpm, key, timesig, duration, language, instrumental, rawLyrics]
     res.json({
-      audio: data[0],
-      filename: data[1],
-      caption: data[2],
-      genre: data[3],
-      promptOverride: data[4],
-      lyrics: data[5],
-      bpm: data[6],
-      key: data[7],
-      timeSignature: data[8],
-      duration: data[9],
-      language: data[10],
-      instrumental: data[11],
-      rawLyrics: data[12],
+      audio: gv(data[0]),
+      filename: gv(data[1]),
+      caption: gv(data[2]),
+      genre: gv(data[3]),
+      promptOverride: gv(data[4]),
+      lyrics: gv(data[5]),
+      bpm: gv(data[6]),
+      key: gv(data[7]),
+      timeSignature: gv(data[8]),
+      duration: gv(data[9]),
+      language: gv(data[10]),
+      instrumental: gv(data[11]),
+      rawLyrics: gv(data[12]),
     });
   } catch (error) {
     console.error('[Training] Sample preview error:', error);
@@ -740,8 +741,8 @@ router.post('/save-sample', authMiddleware, async (req: AuthenticatedRequest, re
 
     // Returns: [dataframe, editStatus]
     res.json({
-      dataframe: data[0],
-      status: data[1],
+      dataframe: gv(data[0]),
+      status: gv(data[1]),
     });
   } catch (error) {
     console.error('[Training] Save sample error:', error);
@@ -774,7 +775,7 @@ router.post('/save-dataset', authMiddleware, async (req: AuthenticatedRequest, r
     const data = result.data as unknown[];
 
     res.json({
-      status: data[0],
+      status: gv(data[0]),
       path: resolvedPath,
     });
   } catch (error) {
@@ -794,7 +795,7 @@ router.post('/load-tensors', authMiddleware, async (req: AuthenticatedRequest, r
     ]);
     const data = result.data as unknown[];
 
-    res.json({ status: data[0] });
+    res.json({ status: gv(data[0]) });
   } catch (error) {
     console.error('[Training] Load tensors error:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to load training dataset' });
@@ -892,7 +893,7 @@ router.post('/export', authMiddleware, async (req: AuthenticatedRequest, res: Re
     ]);
     const data = result.data as unknown[];
 
-    res.json({ status: data[0] });
+    res.json({ status: gv(data[0]) });
   } catch (error) {
     console.error('[Training] Export LoRA error:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to export LoRA' });
@@ -910,7 +911,7 @@ router.post('/import-dataset', authMiddleware, async (req: AuthenticatedRequest,
     ]);
     const data = result.data as unknown[];
 
-    res.json({ status: data[0] });
+    res.json({ status: gv(data[0]) });
   } catch (error) {
     console.error('[Training] Import dataset error:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to import dataset' });
