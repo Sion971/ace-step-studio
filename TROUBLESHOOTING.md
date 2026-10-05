@@ -1521,6 +1521,15 @@ est disponible.
 requis par une roue PyTorch, qui embarque son propre runtime. L'installateur contrôle le
 plancher de la pile choisie avant de télécharger quoi que ce soit.
 
+**L'en-tête de `nvidia-smi` a changé de libellé.** Les pilotes récents (série 615) n'affichent plus
+`Driver Version` / `CUDA Version` mais `KMD Version` / `CUDA UMD Version` :
+`| NVIDIA-SMI 615.71.09   KMD Version: 615.71.09   CUDA UMD Version: 13.4 |`. La première
+détection cherchait `CUDA Version:` et ne trouvait rien : « pilote non détecté », pile 12.8
+suggérée à tort, planchers et garde Blackwell ignorés. L'installateur accepte désormais les deux
+libellés ; à défaut, il **déduit** la version CUDA du numéro de pilote (`nvidia-smi
+--query-gpu=driver_version`, requête stable) avec la table des pilotes minimaux de NVIDIA, et le
+dit dans son résumé. Un pilote plus récent que la table est classé « au moins 13.2 ».
+
 **Symptôme — `torch.cuda.is_available()` vaut `False`.** Le pilote est plus ancien que la pile :
 PyTorch ne voit pas le GPU. Mettre à jour le pilote, ou relancer `install.sh` et choisir la
 pile CUDA 12.8.

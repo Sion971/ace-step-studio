@@ -65,11 +65,43 @@ export MODELSCOPE_CACHE="$SCRIPT_DIR/models"
 # de huggingface_hub installee (0.36.x ou 1.x).
 export HF_XET_HIGH_PERFORMANCE=1
 
-# Version CUDA maximale prise en charge par le pilote NVIDIA (ligne « CUDA Version » de
-# nvidia-smi). Sert a PRESELECTIONNER la pile et a controler le plancher de pilote.
+# Version CUDA maximale prise en charge par le pilote NVIDIA. Sert a PRESELECTIONNER la pile et
+# a controler le plancher de pilote. Deux sources, la seconde ne dependant pas de la mise en forme :
+#   1. l'en-tete de nvidia-smi. Son libelle a CHANGE : « CUDA Version: 13.0 » est devenu
+#      « CUDA UMD Version: 13.4 » sur les pilotes recents (serie 615 : « KMD Version » aussi) ;
+#   2. a defaut, deduite du NUMERO de pilote (nvidia-smi --query-gpu=driver_version), avec la table
+#      des pilotes minimaux publiee par NVIDIA. Plus recent que la table : « au moins 13.2 ».
+hw_cuda_from_driver() {
+    awk -v v="$1" 'BEGIN {
+        split(v, a, "."); m = a[1] + 0
+        if (m >= 595) print "13.2"
+        else if (m >= 590) print "13.1"
+        else if (m >= 580) print "13.0"
+        else if (m >= 575) print "12.9"
+        else if (m >= 570) print "12.8"
+        else if (m >= 560) print "12.6"
+        else if (m >= 555) print "12.5"
+        else if (m >= 550) print "12.4"
+        else if (m >= 545) print "12.3"
+        else if (m >= 535) print "12.2"
+        else if (m >= 530) print "12.1"
+        else if (m >= 525) print "12.0"
+        else if (m >= 520) print "11.8"
+        else if (m >= 470) print "11.4"
+        else if (m > 0) print "11.0"
+    }'
+}
 DRIVER_CUDA=""
+DRIVER_CUDA_NOTE=""
 if command -v nvidia-smi &> /dev/null; then
-    DRIVER_CUDA=$(nvidia-smi 2>/dev/null | sed -n 's/.*CUDA Version: *\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -1)
+    DRIVER_CUDA=$(nvidia-smi 2>/dev/null | sed -n 's/.*CUDA[A-Za-z ]*Version: *\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -1)
+    if [ -z "$DRIVER_CUDA" ]; then
+        DRIVER_VERSION=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 | tr -d '[:space:]')
+        DRIVER_CUDA=$(hw_cuda_from_driver "$DRIVER_VERSION")
+        if [ -n "$DRIVER_CUDA" ]; then
+            DRIVER_CUDA_NOTE=" (déduit du numéro de pilote $DRIVER_VERSION)"
+        fi
+    fi
 fi
 
 # === Detection du materiel (lecture seule) ===================================
@@ -131,7 +163,7 @@ if [ -n "$HW_GPU_NAME" ]; then
     HW_SUGGESTED_OPTION=$(hw_suggest_option "$HW_COMPUTE_CAP")
     echo "GPU détecté : $HW_GPU_NAME — $(hw_vram_class "${HW_VRAM_MIB:-0}") Go de VRAM (palier ACE-Step $(hw_ace_tier "${HW_VRAM_MIB:-0}")), capacité de calcul $HW_COMPUTE_CAP"
     if [ -n "$DRIVER_CUDA" ]; then
-        echo "Pilote NVIDIA : prend en charge CUDA $DRIVER_CUDA au maximum"
+        echo "Pilote NVIDIA : prend en charge CUDA $DRIVER_CUDA au maximum${DRIVER_CUDA_NOTE}"
     fi
     if [ -n "$HW_SUGGESTED_OPTION" ]; then
         echo "Option suggérée : $HW_SUGGESTED_OPTION (Entrée pour l'accepter)"
