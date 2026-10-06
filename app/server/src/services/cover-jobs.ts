@@ -17,6 +17,38 @@
 import { generatePollinationsCover, songIdToSeed } from './pollinations.js';
 import type { PollinationsCoverConfig } from './id3-tagger.js';
 
+/**
+ * Sixteen art-style hints appended to every cover prompt, so that songs sharing a caption do not all get the same
+ * look. The frontend prompt (buildCoverPrompt) is stable per song; this is the per-job variety dial. Purely visual
+ * descriptions: no artist or brand names, no text.
+ */
+export const STYLE_MODIFIERS: readonly string[] = [
+  'oil painting, thick impasto brushstrokes, rich color',
+  'soft watercolor wash, bleeding pigments, textured paper',
+  'risograph print, two-color overprint, grainy halftone',
+  'vaporwave aesthetic, neon gradients, retro grid horizon',
+  'minimalist flat vector illustration, bold shapes, limited palette',
+  'linocut woodblock print, high-contrast ink, carved texture',
+  'cinematic photograph, shallow depth of field, dramatic lighting',
+  'analog film photo, heavy grain, faded colors, light leaks',
+  'paper collage, layered cut-out shapes, mixed textures',
+  'art deco geometry, gold linework, symmetrical composition',
+  'gouache illustration, flat pastel colors, hand-painted look',
+  'surreal dreamscape, impossible architecture, soft glow',
+  'low-poly 3D render, faceted shapes, clean studio lighting',
+  '1970s psychedelic art, swirling organic patterns, saturated colors',
+  'charcoal and chalk drawing, smudged shadows, textured paper',
+  'stained glass, luminous jewel colors, bold black leading',
+];
+
+/**
+ * Style hint for a job. ALWAYS keyed off the job id, independent of seedMode: a new job (a retake) varies in
+ * style, the same job reproduces its own.
+ */
+export function styleModifierFor(jobId: string): string {
+  return STYLE_MODIFIERS[songIdToSeed(jobId) % STYLE_MODIFIERS.length];
+}
+
 export interface CoverReady {
   state: 'ready';
   buffer: Buffer;
@@ -103,8 +135,14 @@ export function startCoverGen(
       // undefined and Pollinations rolls its own.
       const seed = pol.seedMode === 'song' ? songIdToSeed(jobId) : undefined;
 
+      // Per-job style hint appended to the frontend prompt. The user never sees the enriched prompt, only the one
+      // the frontend built: log it, so that "the cover does not match my prompt" can be diagnosed.
+      const style = styleModifierFor(jobId);
+      const prompt = pol.prompt.trim() ? `${pol.prompt}, ${style}` : style;
+      console.log(`[cover] ${jobId} style="${style}" prompt="${prompt.slice(0, 300)}"`);
+
       const r = await generatePollinationsCover({
-        prompt: pol.prompt,
+        prompt,
         model: pol.model,
         width: pol.width,
         height: pol.height,

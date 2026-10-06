@@ -134,13 +134,7 @@ describe('cover-jobs state machine', () => {
     resolveFn({ buffer: fakeJpegBytes, mimeType: 'image/jpeg' });
   });
 
-  // SKIPPED — the next two tests specify a feature the Studio does not have. They expect cover-jobs.ts to
-  // append one of 16 art-style modifiers (STYLE_MODIFIERS[seed % 16]) to the prompt, so that songs sharing a
-  // caption get different covers. They came with the port, but cover-jobs.ts has always passed `pol.prompt`
-  // through unchanged (the name STYLE_MODIFIERS exists only in these comments). Not a bug: a product choice.
-  // To adopt the feature, implement it in cover-jobs.ts and remove the `.skip`; if it is not wanted, delete
-  // both tests.
-  it.skip('passes pollinations config through to the gen call (with style modifier appended)', async () => {
+  it('passes pollinations config through to the gen call (with style modifier appended)', async () => {
     mockGenerate.mockResolvedValue({ buffer: fakeJpegBytes, mimeType: 'image/jpeg' });
     const e = startCoverGen('cfg-test', { ...baseCfg, model: 'flux', width: 768, height: 768 });
     if (e.state === 'pending') await e.promise;
@@ -160,7 +154,7 @@ describe('cover-jobs state machine', () => {
     expect(call?.prompt.length).toBeGreaterThan('square album cover, '.length);
   });
 
-  it.skip('two different jobIds with the same prompt get different style modifiers', async () => {
+  it('two different jobIds with the same prompt get different style modifiers', async () => {
     mockGenerate.mockResolvedValue({ buffer: fakeJpegBytes, mimeType: 'image/jpeg' });
     const a = startCoverGen('aaa', baseCfg);
     if (a.state === 'pending') await a.promise;
