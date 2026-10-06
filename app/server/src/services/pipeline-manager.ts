@@ -1,6 +1,8 @@
 import { spawn, ChildProcess, execSync, exec } from 'child_process';
 import { existsSync } from 'fs';
+import path from 'path';
 import { config } from '../config/index.js';
+import { DownloadTracker, StdoutRouter, type DownloadEvent, type DownloadSnapshot } from './download-tracker.js';
 
 export type PipelineState =
   | 'stopped'
@@ -17,6 +19,8 @@ interface PipelineStatus {
   restartCount: number;
   uptime: number | null;
   lastError: string | null;
+  /** First-launch downloads: what the engine needs, what is done, for how long (see download-tracker.ts). */
+  download: DownloadSnapshot;
 }
 
 class PipelineManager {
@@ -34,6 +38,8 @@ class PipelineManager {
   private readyResolve: (() => void) | null = null;
   private readyReject: ((err: Error) => void) | null = null;
   private onRestartCallbacks: Array<() => void> = [];
+  private tracker = new DownloadTracker();
+  private router = new StdoutRouter();
 
   /** Register a callback that fires after pipeline restarts (model state reset). */
   onRestart(cb: () => void): void {
@@ -48,7 +54,48 @@ class PipelineManager {
       restartCount: this.restartCount,
       uptime: this.startedAt ? Date.now() - this.startedAt : null,
       lastError: this.lastError,
+      download: this.downloadSnapshot(),
     };
+  }
+
+  /** What the engine needs from the disk, and where its first-launch downloads stand. */
+  private downloadSnapshot(): DownloadSnapshot {
+    const { aceStepDir, defaultModel } = config.pipeline;
+    return this.tracker.snapshot({
+      pipelineState: this.state,
+      lastError: this.lastError,
+      defaultModel,
+      initLlm: process.env.INIT_LLM !== 'false',
+      lmModel: process.env.LM_MODEL || 'acestep-5Hz-lm-0.6B',
+      checkpointsDir: process.env.ACESTEP_CHECKPOINTS_DIR || path.join(aceStepDir, 'checkpoints'),
+      profilePath: process.env.HARDWARE_PROFILE_PATH || path.join(aceStepDir, '..', 'hardware_profile.env'),
+    });
+  }
+
+  /**
+   * Handles a chunk of the engine's standard output: download events go to the tracker, everything else is
+   * displayed and parsed exactly as before.
+   */
+  ingestStdout(chunk: string): void {
+    const { passthrough, events } = this.router.push(chunk);
+    for (const event of events) this.onDownloadEvent(event);
+    if (passthrough) {
+      process.stdout.write(`[Gradio] ${passthrough}`);
+      this.parseStdout(passthrough);
+    }
+  }
+
+  private onDownloadEvent(event: DownloadEvent): void {
+    this.tracker.ingest(event);
+    if (event.event === 'start') {
+      console.log(`[Download] ${event.component}: started`);
+    } else if (event.event === 'end') {
+      console.log(
+        event.ok
+          ? `[Download] ${event.component}: done${event.seconds !== undefined ? ` in ${event.seconds}s` : ''}`
+          : `[Download] ${event.component}: FAILED${event.error ? ` — ${event.error}` : ''}`,
+      );
+    }
   }
 
   /** Pause health checks during model switch to prevent zombie detection. */
@@ -72,6 +119,8 @@ class PipelineManager {
     this.state = 'starting';
     this.message = 'Spawning Python pipeline...';
     this.lastError = null;
+    this.tracker.reset();
+    this.router = new StdoutRouter();
 
     const initLlm = process.env.INIT_LLM !== 'false';
     const lmModel = process.env.LM_MODEL || 'acestep-5Hz-lm-0.6B';
@@ -122,20 +171,21 @@ class PipelineManager {
         PYTHONIOENCODING: 'utf-8',
         ACESTEP_SAVE_MEMORY: '1',  // skip storing intermediate GPU tensors between generations
         ACESTEP_OFFLOAD_TO_CPU: '1',  // LM unloads from GPU when DiT runs (persists across model switches)
+        ACESTEP_STUDIO_EVENTS: '1',  // the engine prints download events on stdout (acestep/download_events.py)
         ACESTEP_LM_OFFLOAD_TO_CPU: '1',
       },
     });
 
     this.process.stdout!.on('data', (data: Buffer) => {
-      const text = data.toString();
-      process.stdout.write(`[Gradio] ${text}`);
-      this.parseStdout(text);
+      this.ingestStdout(data.toString());
     });
 
     // stderr is inherited — writes directly to console (tqdm works)
 
     this.process.on('exit', (code, signal) => {
       console.log(`[Pipeline] Process exited: code=${code} signal=${signal}`);
+      const leftover = this.router.flush();
+      if (leftover) process.stdout.write(`[Gradio] ${leftover}`);
       this.process = null;
       this.stopHealthCheck();
 
