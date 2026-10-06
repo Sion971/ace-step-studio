@@ -20,6 +20,7 @@ function getAudioDuration(filePath: string): number {
 }
 import { fileURLToPath } from 'url';
 import { config } from '../config/index.js';
+import { classifyGenerationFailure, friendlyTimeoutMessage } from './generation-errors.js';
 import { getGradioClient, resetGradioClient, isGradioAvailable, callInitServiceWrapper, fetchCurrentInitServiceValues, MAIN_MODEL_PATH_COMPONENT_ID } from './gradio-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -574,8 +575,12 @@ async function processQueue(): Promise<void> {
       } catch (error: any) {
         const msg = error?.message || String(error);
         job.status = 'failed';
-        job.error = msg;
-        if (msg.includes('VRAM') || msg.includes('Insufficient free')) {
+        const failure = classifyGenerationFailure(msg);
+        job.error = failure === 'timeout' ? friendlyTimeoutMessage(msg) : msg;
+        if (failure === 'timeout') {
+          console.error(`\n\u23f1\ufe0f [${jobId}] GENERATION TIMED OUT`);
+          console.error(`   ${job.error}\n`);
+        } else if (failure === 'out-of-memory') {
           console.error(`\n❌ [${jobId}] NOT ENOUGH GPU MEMORY`);
           console.error(`   ${msg.match(/need ~[\d.]+ GB, only [\d.]+ GB available/)?.[0] || msg}`);
           console.error(`   Reduce duration/batch or switch to a lighter model\n`);

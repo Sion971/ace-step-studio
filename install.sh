@@ -796,10 +796,23 @@ else
     HW_PROFILE_TIER=$(hw_ace_tier "$HW_PROFILE_VRAM_MIB")
 fi
 HW_PROFILE_CLASS=$(hw_vram_class "$HW_PROFILE_VRAM_MIB")
+# Mode processeur : un DiT de 2 milliards de parametres tourne ~14 a 16 fois plus lentement que la duree
+# de l'audio (mesure : 29 s en 6 min 41 s sur un Ryzen de portable ; une premiere tentative anormalement
+# lente a depasse 9 min 30 s de diffusion). La limite de 600 s d'ACE-Step est faite pour des GPU :
+# on la releve a une heure. Valeur generale ; pour de longues durees, la relever davantage.
+if [ "$CUDA_VERSION" = "cpu" ]; then
+    HW_PROFILE_MODE="cpu"
+    HW_PROFILE_TIMEOUT=3600
+else
+    HW_PROFILE_MODE="gpu"
+    HW_PROFILE_TIMEOUT=""
+fi
 cat > hardware_profile.env <<EOF
 # Profil matériel — généré par install.sh le $(date +%Y-%m-%d). Ne pas éditer : relancer install.sh.
 # Pour imposer un autre modèle : définir DEFAULT_MODEL dans l'environnement ou dans ACE-Step-1.5/.env.
 HW_GPU_NAME="${HW_GPU_NAME:-aucun GPU NVIDIA}"
+HW_MODE="$HW_PROFILE_MODE"
+HW_GENERATION_TIMEOUT="$HW_PROFILE_TIMEOUT"
 HW_VRAM_MIB="$HW_PROFILE_VRAM_MIB"
 HW_VRAM_TORCH_MIB="$HW_PROFILE_TORCH_MIB"
 HW_VRAM_CLASS_GB="$HW_PROFILE_CLASS"
@@ -812,6 +825,9 @@ HW_INIT_LLM="$(hw_init_llm "$HW_PROFILE_TIER")"
 HW_ACE_RECOMMENDED_LM="$(hw_recommended_lm "$HW_PROFILE_TIER")"
 EOF
 echo "Profil matériel : palier ACE-Step $HW_PROFILE_TIER — modèle par défaut : $(hw_default_model "$HW_PROFILE_CLASS")"
+if [ "$HW_PROFILE_MODE" = "cpu" ]; then
+    echo "  Mode processeur : délai de génération porté à ${HW_PROFILE_TIMEOUT} s (ACESTEP_GENERATION_TIMEOUT)."
+fi
 
 echo ""
 echo "========================================"

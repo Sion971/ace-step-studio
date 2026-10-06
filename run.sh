@@ -155,6 +155,11 @@ if [ "${HW_INIT_LLM:-true}" = "false" ] && [ -z "${INIT_LLM:-}" ]; then
     export INIT_LLM="false"
     export ACESTEP_INIT_LLM="false"
 fi
+# Mode processeur : la limite de 600 s d'ACE-Step est faite pour des GPU. Priorite inchangee : une valeur
+# deja definie (environnement, ACE-Step-1.5/.env lu plus bas) l'emporte.
+if [ -n "${HW_GENERATION_TIMEOUT:-}" ]; then
+    export ACESTEP_GENERATION_TIMEOUT="${ACESTEP_GENERATION_TIMEOUT:-$HW_GENERATION_TIMEOUT}"
+fi
 export MANAGE_PIPELINE="true"
 export PORT="$WEB_PORT"
 
@@ -195,7 +200,14 @@ if [ -f "cuda_version.txt" ]; then
     echo "Configuration GPU/CUDA : $(cat cuda_version.txt)"
 fi
 if [ -n "${HW_GPU_NAME:-}" ]; then
-    echo "Profil matériel        : $HW_GPU_NAME — ${HW_VRAM_CLASS_GB} Go, palier ACE-Step ${HW_ACE_TIER}"
+    if [ "${HW_MODE:-}" = "cpu" ]; then
+        CPU_CARD=""
+        if [ "$HW_GPU_NAME" != "aucun GPU NVIDIA" ]; then CPU_CARD=" (carte détectée : $HW_GPU_NAME, non utilisée)"; fi
+        echo "Profil matériel        : mode processeur${CPU_CARD}, palier ACE-Step ${HW_ACE_TIER}"
+        echo "Délai de génération    : ${ACESTEP_GENERATION_TIMEOUT:-600} s"
+    else
+        echo "Profil matériel        : $HW_GPU_NAME — ${HW_VRAM_CLASS_GB} Go, palier ACE-Step ${HW_ACE_TIER}"
+    fi
     if [ "${INIT_LLM:-true}" = "false" ]; then LM_STATE="désactivé"; else LM_STATE="activé"; fi
     echo "Modèle par défaut      : $DEFAULT_MODEL (modèle de langage : $LM_STATE)"
 fi

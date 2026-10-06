@@ -1661,3 +1661,40 @@ dit avant d'installer et demande confirmation pour continuer (voir aussi les pla
   `hf download ACE-Step/Ace-Step1.5 --include "acestep-v15-turbo/*" --local-dir ACE-Step-1.5/checkpoints`.
 - Logique simulée avec un `nvidia-smi` factice (18 cartes, parcours de menu, priorités de
   `run.sh`) ; non passée sur une machine réellement équipée d'une petite carte.
+
+---
+
+## 35. Mode processeur (option 3) — temps mesurés et délai de génération
+
+**Mesures** (une seule machine : portable ASUS X570ZD, Ryzen, 14 Gio de RAM ; la carte GTX 1050 de 2 Gio
+n'est pas utilisée ; DiT turbo 2B quantifié en int8, 8 pas, sans modèle de langage) :
+
+| Durée demandée | Temps total | Diffusion | Décodage du VAE |
+|---|---|---|---|
+| 14 s | 3 min 40 s | 112 s (14 s par pas) | ≈ 78 s |
+| 29 s | 6 min 41 s | 185 s (23 s par pas) | ≈ 180 s |
+
+Soit environ 14 à 16 fois la durée de l'audio, avec environ 8,5 Go de mémoire résidente. Le démarrage prend
+une minute lorsque les modèles sont déjà là. Ces chiffres ne se généralisent pas à d'autres processeurs.
+
+**Symptôme — « NOT ENOUGH GPU MEMORY » sur une machine sans GPU.** ACE-Step coupe toute génération au bout de
+`ACESTEP_GENERATION_TIMEOUT` secondes (600 par défaut) et son message de dépassement parle de VRAM (« … the GPU
+ran out of VRAM or the diffusion loop stalled »). Le Studio testait le mot « VRAM » pour afficher
+« NOT ENOUGH GPU MEMORY », donc un simple délai dépassé était présenté comme un manque de mémoire. Une première
+génération de 30 s a été coupée après 9 min 30 s de diffusion ; le même extrait a ensuite pris 3 min de
+diffusion. La cause de cette lenteur initiale est inconnue : c'est un argument pour une limite large plutôt
+que serrée.
+
+**Correctif.**
+- `install.sh`, en option CPU, écrit `HW_MODE="cpu"` et `HW_GENERATION_TIMEOUT=3600` dans `hardware_profile.env` ;
+  `run.sh` l'exporte vers `ACESTEP_GENERATION_TIMEOUT`, **sauf** si la variable est déjà définie (environnement
+  ou `ACE-Step-1.5/.env`, qui l'emportent). Le bandeau indique « mode processeur » et le délai.
+- Le Studio distingue désormais un délai dépassé d'un manque de mémoire (`services/generation-errors.ts`) et
+  explique la marche à suivre.
+
+**Installation existante en mode processeur** : relancer `./install.sh`, ou ajouter
+`ACESTEP_GENERATION_TIMEOUT=3600` dans `ACE-Step-1.5/.env`, ou le poser avant `./run.sh`.
+
+**Limites.** Une heure est une valeur générale : elle couvre les extraits courts mesurés, pas des durées de
+plusieurs minutes, dont le temps croît plus vite que la durée de l'audio. À relever au besoin. Les autres
+processeurs n'ont pas été mesurés.
