@@ -270,7 +270,11 @@ une correction non redémarrée n'a aucun effet. Plusieurs heures ont été
 perdues à déboguer du code qui n'était pas celui qui tournait.
 
 **Modification d'un fichier front** (`app/components/`, `app/services/`) →
-`npx vite build` puis rechargement du navigateur (Ctrl+Shift+R).
+relancer `run.sh` : il recompile l'interface quand une source est plus récente que
+`app/dist`, puis recharger le navigateur (Ctrl+Shift+R). Avant, `app/dist` n'était
+compilé que s'il manquait : un `git pull` laissait l'ancienne interface en place, et
+les nouveautés n'apparaissaient pas (le serveur, lui, prenait bien le nouveau code).
+Sans relancer : `cd app && npx vite build`.
 
 **Port déjà occupé.** Express bascule silencieusement sur 3002 si 3001 est
 pris (`[Server] Port 3001 busy, trying 3002...`), ce qui peut faire coexister

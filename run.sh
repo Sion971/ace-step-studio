@@ -248,9 +248,40 @@ if [ ! -d "app/server/node_modules" ]; then
 fi
 
 # === 9. Compilation du frontend ==============================================
+# L'interface n'etait compilee que si app/dist MANQUAIT : apres un « git pull », l'ancienne interface restait servie et les
+# nouveautes (par ex. l'ecran de demarrage du premier lancement) n'apparaissaient pas. On recompile aussi quand une source de
+# l'interface est plus recente que la derniere compilation. Ne comptent pas : node_modules, dist, le serveur (app/server, que Vite
+# ne compile pas), la base (app/data), la documentation, l'editeur audio embarque, et les fichiers de test.
+frontend_is_stale() {
+    [ -f "app/dist/index.html" ] || return 0
+    local newer
+    newer=$(find app \( -path app/node_modules -o -path app/dist -o -path app/dist.tmp -o -path app/server \
+                        -o -path app/data -o -path app/docs -o -path app/audiomass-editor \) -prune -o \
+                 -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.css' -o -name '*.html' -o -name '*.js' \
+                            -o -name '*.json' -o -name '*.svg' \) \
+                 ! -name '*.test.*' -newer app/dist/index.html -print -quit 2>/dev/null)
+    [ -n "$newer" ]
+}
+
+# Compile dans un dossier temporaire puis remplace app/dist : Vite vide son dossier de sortie avant de compiler, donc un echec
+# en cours de route ne doit pas detruire l'interface qui fonctionne.
+build_frontend() {
+    rm -rf app/dist.tmp
+    if (cd app && npx vite build --outDir dist.tmp --emptyOutDir); then
+        rm -rf app/dist
+        mv app/dist.tmp app/dist
+        return 0
+    fi
+    rm -rf app/dist.tmp
+    return 1
+}
+
 if [ ! -d "app/dist" ]; then
     echo "Compilation du frontend..."
-    (cd app && npx vite build)
+    build_frontend
+elif frontend_is_stale; then
+    echo "Interface modifiée depuis la dernière compilation : recompilation..."
+    build_frontend || echo "ATTENTION : la recompilation a échoué ; l'ancienne interface est conservée."
 fi
 
 # === 10. Répertoires de sortie ===============================================
