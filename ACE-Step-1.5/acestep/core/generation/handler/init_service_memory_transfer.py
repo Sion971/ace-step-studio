@@ -57,7 +57,8 @@ class InitServiceMemoryTransferMixin:
                 self._move_module_recursive(attr, target_device, dtype, visited)
 
     def _move_quantized_param(self, param, target_device):
-        """Move an AffineQuantizedTensor to target device using ``_apply_fn_to_data`` when available."""
+        """Move a torchao quantized tensor (AffineQuantizedTensor or LinearActivationQuantizedTensor) to the target
+        device using ``_apply_fn_to_data`` when available."""
         if hasattr(param, "_apply_fn_to_data"):
             return torch.nn.Parameter(
                 param._apply_fn_to_data(lambda x: x.to(target_device)),

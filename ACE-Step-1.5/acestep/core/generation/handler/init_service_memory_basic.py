@@ -140,14 +140,41 @@ class InitServiceMemoryBasicMixin:
             )
         return None
 
+    @staticmethod
+    def _get_linear_activation_quantized_tensor_class():
+        """Return torchao's LinearActivationQuantizedTensor, or None if unavailable.
+
+        This is the wrapper torchao builds around the weights for the ``w8a8_dynamic`` scheme, which
+        ACE-Step selects by default on GPUs with compute capability < 7 (Pascal and older).
+        """
+        try:
+            from torchao.quantization.linear_activation_quantized_tensor import LinearActivationQuantizedTensor
+            return LinearActivationQuantizedTensor
+        except Exception as exc:
+            logger.debug(
+                "[_get_linear_activation_quantized_tensor_class] failed to import LinearActivationQuantizedTensor "
+                "from torchao.quantization.linear_activation_quantized_tensor: {}",
+                exc,
+            )
+        return None
+
     def _is_quantized_tensor(self, t):
-        """True if ``t`` is a torchao AffineQuantizedTensor."""
+        """True if ``t`` is a torchao tensor that must be moved with ``_apply_fn_to_data``.
+
+        That covers AffineQuantizedTensor (``int8_weight_only``) and LinearActivationQuantizedTensor
+        (``w8a8_dynamic``). The latter used to fall into the generic ``param.data.to(device)`` branch, which
+        raises "Cannot set version_counter for inference tensor" when the DiT is moved to the GPU inside
+        ``torch.inference_mode()`` (Pascal GPUs).
+        """
         if t is None:
             return False
-        cls = self._get_affine_quantized_tensor_class()
-        if cls is None:
-            return False
-        return isinstance(t, cls)
+        for cls in (
+            self._get_affine_quantized_tensor_class(),
+            self._get_linear_activation_quantized_tensor_class(),
+        ):
+            if cls is not None and isinstance(t, cls):
+                return True
+        return False
 
     def _has_quantized_params(self, module):
         """True if module (or any submodule) has an AffineQuantizedTensor parameter."""

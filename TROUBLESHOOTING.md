@@ -1698,3 +1698,54 @@ que serrée.
 **Limites.** Une heure est une valeur générale : elle couvre les extraits courts mesurés, pas des durées de
 plusieurs minutes, dont le temps croît plus vite que la durée de l'audio. À relever au besoin. Les autres
 processeurs n'ont pas été mesurés.
+
+**Un délai dépassé n'arrête pas le calcul.** ACE-Step le dit lui-même (« the CUDA operation may still be
+running in the background ») : le calcul se poursuit après le message. Mesuré avec un délai forcé à 60 s : le
+premier calcul, déclaré en échec à 21:02:25, s'est terminé à 21:03:45, alors que la demande suivante
+tournait déjà depuis 21:03:17. Les deux se chevauchent. Après un délai dépassé, attendre la fin du premier
+calcul avant d'en lancer un autre.
+
+---
+
+## 36. Cartes Pascal (GTX 10xx) — « Cannot set version_counter for inference tensor »
+
+**Symptôme.** L'installation et le démarrage réussissent (« DiT model initialized successfully »,
+« Pipeline Ready! »), puis la première génération échoue :
+
+```
+RuntimeError: Cannot set version_counter for inference tensor
+  ... init_service_memory_transfer.py ... _move_module_recursive
+  ... torchao/quantization/linear_activation_quantized_tensor.py ... _apply_fn_to_data
+```
+
+**Cause** (reproduite et confirmée sur une GTX 1050, `torch 2.11.0+cu126`, `torchao 0.17.0`). ACE-Step impose
+la quantification `w8a8_dynamic` aux cartes dont la capacité de calcul majeure est inférieure à 7 (Pascal et
+antérieures ; Turing et Volta prennent `int8_weight_only`). torchao enveloppe alors les poids dans un
+`LinearActivationQuantizedTensor`, que `_is_quantized_tensor` ne reconnaissait pas : il ne connaissait que
+`AffineQuantizedTensor`. Le déplacement du DiT vers le GPU se fait dans `torch.inference_mode()` (`service_generate`
+est décorée `@torch.inference_mode()`) : ces poids prenaient la branche générique `param.data.to(device)`, qui
+échoue. Le même code existe dans ACE-Step amont.
+
+**Preuve** (`pascal_quant_move_test.py`, petit modèle de 4 blocs, code réel d'ACE-Step, GTX 1050) :
+
+| Cas | Déplacement | Calcul sur le GPU |
+|---|---|---|
+| `int8_weight_only`, code tel quel (contrôle) | OK | OK (0,45 % d'écart) |
+| sans quantification (contrôle) | OK | OK (0,08 %) |
+| `w8a8_dynamic`, code tel quel | **échec** (l'erreur ci-dessus) | — |
+| `w8a8_dynamic`, type reconnu comme quantifié | OK | OK (0,86 %) |
+| `w8a8_dynamic`, déplacement hors mode inférence | OK | OK (0,86 %) |
+| les deux ensemble | OK | OK (0,86 %) |
+
+`w8a8_dynamic` calcule donc correctement sur Pascal : seul le déplacement échouait.
+
+**Correctif.** `_is_quantized_tensor` reconnaît aussi `LinearActivationQuantizedTensor`, ce qui envoie ces poids
+vers `_move_quantized_param` (`_apply_fn_to_data`), comme pour `int8_weight_only`. Des trois corrections qui
+fonctionnent, c'est la plus petite : elle ne change que le déplacement de ce type de poids, dans le contexte
+exact du vrai lancement. Tests : `init_service_quantized_move_test.py` (reconnaissance du type ; déplacement
+processeur → GPU → processeur → GPU dans `torch.inference_mode()`, avec un calcul après chaque aller).
+
+**Limites.** Le test de preuve utilise un petit modèle, pas le DiT complet : la GTX 1050 testée n'a que 2 Gio et
+ne peut pas le charger (le budget d'ACE-Step compte environ 4,7 Go pour le DiT 2B en bf16, et le contexte CUDA
+s'y ajoute). Une carte Pascal de 4 Go ou plus reste à tester pour de bon. Turing et Volta n'empruntent pas ce
+chemin, d'après le code, et n'ont pas été testés.
