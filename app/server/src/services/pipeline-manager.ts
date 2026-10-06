@@ -1,4 +1,4 @@
-import { spawn, ChildProcess, execSync, exec } from 'child_process';
+import { spawn, ChildProcess, execSync } from 'child_process';
 import { existsSync } from 'fs';
 import path from 'path';
 import { config } from '../config/index.js';
@@ -267,19 +267,8 @@ class PipelineManager {
     this.message = 'Pipeline running';
     this.startedAt = Date.now();
 
-    // Open browser only on first start, not on restarts.
-    // Skip when NO_AUTO_BROWSER is set (Pinokio launcher handles tab opening itself).
-    if (this.restartCount === 0 && !this.wasStoppedForTraining && process.env.NO_AUTO_BROWSER !== 'true') {
-      const url = `http://localhost:${config.port}`;
-      console.log(`[Pipeline] Opening browser: ${url}`);
-      if (process.platform === 'win32') {
-        exec(`start "" "${url}"`);
-      } else if (process.platform === 'darwin') {
-        exec(`open "${url}"`);
-      } else {
-        exec(`xdg-open "${url}"`);
-      }
-    }
+    // The browser is opened by index.ts as soon as the server listens (open-browser.ts), not here: at a first launch the
+    // engine downloads its models for many minutes, and the first-launch screen has to be visible during that time.
 
     this.restartCount = 0;
     console.log('[Pipeline] Ready!');

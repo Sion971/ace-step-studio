@@ -35,6 +35,7 @@ import demucsRoutes from './routes/demucs.js';
 import loudnormRoutes from './routes/loudnorm.js';
 import audioEditorRoutes from './routes/audio-editor.js';
 import { pipelineManager } from './services/pipeline-manager.js';
+import { maybeOpenBrowser } from './services/open-browser.js';
 import { pool } from './db/pool.js';
 import './db/migrate.js';
 
@@ -616,6 +617,9 @@ async function startServer() {
       } else {
         console.log(`ACE-Step API: ${config.acestep.apiUrl} (external)`);
       }
+
+      // Open the browser right away: the first-launch screen shows the model downloads while the engine starts.
+      maybeOpenBrowser({ managed: managePipeline, port });
 
       import('os').then(os => {
         const nets = os.networkInterfaces();

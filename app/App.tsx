@@ -63,6 +63,7 @@ import { generateApi, songsApi, playlistsApi, getAudioUrl, getCoverUrl } from '.
 import { useAuth } from './context/AuthContext';
 import { useResponsive } from './context/ResponsiveContext';
 import { I18nProvider, useI18n } from './context/I18nContext';
+import { SetupScreen } from './components/SetupScreen';
 import { List, GraduationCap } from 'lucide-react';
 import { PlaylistDetail } from './components/PlaylistDetail';
 import { Toast, ToastType } from './components/Toast';
@@ -2353,6 +2354,7 @@ export default function App() {
   return (
     <I18nProvider>
       <AppContent />
+      <SetupScreen />
     </I18nProvider>
   );
 }

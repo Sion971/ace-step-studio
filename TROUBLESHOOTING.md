@@ -1749,3 +1749,37 @@ processeur → GPU → processeur → GPU dans `torch.inference_mode()`, avec un
 ne peut pas le charger (le budget d'ACE-Step compte environ 4,7 Go pour le DiT 2B en bf16, et le contexte CUDA
 s'y ajoute). Une carte Pascal de 4 Go ou plus reste à tester pour de bon. Turing et Volta n'empruntent pas ce
 chemin, d'après le code, et n'ont pas été testés.
+
+---
+
+## 37. Écran de démarrage (premier lancement)
+
+**Quand il apparaît.** Quand le moteur, lancé par le Studio, doit télécharger des modèles (premier lancement, ou modèle
+supprimé), ou qu'il échoue alors qu'il en manque. Il reste jusqu'à ce que le moteur soit prêt, affiche « Prêt » environ deux
+secondes, puis laisse place au Studio. Un démarrage ordinaire (modèles déjà sur le disque) ne l'affiche jamais : le voyant
+de la barre latérale suffit. Il n'apparaît pas non plus si le moteur n'est pas lancé par le Studio (`MANAGE_PIPELINE`
+différent de `true`).
+
+**Ce qu'il montre.** Le matériel détecté (carte, mémoire, mode GPU ou processeur) ; chaque modèle avec sa taille et son
+état (en attente, en cours, terminé, échec) ; le temps écoulé ; une alerte si l'espace disque libre ne suffit pas pour les
+modèles manquants (marge de 10 %) ; et la raison de l'échec quand il y en a un.
+
+**Pourquoi pas de barre en pourcentage.** Mesuré sur un vrai téléchargement (`huggingface_hub 0.36.2` + `hf_xet`, dossier de
+337 Mo) : le fichier partiel reste à 0 octet jusqu'à la fin, et les octets rapportés par Hugging Face arrivent par rafales
+(rien pendant 17 s, puis 64 Mio, puis le reste d'un coup). Une barre aurait paru figée, puis aurait sauté. L'écran donne donc
+l'état de chaque modèle et les compteurs tels qu'ils arrivent, et le dit. **Le temps restant est une estimation** (« ≈ »),
+calculée sur la vitesse des téléchargements déjà terminés : il n'apparaît qu'après le premier.
+
+**Le navigateur s'ouvre dès que le serveur écoute**, au lieu d'attendre que le moteur soit prêt (sur le portable de test :
+26 minutes plus tard). `NO_AUTO_BROWSER=true` le désactive, comme avant.
+
+**« Continuer sans attendre »** écarte l'écran pour la session du navigateur. La génération de musique ne fonctionne pas tant
+que le moteur n'est pas prêt.
+
+**Sous le capot.** `GET /api/pipeline/status` renvoie `download` (phase, composants, temps, disque, matériel). Le moteur
+imprime des lignes `[studio-download] {…}` sur sa sortie standard (`acestep/download_events.py`) ; le serveur les lit et les
+retire de la console, où elles deviennent `[Download] <composant> : …`.
+
+**Limites.** Les textes japonais, coréen, russe et chinois sont traduits sans relecture par un locuteur natif. Non testé sur
+Windows. Les tailles de certains modèles sont annoncées ou estimées (« ≈ »). L'écran est couvert par des tests automatiques
+(logique, composant dans un navigateur simulé) ; son rendu dans un vrai navigateur n'a pas été vérifié par l'auteur du code.
