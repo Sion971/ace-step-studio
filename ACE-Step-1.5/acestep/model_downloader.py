@@ -17,6 +17,32 @@ from pathlib import Path
 from loguru import logger
 
 
+def _load_download_events():
+    """Return the sibling ``download_events`` module (machine-readable download events for the Studio).
+
+    The pipeline imports this file as ``acestep.model_downloader``; unit tests load it on its own, in which case the
+    sibling file is loaded by path.
+    """
+    import importlib
+    import importlib.util
+
+    cached = sys.modules.get("acestep.download_events")
+    if cached is not None:
+        return cached
+    try:
+        return importlib.import_module("acestep.download_events")
+    except Exception:
+        spec = importlib.util.spec_from_file_location(
+            "acestep.download_events", Path(__file__).with_name("download_events.py")
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+
+_events = _load_download_events()
+
+
 # =============================================================================
 # Model Code File Sync (GitHub repo -> checkpoint directories)
 # =============================================================================
@@ -504,7 +530,11 @@ def download_main_model(
     print("This may take a while depending on your internet connection...")
 
     # Use smart download with automatic fallback
-    success, msg = _smart_download(MAIN_MODEL_REPO, checkpoints_dir, token, prefer_source)
+    success, msg = _events.tracked(
+        "main",
+        lambda: _smart_download(MAIN_MODEL_REPO, checkpoints_dir, token, prefer_source),
+        repo=MAIN_MODEL_REPO,
+    )
     if success:
         # Sync model code files for all DiT components in the main model
         for component in MAIN_MODEL_COMPONENTS:
@@ -560,7 +590,11 @@ def download_submodel(
     print(f"Destination: {model_path}")
 
     # Use smart download with automatic fallback
-    success, msg = _smart_download(repo_id, model_path, token, prefer_source)
+    success, msg = _events.tracked(
+        model_name,
+        lambda: _smart_download(repo_id, model_path, token, prefer_source),
+        repo=repo_id,
+    )
     if success and model_name in _CHECKPOINT_TO_VARIANT:
         # Sync model code files after successful download
         synced = _sync_model_code_files(model_name, checkpoints_dir)
@@ -645,12 +679,16 @@ def download_main_subfolder(
     try:
         from huggingface_hub import snapshot_download
 
-        snapshot_download(
-            repo_id=MAIN_MODEL_REPO,
-            local_dir=str(checkpoints_dir),
-            allow_patterns=[f"{folder}/*"],
-            token=token,
-        )
+        def _fetch():
+            snapshot_download(
+                repo_id=MAIN_MODEL_REPO,
+                local_dir=str(checkpoints_dir),
+                allow_patterns=[f"{folder}/*"],
+                token=token,
+            )
+            return True, ""
+
+        _events.tracked(folder, _fetch, repo=MAIN_MODEL_REPO)
     except Exception as e:
         logger.error(f"[Model Download] Failed to download {folder}: {e}")
         return False, f"Failed to download '{folder}' from {MAIN_MODEL_REPO}: {e}"
