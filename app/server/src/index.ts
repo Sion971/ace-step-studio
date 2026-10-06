@@ -67,8 +67,6 @@ app.use(helmet({
       // the preview shows as a broken image even though the bytes are fine
       // (Save still works, but the user can't see what they're saving).
       imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
-      mediaSrc: ["'self'", 'data:', 'blob:', 'https:', 'http://localhost:*'],
-      objectSrc: ["'none'"],
       // `blob:` — MP4 importé localement dans Video Studio, via
       // URL.createObjectURL(file). Sans cette directive, le navigateur
       // retombe sur `defaultSrc: 'self'` et bloque la vidéo : fond noir

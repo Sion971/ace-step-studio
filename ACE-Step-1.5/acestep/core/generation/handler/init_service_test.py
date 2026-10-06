@@ -90,6 +90,9 @@ class _Host(InitServiceMixin):
         """Stub MLX VAE init hook and always report unavailable in tests."""
         return False
 
+    def _sync_alignment_config(self) -> None:
+        """Stub the lyric-alignment hook that the full handler composes and the loader calls after loading."""
+
 
 class InitServiceMixinTests(unittest.TestCase):
     """Behavioral tests for InitServiceMixin helpers and initialization flow."""
@@ -812,20 +815,25 @@ class InitServiceMixinTests(unittest.TestCase):
             empty_cache.assert_called_once()
 
     def test_empty_cache_routes_to_xpu(self):
-        """It routes cache clearing to XPU when the host device is XPU."""
+        """It synchronizes then clears the XPU cache when the host device is XPU."""
         host = _Host(project_root="K:/fake_root", device="xpu")
+        synchronize = Mock()
         empty_cache = Mock()
-        xpu_stub = types.SimpleNamespace(is_available=lambda: True, empty_cache=empty_cache)
+        xpu_stub = types.SimpleNamespace(is_available=lambda: True, synchronize=synchronize, empty_cache=empty_cache)
         with patch("torch.xpu", new=xpu_stub, create=True):
             host._empty_cache()
+        synchronize.assert_called_once()
         empty_cache.assert_called_once()
 
     def test_empty_cache_routes_to_mps(self):
-        """It routes cache clearing to MPS when the host device is MPS."""
+        """It synchronizes then clears the MPS cache when the host device is MPS."""
         host = _Host(project_root="K:/fake_root", device="mps")
-        with patch("torch.backends.mps.is_available", return_value=True, create=True), patch("torch.mps.empty_cache") as empty_cache:
+        with patch("torch.backends.mps.is_available", return_value=True, create=True), \
+                patch("torch.mps.synchronize") as synchronize, \
+                patch("torch.mps.empty_cache") as empty_cache:
             host._empty_cache()
-            empty_cache.assert_called_once()
+        synchronize.assert_called_once()
+        empty_cache.assert_called_once()
 
     def test_synchronize_routes_to_cuda(self):
         """It routes synchronization to CUDA when the host device is CUDA."""
