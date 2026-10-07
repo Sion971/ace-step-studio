@@ -1787,3 +1787,38 @@ retire de la console, où elles deviennent `[Download] <composant> : …`.
 **Limites.** Les textes japonais, coréen, russe et chinois sont traduits sans relecture par un locuteur natif. Non testé sur
 Windows. Les tailles de certains modèles sont annoncées ou estimées (« ≈ »). L'écran est couvert par des tests automatiques
 (logique, composant dans un navigateur simulé) ; son rendu dans un vrai navigateur n'a pas été vérifié par l'auteur du code.
+
+---
+
+## 38. Contrôle des types de l'interface
+
+`cd app && npm run typecheck` (= `tsc --noEmit`) : **0 erreur** attendue.
+
+**Pourquoi ce contrôle ne disait presque rien avant.** `@types/react` et `@types/react-dom` n'étaient ni déclarés ni installés.
+TypeScript traitait donc tout React (hooks, composants) comme non typé, et le mode strict étant désactivé il ne s'en plaignait
+pas : les 8 erreurs visibles n'étaient que ce qui affleurait. Avec les types, il y en avait 74 dans 14 fichiers. Elles cachaient
+de vrais défauts, corrigés par étapes :
+
+- une chanson d'une playlist affichait sa durée en secondes (« 187 ») au lieu de « 3:07 » dans le panneau de droite ;
+- 21 clés de traduction manquaient à l'anglais, donc aux autres langues : l'interface affichait l'identifiant brut
+  (« allSongs », « uploads », « downloadingModel Nom du modèle... », y compris en français) ;
+- des types en retard sur ce que font vraiment le serveur et le moteur (`repaintMode: 'most_natural'`, les optimisations de VRAM de la
+  barre latérale, le `mode` de la sélection audio) ;
+- du code mort hérité du projet d'origine : les badges, le niveau de compte et « Soutient depuis… » de `UserProfile.tsx`, dont le
+  serveur n'envoie jamais les champs.
+
+**Si `npm run typecheck` signale beaucoup d'erreurs sur `react`** : les types ne sont pas installés. `cd app && npm install`.
+
+**S'il signale des modules introuvables dans `server/src`** (`@gradio/client`, `node-id3`...) : le `tsconfig.json` de `app/` n'a pas
+d'`include`, donc `tsc` vérifie aussi les 49 fichiers de `app/server/src`, qui ont leurs propres dépendances. `cd app/server && npm install`
+(l'installation normale s'en charge déjà).
+
+**Ce que le typage ne verra jamais.** Les écrans d'entraînement LoRA (`LoraPanel`, `DatasetTab`, `ExportTab`, `ModelConfigSection`,
+`TrainTab`) reçoivent `t` en paramètre, typé `(key: string) => string` : TypeScript ne peut vérifier aucune de leurs clés. Le test
+`app/i18n/usedKeys.test.ts` lit le code source à sa place et échoue si un composant demande une clé absente de l'anglais. Ses 40 clés
+connues comme manquantes sont listées dans `KNOWN_GAP` (30 n'existent qu'en français, 10 nulle part) : la liste ne peut que
+diminuer. `app/i18n/missingKeys.test.ts` vérifie que les clés ajoutées par ce chantier existent dans les six langues.
+
+**Limites connues.** Le mode strict reste désactivé (`strictNullChecks` en particulier) : activer le mode strict ferait apparaître une
+classe d'erreurs entièrement différente, à traiter à part. Les textes japonais, coréen, russe et chinois ajoutés par ce chantier ne
+sont pas relus par un locuteur natif.

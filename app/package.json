@@ -10,7 +10,8 @@
     "start": "cd server && npx tsx src/index.ts & npm run dev",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@ffmpeg/core": "^0.12.6",
@@ -28,6 +29,8 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",
     "@types/node": "^22.14.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "@vitest/ui": "^5.0.3",
     "happy-dom": "^20.9.0",
