@@ -6,6 +6,7 @@ import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { getCoverUrl } from '../services/api';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { useResponsive } from '../context/ResponsiveContext';
+import type { TranslationKey } from '../i18n/translations';
 
 interface VideoGeneratorModalProps {
   isOpen: boolean;
@@ -101,7 +102,7 @@ interface PexelsVideo {
   user: { name: string };
 }
 
-const PRESETS: { id: PresetType; labelKey: string; icon: React.ReactNode }[] = [
+const PRESETS: { id: PresetType; labelKey: TranslationKey; icon: React.ReactNode }[] = [
   { id: 'NCS Circle', labelKey: 'presetClassicNcs', icon: <Circle size={16} /> },
   { id: 'Linear Bars', labelKey: 'presetSpectrum', icon: <BarChart2 size={16} /> },
   { id: 'Dual Mirror', labelKey: 'presetMirror', icon: <ColumnsIcon /> },
@@ -966,8 +967,10 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
         // continuer.
        const videoTime = time % (bgVideo.duration || 1);
        bgVideo.currentTime = videoTime;
-       await new Promise((resolve) => {
-         if ('requestVideoFrameCallback' in bgVideo) {
+       await new Promise<void>((resolve) => {
+         // The DOM typings declare requestVideoFrameCallback, so `'x' in bgVideo` made TypeScript treat the `else` as unreachable; older
+         // browsers do lack it. Testing the function keeps the fallback, and the type-check of its body.
+         if (typeof bgVideo.requestVideoFrameCallback === 'function') {
            (bgVideo as HTMLVideoElement).requestVideoFrameCallback(() => resolve());
          } else {
            const onSeeked = () => {

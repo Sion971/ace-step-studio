@@ -454,7 +454,7 @@ export interface GenerationParams {
   fadeOutDuration?: number;
   latentShift?: number;
   latentRescale?: number;
-  repaintMode?: 'conservative' | 'balanced' | 'aggressive';
+  repaintMode?: 'conservative' | 'balanced' | 'aggressive' | 'most_natural';
   repaintStrength?: number;
 
   loraLoaded?: boolean;
@@ -659,6 +659,14 @@ export interface UserProfile extends User {
   avatar_url?: string;
   banner_url?: string;
   created_at: string;
+  /**
+   * Badges, account tier and supporter date, as the project this one was forked from served them. THIS SERVER SENDS NONE OF THEM (no table
+   * or column holds them), so the badge ring, the tier animation and the "supporting since" line of UserProfile.tsx never show. They are
+   * declared so that the component type-checks; delete them together with that code if the feature is not wanted.
+   */
+  badges?: Array<{ id: string; label: string; description?: string; color?: string }>;
+  accountTier?: string;
+  supporter_since?: string;
 }
 
 export const usersApi = {

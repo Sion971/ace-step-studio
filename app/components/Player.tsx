@@ -305,7 +305,7 @@ export const Player: React.FC<PlayerProps> = ({
                                 isOpen={showDropdown}
                                 onClose={() => setShowDropdown(false)}
                                 isOwner={user?.id === currentSong.userId}
-                                position="center"
+                                position="right"
                                 direction="up"
                                 onCreateVideo={onOpenVideo}
                                 onReusePrompt={onReusePrompt}
@@ -600,7 +600,7 @@ export const Player: React.FC<PlayerProps> = ({
                                             isOpen={showDropdown}
                                             onClose={() => setShowDropdown(false)}
                                             isOwner={user?.id === currentSong.userId}
-                                            position="center"
+                                            position="right"
                                             direction="up"
                                             onCreateVideo={onOpenVideo}
                                             onReusePrompt={onReusePrompt}

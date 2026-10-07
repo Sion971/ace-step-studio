@@ -7,7 +7,9 @@
  *
  * Volontairement sans dépendance React ni i18n : ce fichier doit rester
  * importable depuis n'importe quel composant sans en tirer d'autres.
+ * (L'import de TYPE ci-dessous est effacé à la compilation : il ne tire rien à l'exécution.)
  */
+import type { TranslationKey } from '../i18n/translations';
 
 /** Repli lorsque l'identifiant du modèle est absent (chansons anciennes). */
 const UNKNOWN_MODEL_LABEL = '—';
@@ -61,7 +63,7 @@ export interface ModelInfoEntry {
   /** VRAM minimale annoncée, en Go. Sert à signaler les modèles trop lourds. */
   vramMin: number;
   /** Clé i18n de la description ; `descFallback` sert si la clé n'existe pas. */
-  descKey: string;
+  descKey: TranslationKey;
   descFallback: string;
 }
 

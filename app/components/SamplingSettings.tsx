@@ -2,22 +2,22 @@ import React from 'react';
 
 interface SamplingSettingsProps {
   audioFormat: string;
-  inferMethod: string;
+  inferMethod: 'ode' | 'sde';
   samplerMode: string;
   schedulerType: string;
   onAudioFormatChange: (value: 'mp3' | 'flac') => void;
-  onInferMethodChange: (value: string) => void;
+  onInferMethodChange: (value: 'ode' | 'sde') => void;
   onSamplerModeChange: (value: string) => void;
   onSchedulerTypeChange: (value: string) => void;
 
   /** DCW — correction de qualité dans le domaine ondelettes (CVPR 2026). */
   dcwEnabled: boolean;
-  dcwMode: string;
+  dcwMode: 'low' | 'high' | 'double' | 'pix';
   dcwScaler: number;
   dcwHighScaler: number;
   dcwWavelet: string;
   onDcwEnabledChange: (value: boolean) => void;
-  onDcwModeChange: (value: string) => void;
+  onDcwModeChange: (value: 'low' | 'high' | 'double' | 'pix') => void;
   onDcwScalerChange: (value: number) => void;
   onDcwHighScalerChange: (value: number) => void;
   onDcwWaveletChange: (value: string) => void;

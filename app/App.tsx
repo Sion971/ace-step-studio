@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 // `true` : le profil de l'utilisateur. `false` : le panneau Créer.
 const OPEN_ON_PROFILE = true;
 import { Sidebar } from './components/Sidebar';
-import { CreatePanel } from './components/CreatePanel'; // <-- Ajout des accolades {}
+import { CreatePanel, type AudioModeId } from './components/CreatePanel'; // <-- Ajout des accolades {}
 import { SongList } from './components/SongList';
 import { RightSidebar } from './components/RightSidebar';
 import { Player } from './components/Player';
@@ -262,7 +262,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
   // useState local depuis cette prop fonctionne de facon fiable.
   const [libraryInitialTab, setLibraryInitialTab] = useState<'all' | 'workspaces' | 'playlists' | 'liked' | 'uploads'>('all');
   const [showLeftSidebar, setShowLeftSidebar] = useState(true);
-  const [pendingAudioSelection, setPendingAudioSelection] = useState<{ target: 'reference' | 'source'; url: string; title?: string } | null>(null);
+  const [pendingAudioSelection, setPendingAudioSelection] = useState<{ target: 'reference' | 'source'; url: string; title?: string; mode?: AudioModeId } | null>(null);
 
   // Mobile UI Toggle
   const [mobileShowList, setMobileShowList] = useState(false);

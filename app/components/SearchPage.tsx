@@ -4,6 +4,7 @@ import { Song, Playlist } from '../types';
 import { songsApi, usersApi, playlistsApi, searchApi, UserProfile, getAudioUrl, getCoverUrl } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 import { GENRE_KEYS } from '../data/genres';
+import type { TranslationKey } from '../i18n/translations';
 
 interface SearchPageProps {
   onPlaySong?: (song: Song, list?: Song[]) => void;
@@ -402,7 +403,8 @@ export const SearchPage: React.FC<SearchPageProps> = ({
           <h2 className="text-lg font-bold text-zinc-900 dark:text-white mb-4">{t('genres')}</h2>
           <div className="flex flex-wrap gap-2">
             {GENRE_KEYS.map((genreKey) => {
-              const genreLabel = t(genreKey);
+              // A genre is a NAME read from a text file, not a fixed key: t() translates it if the files know the word, and shows it as is otherwise.
+              const genreLabel = t(genreKey as TranslationKey);
               return (
                 <button
                   key={genreKey}

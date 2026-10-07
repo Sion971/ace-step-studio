@@ -23,6 +23,7 @@ import { AudioWaveform } from './AudioWaveform';
 import { GenerationParams, Song } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useI18n } from '../context/I18nContext';
+import type { TranslationKey } from '../i18n/translations';
 import { generateApi, settingsApi } from '../services/api';
 import { MAIN_STYLES } from '../data/genres';
 import { EditableSlider } from './EditableSlider';
@@ -114,7 +115,7 @@ export const AUDIO_MODE_MAP = AUDIO_MODES.reduce((acc, m) => {
 }, {} as Record<AudioModeId, AudioModeDef>);
 
 interface CreatePanelProps {
-  onGenerate: (params: GenerationParams) => void;
+  onGenerate: (params: GenerationParams) => void | Promise<void>;
   isGenerating: boolean;
   activeJobCount?: number;
   initialData?: { song: Song, timestamp: number } | null;
@@ -199,7 +200,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // « generationSeed » affichés à l'écran. `tf()` détecte le cas « clé revenue
   // inchangée » et bascule sur le repli.
   const tf = useCallback((key: string, fallback: string): string => {
-    const value = t(key);
+    // `key` may legitimately be absent from the translation files: that is exactly the case this helper exists for.
+    const value = t(key as TranslationKey);
     return !value || value === key ? fallback : value;
   }, [t]);
 
@@ -417,7 +419,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // (paramètres de génération + désactivation de thinking/useAdg).
   const [loraLoaded, setLoraLoaded] = useState(false);
   const settingsLoadedRef = useRef(false);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const saveSettingsToServer = useCallback((overrides?: Record<string, unknown>) => {
     if (!token || !settingsLoadedRef.current) return;
     clearTimeout(saveTimerRef.current);
@@ -1886,7 +1888,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       // Pass the pre-created placeholder tempId so App.tsx promotes it instead
       // of creating a duplicate card.
       const tempIdForThisJob = tempIds[i];
-      onGenerate({
+      Promise.resolve(onGenerate({
         _tempId: tempIdForThisJob,
         customMode: true,
         prompt: finalLyrics,
@@ -2019,7 +2021,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         repaintStrength: taskType === 'repaint' ? repaintStrength : undefined,
         loraLoaded,
 
-      }).catch((e: unknown) => {
+      })).catch((e: unknown) => {
         // onGenerate (App.tsx:handleGenerate) est async mais appelee ici
         // sans await ni .catch — toute exception, meme dans son tout premier
         // bloc synchrone (avant son propre try/catch interne), devenait une

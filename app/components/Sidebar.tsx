@@ -46,6 +46,11 @@ interface SystemInfo {
   state?: string;
   connected?: boolean;
   backendDown?: boolean;
+  /** VRAM optimisations, as /api/generate/system-info reports them (generate.ts: activeOffloadToCpu, activeChunkedFfn, activePinnedMemory). */
+  offloadToCpu?: boolean;
+  /** Feed-forward chunk size (2 by default): the badge shows when it is above 1. */
+  chunkedFfn?: number;
+  pinnedMemory?: boolean;
 }
 
 /**
