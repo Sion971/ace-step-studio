@@ -861,7 +861,7 @@ router.post('/load-tensors', authMiddleware, async (req: AuthenticatedRequest, r
 router.post('/start', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (trainingRunner.isRunning()) {
-      res.status(409).json({ error: 'Un entraînement est déjà en cours' });
+      res.status(409).json({ error: 'A training run is already in progress' });
       return;
     }
 
@@ -923,7 +923,7 @@ router.get('/status', authMiddleware, (_req: AuthenticatedRequest, res: Response
 router.post('/restart-pipeline', authMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
   try {
     if (trainingRunner.isRunning()) {
-      res.status(409).json({ error: 'Entraînement en cours — arrêtez-le avant de relancer le pipeline' });
+      res.status(409).json({ error: 'A training run is in progress — stop it before restarting the pipeline' });
       return;
     }
     await pipelineManager.start();

@@ -109,7 +109,7 @@ router.post('/toggle-quantization', authMiddleware, async (req: AuthenticatedReq
   try {
     const { enabled } = req.body;
     if (typeof enabled !== 'boolean') {
-      res.status(400).json({ error: 'enabled (boolean) est requis' });
+      res.status(400).json({ error: 'enabled (boolean) is required' });
       return;
     }
 

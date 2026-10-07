@@ -69,8 +69,8 @@ function runSeparation(inputPath: string, outputDir: string, stemMode: '4' | '6'
   return new Promise((resolve, reject) => {
     if (!existsSync(config.demucs.pythonPath)) {
       reject(new Error(
-        `Environnement Demucs introuvable : ${config.demucs.pythonPath}. ` +
-        `Lance setup-demucs-venv.sh depuis app/server/ avant d'utiliser cette fonctionnalite.`
+        `Demucs environment not found: ${config.demucs.pythonPath}. ` +
+        `Run setup-demucs-venv.sh from app/server/ before using this feature.`
       ));
       return;
     }
@@ -88,7 +88,7 @@ function runSeparation(inputPath: string, outputDir: string, stemMode: '4' | '6'
 
     const timeout = setTimeout(() => {
       proc.kill('SIGKILL');
-      reject(new Error(`Separation interrompue apres ${config.demucs.timeoutMs / 1000}s (timeout).`));
+      reject(new Error(`Separation interrupted after ${config.demucs.timeoutMs / 1000}s (timeout).`));
     }, config.demucs.timeoutMs);
 
     proc.on('close', () => {
@@ -97,7 +97,7 @@ function runSeparation(inputPath: string, outputDir: string, stemMode: '4' | '6'
       try {
         resolve(JSON.parse(line) as SeparateResult);
       } catch {
-        reject(new Error(`Sortie inattendue du script de separation : ${stdout.slice(0, 500)}`));
+        reject(new Error(`Unexpected output from the separation script: ${stdout.slice(0, 500)}`));
       }
     });
 
@@ -110,7 +110,7 @@ function runSeparation(inputPath: string, outputDir: string, stemMode: '4' | '6'
 
 router.post('/separate', upload.single('audio'), async (req: Request, res: Response) => {
   if (!req.file) {
-    res.status(400).json({ error: 'Aucun fichier audio recu (champ "audio" attendu).' });
+    res.status(400).json({ error: 'No audio file received (field "audio" expected).' });
     return;
   }
 
@@ -132,7 +132,7 @@ router.post('/separate', upload.single('audio'), async (req: Request, res: Respo
     const result = await runSeparation(inputPath, rawOutputDir, stemMode);
 
     if (!result.success || !result.stems) {
-      res.status(500).json({ error: result.error || 'Echec de la separation, raison inconnue.' });
+      res.status(500).json({ error: result.error || 'Separation failed, unknown reason.' });
       return;
     }
 
@@ -159,7 +159,7 @@ router.post('/separate', upload.single('audio'), async (req: Request, res: Respo
     });
   } catch (error) {
     console.error('[demucs] Separation error:', error);
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Erreur interne.' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal error.' });
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -172,13 +172,13 @@ router.post('/separate', upload.single('audio'), async (req: Request, res: Respo
 router.get('/stems/:stagingId/:fileName', (req: Request, res: Response) => {
   const { stagingId, fileName } = req.params;
   if (!/^[a-f0-9-]+$/i.test(stagingId) || !/^[a-zA-Z0-9_-]+\.wav$/.test(fileName)) {
-    res.status(400).json({ error: 'Identifiant ou nom de fichier invalide.' });
+    res.status(400).json({ error: 'Invalid identifier or file name.' });
     return;
   }
 
   const filePath = path.join(config.demucsStaging.dir, stagingId, fileName);
   if (!existsSync(filePath)) {
-    res.status(404).json({ error: 'Stem introuvable (peut-etre deja purge).' });
+    res.status(404).json({ error: 'Stem not found (it may already have been purged).' });
     return;
   }
 

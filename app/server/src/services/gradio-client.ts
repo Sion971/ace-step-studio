@@ -97,7 +97,7 @@ export const MAIN_MODEL_PATH_COMPONENT_ID = 46;
 export async function fetchCurrentInitServiceValues(): Promise<Map<number, unknown>> {
   const response = await fetch(`${config.acestep.apiUrl}/config`);
   if (!response.ok) {
-    throw new Error(`Impossible de lire la configuration Gradio (HTTP ${response.status})`);
+    throw new Error(`Could not read the Gradio configuration (HTTP ${response.status})`);
   }
   const data = await response.json() as { components?: Array<{ id: number; props?: { value?: unknown } }> };
   const components = data.components ?? [];
@@ -106,7 +106,7 @@ export async function fetchCurrentInitServiceValues(): Promise<Map<number, unkno
   for (const { id, label } of GRADIO_INIT_SERVICE_COMPONENTS) {
     const found = components.find((c) => c.id === id);
     if (!found) {
-      throw new Error(`Composant Gradio introuvable (id ${id}, attendu : "${label}") — la mise en page a peut-etre change en amont.`);
+      throw new Error(`Gradio component not found (id ${id}, expected: "${label}") — the page layout may have changed upstream.`);
     }
     values.set(id, found.props?.value);
   }

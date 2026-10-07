@@ -1847,13 +1847,17 @@ contient une valeur (une adresse, un code HTTP, une durée), un marqueur `{{nom}
 **Les noms des modes audio** (`AUDIO_MODES` dans `CreatePanel.tsx`) sont des clés typées `TranslationKey` : une clé inexistante ne compile
 pas. « Cover », « Inspiration », « Mashup » et « Sample » restent identiques dans toutes les langues (ce sont des termes).
 
+**Messages du serveur.** Ce que le serveur renvoie ou lance est en **anglais**, comme le reste de son code : il ne connaît pas la langue de
+l'interface, donc il ne peut pas la traduire, et l'interface affiche son texte tel quel quand elle le reçoit (`setError(data.error || t('…'))`
+ne traduit que le repli). `app/server/src/messageLanguage.test.ts` échoue si un message français y apparaît, dans le TypeScript comme dans
+le champ `error` des scripts Python. Les **journaux** (`console.*`, erreur standard des scripts) sont pour le développeur et peuvent rester
+dans n'importe quelle langue : quelques-uns sont encore en français, volontairement.
+
 **Ce qui reste, mesuré sur le commit 714c4c7 (analyse de l'arbre syntaxique, avec les limites ci-dessous) :**
 
 - les 40 clés des écrans LoRA (`KNOWN_GAP`) : leur secours français s'affiche à tous ;
 - environ 336 textes **anglais** écrits en dur (générateur de vidéo, panneaux des fournisseurs, `CoverRegenModal`…) : une lacune de
   traduction pour les autres langues, pas un affichage dans la mauvaise langue ;
-- 23 messages d'erreur du **serveur** en français (routes `demucs`, `midi`, `loudnorm`, `gradio-client`, `training`…), que l'interface
-  affiche tels quels quand elle les reçoit.
 
 **Limites.** Un texte rangé dans une variable ou une fonction puis affiché plus loin échappe à la lecture du code ; et le test du français en
 dur reconnaît les mots par leurs accents et par une courte liste de mots : un mot français simple, sans accent et absent de la liste, passe.

@@ -46,8 +46,8 @@ function runConversion(inputPath: string, outputPath: string): Promise<ConvertRe
   return new Promise((resolve, reject) => {
     if (!existsSync(config.basicPitch.pythonPath)) {
       reject(new Error(
-        `Environnement basic-pitch introuvable : ${config.basicPitch.pythonPath}. ` +
-        `Lance setup-basic-pitch-venv.sh depuis app/server/ avant d'utiliser cette fonctionnalite.`
+        `basic-pitch environment not found: ${config.basicPitch.pythonPath}. ` +
+        `Run setup-basic-pitch-venv.sh from app/server/ before using this feature.`
       ));
       return;
     }
@@ -65,7 +65,7 @@ function runConversion(inputPath: string, outputPath: string): Promise<ConvertRe
 
     const timeout = setTimeout(() => {
       proc.kill('SIGKILL');
-      reject(new Error(`Conversion interrompue apres ${config.basicPitch.timeoutMs / 1000}s (timeout).`));
+      reject(new Error(`Conversion interrupted after ${config.basicPitch.timeoutMs / 1000}s (timeout).`));
     }, config.basicPitch.timeoutMs);
 
     proc.on('close', () => {
@@ -74,7 +74,7 @@ function runConversion(inputPath: string, outputPath: string): Promise<ConvertRe
       try {
         resolve(JSON.parse(line) as ConvertResult);
       } catch {
-        reject(new Error(`Sortie inattendue du script de conversion : ${stdout.slice(0, 500)}`));
+        reject(new Error(`Unexpected output from the conversion script: ${stdout.slice(0, 500)}`));
       }
     });
 
@@ -87,7 +87,7 @@ function runConversion(inputPath: string, outputPath: string): Promise<ConvertRe
 
 router.post('/convert', upload.single('audio'), async (req: Request, res: Response) => {
   if (!req.file) {
-    res.status(400).json({ error: 'Aucun fichier audio recu (champ "audio" attendu).' });
+    res.status(400).json({ error: 'No audio file received (field "audio" expected).' });
     return;
   }
 
@@ -104,7 +104,7 @@ router.post('/convert', upload.single('audio'), async (req: Request, res: Respon
     const result = await runConversion(inputPath, outputPath);
 
     if (!result.success) {
-      res.status(500).json({ error: result.error || 'Echec de la conversion, raison inconnue.' });
+      res.status(500).json({ error: result.error || 'Conversion failed, unknown reason.' });
       return;
     }
 
@@ -114,7 +114,7 @@ router.post('/convert', upload.single('audio'), async (req: Request, res: Respon
     }
 
     if (!existsSync(outputPath)) {
-      res.status(500).json({ error: 'Le script a rapporte un succes mais le fichier MIDI est introuvable.' });
+      res.status(500).json({ error: 'The script reported success but the MIDI file was not found.' });
       return;
     }
 
@@ -129,7 +129,7 @@ router.post('/convert', upload.single('audio'), async (req: Request, res: Respon
   } catch (error) {
     rmSync(tmpDir, { recursive: true, force: true });
     console.error('[basic-pitch] Conversion error:', error);
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Erreur interne.' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal error.' });
   }
 });
 

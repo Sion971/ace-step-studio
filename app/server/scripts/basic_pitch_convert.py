@@ -41,7 +41,7 @@ def main() -> int:
         from basic_pitch.inference import predict
         from basic_pitch import ICASSP_2022_MODEL_PATH
     except ImportError as e:
-        emit_result(False, error=f"basic-pitch introuvable dans ce venv : {e}")
+        emit_result(False, error=f"basic-pitch not found in this venv: {e}")
         return 1
 
     print(f"[basic-pitch] Conversion : {input_path}", file=sys.stderr, flush=True)
@@ -60,7 +60,7 @@ def main() -> int:
             melodia_trick=True,
         )
     except Exception as e:
-        emit_result(False, error=f"Echec de l'inference : {e}")
+        emit_result(False, error=f"Inference failed: {e}")
         return 1
 
     if not note_events:
@@ -73,7 +73,7 @@ def main() -> int:
     try:
         midi_data.write(output_path)
     except Exception as e:
-        emit_result(False, error=f"Echec de l'ecriture du MIDI : {e}")
+        emit_result(False, error=f"Failed to write the MIDI file: {e}")
         return 1
 
     elapsed = round(time.time() - start, 2)

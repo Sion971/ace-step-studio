@@ -58,14 +58,14 @@ function extractLoudnormJson(stderr: string): LoudnormMeasurement {
   const start = stderr.lastIndexOf('{');
   const end = stderr.lastIndexOf('}');
   if (start === -1 || end === -1 || end < start) {
-    throw new Error('Impossible de lire les mesures loudnorm dans la sortie ffmpeg.');
+    throw new Error('Could not read the loudnorm measurements from the ffmpeg output.');
   }
   return JSON.parse(stderr.slice(start, end + 1));
 }
 
 router.post('/normalize', upload.single('audio'), async (req: Request, res: Response) => {
   if (!req.file) {
-    res.status(400).json({ error: 'Aucun fichier audio recu (champ "audio" attendu).' });
+    res.status(400).json({ error: 'No audio file received (field "audio" expected).' });
     return;
   }
 
@@ -112,7 +112,7 @@ router.post('/normalize', upload.single('audio'), async (req: Request, res: Resp
     await runFfmpeg(applyArgs);
 
     if (!existsSync(outputPath)) {
-      res.status(500).json({ error: 'ffmpeg a termine sans erreur mais le fichier de sortie est introuvable.' });
+      res.status(500).json({ error: 'ffmpeg finished without error but the output file was not found.' });
       return;
     }
 
@@ -125,7 +125,7 @@ router.post('/normalize', upload.single('audio'), async (req: Request, res: Resp
   } catch (error) {
     rmSync(tmpDir, { recursive: true, force: true });
     console.error('[loudnorm] Normalization error:', error);
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Erreur interne.' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal error.' });
   }
 });
 

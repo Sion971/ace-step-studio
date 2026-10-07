@@ -24,7 +24,7 @@ def main():
     if len(sys.argv) != 4:
         print(json.dumps({
             "success": False,
-            "error": f"Usage: demucs_separate.py <input> <output_dir> <4|6>, recu {len(sys.argv) - 1} argument(s)."
+            "error": f"Usage: demucs_separate.py <input> <output_dir> <4|6>, received {len(sys.argv) - 1} argument(s)."
         }))
         sys.exit(1)
 

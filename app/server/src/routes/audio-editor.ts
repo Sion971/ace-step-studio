@@ -41,7 +41,7 @@ const upload = multer({ storage, limits: { fileSize: 250 * 1024 * 1024 } });
 
 router.post('/stage', upload.single('audio'), (req: Request, res: Response) => {
   if (!req.file) {
-    res.status(400).json({ error: 'Aucun fichier audio recu (champ "audio" attendu).' });
+    res.status(400).json({ error: 'No audio file received (field "audio" expected).' });
     return;
   }
 

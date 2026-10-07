@@ -243,12 +243,12 @@ class TrainingRunner {
 
   start(params: TrainingParams, pythonPath: string, aceStepDir: string): void {
     if (this.isRunning()) {
-      throw new Error('Un entraînement est déjà en cours');
+      throw new Error('A training run is already in progress');
     }
 
     const trainScript = path.join(aceStepDir, 'train.py');
     if (!existsSync(trainScript)) {
-      throw new Error(`train.py introuvable : ${trainScript}`);
+      throw new Error(`train.py not found: ${trainScript}`);
     }
 
     const args = [trainScript, ...this.buildArgs(params)];
