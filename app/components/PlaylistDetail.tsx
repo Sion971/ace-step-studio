@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Song, Playlist, playlistsApi, songsApi, getAudioUrl, getCoverUrl } from '../services/api';
+import { Playlist, playlistsApi, songsApi } from '../services/api';
+import type { Song } from '../types';
+import { mapPlaylistSong, type PlaylistSong } from '../services/playlistSongs';
 import { useAuth } from '../context/AuthContext';
 import { useI18n } from '../context/I18nContext';
 import { ArrowLeft, Play, MoreHorizontal, Clock, Calendar, Shuffle, Trash2, Mic2, Music } from 'lucide-react';
@@ -24,9 +26,11 @@ interface PlaylistDetailProps {
 export const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlistId, onBack, onPlaySong, onSelect, onNavigateToProfile, onPlaylistDeleted, onSongRemovedFromPlaylist }) => {
     const { user: currentUser, token } = useAuth();
     const { t } = useI18n();
-    const [playlist, setPlaylist] = useState<Playlist & { creator_avatar?: string } | null>(null);
-    const [songs, setSongs] = useState<Song[]>([]);
+    const [playlist, setPlaylist] = useState<Playlist | null>(null);
+    const [songs, setSongs] = useState<PlaylistSong[]>([]);
     const [loading, setLoading] = useState(true);
+    // Total length in seconds: `duration` is the app's formatted string, the seconds are kept apart for this sum.
+    const totalSeconds = songs.reduce((acc, s) => acc + (s.durationSeconds || 0), 0);
 
     useEffect(() => {
         loadPlaylist();
@@ -39,23 +43,7 @@ export const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlistId, onBa
             // res.playlist comes from DB row, which now includes creator_avatar
             setPlaylist(res.playlist as any);
 
-            const mappedSongs: Song[] = res.songs.map((s: any) => ({
-                id: s.id,
-                title: s.title,
-                lyrics: s.lyrics,
-                style: s.style,
-                coverUrl: s.cover_url || s.coverUrl || getCoverUrl(s.id),
-                audioUrl: getAudioUrl(s.audio_url || s.audioUrl, s.id),
-                duration: s.duration,
-                bpm: s.bpm,
-                tags: s.tags || [],
-                is_public: s.is_public || false,
-                likeCount: s.like_count || 0,
-                viewCount: s.view_count || 0,
-                creator: s.creator,
-                createdAt: new Date(s.created_at),
-                addedAt: s.added_at
-            }));
+            const mappedSongs = res.songs.map(mapPlaylistSong);
 
             setSongs(mappedSongs);
         } catch (error) {
@@ -163,8 +151,8 @@ export const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlistId, onBa
                         <span>{songs.length} {t('songs')}</span>
                         <span className="w-1 h-1 rounded-full bg-white/50 hidden md:block"></span>
                         <span className="text-zinc-400 hidden md:block">
-                            {songs.reduce((acc, s) => acc + (s.duration ? (typeof s.duration === 'string' ? 0 : s.duration) : 0), 0) > 0
-                                ? Math.floor(songs.reduce((acc, s) => acc + (s.duration as number || 0), 0) / 60) + " " + t('min')
+                            {totalSeconds > 0
+                                ? Math.floor(totalSeconds / 60) + " " + t('min')
                                 : ""}
                         </span>
                     </div>
@@ -239,7 +227,7 @@ export const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlistId, onBa
                                     <div className="flex flex-col truncate min-w-0">
                                         <span className="font-medium text-white truncate">{song.title}</span>
                                         <span className="text-xs text-zinc-500 group-hover:text-zinc-400 truncate">
-                                            {song.creator || t('unknown')} <span className="md:hidden">• {song.duration ? `${Math.floor(song.duration / 60)}:${String(Math.floor(song.duration % 60)).padStart(2, '0')}` : '0:00'}</span>
+                                            {song.creator || t('unknown')} <span className="md:hidden">• {song.duration}</span>
                                         </span>
                                     </div>
                                 </div>
@@ -260,7 +248,7 @@ export const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ playlistId, onBa
                                 {/* Duration + Actions */}
                                 <div className="hidden md:flex items-center justify-end gap-4">
                                     <span className="font-mono text-xs">
-                                        {song.duration ? `${Math.floor(song.duration / 60)}:${String(Math.floor(song.duration % 60)).padStart(2, '0')}` : '0:00'}
+                                        {song.duration}
                                     </span>
                                     {isOwner && (
                                         <button

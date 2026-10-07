@@ -730,6 +730,9 @@ export interface Playlist {
   user_id?: string;
   created_at?: string;
   song_count?: number;
+  /** Username of the owner: the server joins it (`u.username as creator`) in the list and detail routes. */
+  creator?: string;
+  creator_avatar?: string;
 }
 
 export const playlistsApi = {
