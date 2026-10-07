@@ -98,7 +98,7 @@ export const AudioTransformPanel: React.FC<AudioTransformPanelProps> = ({
           <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintTaskType', 'Choose text-to-music or audio-based modes.')}>{t('taskType')}</label>
           <div className="w-full bg-zinc-100 dark:bg-black/30 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-1.5 text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 cursor-default">
             <ActiveAudioModeIcon size={12} className="flex-shrink-0 text-pink-500" />
-            <span className="truncate">{activeAudioUrl ? activeAudioMode.label : (tf('textToMusic', 'Text to music'))}</span>
+            <span className="truncate">{activeAudioUrl ? t(activeAudioMode.labelKey) : (tf('textToMusic', 'Text to music'))}</span>
             <span className="ml-auto text-[9px] font-mono opacity-60 flex-shrink-0">{taskType}</span>
           </div>
         </div>

@@ -7,6 +7,7 @@ import { getCoverUrl } from '../services/api';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { useResponsive } from '../context/ResponsiveContext';
 import type { TranslationKey } from '../i18n/translations';
+import { fillTemplate } from '../utils/fillTemplate';
 
 interface VideoGeneratorModalProps {
   isOpen: boolean;
@@ -803,7 +804,7 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
     setExportProgress(2);
     const audioUrl = resolveAudioUrl(song);
     if (!audioUrl) {
-      throw new Error("Ce morceau n'a pas d'URL audio exploitable : impossible de générer la vidéo.");
+      throw new Error(t('videoNoAudioUrl'));
     }
     // Delai d'expiration : un fetch sans limite gelait l'export sans rien dire.
     // Les FLAC de sortie pesent 40-60 Mo. Contrairement au lecteur de la
@@ -828,7 +829,7 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
       armStallTimer();
       const audioResponse = await fetch(audioUrl, { signal: audioAbort.signal });
       if (!audioResponse.ok) {
-        throw new Error(`Téléchargement de l'audio échoué : HTTP ${audioResponse.status} sur ${audioUrl}`);
+        throw new Error(fillTemplate(t('videoAudioHttpFailed'), { status: audioResponse.status, url: audioUrl }));
       }
 
       const totalBytes = Number(audioResponse.headers.get('Content-Length')) || 0;
@@ -859,17 +860,14 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
       }
     } catch (e: any) {
       if (e?.name === 'AbortError') {
-        throw new Error(
-          `Le téléchargement de l'audio s'est interrompu (aucune donnée pendant ${STALL_TIMEOUT_MS / 1000} s). ` +
-          `Fichier : ${audioUrl}`
-        );
+        throw new Error(fillTemplate(t('videoAudioStalled'), { seconds: STALL_TIMEOUT_MS / 1000, url: audioUrl }));
       }
       throw e;
     } finally {
       if (stallTimer) clearTimeout(stallTimer);
     }
     if (audioArrayBuffer.byteLength === 0) {
-      throw new Error(`Fichier audio vide : ${audioUrl}`);
+      throw new Error(fillTemplate(t('videoAudioEmpty'), { url: audioUrl }));
     }
 
     // Keep a copy for FFmpeg
@@ -914,7 +912,7 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
 
     // Session ouverte avant la boucle, puisqu'on televerse au fil de l'eau.
     const startRes = await fetch('/api/render-video/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-    if (!startRes.ok) throw new Error(`Impossible d'ouvrir la session de rendu : HTTP ${startRes.status}`);
+    if (!startRes.ok) throw new Error(fillTemplate(t('videoSessionFailed'), { status: startRes.status }));
     const { sessionId } = await startRes.json();
 
     const flushFrames = async () => {
@@ -928,7 +926,7 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId, frames: chunk, startIndex: framesSent }),
       });
-      if (!res.ok) throw new Error(`Envoi des images echoue : HTTP ${res.status}`);
+      if (!res.ok) throw new Error(fillTemplate(t('videoFramesFailed'), { status: res.status }));
       framesSent += chunk.length;
     };
 

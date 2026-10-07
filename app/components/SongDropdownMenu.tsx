@@ -251,11 +251,10 @@ export const SongDropdownMenu: React.FC<SongDropdownMenuProps> = ({
                 onClick={onDownload ? () => handleAction(onDownload) : handleDownload}
             />
             {/* Action d'export, pas de creation : placee sous "Telecharger"
-                plutot que parmi les actions creatives. Libelle hardcode,
-                comme les modaux de stems/MIDI (pas encore de cle i18n). */}
+                plutot que parmi les actions creatives. */}
             <MenuItem
                 icon={<Gauge size={14} />}
-                label="Télécharger normalisé…"
+                label={t('downloadNormalized')}
                 onClick={handleDownloadNormalized}
                 disabled={!song.audioUrl}
             />

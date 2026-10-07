@@ -82,7 +82,7 @@ const formatDuration = (sec: number | null): string => {
  * 4. SOUS-COMPOSANT — courbe de loss
  * -------------------------------------------------------------------------*/
 
-const LossChart: React.FC<{ points: { epoch: number; loss: number }[] }> = ({ points }) => {
+const LossChart: React.FC<{ points: { epoch: number; loss: number }[]; ariaLabel: string }> = ({ points, ariaLabel }) => {
   const svg = useMemo(() => {
     if (points.length < 2) return null;
 
@@ -117,7 +117,7 @@ const LossChart: React.FC<{ points: { epoch: number; loss: number }[] }> = ({ po
       viewBox={`0 0 ${svg.width} ${svg.height}`}
       className="w-full"
       role="img"
-      aria-label="Courbe de perte"
+      aria-label={ariaLabel}
     >
       <polyline
         points={svg.poly}
@@ -246,14 +246,14 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
         resumeCheckpoint: params.resumeCheckpoint.trim() || null,
       }, token);
       setPipelineStopped(Boolean(res.pipelineStopped));
-      setStatus(s => (s ? { ...s, state: 'starting', message: 'Démarrage...' } : s));
+      setStatus(s => (s ? { ...s, state: 'starting', message: t('starting') } : s));
       // Relance immédiate du polling
       const fresh = await trainingApi.trainingStatus(token);
       setStatus(fresh);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Échec du démarrage');
+      setActionError(error instanceof Error ? error.message : t('trainStartFailed'));
     }
-  }, [token, params]);
+  }, [token, params, t]);
 
   const handleStop = useCallback(async () => {
     if (!token) return;
@@ -262,9 +262,9 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
       const fresh = await trainingApi.trainingStatus(token);
       setStatus(fresh);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "Échec de l'arrêt");
+      setActionError(error instanceof Error ? error.message : t('trainStopFailed'));
     }
-  }, [token]);
+  }, [token, t]);
 
   const handleRestartPipeline = useCallback(async () => {
     if (!token) return;
@@ -272,9 +272,9 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
       await trainingApi.restartPipeline(token);
       setPipelineStopped(false);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Échec du redémarrage');
+      setActionError(error instanceof Error ? error.message : t('trainRestartFailed'));
     }
-  }, [token]);
+  }, [token, t]);
 
   const handleCopyPath = useCallback(() => {
     if (!status?.outputPath) return;
@@ -636,7 +636,7 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
           <Section title={t('trainingLoss') || 'Perte'}>
             {status.metrics.length >= 2 ? (
               <div className="bg-black/5 dark:bg-black/20 rounded-lg p-2">
-                <LossChart points={status.metrics} />
+                <LossChart points={status.metrics} ariaLabel={t('lossCurve')} />
               </div>
             ) : (
               <p className="text-[11px] text-zinc-500">

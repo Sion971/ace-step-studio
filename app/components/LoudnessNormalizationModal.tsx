@@ -9,6 +9,8 @@
 
 import React, { useState, useRef } from 'react';
 import { X, Gauge, Loader2, Play, Pause, Download } from 'lucide-react';
+import { useI18n } from '../context/I18nContext';
+import { fillTemplate } from '../utils/fillTemplate';
 
 interface LoudnessNormalizationModalProps {
   audioUrl: string;
@@ -37,6 +39,7 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
   songTitle,
   onClose,
 }) => {
+  const { t } = useI18n();
   const [selectedPreset, setSelectedPreset] = useState<PlatformPreset>(PRESETS[0]);
   const [customI, setCustomI] = useState(-14);
   const [useCustom, setUseCustom] = useState(false);
@@ -67,13 +70,13 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
       const response = await fetch('/api/loudnorm/normalize', { method: 'POST', body: formData });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || `Echec de la normalisation (${response.status}).`);
+        throw new Error(data.error || fillTemplate(t('loudnessFailed'), { status: response.status }));
       }
 
       const blob = await response.blob();
       setResultUrl(URL.createObjectURL(blob));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur reseau.');
+      setError(err instanceof Error ? err.message : t('networkError'));
     } finally {
       setIsProcessing(false);
     }
@@ -114,7 +117,7 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
           <div className="flex items-center gap-2">
             <Gauge size={18} className="text-pink-500" />
             <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">
-              Normaliser la loudness
+              {t('loudnessTitle')}
             </h2>
           </div>
           <button
@@ -130,7 +133,7 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
             <>
               <div className="space-y-2">
                 <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                  Plateforme cible
+                  {t('loudnessPlatform')}
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {PRESETS.map((preset) => (
@@ -159,7 +162,7 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
                     onChange={(e) => setUseCustom(e.target.checked)}
                     className="accent-pink-600"
                   />
-                  Cible personnalisee
+                  {t('loudnessCustom')}
                 </label>
                 {useCustom && (
                   <div className="flex items-center gap-2">
@@ -187,10 +190,10 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
                 {isProcessing ? (
                   <>
                     <Loader2 size={16} className="animate-spin" />
-                    Normalisation en cours...
+                    {t('loudnessProcessing')}
                   </>
                 ) : (
-                  'Normaliser'
+                  t('loudnessNormalize')
                 )}
               </button>
             </>
@@ -205,7 +208,7 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
           {resultUrl && (
             <div className="space-y-3">
               <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                Normalise a {useCustom ? customI : selectedPreset.targetI} LUFS — compare avant/apres :
+                {fillTemplate(t('loudnessResult'), { lufs: useCustom ? customI : selectedPreset.targetI })}
               </p>
 
               <div className="space-y-2">
@@ -225,7 +228,7 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
                   <span className="w-8 h-8 flex-shrink-0 rounded-full bg-pink-500 text-white flex items-center justify-center">
                     {playingWhich === 'after' ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
                   </span>
-                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Normalise</span>
+                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{t('loudnessNormalized')}</span>
                 </button>
               </div>
 
@@ -237,7 +240,7 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg shadow-pink-500/20 hover:from-pink-600 hover:to-purple-700 transition-all"
               >
                 <Download size={16} />
-                Telecharger le fichier normalise
+                {t('loudnessDownload')}
               </button>
             </div>
           )}

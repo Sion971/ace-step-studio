@@ -68,11 +68,13 @@ export interface AudioModeDef {
   group: 'remix' | 'edit';
   field: 'reference' | 'source';
   taskType: string;
-  label: string;
+  // Textes affiches : des CLES de traduction (TranslationKey, donc verifiees a la compilation). Ils etaient ecrits en francais dans
+  // cette table et s'affichaient tels quels dans toutes les langues.
+  labelKey: TranslationKey;
   // Libelle court affiche sur le bouton d'en-tete, ou la place est comptee.
   // « Remplacer une section » debordait du panneau.
-  short: string;
-  desc: string;
+  shortKey: TranslationKey;
+  descKey: TranslationKey;
   icon: React.ComponentType<{ size?: number | string; className?: string }>;
   available: boolean;
 }
@@ -80,32 +82,32 @@ export interface AudioModeDef {
 export const AUDIO_MODES: AudioModeDef[] = [
   // --- REMIX -------------------------------------------------------------
   { id: 'cover',       group: 'remix', field: 'source',    taskType: 'cover',
-    label: 'Cover',      short: 'Cover', desc: 'Recree ce morceau dans un autre genre',
+    labelKey: 'audioModeCover', shortKey: 'audioModeCover', descKey: 'audioModeCoverDesc',
     icon: RefreshCw, available: true },
   { id: 'inspiration', group: 'remix', field: 'reference', taskType: 'text2music',
-    label: 'Inspiration', short: 'Inspiration', desc: 'S\'inspire librement — la couleur, pas les details',
+    labelKey: 'audioModeInspiration', shortKey: 'audioModeInspiration', descKey: 'audioModeInspirationDesc',
     icon: Sparkles, available: true },
   { id: 'mashup',      group: 'remix', field: 'source',    taskType: 'cover',
-    label: 'Mashup',     short: 'Mashup', desc: 'Melange avec un autre morceau',
+    labelKey: 'audioModeMashup', shortKey: 'audioModeMashup', descKey: 'audioModeMashupDesc',
     icon: Layers, available: false },
   { id: 'sample',      group: 'remix', field: 'source',    taskType: 'cover',
-    label: 'Sample',     short: 'Sample', desc: 'Utilise un extrait dans un nouveau morceau',
+    labelKey: 'audioModeSample', shortKey: 'audioModeSample', descKey: 'audioModeSampleDesc',
     icon: Disc3, available: false },
   // --- MODIFICATION ------------------------------------------------------
   { id: 'repaint',     group: 'edit',  field: 'source',    taskType: 'repaint',
-    label: 'Remplacer une section', short: 'Section', desc: 'Regenere une portion choisie',
+    labelKey: 'audioModeRepaint', shortKey: 'audioModeRepaintShort', descKey: 'audioModeRepaintDesc',
     icon: Wand2, available: true },
   { id: 'extend',      group: 'edit',  field: 'source',    taskType: 'extend',
-    label: 'Prolonger',  short: 'Prolonger', desc: 'Prolonge le morceau la ou il s\'arrete',
+    labelKey: 'audioModeExtend', shortKey: 'audioModeExtend', descKey: 'audioModeExtendDesc',
     icon: ArrowRightToLine, available: false },
   { id: 'crop',        group: 'edit',  field: 'source',    taskType: 'repaint',
-    label: 'Rogner',     short: 'Rogner', desc: 'Decoupe a une sous-section',
+    labelKey: 'audioModeCrop', shortKey: 'audioModeCrop', descKey: 'audioModeCropDesc',
     icon: Scissors, available: false },
   { id: 'reverse',     group: 'edit',  field: 'source',    taskType: 'cover',
-    label: 'Inverser',   short: 'Inverser', desc: 'Joue l\'audio a l\'envers',
+    labelKey: 'audioModeReverse', shortKey: 'audioModeReverse', descKey: 'audioModeReverseDesc',
     icon: Repeat, available: false },
   { id: 'speed',       group: 'edit',  field: 'source',    taskType: 'cover',
-    label: 'Vitesse',    short: 'Vitesse', desc: 'Change la vitesse de lecture',
+    labelKey: 'audioModeSpeed', shortKey: 'audioModeSpeed', descKey: 'audioModeSpeedDesc',
     icon: Gauge, available: false },
 ];
 

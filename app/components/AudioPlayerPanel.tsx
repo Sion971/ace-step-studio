@@ -189,7 +189,7 @@ export const AudioPlayerPanel: React.FC<AudioPlayerPanelProps> = ({
       ) : (
         <div className={`px-3 text-center text-[10px] text-zinc-400 transition-all ${isDraggingFile ? 'py-8 text-zinc-300 border-2 border-dashed border-zinc-600 rounded-lg mx-2 mb-2' : 'py-3'}`}>
           {isDraggingFile
-            ? '↓ ' + activeAudioMode.label
+            ? '↓ ' + t(activeAudioMode.labelKey)
             : (tf('dropAudioHere', 'Depose un audio ou utilise les boutons ci-dessus'))}
         </div>
       )}

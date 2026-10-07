@@ -10,6 +10,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Layers, Download, Loader2, Play, Pause, Volume2, VolumeX, Edit3, Music } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
+import { fillTemplate } from '../utils/fillTemplate';
 import { AudioWaveform } from './AudioWaveform';
 import { MidiPianoRoll } from './MidiPianoRoll';
 
@@ -81,13 +82,13 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
       const data: SeparateResponse = await response.json();
 
       if (!response.ok || !data.success) {
-        setError(data.error || 'Echec de la separation.');
+        setError(data.error || t('stemsSeparationFailed'));
         return;
       }
 
       setResult(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur reseau.');
+      setError(err instanceof Error ? err.message : t('networkError'));
     } finally {
       setIsLoading(false);
     }
@@ -219,7 +220,7 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
               {/* Choix 4 ou 6 stems */}
               <div className="space-y-2">
                 <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                  Nombre de pistes
+                  {t('stemsCount')}
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -231,9 +232,9 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
                         : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
                     }`}
                   >
-                    4 pistes
+                    {t('stems4')}
                     <span className="block text-[10px] font-normal opacity-80 mt-0.5">
-                      Separation generalement plus propre
+                      {t('stems4Hint')}
                     </span>
                   </button>
                   <button
@@ -245,9 +246,9 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
                         : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
                     }`}
                   >
-                    6 pistes
+                    {t('stems6')}
                     <span className="block text-[10px] font-normal opacity-80 mt-0.5">
-                      + guitare et piano isoles
+                      {t('stems6Hint')}
                     </span>
                   </button>
                 </div>
@@ -261,10 +262,10 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
                 {isLoading ? (
                   <>
                     <Loader2 size={16} className="animate-spin" />
-                    Separation en cours... (peut prendre une minute)
+                    {t('stemsSeparating')}
                   </>
                 ) : (
-                  'Lancer la separation'
+                  t('stemsSeparate')
                 )}
               </button>
             </>
@@ -280,14 +281,14 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                  {Object.keys(result.stems).length} pistes separees en {result.elapsedSeconds}s
+                  {fillTemplate(t('stemsResult'), { count: Object.keys(result.stems).length, seconds: result.elapsedSeconds })}
                 </p>
                 <button
                   onClick={handleOpenAllInEditor}
                   className="flex items-center gap-1.5 text-[11px] font-medium text-pink-600 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 transition-colors"
                 >
                   <Edit3 size={12} />
-                  Ouvrir tout dans l'editeur
+                  {t('stemsOpenAll')}
                 </button>
               </div>
 
@@ -296,7 +297,7 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
                 <button
                   onClick={togglePlayAll}
                   className="w-10 h-10 flex-shrink-0 rounded-full bg-pink-500 text-white flex items-center justify-center hover:bg-pink-600 transition-colors shadow-lg shadow-pink-500/20"
-                  title={isPlaying ? 'Pause' : 'Lecture de toutes les pistes'}
+                  title={isPlaying ? t('pause') : t('stemsPlayAll')}
                 >
                   {isPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
                 </button>
@@ -335,7 +336,7 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
                           ? 'bg-zinc-300 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
                           : 'bg-pink-500 text-white hover:bg-pink-600'
                       }`}
-                      title={isMuted ? 'Reactiver le son' : 'Couper le son'}
+                      title={isMuted ? t('stemsUnmute') : t('stemsMute')}
                     >
                       {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
                     </button>
@@ -345,14 +346,14 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
                     <button
                       onClick={() => setMidiStemName(stemName)}
                       className="p-2 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white rounded-lg hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors"
-                      title="Convertir en MIDI"
+                      title={t('stemsToMidi')}
                     >
                       <Music size={15} />
                     </button>
                     <button
                       onClick={() => handleDownload(stemName, url)}
                       className="p-2 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white rounded-lg hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors"
-                      title="Telecharger"
+                      title={t('download')}
                     >
                       <Download size={15} />
                     </button>

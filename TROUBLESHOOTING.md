@@ -1822,3 +1822,39 @@ diminuer. `app/i18n/missingKeys.test.ts` vérifie que les clés ajoutées par ce
 **Limites connues.** Le mode strict reste désactivé (`strictNullChecks` en particulier) : activer le mode strict ferait apparaître une
 classe d'erreurs entièrement différente, à traiter à part. Les textes japonais, coréen, russe et chinois ajoutés par ce chantier ne
 sont pas relus par un locuteur natif.
+
+---
+
+## 39. Textes affichés sans traduction : les trois garde-fous
+
+Un texte écrit directement dans un composant, ou une clé absente d'une langue, s'affiche tel quel dans **toutes** les langues : « Rien à
+envoyer au moteur… », « Service prêt », « Séparation en cours… » étaient vus par des anglophones. TypeScript ne le voit pas (`tf` accepte
+n'importe quelle chaîne, c'est voulu ; un texte en dur n'est qu'une chaîne). Trois tests lisent donc le code à sa place :
+
+- `app/i18n/usedKeys.test.ts` : un `t('clé')` dont la clé n'existe pas dans `en.ts`. Les écrans d'entraînement LoRA en gardent 40, listées
+  dans `KNOWN_GAP` : la liste ne peut que diminuer.
+- `app/i18n/fallbackKeys.test.ts` : un `tf('clé', 'secours')` dont la clé manque (le secours, souvent en français, s'affichait à tous).
+- `app/i18n/hardcodedFrench.test.ts` : du **texte français écrit en dur** (entre balises, `title`, `placeholder`, message d'erreur, libellé
+  d'une table de configuration…). Il lit le code comme le compilateur, ignore les commentaires, les comparaisons et le secours d'un
+  `t('clé') || 'texte'`, et se vérifie lui-même (cinq cas de contrôle) pour ne pas se taire par erreur.
+
+**Ajouter un texte.** Une clé en `camelCase` dans les **six** fichiers `app/i18n/*.ts`, puis `t('clé')` dans le composant. Pour un texte qui
+contient une valeur (une adresse, un code HTTP, une durée), un marqueur `{{nom}}` plutôt qu'une phrase avec la valeur collée :
+`fillTemplate(t('clé'), { nom: valeur })` (`app/utils/fillTemplate.ts`). Chaque langue place la valeur où sa grammaire l'exige, et
+`formerlyHardcodedKeys.test.ts` vérifie que les six traductions gardent les mêmes marqueurs. Réutiliser une clé existante (`download`,
+`pause`, `starting`, `modelLoading`) plutôt que d'en créer une seconde pour le même mot.
+
+**Les noms des modes audio** (`AUDIO_MODES` dans `CreatePanel.tsx`) sont des clés typées `TranslationKey` : une clé inexistante ne compile
+pas. « Cover », « Inspiration », « Mashup » et « Sample » restent identiques dans toutes les langues (ce sont des termes).
+
+**Ce qui reste, mesuré sur le commit 714c4c7 (analyse de l'arbre syntaxique, avec les limites ci-dessous) :**
+
+- les 40 clés des écrans LoRA (`KNOWN_GAP`) : leur secours français s'affiche à tous ;
+- environ 336 textes **anglais** écrits en dur (générateur de vidéo, panneaux des fournisseurs, `CoverRegenModal`…) : une lacune de
+  traduction pour les autres langues, pas un affichage dans la mauvaise langue ;
+- 23 messages d'erreur du **serveur** en français (routes `demucs`, `midi`, `loudnorm`, `gradio-client`, `training`…), que l'interface
+  affiche tels quels quand elle les reçoit.
+
+**Limites.** Un texte rangé dans une variable ou une fonction puis affiché plus loin échappe à la lecture du code ; et le test du français en
+dur reconnaît les mots par leurs accents et par une courte liste de mots : un mot français simple, sans accent et absent de la liste, passe.
+Les textes japonais, coréen, russe et chinois ne sont pas relus par un locuteur natif.

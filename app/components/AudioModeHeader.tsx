@@ -104,10 +104,10 @@ export const AudioModeHeader: React.FC<AudioModeHeaderProps> = ({
             type="button"
             onClick={onToggleAudioMenu}
             className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-[10px] font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors max-w-full"
-            title={`${activeAudioMode.label} — ${activeAudioMode.desc}`}
+            title={`${t(activeAudioMode.labelKey)} — ${t(activeAudioMode.descKey)}`}
           >
             <ActiveModeIcon size={11} className="text-pink-500 flex-shrink-0" />
-            <span className="truncate">{activeAudioMode.short}</span>
+            <span className="truncate">{t(activeAudioMode.shortKey)}</span>
             <ChevronDown size={11} className={`flex-shrink-0 transition-transform ${showAudioMenu ? 'rotate-180' : ''}`} />
           </button>
 
@@ -139,7 +139,7 @@ export const AudioModeHeader: React.FC<AudioModeHeaderProps> = ({
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center gap-1.5">
                             <span className={`text-xs font-medium ${isActive ? 'text-pink-500' : 'text-zinc-800 dark:text-zinc-100'}`}>
-                              {m.label}
+                              {t(m.labelKey)}
                             </span>
                             {!m.available && (
                               <span className="text-[8px] uppercase font-bold px-1 py-px rounded bg-zinc-200 dark:bg-white/10 text-zinc-500 dark:text-zinc-400">
@@ -148,7 +148,7 @@ export const AudioModeHeader: React.FC<AudioModeHeaderProps> = ({
                             )}
                           </span>
                           <span className="block text-[10px] text-zinc-500 dark:text-zinc-400 leading-tight mt-0.5">
-                            {m.desc}
+                            {t(m.descKey)}
                           </span>
                         </span>
                       </button>

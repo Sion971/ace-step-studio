@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Library, Disc, Search, LogIn, LogOut, Sun, Moon, GraduationCap, Newspaper, Wrench } from 'lucide-react';
 import { View } from '../types';
 import { useI18n } from '../context/I18nContext';
+import type { TranslationKey } from '../i18n/translations';
 import { llmStorage } from '../services/llm/storage';
 // Meme fichier que le favicon de l'onglet (voir app/favicon.svg) — une
 // seule source de verite pour le logo, plutot que de maintenir deux
@@ -64,12 +65,12 @@ const dotColor = (info: SystemInfo): string =>
   'bg-yellow-500 animate-pulse';
 
 /** Texte explicatif au survol, cohérent avec dotColor(). */
-const stateLabel = (info: SystemInfo): string =>
-  info.backendDown ? 'Backend arrêté' :
-  info.state === 'loading' ? 'Chargement du modèle...' :
-  info.state === 'unloading' ? 'Déchargement du modèle...' :
-  info.connected ? 'Service prêt' :
-  'Serveur Gradio en cours de démarrage';
+const stateLabel = (info: SystemInfo, t: (key: TranslationKey) => string): string =>
+  info.backendDown ? t('stateBackendStopped') :
+  info.state === 'loading' ? t('modelLoading') :
+  info.state === 'unloading' ? t('stateModelUnloading') :
+  info.connected ? t('stateServiceReady') :
+  t('stateGradioStarting');
 
 const SystemWidget: React.FC<{ isOpen?: boolean }> = ({ isOpen }) => {
   const { t } = useI18n();
@@ -204,8 +205,8 @@ const SystemWidget: React.FC<{ isOpen?: boolean }> = ({ isOpen }) => {
         <div
           className="flex items-center justify-between text-zinc-600"
           title={lmShort
-            ? `${stateLabel(info)} — LM ${lmShort}${lmBackend ? ` (${lmBackend})` : ''}`
-            : 'Aucun modèle de langue local (INIT_LLM=false)'}
+            ? `${stateLabel(info, t)} — LM ${lmShort}${lmBackend ? ` (${lmBackend})` : ''}`
+            : t('noLocalLm')}
         >
           <span className="flex items-center gap-1">
             <span className={`w-1.5 h-1.5 rounded-full ${lmShort ? dotColor(info) : 'bg-zinc-700'}`}></span>

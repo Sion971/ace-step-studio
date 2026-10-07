@@ -13,6 +13,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Music, Loader2, Play, Pause, Download } from 'lucide-react';
 import * as Tone from 'tone';
 import { Midi } from '@tonejs/midi';
+import { useI18n } from '../context/I18nContext';
+import { fillTemplate } from '../utils/fillTemplate';
 
 interface MidiPianoRollProps {
   audioUrl: string;
@@ -25,6 +27,7 @@ export const MidiPianoRoll: React.FC<MidiPianoRollProps> = ({
   stemName,
   onClose,
 }) => {
+  const { t } = useI18n();
   const [isConverting, setIsConverting] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [midi, setMidi] = useState<Midi | null>(null);
@@ -57,7 +60,7 @@ export const MidiPianoRoll: React.FC<MidiPianoRollProps> = ({
         const response = await fetch('/api/midi/convert', { method: 'POST', body: formData });
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || `Echec de la conversion (${response.status}).`);
+          throw new Error(data.error || fillTemplate(t('midiFailed'), { status: response.status }));
         }
 
         const blob = await response.blob();
@@ -75,7 +78,7 @@ export const MidiPianoRoll: React.FC<MidiPianoRollProps> = ({
         setMidi(parsed);
         setMidiBlob(blob);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Erreur de conversion.');
+        if (!cancelled) setError(err instanceof Error ? err.message : t('midiConversionError'));
       } finally {
         if (!cancelled) setIsConverting(false);
       }
@@ -263,7 +266,7 @@ export const MidiPianoRoll: React.FC<MidiPianoRollProps> = ({
           {isConverting && (
             <div className="flex items-center justify-center gap-2 py-12 text-sm text-zinc-500 dark:text-zinc-400">
               <Loader2 size={16} className="animate-spin" />
-              Conversion en MIDI...
+              {t('midiConverting')}
             </div>
           )}
 
@@ -300,7 +303,7 @@ export const MidiPianoRoll: React.FC<MidiPianoRollProps> = ({
                   className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
                 >
                   <Download size={13} />
-                  Telecharger le .mid
+                  {t('midiDownload')}
                 </button>
               </div>
             </>
