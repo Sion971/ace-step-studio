@@ -20,59 +20,11 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-// KNOWN GAP, to be closed by the next step of the cleanup. The LoRA panel and the training screens do not read `t` from the translation
-// context: they receive it as a prop typed `(key: string) => string`, so TypeScript can never check their keys, typed React or not.
-// 30 of these keys exist only in French (the other languages show the raw identifier); 10 exist in no language at all (useLora,
-// uploadingFiles, filesUploadedBuilding, loadingForPreprocess, uploadAndCreate, files, exporting, failed, lmModel, lmModelPath).
-// The list is a ratchet: a NEW missing key fails the first test, and a key of this list that has been added to en.ts fails the second
-// until it is removed from here, so the list can only shrink.
-const KNOWN_GAP: readonly string[] = [
-  // components/LoraPanel.tsx
-  'quantizationAutoUnloadedLora',
-  'quantizationBlocksLora',
-  'quantizationToggleHint',
-  'quantizationToggleLabel',
-  'useLora',
-  // components/training/DatasetTab.tsx
-  'files',
-  'filesUploadedBuilding',
-  'loadingForPreprocess',
-  'outputDir',
-  'samplesLoaded',
-  'savePath',
-  'transcribeLyrics',
-  'uploadAndCreate',
-  'uploadingFiles',
-  // components/training/ExportTab.tsx
-  'exportPath',
-  'exporting',
-  'loraOutputDir',
-  // components/training/ModelConfigSection.tsx
-  'failed',
-  'lmModel',
-  'lmModelPath',
-  'useGradioUiToInit',
-  // components/training/TrainTab.tsx
-  'adapterType',
-  'baseModel',
-  'checkpointDir',
-  'copyPath',
-  'elapsed',
-  'freeVram',
-  'freeVramHint',
-  'gradientCheckpointing',
-  'load',
-  'memorySettings',
-  'modelVariant',
-  'offloadEncoder',
-  'optimizer',
-  'precision',
-  'rankHint',
-  'restartPipeline',
-  'resumeCheckpoint',
-  'trainingLoss',
-  'waitingForMetrics',
-];
+// KNOWN GAP: empty. It used to list the 40 keys of the LoRA panel and the training screens, which do not read `t` from the translation
+// context but receive it as a prop typed `(key: string) => string`, so TypeScript can never check their keys, typed React or not. All
+// 40 are now translated (4 of them replaced by templates with a {{count}} marker). The ratchet stays: a NEW missing key fails the first
+// test, and a key added to this list that is already in en.ts fails the second. Add a key here only while it is being translated.
+const KNOWN_GAP: readonly string[] = [];
 
 describe('translation keys used by the interface', () => {
   const used = new Map<string, string[]>();

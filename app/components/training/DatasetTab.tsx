@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { Upload, FileAudio, X, Search, Loader2, FolderOpen, Wand2, Volume2, Edit3, Save, Zap } from 'lucide-react';
 import { trainingApi, getTrainingAudioUrl, TrainingSample, DatasetSettings } from '../../services/api';
 import { Section, FieldRow } from './TrainingUIComponents';
+import { fillTemplate } from '../../utils/fillTemplate';
 
 type PipelineStepKey = 'upload' | 'edit' | 'save' | 'preprocess' | 'train' | 'export';
 
@@ -222,7 +223,7 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
     setUploadStatus(t('uploadingFiles') || 'Envoi des fichiers en cours...');
     try {
       await trainingApi.uploadAudio(queuedFiles, uploadDatasetName, token);
-      setUploadStatus(`${queuedFiles.length} ${t('filesUploadedBuilding') || 'fichiers envoyés. Création du jeu de données...'}`);
+      setUploadStatus(fillTemplate(t('datasetFilesUploaded'), { count: queuedFiles.length }));
       const result = await trainingApi.buildDataset({
         datasetName: uploadDatasetName,
         customTag: datasetSettings.customTag,
@@ -435,7 +436,7 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
     setPreprocessDatasetStatus(t('loadingForPreprocess') || 'Chargement du jeu de données pour le prétraitement...');
     try {
       const result = await trainingApi.loadDataset(preprocessDatasetPath, token);
-      setPreprocessDatasetStatus(safeString(result.status) || `${result.sampleCount || 0} ${t('samplesLoaded') || 'échantillons chargés'}`);
+      setPreprocessDatasetStatus(safeString(result.status) || fillTemplate(t('datasetSamplesLoaded'), { count: result.sampleCount || 0 }));
       if (result.sampleCount) setSampleCount(result.sampleCount);
       if (result.dataframe) parseDataframe(result.dataframe);
     } catch (error) {
@@ -496,7 +497,7 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
             </FieldRow>
             <button onClick={handleUploadAndBuild} disabled={uploading || !uploadDatasetName.trim()} className="w-full py-2 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-2 disabled:opacity-50">
               {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-              {t('uploadAndCreate') || 'Envoyer & Créer le jeu de données'} ({queuedFiles.length} {t('files') || 'fichiers'})
+              {fillTemplate(t('datasetUploadAndCreate'), { count: queuedFiles.length })}
             </button>
           </div>
         )}

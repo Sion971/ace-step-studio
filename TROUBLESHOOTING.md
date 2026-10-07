@@ -1815,9 +1815,9 @@ d'`include`, donc `tsc` vérifie aussi les 49 fichiers de `app/server/src`, qui 
 
 **Ce que le typage ne verra jamais.** Les écrans d'entraînement LoRA (`LoraPanel`, `DatasetTab`, `ExportTab`, `ModelConfigSection`,
 `TrainTab`) reçoivent `t` en paramètre, typé `(key: string) => string` : TypeScript ne peut vérifier aucune de leurs clés. Le test
-`app/i18n/usedKeys.test.ts` lit le code source à sa place et échoue si un composant demande une clé absente de l'anglais. Ses 40 clés
-connues comme manquantes sont listées dans `KNOWN_GAP` (30 n'existent qu'en français, 10 nulle part) : la liste ne peut que
-diminuer. `app/i18n/missingKeys.test.ts` vérifie que les clés ajoutées par ce chantier existent dans les six langues.
+`app/i18n/usedKeys.test.ts` lit le code source à sa place et échoue si un composant demande une clé absente de l'anglais. Sa liste de dette
+connue, `KNOWN_GAP`, est vide depuis que les 40 clés des écrans d'entraînement ont été traduites : toute nouvelle clé manquante fait
+échouer le test. `app/i18n/missingKeys.test.ts` vérifie que les clés ajoutées par ce chantier existent dans les six langues.
 
 **Limites connues.** Le mode strict reste désactivé (`strictNullChecks` en particulier) : activer le mode strict ferait apparaître une
 classe d'erreurs entièrement différente, à traiter à part. Les textes japonais, coréen, russe et chinois ajoutés par ce chantier ne
@@ -1831,8 +1831,8 @@ Un texte écrit directement dans un composant, ou une clé absente d'une langue,
 envoyer au moteur… », « Service prêt », « Séparation en cours… » étaient vus par des anglophones. TypeScript ne le voit pas (`tf` accepte
 n'importe quelle chaîne, c'est voulu ; un texte en dur n'est qu'une chaîne). Trois tests lisent donc le code à sa place :
 
-- `app/i18n/usedKeys.test.ts` : un `t('clé')` dont la clé n'existe pas dans `en.ts`. Les écrans d'entraînement LoRA en gardent 40, listées
-  dans `KNOWN_GAP` : la liste ne peut que diminuer.
+- `app/i18n/usedKeys.test.ts` : un `t('clé')` dont la clé n'existe pas dans `en.ts`, y compris dans les écrans d'entraînement LoRA, qui
+  reçoivent `t` en paramètre. `KNOWN_GAP`, la liste de dette connue, est vide : n'y ajouter une clé que le temps de la traduire.
 - `app/i18n/fallbackKeys.test.ts` : un `tf('clé', 'secours')` dont la clé manque (le secours, souvent en français, s'affichait à tous).
 - `app/i18n/hardcodedFrench.test.ts` : du **texte français écrit en dur** (entre balises, `title`, `placeholder`, message d'erreur, libellé
   d'une table de configuration…). Il lit le code comme le compilateur, ignore les commentaires, les comparaisons et le secours d'un
@@ -1855,7 +1855,6 @@ dans n'importe quelle langue : quelques-uns sont encore en français, volontaire
 
 **Ce qui reste, mesuré sur le commit 714c4c7 (analyse de l'arbre syntaxique, avec les limites ci-dessous) :**
 
-- les 40 clés des écrans LoRA (`KNOWN_GAP`) : leur secours français s'affiche à tous ;
 - environ 336 textes **anglais** écrits en dur (générateur de vidéo, panneaux des fournisseurs, `CoverRegenModal`…) : une lacune de
   traduction pour les autres langues, pas un affichage dans la mauvaise langue ;
 

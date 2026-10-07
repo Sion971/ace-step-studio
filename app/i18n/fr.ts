@@ -1225,4 +1225,16 @@ export const fr = {
     trainStartFailed: "Échec du démarrage",
     trainStopFailed: "Échec de l'arrêt",
     trainRestartFailed: "Échec du redémarrage",
+
+    // Écrans d'entraînement LoRA : clés demandées sans exister hors du français (dernier lot des textes)
+    useLora: "Utiliser le LoRA",
+    uploadingFiles: "Envoi des fichiers en cours...",
+    loadingForPreprocess: "Chargement du jeu de données pour le prétraitement...",
+    datasetFilesUploaded: "Fichiers envoyés : {{count}}. Création du jeu de données...",
+    datasetSamplesLoaded: "Échantillons chargés : {{count}}",
+    datasetUploadAndCreate: "Envoyer & créer le jeu de données (fichiers : {{count}})",
+    exporting: "Exportation en cours...",
+    failed: "Échec",
+    lmModel: "Modèle LM",
+    lmModelPath: "Chemin du modèle LM",
 };
