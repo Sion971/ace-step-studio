@@ -728,9 +728,9 @@ export const fr = {
 
     // Quantification INT8 / LoRA — panneau LoRA (LoraPanel.tsx)
     quantizationToggleLabel: 'Quantification INT8',
-    quantizationToggleHint: 'Desactiver pour pouvoir charger un LoRA (conflit connu entre quantification et LoRA) — reactive prend ~1 minute (reinitialisation du service, sans redemarrage complet).',
-    quantizationBlocksLora: 'Quantification active — desactivez-la pour charger un LoRA.',
-    quantizationAutoUnloadedLora: 'LoRA decharge automatiquement (incompatible avec la quantification).',
+    quantizationToggleHint: 'Désactiver pour pouvoir charger un LoRA (conflit connu entre quantification et LoRA) — chaque changement prend environ 1 minute (réinitialisation du service, sans redémarrage complet).',
+    quantizationBlocksLora: 'Quantification active — désactivez-la pour charger un LoRA.',
+    quantizationAutoUnloadedLora: 'LoRA déchargé automatiquement (incompatible avec la quantification).',
 
     // Edit Profile Modal (Settings)
     usernameLabel: 'Nom d’utilisateur',
