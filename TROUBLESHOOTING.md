@@ -1861,3 +1861,43 @@ dans n'importe quelle langue : quelques-uns sont encore en français, volontaire
 **Limites.** Un texte rangé dans une variable ou une fonction puis affiché plus loin échappe à la lecture du code ; et le test du français en
 dur reconnaît les mots par leurs accents et par une courte liste de mots : un mot français simple, sans accent et absent de la liste, passe.
 Les textes japonais, coréen, russe et chinois ne sont pas relus par un locuteur natif.
+
+---
+
+## 40. Installer un LoRA depuis Hugging Face (serveur)
+
+Trois routes, avec la même authentification que `/api/lora` : `POST /api/lora-hub/inspect` (qu'y a-t-il dans ce dépôt ?),
+`POST /api/lora-hub/install` (lance l'installation et répond tout de suite avec une tâche) et `GET /api/lora-hub/installs/:id` (progression).
+Un LoRA installé est rangé dans `ACE-Step-1.5/lora_output/<nom>/`, là où `GET /api/lora/available` le liste déjà : il apparaît tout seul dans le
+menu LoRA. Le catalogue et l'interface viennent ensuite ; ce qui existe ici, c'est le moteur d'installation.
+
+**Pourquoi pas un simple téléchargement.** Les LoRA ACE-Step publiés sont hétérogènes : le fichier de poids porte des noms différents
+(`adapter_model.safetensors`, `deep_house-v1.safetensors`, `vocal_instrument_merge_adapter_model.safetensors`…) et plusieurs notices disent de le
+renommer à la main ; un dépôt peut en contenir plusieurs ; chaque LoRA est lié à un modèle de base (Turbo 2B, base 2B, XL), et un mauvais
+appariement donne du bruit ou ne tient pas en 8 Go ; la licence et le mot déclencheur sont dans du texte libre.
+
+**Règles, quelle que soit la source** (un lien collé, plus tard une entrée du catalogue) :
+
+- seuls les fichiers que **l'API du Hub liste elle-même** sont téléchargés : un nom saisi par l'utilisateur est vérifié contre cette liste, jamais
+  utilisé comme chemin ;
+- seuls `.safetensors` (un format qui ne peut pas exécuter de code) et `adapter_config.json` sont installés ; `.bin`, `.pt`, `.ckpt` sont refusés ;
+- les fichiers sont lus **au commit** que l'API a annoncé, pour que ce qui est listé soit ce qui est reçu ;
+- l'installation est **atomique** : dossier temporaire caché `.hub-tmp-*`, taille et `sha256` vérifiés, puis un seul renommage ; rien de
+  demi-installé n'apparaît dans le menu ;
+- jamais de choix silencieux : plusieurs `.safetensors` sans nom standard → la réponse est `choose_file` avec la liste ;
+- `cardData` (licence, modèle de base, tags) est du texte libre de l'auteur : seules de courtes chaînes simples en sont gardées ;
+- le dossier de destination est assaini (`../`, `.`, `checkpoints`, `runs` sont refusés) ; un LoRA existant n'est jamais écrasé.
+
+**Variables d'environnement** (les mêmes que `huggingface_hub`) : `HF_ENDPOINT` (défaut `https://huggingface.co`) et `HF_TOKEN` ou
+`HUGGING_FACE_HUB_TOKEN` pour un dépôt privé ou à accès restreint. Le jeton n'est envoyé qu'au Hub lui-même, jamais au CDN vers lequel il redirige.
+
+**Ce que l'installation écrit** : `adapter_model.safetensors`, `adapter_config.json` et `lora_hub.json` (dépôt, commit, fichier d'origine, `sha256`,
+taille, licence, modèle de base, rang, date). Les codes d'erreur : `invalid_source`, `not_found`, `forbidden`, `rate_limited`, `unsupported_format`,
+`no_weights`, `no_adapter_config`, `unsupported_adapter`, `invalid_adapter_config`, `choose_file` et `unknown_file`, `already_installed`,
+`already_installing`, `busy` (deux installations à la fois au plus), `too_large` (4 Go), et, dans la tâche, `checksum_mismatch`, `size_mismatch`,
+`download_stalled` (60 s sans données).
+
+**Limites.** Toute la logique est testée contre un faux Hub local (`services/lora-hub.fake.ts`), construit d'après la forme documentée de l'API
+(`GET /api/models/<dépôt>?blobs=true`, `siblings[].lfs.sha256`) ; **elle n'a pas été exécutée contre le vrai Hugging Face**. Le fichier
+`*.metadata.json` que certains auteurs publient (mot déclencheur, échelle recommandée) n'est pas lu : son format exact n'est pas connu. Un LoRA
+d'un autre type que `LORA` (par exemple LoKr) est refusé.

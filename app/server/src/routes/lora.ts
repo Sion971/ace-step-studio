@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 // app/server/src/routes/lora.ts -> remonte jusqu'a la racine du Studio,
 // puis descend dans ACE-Step-1.5/lora_output — meme convention que
 // tools.ts pour localiser les dossiers geres par ACE-Step-1.5.
-const LORA_OUTPUT_DIR = path.join(__dirname, '../../../../ACE-Step-1.5/lora_output');
+export const LORA_OUTPUT_DIR = path.join(__dirname, '../../../../ACE-Step-1.5/lora_output');
 
 const router = Router();
 
