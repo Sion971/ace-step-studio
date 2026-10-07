@@ -1042,4 +1042,28 @@ export const ru = {
     'setup.disk.needed': "Нужно",
     'setup.continue': "Продолжить, не дожидаясь",
     'setup.continue.hint': "Генерация музыки не будет работать, пока движок не готов.",
+
+    // Espace de travail : clé que SongList utilisait sans qu'elle existe hors du français (chantier des types de React)
+    renameWorkspace: "Переименовать рабочее пространство",
+
+    // Clés utilisées par des composants mais absentes de cette langue (chantier des types de React, étape 3)
+    addToWorkspace: "Добавить в рабочее пространство",
+    allSongs: "Все песни",
+    basedOnAceStepUi: "На основе ACE-Step UI от",
+    createNewWorkspace: "Создать новое рабочее пространство",
+    createWorkspaceModalTitle: "Создать рабочее пространство",
+    dragToReframe: "Перетащите по вертикали, чтобы изменить положение",
+    failedToRenameWorkspace: "Не удалось переименовать",
+    loadParametersJson: "Загрузить параметры (JSON)",
+    modelCustom: "Пользовательская",
+    modelDownloaded: "скачана",
+    modelInMemory: "в памяти",
+    modelLoadingBadge: "загрузка...",
+    modelNotDownloaded: "не скачана",
+    modelUnloadingBadge: "выгрузка...",
+    reframeBanner: "Изменить положение баннера",
+    uploads: "Загрузки",
+    videoBgFailed: "Не удалось загрузить фоновое видео — вместо него используется изображение. Частые причины: кодек, который браузер не воспроизводит, или удалённый источник без заголовков CORS.",
+    workspaceCreated: "Рабочее пространство успешно создано!",
+    workspaceNameLabel: "Название рабочего пространства",
 };

@@ -1117,4 +1117,9 @@ export const fr = {
     'setup.disk.needed': "Nécessaire",
     'setup.continue': "Continuer sans attendre",
     'setup.continue.hint': "La génération de musique ne fonctionnera pas tant que le moteur n'est pas prêt.",
+
+    // Clés utilisées par des composants mais absentes de cette langue (chantier des types de React, étape 3)
+    dragToReframe: "Glisse verticalement pour recadrer",
+    reframeBanner: "Recadrer la bannière",
+    videoBgFailed: "La vidéo de fond n'a pas pu être chargée — une image est utilisée à la place. Causes fréquentes : codec non lu par le navigateur, ou source distante sans en-têtes CORS.",
 };

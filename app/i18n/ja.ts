@@ -1029,4 +1029,30 @@ export const ja = {
     'setup.disk.needed': "必要",
     'setup.continue': "待たずに続ける",
     'setup.continue.hint': "エンジンの準備が整うまで、音楽生成は動作しません。",
+
+    // Espace de travail : clé que SongList utilisait sans qu'elle existe hors du français (chantier des types de React)
+    renameWorkspace: "ワークスペース名を変更",
+
+    // Clés utilisées par des composants mais absentes de cette langue (chantier des types de React, étape 3)
+    addToWorkspace: "ワークスペースに追加",
+    allSongs: "すべての曲",
+    basedOnAceStepUi: "ACE-Step UI をベースにしています。作者：",
+    createNewWorkspace: "新しいワークスペースを作成",
+    createWorkspaceModalTitle: "ワークスペースを作成",
+    downloadingModelNamed: "{{name}} をダウンロード中...",
+    dragToReframe: "縦にドラッグして位置を調整",
+    failedToRenameWorkspace: "名前の変更に失敗しました",
+    loadParametersJson: "パラメータを読み込む (JSON)",
+    loadingModelNamed: "{{name}} を読み込み中...",
+    modelCustom: "カスタム",
+    modelDownloaded: "ダウンロード済み",
+    modelInMemory: "メモリ上",
+    modelLoadingBadge: "読み込み中...",
+    modelNotDownloaded: "未ダウンロード",
+    modelUnloadingBadge: "アンロード中...",
+    reframeBanner: "バナーの位置を調整",
+    uploads: "アップロード",
+    videoBgFailed: "背景動画を読み込めなかったため、代わりに画像を使用しています。よくある原因：ブラウザが再生できないコーデック、または CORS ヘッダーのないリモートソース。",
+    workspaceCreated: "ワークスペースを作成しました！",
+    workspaceNameLabel: "ワークスペース名",
 };

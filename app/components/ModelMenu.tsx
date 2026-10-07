@@ -117,7 +117,7 @@ export const ModelMenu: React.FC<ModelMenuProps> = ({
 
     // Téléchargement si le modèle n'est pas sur le disque
     if (modelInfo && !modelInfo.is_preloaded) {
-      setModelSwitchStatus(`${t('downloadingModel') || 'Downloading'} ${getModelDisplayName(modelId)}...`);
+      setModelSwitchStatus(t('downloadingModelNamed').replace('{{name}}', () => getModelDisplayName(modelId)));
       try {
         const dlRes = await fetch(`/api/generate/download-model?model=${encodeURIComponent(modelId)}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -146,7 +146,7 @@ export const ModelMenu: React.FC<ModelMenuProps> = ({
 
     // Bascule de Gradio vers le nouveau modèle
     if (!modelInfo?.is_active) {
-      setModelSwitchStatus(`${t('loadingModelStatus') || 'Loading'} ${getModelDisplayName(modelId)}...`);
+      setModelSwitchStatus(t('loadingModelNamed').replace('{{name}}', () => getModelDisplayName(modelId)));
       try {
         const switchRes = await fetch('/api/generate/switch-model', {
           method: 'POST',

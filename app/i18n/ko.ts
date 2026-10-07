@@ -1029,4 +1029,30 @@ export const ko = {
     'setup.disk.needed': "필요",
     'setup.continue': "기다리지 않고 계속",
     'setup.continue.hint': "엔진이 준비될 때까지 음악 생성은 작동하지 않습니다.",
+
+    // Espace de travail : clé que SongList utilisait sans qu'elle existe hors du français (chantier des types de React)
+    renameWorkspace: "워크스페이스 이름 변경",
+
+    // Clés utilisées par des composants mais absentes de cette langue (chantier des types de React, étape 3)
+    addToWorkspace: "워크스페이스에 추가",
+    allSongs: "모든 노래",
+    basedOnAceStepUi: "ACE-Step UI 기반, 제작:",
+    createNewWorkspace: "새 워크스페이스 만들기",
+    createWorkspaceModalTitle: "워크스페이스 만들기",
+    downloadingModelNamed: "{{name}} 다운로드 중...",
+    dragToReframe: "세로로 드래그하여 위치 조정",
+    failedToRenameWorkspace: "이름 변경에 실패했습니다",
+    loadParametersJson: "매개변수 불러오기 (JSON)",
+    loadingModelNamed: "{{name}} 불러오는 중...",
+    modelCustom: "사용자 지정",
+    modelDownloaded: "다운로드됨",
+    modelInMemory: "메모리에 있음",
+    modelLoadingBadge: "불러오는 중...",
+    modelNotDownloaded: "다운로드 안 됨",
+    modelUnloadingBadge: "해제 중...",
+    reframeBanner: "배너 위치 조정",
+    uploads: "업로드",
+    videoBgFailed: "배경 비디오를 불러오지 못해 이미지를 대신 사용합니다. 흔한 원인: 브라우저가 재생하지 못하는 코덱, 또는 CORS 헤더가 없는 원격 소스.",
+    workspaceCreated: "워크스페이스가 생성되었습니다!",
+    workspaceNameLabel: "워크스페이스 이름",
 };

@@ -1048,4 +1048,28 @@ export const en = {
     'setup.disk.needed': "Needed",
     'setup.continue': "Continue without waiting",
     'setup.continue.hint': "Music generation will not work until the engine is ready.",
+
+    // Espace de travail : clé que SongList utilisait sans qu'elle existe hors du français (chantier des types de React)
+    renameWorkspace: "Rename workspace",
+
+    // Clés utilisées par des composants mais absentes de cette langue (chantier des types de React, étape 3)
+    addToWorkspace: "Add to workspace",
+    allSongs: "All songs",
+    basedOnAceStepUi: "Based on ACE-Step UI by",
+    createNewWorkspace: "Create new workspace",
+    createWorkspaceModalTitle: "Create a Workspace",
+    dragToReframe: "Drag vertically to reframe",
+    failedToRenameWorkspace: "Failed to rename",
+    loadParametersJson: "Load parameters (JSON)",
+    modelCustom: "Custom",
+    modelDownloaded: "downloaded",
+    modelInMemory: "in memory",
+    modelLoadingBadge: "loading...",
+    modelNotDownloaded: "not downloaded",
+    modelUnloadingBadge: "unloading...",
+    reframeBanner: "Reframe banner",
+    uploads: "Uploads",
+    videoBgFailed: "The background video could not be loaded — an image is used instead. Common causes: a codec the browser cannot play, or a remote source without CORS headers.",
+    workspaceCreated: "Workspace created successfully!",
+    workspaceNameLabel: "Workspace name",
 };

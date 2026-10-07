@@ -1029,4 +1029,30 @@ export const zh = {
     'setup.disk.needed': "需要",
     'setup.continue': "不等待，继续",
     'setup.continue.hint': "在引擎就绪之前，无法生成音乐。",
+
+    // Espace de travail : clé que SongList utilisait sans qu'elle existe hors du français (chantier des types de React)
+    renameWorkspace: "重命名工作区",
+
+    // Clés utilisées par des composants mais absentes de cette langue (chantier des types de React, étape 3)
+    addToWorkspace: "添加到工作区",
+    allSongs: "所有歌曲",
+    basedOnAceStepUi: "基于 ACE-Step UI，作者：",
+    createNewWorkspace: "新建工作区",
+    createWorkspaceModalTitle: "创建工作区",
+    downloadingModelNamed: "正在下载 {{name}}...",
+    dragToReframe: "垂直拖动以调整位置",
+    failedToRenameWorkspace: "重命名失败",
+    loadParametersJson: "加载参数 (JSON)",
+    loadingModelNamed: "正在加载 {{name}}...",
+    modelCustom: "自定义",
+    modelDownloaded: "已下载",
+    modelInMemory: "已在内存中",
+    modelLoadingBadge: "加载中...",
+    modelNotDownloaded: "未下载",
+    modelUnloadingBadge: "卸载中...",
+    reframeBanner: "调整横幅位置",
+    uploads: "上传",
+    videoBgFailed: "背景视频无法加载，已改用图片。常见原因：浏览器无法播放该编码，或远程来源缺少 CORS 头。",
+    workspaceCreated: "工作区创建成功！",
+    workspaceNameLabel: "工作区名称",
 };

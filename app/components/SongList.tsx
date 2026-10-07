@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { getModelDisplayName } from '../utils/modelNames';
 import { Song } from '../types';
+import type { TranslationKey } from '../i18n/translations';
 import { Play, MoreHorizontal, Heart, ListPlus, Pause, Search, Filter, Check, Globe, Lock, Loader2, ThumbsUp, Share2, Video, Info, Clock, Timer, ImagePlus, Pencil, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useI18n } from '../context/I18nContext';
@@ -798,7 +799,7 @@ const SongItem: React.FC<SongItemProps> = ({
                                     }
                                 }}
                             >
-                                {song.title || (song.isGenerating ? (song.queuePosition ? t('queued') || "Queued..." : (t(song.stage) || song.stage || t('creating') || "Creating...")) : t('untitled') || "Untitled")}
+                                {song.title || (song.isGenerating ? (song.queuePosition ? t('queued') || "Queued..." : (t(song.stage as TranslationKey) || song.stage || t('creating') || "Creating...")) : t('untitled') || "Untitled")}
                             </h3>
                         )}
                         <span
@@ -941,11 +942,11 @@ const SongItem: React.FC<SongItemProps> = ({
                                 isOpen={showDropdown}
                                 onClose={() => setShowDropdown(false)}
                                 isOwner={isOwner}
-                                onCreateVideo={() => onOpenVideo?.(song)}
-                                onReusePrompt={onReusePrompt ? () => onReusePrompt?.(song) : undefined}
-                                onAddToPlaylist={() => onAddToPlaylist?.(song)}
-                                onAddToWorkspace={() => onAddToWorkspace?.(song)}
-                                onDelete={() => onDelete?.(song)}
+                                onCreateVideo={() => onOpenVideo?.()}
+                                onReusePrompt={onReusePrompt ? () => onReusePrompt?.() : undefined}
+                                onAddToPlaylist={() => onAddToPlaylist?.()}
+                                onAddToWorkspace={() => onAddToWorkspace?.()}
+                                onDelete={() => onDelete?.()}
                                 onShare={() => setShareModalOpen(true)}
                                 onUseAsReference={() => onUseAsReference?.()}
                                 onCoverSong={() => onCoverSong?.()}
@@ -960,7 +961,7 @@ const SongItem: React.FC<SongItemProps> = ({
                 {song.isGenerating ? (
                     <div className="flex flex-col items-end gap-0.5">
                         <span className={song.queuePosition ? 'text-amber-500' : 'text-pink-500'}>
-                            {song.queuePosition ? `#${song.queuePosition}` : (t(song.stage) || song.stage || t('creating') || 'Creating...')}
+                            {song.queuePosition ? `#${song.queuePosition}` : (t(song.stage as TranslationKey) || song.stage || t('creating') || 'Creating...')}
                         </span>
                         {onCancelJob && (
                             <button
