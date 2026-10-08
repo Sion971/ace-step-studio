@@ -26,6 +26,10 @@ export interface FakeRepo {
   rawSiblings?: unknown[];
   /** Answer something that is not what the API returns. */
   rawBody?: string;
+  /** Older states of the repository, by commit: what /revision/<commit> and /resolve/<commit>/<file> answer for them. */
+  history?: Record<string, { files: Record<string, Buffer | string>; cardData?: Record<string, unknown>; tags?: unknown[]; noLfs?: boolean }>;
+  /** Branch and tag names, each pointing at a commit of the history, or at the current one. */
+  refs?: Record<string, string>;
   weightsBehavior?: WeightsBehavior;
 }
 
@@ -36,6 +40,8 @@ export interface FakeHub {
   /** "<revision>:<file>" of every /resolve request. */
   resolved: string[];
   apiQueries: string[];
+  /** Path and query of every request to the API, e.g. "/api/models/user/repo/revision/abc?blobs=true". */
+  apiPaths: string[];
   hubHeaders: http.IncomingHttpHeaders[];
   cdnHeaders: http.IncomingHttpHeaders[];
   /** Force this status on API requests. */
@@ -70,14 +76,28 @@ export const GOOD_ADAPTER_CONFIG = JSON.stringify({
 
 export async function startFakeHub(token = 'hf_test_token'): Promise<FakeHub> {
   const repos = new Map<string, FakeRepo>();
-  const hub: FakeHub = { endpoint: '', cdnOrigin: '', repos, resolved: [], apiQueries: [], hubHeaders: [], cdnHeaders: [], close: async () => undefined };
+  const hub: FakeHub = { endpoint: '', cdnOrigin: '', repos, resolved: [], apiQueries: [], apiPaths: [], hubHeaders: [], cdnHeaders: [], close: async () => undefined };
 
-  const siblingsOf = (repo: FakeRepo) =>
-    repo.rawSiblings ??
-    Object.entries(repo.files).map(([rfilename, content]) => {
+  const DEFAULT_SHA = 'c0ffee0123456789abcdef0123456789abcdef01';
+  const currentSha = (repo: FakeRepo) => repo.sha ?? DEFAULT_SHA;
+  interface Snapshot { commit: string; key: string; files: Record<string, Buffer | string>; cardData?: Record<string, unknown>; tags?: unknown[]; noLfs?: boolean; raw: boolean }
+  /** The repository as it was at a revision (a commit, a branch, a tag, main), or null: the real Hub answers 404 "Revision Not Found". */
+  const snapshotOf = (repo: FakeRepo, revision: string | undefined): Snapshot | null => {
+    const wanted = revision ?? 'main';
+    const target = repo.refs?.[wanted] ?? wanted;
+    if (target === 'main' || target === 'HEAD' || target === currentSha(repo)) {
+      return { commit: currentSha(repo), key: 'current', files: repo.files, cardData: repo.cardData, tags: repo.tags, noLfs: repo.noLfs, raw: true };
+    }
+    const old = repo.history?.[target];
+    return old ? { commit: target, key: target, files: old.files, cardData: old.cardData ?? repo.cardData, tags: old.tags ?? repo.tags, noLfs: old.noLfs ?? repo.noLfs, raw: false } : null;
+  };
+
+  const siblingsOf = (repo: FakeRepo, snap: Snapshot) =>
+    (snap.raw ? repo.rawSiblings : undefined) ??
+    Object.entries(snap.files).map(([rfilename, content]) => {
       const data = bytes(content);
       const isWeights = rfilename.endsWith('.safetensors') || /\.(bin|pt|ckpt)$/.test(rfilename);
-      return isWeights && !repo.noLfs
+      return isWeights && !snap.noLfs
         ? { rfilename, size: data.length, blobId: sha256(rfilename).slice(0, 40), lfs: { sha256: sha256(data), size: data.length, pointerSize: 134 } }
         : { rfilename, size: data.length };
     });
@@ -86,9 +106,9 @@ export async function startFakeHub(token = 'hf_test_token'): Promise<FakeHub> {
 
   const cdn = http.createServer((req, res) => {
     hub.cdnHeaders.push(req.headers);
-    const [, , repoId, file] = (req.url ?? '').split('/').map(decodeURIComponent);
+    const [, , repoId, key, file] = (req.url ?? '').split('/').map(decodeURIComponent);
     const repo = repos.get(repoId);
-    const content = repo?.files[file];
+    const content = repo ? (key === 'current' ? repo.files : repo.history?.[key]?.files)?.[file] : undefined;
     if (!repo || content === undefined) return void res.writeHead(404).end();
     const data = bytes(content);
     const behavior = repo.weightsBehavior ?? 'normal';
@@ -126,20 +146,25 @@ export async function startFakeHub(token = 'hf_test_token'): Promise<FakeHub> {
 
     if (parts[0] === 'api' && parts[1] === 'models') {
       hub.apiQueries.push(url.search);
+      hub.apiPaths.push(url.pathname + url.search);
       if (hub.forceApiStatus) return void res.writeHead(hub.forceApiStatus, { 'Content-Type': 'application/json' }).end('{"error":"forced"}');
       const repo = repos.get(`${parts[2]}/${parts[3]}`);
       if (!repo) return void res.writeHead(404, { 'Content-Type': 'application/json' }).end('{"error":"Repository not found"}');
       if (!authorized(repo, req)) return void res.writeHead(401, { 'Content-Type': 'application/json' }).end('{"error":"Invalid credentials"}');
       if (repo.rawBody !== undefined) return void res.writeHead(200).end(repo.rawBody);
+      // Like the real Hub: the revision is in the PATH (/api/models/<repo>/revision/<revision>); a "?revision=" on the base address is not read.
+      const requested = parts[4] === 'revision' ? parts[5] : undefined;
+      const snap = snapshotOf(repo, requested);
+      if (!snap) return void res.writeHead(404, { 'Content-Type': 'application/json' }).end('{"error":"Revision Not Found"}');
       return void res.writeHead(200, { 'Content-Type': 'application/json' }).end(
         JSON.stringify({
           id: `${parts[2]}/${parts[3]}`,
-          sha: repo.sha ?? 'c0ffee0123456789abcdef0123456789abcdef01',
+          sha: snap.commit,
           private: false,
           gated: repo.gated ?? false,
-          tags: repo.tags ?? ['peft', 'lora', 'ace-step'],
-          cardData: repo.cardData ?? { license: 'cc-by-4.0', base_model: 'ACE-Step/Ace-Step1.5' },
-          siblings: siblingsOf(repo),
+          tags: snap.tags ?? ['peft', 'lora', 'ace-step'],
+          cardData: snap.cardData ?? { license: 'cc-by-4.0', base_model: 'ACE-Step/Ace-Step1.5' },
+          siblings: siblingsOf(repo, snap),
         }),
       );
     }
@@ -148,12 +173,13 @@ export async function startFakeHub(token = 'hf_test_token'): Promise<FakeHub> {
       const repo = repos.get(`${parts[0]}/${parts[1]}`);
       const file = parts.slice(4).join('/');
       hub.resolved.push(`${parts[3]}:${file}`);
-      if (!repo || repo.files[file] === undefined) return void res.writeHead(404).end();
+      const snap = repo ? snapshotOf(repo, parts[3]) : null;
+      if (!repo || !snap || snap.files[file] === undefined) return void res.writeHead(404).end();
       if (!authorized(repo, req)) return void res.writeHead(401).end();
       if (/\.(safetensors|bin|pt|ckpt)$/.test(file)) {
-        return void res.writeHead(302, { Location: `${hub.cdnOrigin}/blob/${encodeURIComponent(`${parts[0]}/${parts[1]}`)}/${encodeURIComponent(file)}` }).end();
+        return void res.writeHead(302, { Location: `${hub.cdnOrigin}/blob/${encodeURIComponent(`${parts[0]}/${parts[1]}`)}/${encodeURIComponent(snap.key)}/${encodeURIComponent(file)}` }).end();
       }
-      const data = bytes(repo.files[file]);
+      const data = bytes(snap.files[file]);
       return void res.writeHead(200, { 'Content-Length': data.length }).end(data);
     }
     res.writeHead(404).end();

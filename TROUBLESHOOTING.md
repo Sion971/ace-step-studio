@@ -1903,6 +1903,10 @@ demande pas de redémarrage) et **comme un fichier non fiable** : une entrée in
 pas tomber les autres. Une entrée peut **épingler** le commit (`revision`, 7 à 40 chiffres hexadécimaux : une branche bouge) et le `sha256` des poids : si
 le dépôt n'a plus ces poids-là, l'installation refuse (`catalog_checksum_mismatch`), avant le téléchargement quand le Hub publie un checksum, après sinon.
 Le catalogue livré n'épingle que ce qui a été installé et vérifié, avec `verified` daté.
+Un commit précis est demandé au Hub à `/api/models/<dépôt>/revision/<commit>`, la forme de ses propres clients (`huggingface_hub`, `@huggingface/hub`), et **non** par
+un paramètre `?revision=` sur l'adresse de base, que l'API ne lit pas et qui répondrait pour le sommet du dépôt : l'épingle serait alors inutile exactement quand
+l'auteur a mis son dépôt à jour. Une révision inconnue est refusée (`not_found`), jamais remplacée par la version actuelle. Le faux Hub des tests se comporte de
+même (historique par commit, `?revision=` ignoré, 404 pour une révision inconnue), et un test échoue si la mauvaise forme revient.
 
 Routes : `GET /api/lora-hub/catalog?activeModel=&vramGb=` (chaque entrée avec `installed` et `compatibility`), `POST /api/lora-hub/catalog/:id/install`
 (le dépôt, le fichier, le commit et le checksum viennent de l'entrée, **jamais du corps de la requête**), `GET /api/lora-hub/installed`. `POST /inspect` renvoie

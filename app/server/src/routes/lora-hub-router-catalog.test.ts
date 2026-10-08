@@ -139,7 +139,7 @@ describe('lora-hub router: catalog, installed, compatibility', () => {
 
     it('installs at the commit the entry pins, not at whatever the repository points to now', async () => {
       await waitDone((await call('POST', '/catalog/lofi/install', {})).body.job.id);
-      expect(fake.apiQueries[0]).toBe(`?blobs=true&revision=${COMMIT}`);
+      expect(fake.apiPaths[0]).toBe(`/api/models/user/lofi/revision/${COMMIT}?blobs=true`);
     });
 
     it('refuses, and installs nothing, when the repository no longer holds the weights that were checked', async () => {

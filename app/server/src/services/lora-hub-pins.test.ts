@@ -45,17 +45,17 @@ describe('LoraHub: what a catalog entry pins', () => {
   });
 
   describe('the revision', () => {
-    it('is asked of the Hub, and the files are read at the commit the Hub answers with', async () => {
-      fake.repos.set('user/good', repoWith({ sha: 'a'.repeat(40) }));
-      await hub.inspect('user/good', { revision: '497b97b7e8548d916366ee534551413d32d0fbd0' });
-      expect(fake.apiQueries[0]).toBe('?blobs=true&revision=497b97b7e8548d916366ee534551413d32d0fbd0');
+    it('is asked of the Hub in the path, and the files are read at the commit the Hub answers with', async () => {
+      fake.repos.set('user/good', repoWith({ sha: 'a'.repeat(40), refs: { stable: 'a'.repeat(40) } }));
+      await hub.inspect('user/good', { revision: 'stable' });
+      expect(fake.apiPaths[0]).toBe('/api/models/user/good/revision/stable?blobs=true');
       expect(fake.resolved.every((r) => r.startsWith('a'.repeat(40)))).toBe(true);
     });
 
     it('wins over the revision of a link', async () => {
-      fake.repos.set('user/good', repoWith());
+      fake.repos.set('user/good', repoWith({ refs: { abc1234: 'c0ffee0123456789abcdef0123456789abcdef01' } }));
       await hub.inspect(`${fake.endpoint}/user/good/tree/main`, { revision: 'abc1234' });
-      expect(fake.apiQueries[0]).toBe('?blobs=true&revision=abc1234');
+      expect(fake.apiPaths[0]).toBe('/api/models/user/good/revision/abc1234?blobs=true');
     });
 
     it('is refused when it is not a revision', async () => {
@@ -63,7 +63,7 @@ describe('LoraHub: what a catalog entry pins', () => {
       for (const revision of ['', '../x', 'a b', '-x', 'x'.repeat(200), 'a/b']) {
         expect(await codeOf(hub.inspect('user/good', { revision })), JSON.stringify(revision)).toBe('invalid_revision');
       }
-      expect(fake.apiQueries).toEqual([]); // refused before anything was asked of the Hub
+      expect(fake.apiPaths).toEqual([]); // refused before anything was asked of the Hub
     });
   });
 

@@ -129,11 +129,18 @@ describe('LoraHub', () => {
     });
 
     it('asks for blobs, at the revision of the link, and reads the files at the COMMIT the API reported', async () => {
-      fake.repos.set('user/good', goodRepo({ sha: 'abcdef0123456789abcdef0123456789abcdef01' }));
+      const commit = 'abcdef0123456789abcdef0123456789abcdef01';
+      fake.repos.set('user/good', goodRepo({ sha: commit, refs: { dev: commit } }));
       await hub.inspect(`${fake.endpoint}/user/good/tree/dev`);
-      expect(fake.apiQueries[0]).toBe('?blobs=true&revision=dev');
+      expect(fake.apiPaths[0]).toBe('/api/models/user/good/revision/dev?blobs=true');
       expect(fake.resolved).toContain('abcdef0123456789abcdef0123456789abcdef01:adapter_config.json');
       expect(fake.resolved.every((r) => r.startsWith('abcdef0'))).toBe(true);
+    });
+
+    it('asks the base address when no revision is given', async () => {
+      fake.repos.set('user/good', goodRepo());
+      await hub.inspect('user/good');
+      expect(fake.apiPaths).toEqual(['/api/models/user/good?blobs=true']);
     });
 
     it('takes the only .safetensors, whatever its name (it is renamed at install)', async () => {

@@ -240,9 +240,20 @@ export class LoraHub {
       if (typeof options.revision !== 'string' || !REVISION.test(options.revision)) throw new LoraHubError('The revision is not valid.', 400, 'invalid_revision');
       ref.revision = options.revision;
     }
-    let url = `${this.endpoint}/api/models/${ref.repo}?blobs=true`;
-    if (ref.revision) url += `&revision=${encodeURIComponent(ref.revision)}`;
-    const info = (await this.getJson(url, MAX_API_BYTES)) as Record<string, any>;
+    // A given revision is asked of the Hub at /api/models/<repo>/revision/<revision>, the form its own clients use (huggingface_hub, @huggingface/hub);
+    // the base address answers for the main branch only, and a "?revision=" query on it is not part of the API.
+    const modelUrl = `${this.endpoint}/api/models/${ref.repo}`;
+    const url = `${ref.revision ? `${modelUrl}/revision/${encodeURIComponent(ref.revision)}` : modelUrl}?blobs=true`;
+    let info: Record<string, any>;
+    try {
+      info = (await this.getJson(url, MAX_API_BYTES)) as Record<string, any>;
+    } catch (error) {
+      // The Hub answers 404 both for an unknown repository and for an unknown revision: when one was asked for, say so.
+      if (ref.revision && error instanceof LoraHubError && error.code === 'not_found') {
+        throw new LoraHubError(`The revision "${ref.revision}" was not found in this repository (or the repository does not exist).`, 404, 'not_found');
+      }
+      throw error;
+    }
     if (!info || typeof info !== 'object' || !Array.isArray(info.siblings)) {
       throw new LoraHubError('Hugging Face answered with something unexpected for this repository.', 502, 'unexpected_response');
     }
