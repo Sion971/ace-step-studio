@@ -1314,4 +1314,8 @@ export const fr = {
     modelShowMoreVram: "Afficher les modèles qui demandent plus de VRAM ({{count}})",
     modelHideMoreVram: "Masquer les modèles qui demandent plus de VRAM",
     modelNeedsVram: "Demande {{need}} Go de VRAM (vous en avez {{have}} Go)",
+
+    // Menu des modèles : un téléchargement ou un changement de modèle qui échoue le dit
+    modelSwitchFailed: "Impossible de charger {{name}} : {{reason}}",
+    modelDownloadFailed: "Impossible de télécharger {{name}}. Vérifiez votre connexion et réessayez.",
 };

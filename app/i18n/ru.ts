@@ -1291,4 +1291,8 @@ export const ru = {
     modelShowMoreVram: "Показать модели, которым нужно больше VRAM ({{count}})",
     modelHideMoreVram: "Скрыть модели, которым нужно больше VRAM",
     modelNeedsVram: "Требуется {{need}} ГБ VRAM (у вас: {{have}} ГБ)",
+
+    // Menu des modèles : un téléchargement ou un changement de modèle qui échoue le dit
+    modelSwitchFailed: "Не удалось загрузить {{name}}: {{reason}}",
+    modelDownloadFailed: "Не удалось скачать {{name}}. Проверьте подключение и повторите попытку.",
 };

@@ -1280,4 +1280,8 @@ export const zh = {
     modelShowMoreVram: "显示需要更多显存的模型 ({{count}})",
     modelHideMoreVram: "隐藏需要更多显存的模型",
     modelNeedsVram: "需要 {{need}} GB 显存(当前:{{have}} GB)",
+
+    // Menu des modèles : un téléchargement ou un changement de modèle qui échoue le dit
+    modelSwitchFailed: "无法加载 {{name}}:{{reason}}",
+    modelDownloadFailed: "无法下载 {{name}}。请检查网络连接后重试。",
 };

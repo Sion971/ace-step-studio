@@ -2018,3 +2018,22 @@ fusionné) ; le modèle sélectionné, le modèle chargé, et ceux déjà prése
 **Limites.** Vérifié dans un vrai navigateur (Chromium) avec le vrai serveur et un faux `nvidia-smi` à 8 Go : liste, lien, notes, anglais et français, six langues sans débordement.
 **Pas vérifié** : le téléchargement réel du Turbo 2B (le Hugging Face réel n'a pas été joint), le chargement d'un 2B par le vrai moteur, et le réglage du moteur de langage pour un 2B.
 Le japonais, le coréen, le russe et le chinois ne sont pas relus par un locuteur natif. `services/acestep.ts` garde sa propre copie de `MODEL_HF_REPOS`, non touchée.
+
+---
+
+## 43. Un modèle téléchargé après le démarrage ne se charge pas
+
+**Constat** (Turbo 2B choisi dans le menu) : le téléchargement va au bout, mais le modèle ne se charge pas ; il faut relancer le serveur pour qu'il soit reconnu.
+
+**Cause.** Le menu « Main Model Path » du moteur (`config_path`, `acestep/ui/gradio/interfaces/generation_service_config_rows.py`) est construit une fois, au démarrage, avec les dossiers
+présents à ce moment-là. Gradio refuse toute autre valeur : `Value: acestep-v15-turbo is not in the list of choices: [...]`. Reproduit avec gradio 6.2.0 (la version épinglée par le
+moteur) : sans `allow_custom_value`, l'appel est refusé ; avec, le même appel est accepté. `POST /api/generate/switch-model` répondait alors 500 « Model switch failed: … », et le menu
+(`components/ModelMenu.tsx`) ignorait la réponse : rien n'expliquait l'échec. Cela touchait tout modèle ajouté après le démarrage, pas seulement le Turbo.
+
+**Correctifs.** (1) `allow_custom_value=True` sur ce menu du moteur ; `server/src/services/engine-model-choices.test.ts` lit le fichier et échoue si la ligne disparaît (une mise à jour du
+moteur depuis l'amont l'effacerait). (2) Le menu des modèles dit maintenant l'échec d'un téléchargement ou d'un changement de modèle (`modelDownloadFailed`, `modelSwitchFailed`), quinze secondes,
+avec la raison renvoyée par le serveur (en anglais : c'est son texte). Avant, tout était silencieux.
+
+**Limites.** Le correctif du moteur est validé sur un Gradio isolé, pas sur le vrai moteur : il faut redémarrer le moteur une fois pour qu'il le prenne, puis télécharger un modèle APRÈS ce
+démarrage pour le voir fonctionner. Le moteur peut encore refuser un modèle pour une autre raison (dossier incomplet, mémoire) : le message le dira désormais. Les textes japonais, coréen, russe et
+chinois ne sont pas relus par un locuteur natif.

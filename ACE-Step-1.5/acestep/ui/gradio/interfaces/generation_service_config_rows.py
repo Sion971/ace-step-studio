@@ -129,6 +129,9 @@ def build_model_device_controls(
         config_path = gr.Dropdown(
             label=t("service.model_path_label"),
             choices=available_models,
+            # Les choix sont fixés au démarrage du moteur : sans valeur libre, un modèle téléchargé ENSUITE (Turbo 2B depuis le menu) est refusé
+            # par Gradio (« Value: … is not in the list of choices ») jusqu'au prochain redémarrage.
+            allow_custom_value=True,
             value=(
                 params.get("config_path", default_model)
                 if service_pre_initialized and params.get("config_path", default_model) in available_models

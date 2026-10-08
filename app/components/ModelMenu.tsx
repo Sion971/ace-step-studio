@@ -78,6 +78,15 @@ export const ModelMenu: React.FC<ModelMenuProps> = ({
   const { t } = useI18n();
   const [showModelMenu, setShowModelMenu] = useState(false);
   const modelMenuRef = useRef<HTMLDivElement>(null);
+  /** Dernier échec de téléchargement ou de bascule, montré quelques secondes : ces échecs étaient silencieux. */
+  const [switchError, setSwitchError] = useState<string | null>(null);
+  const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (errorTimer.current) clearTimeout(errorTimer.current); }, []);
+  const reportFailure = (message: string) => {
+    setSwitchError(message);
+    if (errorTimer.current) clearTimeout(errorTimer.current);
+    errorTimer.current = setTimeout(() => setSwitchError(null), 15000);
+  };
   /** Mémoire de la carte graphique en Go ; null tant qu'elle est inconnue (alors rien n'est masqué). */
   const [vramGb, setVramGb] = useState<number | null>(null);
   const [showAllModels, setShowAllModels] = useState(false);
@@ -135,6 +144,7 @@ export const ModelMenu: React.FC<ModelMenuProps> = ({
       return;
     }
     const prevModel = selectedModel;
+    setSwitchError(null);
     setSelectedModel(modelId);
     localStorage.setItem('ace-model', modelId);
     setShowModelMenu(false);
@@ -159,7 +169,11 @@ export const ModelMenu: React.FC<ModelMenuProps> = ({
             if (done) break;
             const text = new TextDecoder().decode(value);
             if (text.includes('"done"')) break;
-            if (text.includes('"error"')) { setModelSwitchStatus(null); return; }
+            if (text.includes('"error"')) {
+              setModelSwitchStatus(null);
+              reportFailure(fillTemplate(t('modelDownloadFailed'), { name: getModelDisplayName(modelId) }));
+              return;
+            }
             const pctMatch = text.match(/(\d+)%/);
             if (pctMatch) setModelSwitchStatus(`⬇ ${pctMatch[1]}%`);
           }
@@ -170,6 +184,7 @@ export const ModelMenu: React.FC<ModelMenuProps> = ({
         });
       } catch {
         setModelSwitchStatus(null);
+        reportFailure(fillTemplate(t('modelDownloadFailed'), { name: getModelDisplayName(modelId) }));
         return;
       }
     }
@@ -183,15 +198,18 @@ export const ModelMenu: React.FC<ModelMenuProps> = ({
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ model: modelId, lmModel, lmBackend }),
         });
-        const switchData = await switchRes.json();
+        const switchData = await switchRes.json().catch(() => ({} as { success?: boolean; error?: string }));
         if (switchData.success) {
           lmEditingRef.current = false;
           fetch('/api/generate/models').then(r => r.json()).then(d => {
             if (d.models) setFetchedModels(d.models);
           });
+        } else {
+          // Le serveur répond 500 « Model switch failed: … » quand le moteur refuse : l'échec était ignoré, et rien n'expliquait pourquoi le modèle ne se chargeait pas.
+          reportFailure(fillTemplate(t('modelSwitchFailed'), { name: getModelDisplayName(modelId), reason: switchData.error || `HTTP ${switchRes.status}` }));
         }
-      } catch {
-        // Silencieux : le polling du parent finira par refléter l'état réel
+      } catch (err) {
+        reportFailure(fillTemplate(t('modelSwitchFailed'), { name: getModelDisplayName(modelId), reason: err instanceof Error ? err.message : String(err) }));
       }
       setModelSwitchStatus(null);
     }
@@ -230,6 +248,15 @@ export const ModelMenu: React.FC<ModelMenuProps> = ({
           )}
           <ChevronDown size={10} className="text-zinc-600 dark:text-zinc-400" />
         </button>
+        {switchError && (
+          <p
+            role="alert"
+            data-testid="model-switch-error"
+            className="absolute right-0 top-full mt-1 z-40 w-72 rounded-md border border-red-300 bg-red-50 p-2 text-[11px] text-red-700 shadow-lg dark:border-red-500/40 dark:bg-red-950 dark:text-red-300"
+          >
+            {switchError}
+          </p>
+        )}
 
         {showModelMenu && availableModels.length > 0 && (
           <div className="absolute top-full right-0 mt-1 w-72 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl z-50 overflow-hidden">

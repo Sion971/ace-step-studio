@@ -1280,4 +1280,8 @@ export const ko = {
     modelShowMoreVram: "더 많은 VRAM이 필요한 모델 표시 ({{count}})",
     modelHideMoreVram: "더 많은 VRAM이 필요한 모델 숨기기",
     modelNeedsVram: "VRAM {{need}}GB 필요 (현재: {{have}}GB)",
+
+    // Menu des modèles : un téléchargement ou un changement de modèle qui échoue le dit
+    modelSwitchFailed: "{{name}}을(를) 불러오지 못했습니다: {{reason}}",
+    modelDownloadFailed: "{{name}}을(를) 다운로드하지 못했습니다. 연결을 확인한 후 다시 시도해 주세요.",
 };

@@ -1280,4 +1280,8 @@ export const ja = {
     modelShowMoreVram: "より多くのVRAMを必要とするモデルを表示 ({{count}})",
     modelHideMoreVram: "より多くのVRAMを必要とするモデルを隠す",
     modelNeedsVram: "VRAM {{need}} GB が必要です(お使いの環境: {{have}} GB)",
+
+    // Menu des modèles : un téléchargement ou un changement de modèle qui échoue le dit
+    modelSwitchFailed: "{{name}} を読み込めませんでした: {{reason}}",
+    modelDownloadFailed: "{{name}} をダウンロードできませんでした。接続を確認して、もう一度お試しください。",
 };
