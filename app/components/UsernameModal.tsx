@@ -67,7 +67,7 @@ export const UsernameModal: React.FC<UsernameModalProps> = ({ isOpen, onSubmit }
           </p>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-zinc-300 mb-2">
                 {t('yourName')}
@@ -79,6 +79,16 @@ export const UsernameModal: React.FC<UsernameModalProps> = ({ isOpen, onSubmit }
                 <input
                   type="text"
                   id="username"
+                  // Ce champ prend le focus à l'ouverture, y compris SOUS l'écran de chargement des modèles (SetupScreen, z-1000) au premier
+                  // lancement : Firefox y affichait sa bulle d'historique de saisie (« Sion971 ») par-dessus le chargement. Le navigateur ne doit rien proposer ici.
+                  name="studio-display-name"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  data-form-type="other"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder={t('enterYourName')}
