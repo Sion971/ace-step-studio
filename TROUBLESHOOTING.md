@@ -1940,3 +1940,40 @@ dernier segment. Peu d'auteurs en publient un : le catalogue devra donc porter c
 **Limites.** Exécuté une fois contre le vrai Hub (`ryanontheinside/lo_fi-acestep1.5-v1`, 88 Mo : installation et somme de contrôle vérifiées) ; le reste
 est testé contre un faux Hub local (`services/lora-hub.fake.ts`) construit d'après cette forme réelle. Un LoRA d'un autre type que `LORA` (par exemple
 LoKr) est refusé. « Licence non déclarée » est une réponse normale : celui-là n'en déclare aucune, ni dans le dépôt ni dans son fichier.
+
+---
+
+## 41. Catalogue de LoRA : l'interface
+
+Le bouton « Parcourir le catalogue » du panneau LoRA (`components/LoraPanel.tsx`) ouvre `components/LoraCatalogModal.tsx` : la liste du catalogue
+(`/api/lora-hub/catalog`), un champ « lien Hugging Face » (`/inspect`, `/install`) et le suivi des installations (`/installs/:id`). Les appels, les
+erreurs et toute la logique d'affichage sont dans `services/loraHub.ts`, sans React, pour être testés seuls.
+
+**Le serveur envoie des codes, jamais des phrases.** Une raison de compatibilité (`size_mismatch`…) et une erreur (`catalog_checksum_mismatch`, `busy`…)
+sont écrites dans la langue de l'utilisateur, avec les textes `loraHub*` des six langues. La phrase anglaise du serveur ne s'affiche que pour un code que
+l'interface ne connaît pas. Le client garde le code et les détails d'une erreur (le wrapper `api()` de `services/api.ts` ne garde que « 409: message ») : il
+en a besoin pour la liste des fichiers à choisir. `loraHub.test.ts` lit les codes du serveur (`new LoraHubError(…)`) et échoue si l'un d'eux n'a ni phrase ni
+raison d'être traité ailleurs.
+
+**Le modèle chargé** n'est cru que si le moteur est connecté ET prêt (`state === 'ready' && connected`), la règle que `CreatePanel` applique déjà. Pendant un
+chargement, un déchargement ou une erreur, il est omis : le verdict est « Inconnu », dit une seule fois en haut de la fenêtre plutôt que sur chaque carte. La VRAM
+vient de `/api/generate/system-info` (`vram_total`, en Go).
+
+**« Utiliser »** sélectionne le LoRA dans la liste et règle l'échelle recommandée par l'auteur (limitée à 0–1, ce que le curseur peut montrer), **sauf si un LoRA est
+déjà chargé** : le curseur agit alors sur celui-là. Le chargement reste le geste explicite du bouton « Charger », qui garde ses garde-fous (quantification…). Il
+est refusé pour un LoRA incompatible (taille de modèle différente). Le mot déclencheur et les réglages affichés sous la liste viennent de `/api/lora-hub/installed`
+(`lora_hub.json`) : un LoRA entraîné ici n'a pas ce fichier et n'a pas ce bloc.
+
+**Pièges déjà rencontrés.** `LoraPanel` est rendu à chaque frappe de `CreatePanel` et passe de nouvelles fonctions à la fenêtre à chaque fois : les rappels
+(`onClose`, `onInstalled`) et ce qu'on injecte (`api`, `readContext`) sont lus par référence, sinon le minuteur de progression est relancé à chaque rendu et ne
+tire jamais. Un test de régression le garde. Les couleurs des raisons suivent la gravité de CHAQUE raison, pas le verdict de la carte.
+La fenêtre est rendue dans `document.body` (un portail) : la colonne de gauche de la page de création est son propre contexte d'empilement, et un `z-50` écrit à
+l'intérieur y restait sous la poignée qui redimensionne les deux colonnes, qui traversait alors la fenêtre. Les tests cherchent donc dans `document.body`, pas dans leur conteneur.
+
+**Ajouter ou changer un texte** : les clés `loraHub*` des six `i18n/*.ts` ; `i18n/loraHubKeys.test.ts` vérifie qu'elles existent partout, avec les mêmes `{{marqueurs}}`,
+sans copie de l'anglais, et que le français vouvoie.
+
+**Limites.** Vérifié dans un vrai navigateur (Chromium) avec un faux serveur : thèmes clair et sombre, anglais, français, japonais, russe en écran étroit, mesure de
+débordement dans les six langues. **Pas vérifié** : l'installation depuis l'interface contre le vrai Hugging Face, ni la fenêtre dans l'application entière. Les textes
+japonais, coréen, russe et chinois ne sont pas relus par un locuteur natif ; le coréen et le chinois n'ont pas été regardés à l'écran. Les tailles restent en « MB »
+dans toutes les langues, et les descriptions du catalogue sont le texte (anglais) de l'auteur.

@@ -12,9 +12,12 @@
  * ==========================================================================*/
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Sliders, ChevronDown } from 'lucide-react';
+import { Sliders, ChevronDown, Library, Check, Copy } from 'lucide-react';
 import { generateApi } from '../services/api';
 import { EditableSlider } from './EditableSlider';
+import { LoraCatalogModal } from './LoraCatalogModal';
+import { loraHubApi, recommendedParts, scaleFor, type InstalledLoraDto } from '../services/loraHub';
+import { fillTemplate } from '../utils/fillTemplate';
 
 interface LoraPanelProps {
   token: string | null;
@@ -55,6 +58,11 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
   // toggle-quantization cote serveur. null = pas encore verifie.
   const [quantizationEnabled, setQuantizationEnabled] = useState<boolean | null>(null);
   const [isTogglingQuantization, setIsTogglingQuantization] = useState(false);
+  // Catalogue de LoRA (hub) : la fenetre, et ce que le moteur d'installation a note de chaque LoRA qu'il a installe
+  // (mot declencheur, reglages recommandes). Un LoRA entraine ici n'a pas ce fichier : il n'apparait pas dans la liste.
+  const [showCatalog, setShowCatalog] = useState(false);
+  const [installedInfo, setInstalledInfo] = useState<InstalledLoraDto[]>([]);
+  const [triggerCopied, setTriggerCopied] = useState(false);
 
   const previousModelRef = useRef(selectedModel);
 
@@ -192,6 +200,45 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
     return () => { cancelled = true; };
   }, [showPanel, token]);
 
+  /* -- LoRA installes par le catalogue : mot declencheur et reglages recommandes -------------------------------------- */
+  const refreshInstalledInfo = useCallback(() => {
+    if (!token) return;
+    loraHubApi.installed(token).then((result) => setInstalledInfo(result.installed)).catch(() => undefined);
+  }, [token]);
+
+  useEffect(() => {
+    if (showPanel) refreshInstalledInfo();
+  }, [showPanel, refreshInstalledInfo]);
+
+  const refreshAvailableLoras = useCallback(() => {
+    if (!token) return;
+    generateApi.getAvailableLoras(token).then((result) => setAvailableLoras(result.loras)).catch(() => undefined);
+  }, [token]);
+
+  /** « Utiliser » dans le catalogue : on selectionne ce LoRA et on regle l'intensite recommandee. Le chargement reste un geste explicite (Charger). */
+  const handleUseInstalled = useCallback(
+    (installed: InstalledLoraDto) => {
+      refreshAvailableLoras();
+      refreshInstalledInfo();
+      setLoraPath(installed.path);
+      const scale = scaleFor(installed);
+      // Avec un LoRA deja charge, le curseur agit sur CE LoRA : on n'y touche pas avant qu'il soit decharge.
+      if (scale !== null && !loraLoaded) setLoraScale(scale);
+    },
+    [refreshAvailableLoras, refreshInstalledInfo, loraLoaded],
+  );
+
+  const selectedInfo = installedInfo.find((i) => i.path === loraPath) ?? null;
+  const copyTrigger = useCallback(async (word: string) => {
+    try {
+      await navigator.clipboard.writeText(word);
+      setTriggerCopied(true);
+      setTimeout(() => setTriggerCopied(false), 1500);
+    } catch {
+      /* pas de presse-papiers (contexte non securise) : le mot est affiche et peut etre selectionne */
+    }
+  }, []);
+
   /* -- Déchargement automatique au changement de modèle -------------------- */
   useEffect(() => {
     if (previousModelRef.current !== selectedModel && loraLoaded) {
@@ -234,6 +281,46 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
               ))}
             </select>
           </div>
+
+          {/* Catalogue de LoRA */}
+          <button
+            type="button"
+            data-testid="lora-open-catalog"
+            onClick={() => setShowCatalog(true)}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+          >
+            <Library size={14} className="text-pink-500" />
+            {t('loraHubBrowse')}
+          </button>
+
+          {/* Mot declencheur et reglages du LoRA choisi, quand le catalogue les a notes */}
+          {selectedInfo && (selectedInfo.triggerWord || recommendedParts(selectedInfo.recommended, t).length > 0) && (
+            <div data-testid="lora-selected-info" className="rounded-lg bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 p-2.5 space-y-1.5 text-[11px]">
+              {selectedInfo.triggerWord && (
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-zinc-500">{t('loraHubTrigger')}</span>
+                    <code className="rounded bg-zinc-100 dark:bg-white/10 px-1.5 py-0.5 font-mono text-zinc-800 dark:text-zinc-200 select-all">{selectedInfo.triggerWord}</code>
+                    <button
+                      type="button"
+                      onClick={() => void copyTrigger(selectedInfo.triggerWord as string)}
+                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-zinc-500 hover:text-zinc-800 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/10 transition-colors"
+                    >
+                      {triggerCopied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                      {triggerCopied ? t('loraHubCopied') : t('loraHubCopy')}
+                    </button>
+                  </div>
+                  <div className="text-zinc-500">{t('loraHubTriggerHint')}</div>
+                </div>
+              )}
+              {recommendedParts(selectedInfo.recommended, t).length > 0 && (
+                <div className="text-zinc-500">
+                  <span className="font-medium">{t('loraHubRecommended')} — </span>
+                  {recommendedParts(selectedInfo.recommended, t).join(' · ')}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Chargement / déchargement */}
           <div className="space-y-2">
@@ -319,6 +406,18 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
             />
           </div>
         </div>
+      )}
+
+      {showCatalog && (
+        <LoraCatalogModal
+          token={token}
+          onClose={() => setShowCatalog(false)}
+          onUse={handleUseInstalled}
+          onInstalled={() => {
+            refreshAvailableLoras();
+            refreshInstalledInfo();
+          }}
+        />
       )}
     </>
   );
