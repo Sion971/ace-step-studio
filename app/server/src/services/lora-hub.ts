@@ -183,7 +183,10 @@ export function sanitizeName(raw: unknown): string {
   const cleaned = String(raw ?? '')
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '') // "é" is "e" + a combining accent: drop the accent, do not turn it into a separator
-    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    // The engine uses the folder's name as the name of the adapter, and PEFT refuses a "." in it ('module name can't contain "."'): the "1.5" of
+    // "lo_fi-acestep1.5-v1" is written "1_5". No dot is ever left in the name of a folder this installs.
+    .replace(/\./g, '_')
+    .replace(/[^A-Za-z0-9_-]+/g, '-')
     .replace(/-{2,}/g, '-')
     .replace(/^[.\-_]+/, '')
     .slice(0, 64)

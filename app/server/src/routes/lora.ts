@@ -4,6 +4,7 @@ import { getGradioClient, callInitServiceWrapper, fetchCurrentInitServiceValues,
 import { readdirSync, statSync, existsSync, renameSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { describeLoadFailure } from '../services/lora-engine-status.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,6 +35,14 @@ router.post('/load', authMiddleware, async (req: AuthenticatedRequest, res: Resp
     const client = await getGradioClient();
     const result = await client.predict('/load_lora', [lora_path]);
     const status = (result.data as unknown[])[0] as string;
+
+    // The engine answers normally even when it loaded nothing ("❌ Failed to load LoRA: …"). That used to be recorded as loaded and shown as such.
+    const failure = describeLoadFailure(status, lora_path);
+    if (failure) {
+      console.warn('[LoRA] The engine did not load it:', status);
+      res.status(422).json({ error: failure.message, code: failure.code });
+      return;
+    }
 
     loraState = { loaded: true, active: true, scale: loraState.scale, path: lora_path };
 

@@ -66,7 +66,7 @@ describe('parseRepoRef', () => {
 
 describe('sanitizeName', () => {
   it('keeps a readable name and drops what a folder name cannot hold', () => {
-    expect(sanitizeName('deep_house-acestep1.5-v1')).toBe('deep_house-acestep1.5-v1');
+    expect(sanitizeName('deep_house-acestep1.5-v1')).toBe('deep_house-acestep1_5-v1'); // the engine refuses a "." in the name of the folder
     expect(sanitizeName('My LoRA (v2)!')).toBe('My-LoRA-v2');
     expect(sanitizeName('été à Paris')).toBe('ete-a-Paris');
   });
@@ -77,6 +77,17 @@ describe('sanitizeName', () => {
     expect(sanitizeName('a/../b')).not.toContain('/');
     expect(sanitizeName('.hidden')).toBe('hidden');
     for (const name of ['..', '.', '...', '---', '___', '   ', '']) expect(() => sanitizeName(name), JSON.stringify(name)).toThrow(LoraHubError);
+  });
+
+  it('never leaves a dot: the engine takes the folder name for the adapter name, and PEFT refuses a dot in it', () => {
+    expect(sanitizeName('lo_fi-acestep1.5-v1')).toBe('lo_fi-acestep1_5-v1'); // the real name that failed to load
+    expect(sanitizeName('a.b.c')).toBe('a_b_c');
+    expect(sanitizeName('v1.0')).toBe('v1_0');
+    expect(sanitizeName('model.safetensors')).toBe('model_safetensors');
+    for (const raw of ['x.y', '1.5', 'a..b', '..a', 'a.', '...x...', '../../a.b/c.d', 'été.à.Paris', 'My LoRA v1.5 (final)']) {
+      expect(sanitizeName(raw), raw).not.toContain('.');
+      expect(sanitizeName(raw), raw).toMatch(/^[A-Za-z0-9][A-Za-z0-9_-]*$/);
+    }
   });
 
   it('refuses the folders the LoRA list skips, and caps the length', () => {

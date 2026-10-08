@@ -1886,7 +1886,8 @@ appariement donne du bruit ou ne tient pas en 8 Go ; la licence et le mot décle
   demi-installé n'apparaît dans le menu ;
 - jamais de choix silencieux : plusieurs `.safetensors` sans nom standard → la réponse est `choose_file` avec la liste ;
 - `cardData` (licence, modèle de base, tags) est du texte libre de l'auteur : seules de courtes chaînes simples en sont gardées ;
-- le dossier de destination est assaini (`../`, `.`, `checkpoints`, `runs` sont refusés) ; un LoRA existant n'est jamais écrasé.
+- le dossier de destination est assaini (`../`, `checkpoints`, `runs` sont refusés) et **ne contient jamais de point** : `acestep1.5` devient `acestep1_5`, car le moteur
+  prend le nom du dossier pour le nom de l'adaptateur et PEFT refuse un « . » dedans (voir le §41, « Charger un LoRA ») ; un LoRA existant n'est jamais écrasé.
 
 **Variables d'environnement** (les mêmes que `huggingface_hub`) : `HF_ENDPOINT` (défaut `https://huggingface.co`) et `HF_TOKEN` ou
 `HUGGING_FACE_HUB_TOKEN` pour un dépôt privé ou à accès restreint. Le jeton n'est envoyé qu'au Hub lui-même, jamais au CDN vers lequel il redirige.
@@ -1977,3 +1978,17 @@ sans copie de l'anglais, et que le français vouvoie.
 débordement dans les six langues. **Pas vérifié** : l'installation depuis l'interface contre le vrai Hugging Face, ni la fenêtre dans l'application entière. Les textes
 japonais, coréen, russe et chinois ne sont pas relus par un locuteur natif ; le coréen et le chinois n'ont pas été regardés à l'écran. Les tailles restent en « MB »
 dans toutes les langues, et les descriptions du catalogue sont le texte (anglais) de l'auteur.
+
+**Charger un LoRA : ce que dit le moteur.** `POST /api/lora/load` répondait `200` avec `loaded: true` même quand le moteur répondait « ❌ Failed to load LoRA… » : le panneau
+affichait « LoRA chargé » pour un LoRA absent, et le parent désactivait `thinking` et `useAdg`. Elle lit maintenant la réponse (`services/lora-engine-status.ts`) : un échec
+annoncé donne un `422` avec le texte du moteur sans sa marque, et l'état n'est pas modifié (un LoRA déjà chargé le reste). L'erreur la plus courante est
+`module name can't contain "."` : le moteur prend le **nom du dossier** pour le nom de l'adaptateur. La route ne l'attribue au dossier que si le moteur le dit ET que le dossier
+a un point (jamais sur une supposition) ; elle nomme alors le dossier et propose le nom corrigé. Le texte du moteur est le `str()` d'une `KeyError` Python, donc le `repr()` du
+message : l'apostrophe arrive avec une barre oblique inverse (`can\'t`), et la reconnaissance accepte les deux formes. (Ce message a longtemps été attribué au nom du fichier de
+poids ; celui-là est renommé par `GET /api/lora/available`, et le message cite le dossier.)
+
+**Réparer un dossier installé avec un point** : `mv lora_output/lo_fi-acestep1.5-v1 lora_output/lo_fi-acestep1_5-v1`. Le nom du dossier n'est écrit nulle part dans `lora_hub.json`,
+et le catalogue retrouve le LoRA par son dépôt et son fichier : il reste « Installé ».
+
+**Limites.** Seuls les échecs annoncés par « ❌ » ou « Failed to load » sont reconnus ; une autre formulation passerait encore pour un succès. `unload`, `scale` et `toggle` lisent aussi
+un texte d'état et ne le contrôlent pas. Le renommage corrigé n'a pas été essayé avec le vrai moteur : il repose sur ce que dit son message d'erreur.
