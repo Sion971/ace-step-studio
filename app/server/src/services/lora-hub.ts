@@ -21,12 +21,12 @@
 // huggingface_hub does; the token is only ever sent to the Hub's own origin.
 
 import { createHash, randomBytes } from 'node:crypto';
-import { createWriteStream, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
-import { modelLabel, normalizeSha, plain, plainList } from './lora-text.js';
+import { boundedInteger, boundedNumber, modelLabel, normalizeSha, plain, plainList } from './lora-text.js';
 import { parseSidecar, pickSidecar, type SidecarInfo } from './lora-sidecar.js';
 
 export const DEFAULT_ENDPOINT = 'https://huggingface.co';
@@ -110,6 +110,21 @@ export interface InstallJob {
   result?: { name: string; path: string };
 }
 
+/** A LoRA installed by this engine, as recorded in its lora_hub.json. */
+export interface InstalledLora {
+  name: string;
+  path: string;
+  repo: string | null;
+  revision: string | null;
+  file: string | null;
+  sha256: string | null;
+  installedAt: string | null;
+  license: string | null;
+  baseModel: string[];
+  triggerWord: string | null;
+  recommended: { scale: number | null; steps: number | null; guidance: number | null; shift: number | null };
+}
+
 export interface LoraHubOptions {
   loraDir: string;
   endpoint?: string;
@@ -178,7 +193,7 @@ export function sanitizeName(raw: unknown): string {
   return cleaned;
 }
 
-const safeRepoPath = (name: string) => name.length > 0 && !name.startsWith('/') && !name.includes('..') && !/[\u0000-\u001f\\]/.test(name);
+export const safeRepoPath = (name: string) => name.length > 0 && !name.startsWith('/') && !name.includes('..') && !/[\u0000-\u001f\\]/.test(name);
 const encodePath = (name: string) => name.split('/').map(encodeURIComponent).join('/');
 
 // ---------------------------------------------------------------------------------------------------------------------- hub --
@@ -214,12 +229,17 @@ export class LoraHub {
   }
 
   // ---------------------------------------------------------------------------------------------------------- inspect --
-  async inspect(source: unknown, options: { file?: string } = {}): Promise<LoraCard> {
+  async inspect(source: unknown, options: { file?: string; revision?: string } = {}): Promise<LoraCard> {
     return (await this.resolve(source, options)).card;
   }
 
-  private async resolve(source: unknown, options: { file?: string }): Promise<Resolved> {
+  private async resolve(source: unknown, options: { file?: string; revision?: string }): Promise<Resolved> {
     const ref = parseRepoRef(source, this.endpoint);
+    if (options.revision !== undefined) {
+      // An explicit revision (a catalog entry pins a commit) wins over the one in a link.
+      if (typeof options.revision !== 'string' || !REVISION.test(options.revision)) throw new LoraHubError('The revision is not valid.', 400, 'invalid_revision');
+      ref.revision = options.revision;
+    }
     let url = `${this.endpoint}/api/models/${ref.repo}?blobs=true`;
     if (ref.revision) url += `&revision=${encodeURIComponent(ref.revision)}`;
     const info = (await this.getJson(url, MAX_API_BYTES)) as Record<string, any>;
@@ -372,15 +392,21 @@ export class LoraHub {
   }
 
   // ---------------------------------------------------------------------------------------------------------- install --
-  async startInstall(source: unknown, options: { file?: string; name?: string } = {}): Promise<InstallJob> {
+  async startInstall(source: unknown, options: { file?: string; name?: string; revision?: string; expectedSha256?: string } = {}): Promise<InstallJob> {
     this.pruneJobs();
     if ([...this.jobs.values()].filter((j) => j.state !== 'done' && j.state !== 'failed').length >= MAX_ACTIVE_JOBS) {
       throw new LoraHubError('Two installs are already running. Wait for one to finish.', 429, 'busy');
     }
-    const resolved = await this.resolve(source, { file: options.file });
+    const resolved = await this.resolve(source, { file: options.file, revision: options.revision });
     const { card } = resolved;
     if (card.needsChoice || !card.selected || !resolved.weightsUrl || resolved.configText === null) {
       throw new LoraHubError('This repository has several .safetensors files: choose one.', 409, 'choose_file', { files: card.weights.map((w) => w.name) });
+    }
+    // A catalog entry pins the checksum of what was checked: if the Hub already reports another one, the repository changed since: refuse now.
+    const pin = options.expectedSha256 === undefined ? null : normalizeSha(options.expectedSha256);
+    if (options.expectedSha256 !== undefined && !pin) throw new LoraHubError('The expected checksum is not a sha256.', 400, 'invalid_checksum');
+    if (pin && card.selected.sha256 !== null && card.selected.sha256 !== pin) {
+      throw new LoraHubError('The weights on Hugging Face are no longer the ones this entry was checked for (their checksum changed). Nothing was installed.', 409, 'catalog_checksum_mismatch');
     }
     const name = sanitizeName(options.name ?? card.suggestedName);
     if (existsSync(path.join(this.loraDir, name))) {
@@ -393,12 +419,57 @@ export class LoraHub {
     const job: InstallJob = { id: this.randomId(), repo: card.repo, name, state: 'downloading', bytesDone: 0, bytesTotal: card.selected.size, startedAt: this.now() };
     this.jobs.set(job.id, job);
     // run() records its own failures; this last net only makes sure that nothing can leave the job stuck, or escape as an unhandled rejection.
-    void this.run(job, resolved).catch((error: unknown) => {
+    void this.run(job, resolved, pin).catch((error: unknown) => {
       job.state = 'failed';
       job.error = { message: `Install failed: ${error instanceof Error ? error.message : 'unknown error'}`, code: 'install_failed' };
       job.finishedAt = this.now();
     });
     return { ...job };
+  }
+
+  /**
+   * The LoRA that this engine installed (those with a lora_hub.json), with what was recorded then. A trained LoRA has no such file and is not listed.
+   * The file is read as untrusted: it sits on the user's disk, where anything can have written it.
+   */
+  listInstalled(): InstalledLora[] {
+    let entries: string[];
+    try {
+      entries = readdirSync(this.loraDir, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith('.') && !RESERVED_NAMES.has(e.name.toLowerCase())).map((e) => e.name);
+    } catch {
+      return [];
+    }
+    const installed: InstalledLora[] = [];
+    for (const name of entries.sort().slice(0, 200)) {
+      let raw: Record<string, any>;
+      try {
+        raw = JSON.parse(readFileSync(path.join(this.loraDir, name, 'lora_hub.json'), 'utf-8'));
+      } catch {
+        continue;
+      }
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+      let repo: string | null = null;
+      try {
+        repo = typeof raw.repo === 'string' ? parseRepoRef(raw.repo).repo : null;
+      } catch {
+        repo = null;
+      }
+      const side = raw.sidecar && typeof raw.sidecar === 'object' ? raw.sidecar : {};
+      const rec = side.recommended && typeof side.recommended === 'object' ? side.recommended : {};
+      installed.push({
+        name,
+        path: `./lora_output/${name}`,
+        repo,
+        revision: plain(raw.revision, 64),
+        file: plain(raw.file, 200),
+        sha256: normalizeSha(raw.sha256),
+        installedAt: plain(raw.installedAt, 40),
+        license: plain(raw.license, 64),
+        baseModel: plainList(raw.baseModel, 5, 120),
+        triggerWord: plain(side.triggerWord, 60),
+        recommended: { scale: boundedNumber(rec.scale, 0, 4), steps: boundedInteger(rec.steps, 1, 200), guidance: boundedNumber(rec.guidance, 0, 50), shift: boundedNumber(rec.shift, 0, 20) },
+      });
+    }
+    return installed;
   }
 
   getJob(id: string): InstallJob | null {
@@ -412,7 +483,7 @@ export class LoraHub {
     for (const [id, job] of this.jobs) if (job.finishedAt !== undefined && job.finishedAt < limit) this.jobs.delete(id);
   }
 
-  private async run(job: InstallJob, resolved: Resolved): Promise<void> {
+  private async run(job: InstallJob, resolved: Resolved, pin: string | null): Promise<void> {
     const { card, commit } = resolved;
     const selected = card.selected as HubFile;
     const tmp = path.join(this.loraDir, `.hub-tmp-${job.id}`);
@@ -430,6 +501,9 @@ export class LoraHub {
       }
       if (selected.sha256 !== null && sha256 !== selected.sha256) {
         throw new LoraHubError('The downloaded file does not match the checksum published by Hugging Face. It was not installed.', 502, 'checksum_mismatch');
+      }
+      if (pin && sha256 !== pin) {
+        throw new LoraHubError('The downloaded file is not the one this catalog entry was checked for. It was not installed.', 502, 'catalog_checksum_mismatch');
       }
 
       job.state = 'installing';

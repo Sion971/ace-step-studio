@@ -1897,6 +1897,34 @@ taille, licence, modèle de base, rang, mot déclencheur et réglages recommand�
 `already_installing`, `busy` (deux installations à la fois au plus), `too_large` (4 Go), et, dans la tâche, `checksum_mismatch`, `size_mismatch`,
 `download_stalled` (60 s sans données).
 
+**Le catalogue et la compatibilité** (étape 2b). `app/server/catalog/lora-catalog.json` (`"schema": 1`) liste les LoRA proposés ; c'est un pointeur,
+jamais une copie : les poids viennent toujours du dépôt de l'auteur, sur le disque de l'utilisateur. Le fichier est lu à chaque requête (le modifier ne
+demande pas de redémarrage) et **comme un fichier non fiable** : une entrée invalide est ignorée et signalée dans `problems`, jamais « réparée », et ne fait
+pas tomber les autres. Une entrée peut **épingler** le commit (`revision`, 7 à 40 chiffres hexadécimaux : une branche bouge) et le `sha256` des poids : si
+le dépôt n'a plus ces poids-là, l'installation refuse (`catalog_checksum_mismatch`), avant le téléchargement quand le Hub publie un checksum, après sinon.
+Le catalogue livré n'épingle que ce qui a été installé et vérifié, avec `verified` daté.
+
+Routes : `GET /api/lora-hub/catalog?activeModel=&vramGb=` (chaque entrée avec `installed` et `compatibility`), `POST /api/lora-hub/catalog/:id/install`
+(le dépôt, le fichier, le commit et le checksum viennent de l'entrée, **jamais du corps de la requête**), `GET /api/lora-hub/installed`. `POST /inspect` renvoie
+en plus `compatibility` et `catalogEntry` : **une entrée prête à coller dans le catalogue**, épinglée sur ce qui vient d'être vu (`verified: null` jusqu'à ce que
+le LoRA ait été installé et écouté).
+
+**Compatibilité** (`services/lora-compat.ts`, fonction pure). `incompatible` seulement pour une taille différente : un LoRA 2B ne se charge pas sur un XL, les
+couches n'ont pas les mêmes dimensions. Un LoRA entraîné sur Turbo et utilisé sur Base se charge mais donne un autre résultat : `warning`. `compatible` n'est dit
+que si la taille ET la famille sont connues des deux côtés et égales ; sinon `unknown`, jamais une supposition. Les sources (fichier de métadonnées, dépôt,
+`adapter_config.json`, étiquettes) sont recoupées, et une contradiction est signalée (`conflicting_info`).
+
+**Le modèle chargé vient du client, jamais d'une valeur par défaut du serveur.** Le client le lit dans `GET /api/generate/model-status` (une fois que le moteur
+a répondu) et la VRAM dans `/system-info` (`vram_total`, en Go), et les passe en `activeModel` et `vramGb`. Le serveur ne s'en sert pas comme repli : dans
+`generate.ts`, `getActiveLoadedModel()` vaut `DEFAULT_MODEL` (`acestep-v15-xl-turbo-bf16`) dès le démarrage, et ne devient le vrai modèle qu'après un sondage
+réussi ; avant cela c'est une valeur par défaut, pas un modèle chargé, et un verdict construit dessus serait assuré et faux. Sans `activeModel`, le verdict est
+`unknown` (raison `active_model_unknown`), et ce dont le LoRA a besoin est dit quand même. La table des modèles du serveur copie celle du client
+(`MODEL_INFO.vramMin`) : un test échoue si elles divergent. Raisons : `size_mismatch`, `family_mismatch`, `comparison_incomplete`, `conflicting_info`,
+`vram_low`, `requirement_unknown`, `active_model_unknown`.
+
+**Ajouter une entrée au catalogue** : inspecter un dépôt (`try-lora-hub.mts`, ou `POST /inspect`), copier `catalogEntry`, la coller dans `lora-catalog.json`,
+installer le LoRA, l'écouter, puis renseigner `verified`. `npx vitest run server/src/services/lora-catalog.test.ts` vérifie le fichier.
+
 **Le fichier de métadonnées de l'auteur.** Certains auteurs publient `<poids>.metadata.json` (`schema_version: 1`) : mot déclencheur, échelle, étapes,
 guidage et décalage recommandés, **modèle de base requis** (`AceStep v1.5 Turbo (2B)`), licence. Il est lu avec les poids et mis sur la fiche
 (`card.sidecar`) et dans `lora_hub.json`. Il complète la licence et le modèle de base quand le dépôt n'en déclare pas (ordre : dépôt, étiquette

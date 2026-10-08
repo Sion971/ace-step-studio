@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "entries": [
+    {
+      "id": "lo_fi-acestep1.5-v1",
+      "repo": "ryanontheinside/lo_fi-acestep1.5-v1",
+      "file": "lo_fi-v1.safetensors",
+      "revision": "497b97b7e8548d916366ee534551413d32d0fbdc",
+      "sha256": "d3c66b189844dc078ea0d583e842edde12c607c15d126f359bb6f506b6ef9dd1",
+      "name": "Lo-Fi",
+      "description": "Lo-fi hip hop and chillhop: vinyl crackle, soft drums, warm keys and a mellow saxophone.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 Turbo (2B)",
+      "genre": "lo-fi",
+      "tags": ["lo-fi", "chillhop", "vinyl crackle", "soft drums"],
+      "triggerWord": "roti-l0f1y",
+      "recommended": { "scale": 1.0, "steps": 8, "guidance": 7.0, "shift": 3.0 },
+      "sizeBytes": 88130248,
+      "verified": { "date": "2026-10-07", "note": "Installed and checksum verified by the maintainer (Linux, RTX 5060)." }
+    }
+  ]
+}
