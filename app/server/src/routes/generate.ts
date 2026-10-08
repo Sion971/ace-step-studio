@@ -8,6 +8,7 @@ import { generateUUID } from '../db/sqlite.js';
 import { config } from '../config/index.js';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { getGradioClient } from '../services/gradio-client.js';
+import { LISTED_DIT_MODELS, downloadArgs, isDownloadableModel } from '../services/model-downloads.js';
 import {
   generateMusicViaAPI,
   getJobStatus,
@@ -1265,15 +1266,7 @@ router.get('/download-model', authMiddleware, async (req: AuthenticatedRequest, 
     return;
   }
 
-  const MODEL_HF_REPOS: Record<string, string> = {
-    'acestep-v15-xl-turbo': 'ACE-Step/acestep-v15-xl-turbo',
-    'acestep-v15-xl-sft': 'ACE-Step/acestep-v15-xl-sft',
-    'acestep-v15-xl-turbo-bf16': 'marcorez8/acestep-v15-xl-turbo-bf16',
-    'acestep-v15-xl-merge-sft-turbo': 'jeankassio/acestep_v1.5_merge_sft_turbo_xl',
-  };
-
-  const hfRepo = MODEL_HF_REPOS[model];
-  if (!hfRepo) {
+  if (!isDownloadableModel(model)) {
     res.status(400).json({ error: `Unknown model: ${model}` });
     return;
   }
@@ -1295,7 +1288,7 @@ router.get('/download-model', authMiddleware, async (req: AuthenticatedRequest, 
   const { spawn } = await import('child_process');
   const pythonPath = resolvePythonPath(ACESTEP_DIR);
   const proc = spawn(pythonPath, [
-    '-m', 'huggingface_hub.commands.huggingface_cli', 'download', hfRepo, '--local-dir', modelDir
+    '-m', 'huggingface_hub.commands.huggingface_cli', ...downloadArgs(model, path.join(ACESTEP_DIR, 'checkpoints'))!,
   ], {
     env: { ...process.env, PYTHONIOENCODING: 'utf-8', HF_HUB_ENABLE_HF_TRANSFER: '1' },
   });
@@ -1353,19 +1346,9 @@ router.get('/models', async (_req, res: Response) => {
     // All known DiT models from Gradio's model_downloader.py registry:
     // - MAIN_MODEL_COMPONENTS includes "acestep-v15-turbo" (bundled with main download)
     // - SUBMODEL_REGISTRY includes the rest (separate HuggingFace repos, auto-downloaded on init)
-    // XL (4B) models only — ACE-Step Studio
-    const ALL_DIT_MODELS = [
-      'acestep-v15-xl-turbo',                    // XL Turbo (8 steps, no CFG)
-      'acestep-v15-xl-sft',                      // XL SFT (50 steps, with CFG)
-      // Sans le prefixe "marcorez8/" : le vrai nom de dossier sur le
-      // disque (download_model.sh) et l'alias interne d'ACE-Step-1.5
-      // lui-meme n'ont jamais ce prefixe. Le garder ici en plus de sa
-      // forme sans prefixe creait un doublon visible dans le menu — le
-      // meme modele liste deux fois, avec une taille reelle pour l'un
-      // et une estimation figee pour l'autre.
-      'acestep-v15-xl-turbo-bf16',                // XL Turbo BF16 (community, smaller)
-      'acestep-v15-xl-merge-sft-turbo',          // XL SFT+Turbo merge (community, 50 steps)
-    ];
+    // The models the Studio offers (2B and XL), from services/model-downloads.ts, where each one also has its download source.
+    // A copy: the scan of the disk below adds whatever else it finds there.
+    const ALL_DIT_MODELS = [...LISTED_DIT_MODELS];
 
     // Query Gradio /v1/models to get the currently loaded/active model
     let activeModel: string | null = null;

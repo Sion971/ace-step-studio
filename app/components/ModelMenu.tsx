@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
 import { getModelDisplayName, MODEL_INFO } from '../utils/modelNames';
+import { fillTemplate } from '../utils/fillTemplate';
+import { formatGb, needsMoreVram, splitByVram } from '../utils/modelFit';
 
 export interface FetchedModel {
   name: string;
@@ -51,6 +53,10 @@ const FIXED_ORDER = [
   // les deux formes.
   'acestep-v15-xl-turbo-bf16',
   'acestep-v15-xl-merge-sft-turbo',
+  // 2B : plus légers ; le menu ne les montre en premier que si la carte ne peut pas faire tourner les XL.
+  'acestep-v15-turbo',
+  'acestep-v15-sft',
+  'acestep-v15-base',
 ];
 
 /**
@@ -72,6 +78,9 @@ export const ModelMenu: React.FC<ModelMenuProps> = ({
   const { t } = useI18n();
   const [showModelMenu, setShowModelMenu] = useState(false);
   const modelMenuRef = useRef<HTMLDivElement>(null);
+  /** Mémoire de la carte graphique en Go ; null tant qu'elle est inconnue (alors rien n'est masqué). */
+  const [vramGb, setVramGb] = useState<number | null>(null);
+  const [showAllModels, setShowAllModels] = useState(false);
 
   const availableModels = useMemo(() => {
     if (fetchedModels.length > 0) {
@@ -84,6 +93,27 @@ export const ModelMenu: React.FC<ModelMenuProps> = ({
     }
     return FIXED_ORDER.map(id => ({ id, name: id }));
   }, [fetchedModels]);
+
+  // Lue au montage, puis à chaque ouverture du menu tant qu'elle manque (le serveur peut démarrer après la page).
+  useEffect(() => {
+    if (vramGb !== null) return;
+    let cancelled = false;
+    fetch('/api/generate/system-info')
+      .then(r => (r.ok ? r.json() : null))
+      .then(info => {
+        if (!cancelled && info && typeof info.vram_total === 'number' && Number.isFinite(info.vram_total) && info.vram_total > 0) setVramGb(info.vram_total);
+      })
+      .catch(() => { /* inconnue : rien n'est masqué */ });
+    return () => { cancelled = true; };
+  }, [showModelMenu, vramGb]);
+
+  // Un modèle trop lourd pour la carte est replié derrière un lien, sauf s'il est déjà choisi, chargé ou sur le disque.
+  const { fitting, tooBig } = useMemo(() => splitByVram(
+    availableModels,
+    vramGb,
+    id => id === selectedModel || fetchedModels.some(m => m.name === id && (m.is_active || m.is_preloaded)),
+  ), [availableModels, vramGb, selectedModel, fetchedModels]);
+  const listedModels = showAllModels ? availableModels : fitting;
 
   // Fermeture au clic extérieur
   useEffect(() => {
@@ -204,12 +234,13 @@ export const ModelMenu: React.FC<ModelMenuProps> = ({
         {showModelMenu && availableModels.length > 0 && (
           <div className="absolute top-full right-0 mt-1 w-72 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl z-50 overflow-hidden">
             <div className="max-h-96 overflow-y-auto custom-scrollbar">
-              {availableModels.map(model => (
+              {listedModels.map(model => (
                 <button
                   key={model.id}
+                  data-testid={`model-option-${model.id}`}
                   onClick={() => handleSelect(model.id)}
                   className={`w-full px-4 py-3 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors border-b border-zinc-100 dark:border-zinc-800 last:border-b-0 ${
-                    selectedModel === model.id ? 'bg-zinc-50 dark:bg-zinc-800/50' : ''
+                    selectedModel === model.id ? 'bg-zinc-50 dark:bg-zinc-800/50' : needsMoreVram(model.id, vramGb) ? 'opacity-60' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
@@ -259,9 +290,24 @@ export const ModelMenu: React.FC<ModelMenuProps> = ({
                       </span>
                     )}
                   </div>
+                  {vramGb !== null && needsMoreVram(model.id, vramGb) && (
+                    <p data-testid={`model-vram-note-${model.id}`} className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                      {fillTemplate(t('modelNeedsVram'), { need: MODEL_INFO[model.id].vramMin, have: formatGb(vramGb) })}
+                    </p>
+                  )}
                 </button>
               ))}
             </div>
+            {tooBig.length > 0 && (
+              <button
+                type="button"
+                data-testid="model-menu-toggle-more"
+                onClick={() => setShowAllModels(show => !show)}
+                className="w-full px-4 py-2 text-left text-xs font-medium text-pink-600 dark:text-pink-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors border-t border-zinc-100 dark:border-zinc-800"
+              >
+                {showAllModels ? t('modelHideMoreVram') : fillTemplate(t('modelShowMoreVram'), { count: tooBig.length })}
+              </button>
+            )}
           </div>
         )}
       </div>

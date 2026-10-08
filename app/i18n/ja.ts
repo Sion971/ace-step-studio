@@ -1275,4 +1275,9 @@ export const ja = {
     loraHubErrStalled: "ダウンロードが止まりました。接続を確認してやり直してください。",
     loraHubErrNetwork: "Hugging Face に接続できません。接続を確認してください。",
     loraHubErrGeneric: "インストールに失敗しました。",
+
+    // Menu des modèles : ceux qui demandent plus de VRAM que la carte graphique
+    modelShowMoreVram: "より多くのVRAMを必要とするモデルを表示 ({{count}})",
+    modelHideMoreVram: "より多くのVRAMを必要とするモデルを隠す",
+    modelNeedsVram: "VRAM {{need}} GB が必要です(お使いの環境: {{have}} GB)",
 };

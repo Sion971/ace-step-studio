@@ -1309,4 +1309,9 @@ export const fr = {
     loraHubErrStalled: "Le téléchargement s’est arrêté. Vérifiez votre connexion et réessayez.",
     loraHubErrNetwork: "Impossible de joindre Hugging Face. Vérifiez votre connexion.",
     loraHubErrGeneric: "L’installation a échoué.",
+
+    // Menu des modèles : ceux qui demandent plus de VRAM que la carte graphique
+    modelShowMoreVram: "Afficher les modèles qui demandent plus de VRAM ({{count}})",
+    modelHideMoreVram: "Masquer les modèles qui demandent plus de VRAM",
+    modelNeedsVram: "Demande {{need}} Go de VRAM (vous en avez {{have}} Go)",
 };

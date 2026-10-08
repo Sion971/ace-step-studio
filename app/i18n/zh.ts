@@ -1275,4 +1275,9 @@ export const zh = {
     loraHubErrStalled: "下载已停止。请检查网络连接后重试。",
     loraHubErrNetwork: "无法连接到 Hugging Face。请检查网络连接。",
     loraHubErrGeneric: "安装失败。",
+
+    // Menu des modèles : ceux qui demandent plus de VRAM que la carte graphique
+    modelShowMoreVram: "显示需要更多显存的模型 ({{count}})",
+    modelHideMoreVram: "隐藏需要更多显存的模型",
+    modelNeedsVram: "需要 {{need}} GB 显存(当前:{{have}} GB)",
 };

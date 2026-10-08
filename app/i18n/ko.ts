@@ -1275,4 +1275,9 @@ export const ko = {
     loraHubErrStalled: "다운로드가 멈췄습니다. 연결을 확인하고 다시 시도하세요.",
     loraHubErrNetwork: "Hugging Face에 연결할 수 없습니다. 연결을 확인하세요.",
     loraHubErrGeneric: "설치에 실패했습니다.",
+
+    // Menu des modèles : ceux qui demandent plus de VRAM que la carte graphique
+    modelShowMoreVram: "더 많은 VRAM이 필요한 모델 표시 ({{count}})",
+    modelHideMoreVram: "더 많은 VRAM이 필요한 모델 숨기기",
+    modelNeedsVram: "VRAM {{need}}GB 필요 (현재: {{have}}GB)",
 };

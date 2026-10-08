@@ -1286,4 +1286,9 @@ export const ru = {
     loraHubErrStalled: "Загрузка остановилась. Проверьте соединение и повторите.",
     loraHubErrNetwork: "Не удалось связаться с Hugging Face. Проверьте соединение.",
     loraHubErrGeneric: "Не удалось выполнить установку.",
+
+    // Menu des modèles : ceux qui demandent plus de VRAM que la carte graphique
+    modelShowMoreVram: "Показать модели, которым нужно больше VRAM ({{count}})",
+    modelHideMoreVram: "Скрыть модели, которым нужно больше VRAM",
+    modelNeedsVram: "Требуется {{need}} ГБ VRAM (у вас: {{have}} ГБ)",
 };

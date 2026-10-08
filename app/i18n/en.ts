@@ -1292,4 +1292,9 @@ export const en = {
     loraHubErrStalled: "The download stopped. Check your connection and try again.",
     loraHubErrNetwork: "Could not reach Hugging Face. Check your connection.",
     loraHubErrGeneric: "The install failed.",
+
+    // Menu des modèles : ceux qui demandent plus de VRAM que la carte graphique
+    modelShowMoreVram: "Show models that need more VRAM ({{count}})",
+    modelHideMoreVram: "Hide models that need more VRAM",
+    modelNeedsVram: "Needs {{need}} GB of VRAM (yours: {{have}} GB)",
 };

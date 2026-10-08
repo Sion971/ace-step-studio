@@ -1992,3 +1992,29 @@ et le catalogue retrouve le LoRA par son dépôt et son fichier : il reste « In
 
 **Limites.** Seuls les échecs annoncés par « ❌ » ou « Failed to load » sont reconnus ; une autre formulation passerait encore pour un succès. `unload`, `scale` et `toggle` lisent aussi
 un texte d'état et ne le contrôlent pas. Le renommage corrigé n'a pas été essayé avec le vrai moteur : il repose sur ce que dit son message d'erreur.
+
+---
+
+## 42. Modèles : la liste, la VRAM et le téléchargement
+
+**Une seule table.** `services/model-downloads.ts` dit quels modèles DiT le Studio propose ET d'où chacun se télécharge (`MODEL_DOWNLOADS`, `LISTED_DIT_MODELS`). Avant, la liste
+(`GET /api/generate/models`) était écrite en dur dans `routes/generate.ts` avec les seuls XL, et une seconde copie servait au téléchargement : les 2B (Turbo, SFT, Base) n'apparaissaient
+dans aucun menu, et on ne pouvait pas les choisir depuis le Studio. Un test lit les deux côtés et échoue si la liste, la table de téléchargement, `MODEL_INFO` (client) ou l'ordre du menu divergent.
+
+**Le Turbo 2B n'a pas de dépôt à lui** : c'est le dossier `acestep-v15-turbo/` du dépôt `ACE-Step/Ace-Step1.5`. Il est donc téléchargé avec `--include 'acestep-v15-turbo/*'` dans
+`checkpoints/` (et non `--local-dir checkpoints/acestep-v15-turbo`, qui créerait un dossier de plus). Base et SFT ont chacun leur dépôt, dont les fichiers sont à la racine.
+**SFT : la disposition du dépôt n'a pas été vérifiée** (elle est supposée identique à celle de Base).
+
+**Le filtre par VRAM** (`utils/modelFit.ts`, `components/ModelMenu.tsx`). La mémoire de la carte vient de `/api/generate/system-info` (`vram_total`, en Go). Un modèle dont le `vramMin`
+(`MODEL_INFO`) dépasse la mémoire de plus de 0,5 Go est replié derrière le lien « Afficher les modèles qui demandent plus de VRAM (N) » ; une fois déplié, chacun porte la note « Demande
+12 Go de VRAM (vous en avez 8 Go) ». La marge de 0,5 Go existe parce qu'une carte « 8 Go » annonce 7,6 à 7,9 Go une fois le pilote servi. Rien n'est jamais refusé : `vramMin` est une
+estimation (le déchargement CPU fait tourner des modèles plus gros, lentement), d'où un lien et non une interdiction.
+
+**Ce qui n'est jamais masqué** : tout si la mémoire est inconnue (pas de carte NVIDIA, serveur pas encore démarré, requête en échec) ; un modèle absent de `MODEL_INFO` (personnalisé,
+fusionné) ; le modèle sélectionné, le modèle chargé, et ceux déjà présents sur le disque.
+
+**Ajouter un modèle** : une entrée dans `MODEL_DOWNLOADS` et `LISTED_DIT_MODELS`, une dans `MODEL_INFO`, une dans `FIXED_ORDER` de `ModelMenu.tsx`. Le test échoue tant qu'il en manque une.
+
+**Limites.** Vérifié dans un vrai navigateur (Chromium) avec le vrai serveur et un faux `nvidia-smi` à 8 Go : liste, lien, notes, anglais et français, six langues sans débordement.
+**Pas vérifié** : le téléchargement réel du Turbo 2B (le Hugging Face réel n'a pas été joint), le chargement d'un 2B par le vrai moteur, et le réglage du moteur de langage pour un 2B.
+Le japonais, le coréen, le russe et le chinois ne sont pas relus par un locuteur natif. `services/acestep.ts` garde sa propre copie de `MODEL_HF_REPOS`, non touchée.
