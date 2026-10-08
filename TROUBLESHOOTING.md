@@ -1892,12 +1892,19 @@ appariement donne du bruit ou ne tient pas en 8 Go ; la licence et le mot décle
 `HUGGING_FACE_HUB_TOKEN` pour un dépôt privé ou à accès restreint. Le jeton n'est envoyé qu'au Hub lui-même, jamais au CDN vers lequel il redirige.
 
 **Ce que l'installation écrit** : `adapter_model.safetensors`, `adapter_config.json` et `lora_hub.json` (dépôt, commit, fichier d'origine, `sha256`,
-taille, licence, modèle de base, rang, date). Les codes d'erreur : `invalid_source`, `not_found`, `forbidden`, `rate_limited`, `unsupported_format`,
+taille, licence, modèle de base, rang, mot déclencheur et réglages recommandés quand l'auteur les publie, date). Les codes d'erreur : `invalid_source`, `not_found`, `forbidden`, `rate_limited`, `unsupported_format`,
 `no_weights`, `no_adapter_config`, `unsupported_adapter`, `invalid_adapter_config`, `choose_file` et `unknown_file`, `already_installed`,
 `already_installing`, `busy` (deux installations à la fois au plus), `too_large` (4 Go), et, dans la tâche, `checksum_mismatch`, `size_mismatch`,
 `download_stalled` (60 s sans données).
 
-**Limites.** Toute la logique est testée contre un faux Hub local (`services/lora-hub.fake.ts`), construit d'après la forme documentée de l'API
-(`GET /api/models/<dépôt>?blobs=true`, `siblings[].lfs.sha256`) ; **elle n'a pas été exécutée contre le vrai Hugging Face**. Le fichier
-`*.metadata.json` que certains auteurs publient (mot déclencheur, échelle recommandée) n'est pas lu : son format exact n'est pas connu. Un LoRA
-d'un autre type que `LORA` (par exemple LoKr) est refusé.
+**Le fichier de métadonnées de l'auteur.** Certains auteurs publient `<poids>.metadata.json` (`schema_version: 1`) : mot déclencheur, échelle, étapes,
+guidage et décalage recommandés, **modèle de base requis** (`AceStep v1.5 Turbo (2B)`), licence. Il est lu avec les poids et mis sur la fiche
+(`card.sidecar`) et dans `lora_hub.json`. Il complète la licence et le modèle de base quand le dépôt n'en déclare pas (ordre : dépôt, étiquette
+`license:`, fichier de métadonnées). C'est la parole de l'auteur, pas une vérité : son `sha256` et le nom du fichier de poids sont comparés à ceux
+du Hub, et un fichier absent, illisible, trop gros ou faux n'empêche **jamais** une inspection ni une installation (il devient un avertissement) ;
+son texte est nettoyé comme tout ce que l'auteur écrit. Un chemin de dossier d'auteur (`/root/checkpoints/acestep-v15-turbo`) est réduit à son
+dernier segment. Peu d'auteurs en publient un : le catalogue devra donc porter ces informations lui aussi.
+
+**Limites.** Exécuté une fois contre le vrai Hub (`ryanontheinside/lo_fi-acestep1.5-v1`, 88 Mo : installation et somme de contrôle vérifiées) ; le reste
+est testé contre un faux Hub local (`services/lora-hub.fake.ts`) construit d'après cette forme réelle. Un LoRA d'un autre type que `LORA` (par exemple
+LoKr) est refusé. « Licence non déclarée » est une réponse normale : celui-là n'en déclare aucune, ni dans le dépôt ni dans son fichier.

@@ -26,10 +26,13 @@ import path from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
+import { modelLabel, normalizeSha, plain, plainList } from './lora-text.js';
+import { parseSidecar, pickSidecar, type SidecarInfo } from './lora-sidecar.js';
 
 export const DEFAULT_ENDPOINT = 'https://huggingface.co';
 const DEFAULT_MAX_WEIGHTS_BYTES = 4 * 1024 ** 3;
 const MAX_CONFIG_BYTES = 1024 * 1024;
+const MAX_SIDECAR_BYTES = 256 * 1024;
 const MAX_API_BYTES = 8 * 1024 * 1024;
 const API_TIMEOUT_MS = 20_000;
 const DEFAULT_STALL_MS = 60_000;
@@ -84,6 +87,8 @@ export interface LoraCard {
   needsChoice: boolean;
   /** Null while a choice is pending (the config depends on the folder of the chosen weights). */
   adapter: AdapterInfo | null;
+  /** What the author published in <weights>.metadata.json (trigger word, recommended settings, required base model...), or null. */
+  sidecar: SidecarInfo | null;
   suggestedName: string;
   /** Folder name if a LoRA with the suggested name is already installed. */
   alreadyInstalled: string | null;
@@ -173,24 +178,6 @@ export function sanitizeName(raw: unknown): string {
   return cleaned;
 }
 
-const SHA256 = /^[0-9a-f]{64}$/;
-function normalizeSha(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const hex = value.replace(/^sha256:/i, '').trim().toLowerCase();
-  return SHA256.test(hex) ? hex : null;
-}
-
-/** A short plain string from free text written by the repository's author, or null. */
-function plain(value: unknown, max: number): string | null {
-  if (typeof value !== 'string') return null;
-  const s = value.replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim();
-  return s ? s.slice(0, max) : null;
-}
-function plainList(value: unknown, maxItems: number, maxLen: number): string[] {
-  const list = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
-  return list.map((v) => plain(v, maxLen)).filter((v): v is string => v !== null).slice(0, maxItems);
-}
-
 const safeRepoPath = (name: string) => name.length > 0 && !name.startsWith('/') && !name.includes('..') && !/[\u0000-\u001f\\]/.test(name);
 const encodePath = (name: string) => name.split('/').map(encodeURIComponent).join('/');
 
@@ -274,6 +261,7 @@ export class LoraHub {
 
     const warnings: string[] = [];
     let adapter: AdapterInfo | null = null;
+    let sidecar: SidecarInfo | null = null;
     let configText: string | null = null;
     let weightsUrl: string | null = null;
 
@@ -291,9 +279,16 @@ export class LoraHub {
       if (selected.size !== null && selected.size > this.maxWeightsBytes) {
         throw new LoraHubError(`The weights file is ${(selected.size / 1024 ** 3).toFixed(1)} GB, above the ${(this.maxWeightsBytes / 1024 ** 3).toFixed(0)} GB limit.`, 413, 'too_large');
       }
+      sidecar = await this.readSidecar(ref.repo, commit, files, selected, warnings);
     }
 
     const card = info.cardData && typeof info.cardData === 'object' ? info.cardData : {};
+    // What the author left out of the repository's own metadata is looked for elsewhere, in this order: the license: tag, then the metadata file.
+    const tags = plainList(info.tags, 60, 60).filter((t) => !/^region:/i.test(t)).slice(0, 30);
+    const licenseTag = tags.find((t) => /^license:/i.test(t));
+    const license = plain(card.license, 64) ?? (licenseTag ? plain(licenseTag.slice('license:'.length), 64) : null) ?? sidecar?.license ?? null;
+    const declaredBase = plainList(card.base_model, 5, 120);
+    const baseModel = declaredBase.length > 0 ? declaredBase : [sidecar?.baseModelRequired ?? sidecar?.baseModel].filter((b): b is string => Boolean(b));
     const suggestedName = sanitizeName(ref.repo.split('/')[1]);
     return {
       commit,
@@ -302,19 +297,55 @@ export class LoraHub {
       card: {
         repo: ref.repo,
         revision: commit,
-        license: plain(card.license, 64),
-        baseModel: plainList(card.base_model, 5, 120),
-        tags: plainList(info.tags, 30, 60),
+        license,
+        baseModel,
+        tags,
         gated: Boolean(info.gated),
         weights,
         selected,
         needsChoice: selected === null,
         adapter,
+        sidecar,
         suggestedName,
         alreadyInstalled: existsSync(path.join(this.loraDir, suggestedName)) ? suggestedName : null,
         warnings,
       },
     };
+  }
+
+  /** The <weights>.metadata.json some authors publish. Best effort: whatever goes wrong here becomes a warning, never a refusal. */
+  private async readSidecar(repo: string, commit: string, files: HubFile[], selected: HubFile, warnings: string[]): Promise<SidecarInfo | null> {
+    const pick = pickSidecar(files.map((f) => f.name), selected.name);
+    if (!pick.name) {
+      if (pick.ambiguous) warnings.push('Several metadata files were found and none matches the weights file: they were ignored.');
+      return null;
+    }
+    const listedSize = files.find((f) => f.name === pick.name)?.size;
+    if (typeof listedSize === 'number' && listedSize > MAX_SIDECAR_BYTES) {
+      warnings.push('The metadata file is too large: it was ignored.');
+      return null;
+    }
+    let text: string;
+    try {
+      text = await this.getText(this.resolveUrl(repo, commit, pick.name), MAX_SIDECAR_BYTES);
+    } catch {
+      warnings.push('The metadata file could not be read: it was ignored.');
+      return null;
+    }
+    const parsed = parseSidecar(text);
+    if (!parsed) {
+      warnings.push('The metadata file is not a JSON object: it was ignored.');
+      return null;
+    }
+    warnings.push(...parsed.warnings);
+    // It is the author's word, and it can be stale: it is checked against what the Hub itself reports.
+    if (parsed.info.sha256 && selected.sha256 && parsed.info.sha256 !== selected.sha256) {
+      warnings.push("The metadata file's checksum differs from the Hub's: it may describe another version of the weights.");
+    }
+    if (parsed.info.weightsFile && path.posix.basename(parsed.info.weightsFile) !== path.posix.basename(selected.name)) {
+      warnings.push('The metadata file describes another weights file than the one selected.');
+    }
+    return parsed.info;
   }
 
   private parseAdapterConfig(text: string, warnings: string[]): AdapterInfo {
@@ -336,7 +367,7 @@ export class LoraHub {
       rank: num(config.r),
       alpha: num(config.lora_alpha),
       targetModules: plainList(config.target_modules, 12, 40),
-      baseModel: plain(config.base_model_name_or_path, 160),
+      baseModel: modelLabel(config.base_model_name_or_path),
     };
   }
 
@@ -420,6 +451,7 @@ export class LoraHub {
             baseModel: card.baseModel,
             tags: card.tags,
             adapter: card.adapter,
+            sidecar: card.sidecar,
             installedAt: new Date(this.now()).toISOString(),
           },
           null,
