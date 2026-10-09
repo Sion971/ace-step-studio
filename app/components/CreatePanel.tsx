@@ -25,6 +25,8 @@ import { useAuth } from '../context/AuthContext';
 import { useI18n } from '../context/I18nContext';
 import type { TranslationKey } from '../i18n/translations';
 import { generateApi, settingsApi } from '../services/api';
+import { applyLmSettings, lmOnDiskFrom } from '../services/lmSwitch';
+import { fillTemplate } from '../utils/fillTemplate';
 import { MAIN_STYLES } from '../data/genres';
 import { EditableSlider } from './EditableSlider';
 import { UseOpenRouterToggle } from './UseOpenRouterToggle';
@@ -586,6 +588,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
           if (modelsRes.ok) {
             const modelsData = await modelsRes.json();
             if (modelsData.models) setFetchedModels(modelsData.models);
+            { const lm = lmOnDiskFrom(modelsData.lm_models); if (lm) setLmOnDisk(lm); }
           }
         }
       } catch {
@@ -598,6 +601,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   
   // Available models fetched from backend
   const [fetchedModels, setFetchedModels] = useState<{ name: string; is_active: boolean; is_preloaded: boolean }[]>([]);
+  // Les LM présents sur le disque (null tant que le serveur ne l'a pas dit) et le dernier échec d'« Appliquer les réglages du LM ».
+  const [lmOnDisk, setLmOnDisk] = useState<string[] | null>(null);
+  const [lmApplyError, setLmApplyError] = useState<string | null>(null);
 
   // Fallback model list when backend is unavailable
   // Model metadata
@@ -908,6 +914,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       if (modelsRes.ok) {
         const data = await modelsRes.json();
         const models = data.models || [];
+        { const lm = lmOnDiskFrom(data.lm_models); if (lm) setLmOnDisk(lm); }
         if (models.length > 0) {
           setFetchedModels(models);
           // Always sync to the backend's active model
@@ -1655,25 +1662,29 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // simple callback.
   const handleApplyLmSettings = async () => {
     if (!token || !lmModel) return;
-    setModelSwitchStatus(`${tf('applyingLmSettings', 'Restarting pipeline')}...`);
-    try {
-      const res = await fetch('/api/generate/switch-model', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ model: selectedModel, lmModel, lmBackend }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setModelSwitchStatus('');
-        lmEditingRef.current = false; // re-sync from server on next poll
-      } else {
-        setModelSwitchStatus(data.error || 'Failed');
-        setTimeout(() => setModelSwitchStatus(''), 5000);
-      }
-    } catch (err) {
-      setModelSwitchStatus('Error');
-      setTimeout(() => setModelSwitchStatus(''), 5000);
+    const lmName = `LM ${lmModel.replace('acestep-5Hz-lm-', '')}`;
+    const applying = `${tf('applyingLmSettings', 'Restarting pipeline')}...`;
+    setLmApplyError(null);
+    setModelSwitchStatus(applying);
+    // Un LM absent du disque est téléchargé d'abord (avant, il ne pouvait pas être choisi depuis l'interface), puis chargé.
+    const result = await applyLmSettings({
+      token, selectedModel, lmModel, lmBackend, lmOnDisk,
+      onProgress: (progress) => setModelSwitchStatus(
+        progress.kind === 'applying' ? applying
+          : progress.percent !== undefined ? `⬇ ${progress.percent}%`
+          : fillTemplate(t('downloadingModelNamed'), { name: lmName }),
+      ),
+    });
+    setModelSwitchStatus('');
+    if (!('stage' in result)) {
+      lmEditingRef.current = false; // re-sync from server on next poll
+    } else {
+      setLmApplyError(result.stage === 'download'
+        ? fillTemplate(t('lmDownloadFailed'), { name: lmName })
+        : fillTemplate(t('modelSwitchFailed'), { name: lmName, reason: result.reason }));
+      setTimeout(() => setLmApplyError(null), 15000);
     }
+    fetch('/api/generate/models').then(r => r.json()).then(d => { const lm = lmOnDiskFrom(d.lm_models); if (lm) setLmOnDisk(lm); }).catch(() => {});
   };
 
   const handleGenerate = async () => {
@@ -2748,6 +2759,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               onLmBackendChange={setLmBackend}
               lmModel={lmModel}
               onLmModelChange={setLmModel}
+              lmOnDisk={lmOnDisk}
+              applyError={lmApplyError}
               lmEditingRef={lmEditingRef}
               modelSwitchStatus={modelSwitchStatus}
               onApply={handleApplyLmSettings}

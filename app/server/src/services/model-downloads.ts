@@ -10,7 +10,11 @@
 //  - acestep-v15-turbo is NOT a repository of its own: it is a folder of the main repository ACE-Step/Ace-Step1.5, next to the VAE, the text
 //    encoder and a language model. Only that folder is wanted (`--include`), downloaded into checkpoints/ so that it lands in checkpoints/acestep-v15-turbo/.
 //  - acestep-v15-base has its own repository, with the files at its root: it is downloaded into checkpoints/acestep-v15-base/, like the XL ones.
-//  - acestep-v15-sft is expected to be laid out like base (the engine's documentation lists it the same way); its file list was not read.
+//  - acestep-v15-sft has its own repository, with the files at its root like base (checked on a real download: model.safetensors in one file, config.json, silence_latent.pt, the .py files of the model).
+//
+// The language models (LM) are listed in a second table: same download mechanism, but they are not DiT models (no menu of DiT models, no post-processing of the download).
+//  - acestep-5Hz-lm-0.6B and acestep-5Hz-lm-4B have a repository each (SUBMODEL_REGISTRY of the engine's model_downloader.py).
+//  - acestep-5Hz-lm-1.7B is a folder of the main repository ACE-Step/Ace-Step1.5 (about 3.5 GB), fetched alone like the 2B turbo.
 
 import path from 'path';
 
@@ -35,6 +39,19 @@ export const MODEL_DOWNLOADS: Record<string, ModelDownload> = {
   'acestep-v15-base': { repo: 'ACE-Step/acestep-v15-base' },
 };
 
+/** Download source of every language model the Studio can fetch (folder name in checkpoints/ -> source). */
+export const LM_DOWNLOADS: Record<string, ModelDownload> = {
+  'acestep-5Hz-lm-0.6B': { repo: 'ACE-Step/acestep-5Hz-lm-0.6B' },
+  'acestep-5Hz-lm-1.7B': { repo: 'ACE-Step/Ace-Step1.5', include: 'acestep-5Hz-lm-1.7B/*' },
+  'acestep-5Hz-lm-4B': { repo: 'ACE-Step/acestep-5Hz-lm-4B' },
+};
+
+/** The language models the selector of the LM offers, smallest first. */
+export const LISTED_LM_MODELS: readonly string[] = ['acestep-5Hz-lm-0.6B', 'acestep-5Hz-lm-1.7B', 'acestep-5Hz-lm-4B'];
+
+/** Whether `model` is a language model the Studio knows (an own-property test, like the others). */
+export const isLmModel = (model: string): boolean => Object.prototype.hasOwnProperty.call(LM_DOWNLOADS, model);
+
 /** The models offered by the menu, in the order the server proposes them (the client has its own display order). Each one has a download source. */
 export const LISTED_DIT_MODELS: readonly string[] = [
   'acestep-v15-xl-turbo',
@@ -47,7 +64,7 @@ export const LISTED_DIT_MODELS: readonly string[] = [
 ];
 
 /** Whether the Studio knows where to download `model` from. An own-property test: a name such as "constructor" is not a model. */
-export const isDownloadableModel = (model: string): boolean => Object.prototype.hasOwnProperty.call(MODEL_DOWNLOADS, model);
+export const isDownloadableModel = (model: string): boolean => Object.prototype.hasOwnProperty.call(MODEL_DOWNLOADS, model) || isLmModel(model);
 
 /**
  * Arguments of `python -m huggingface_hub.commands.huggingface_cli` that download `model` into `checkpointsDir`, or null for a model without a known source.
@@ -55,7 +72,7 @@ export const isDownloadableModel = (model: string): boolean => Object.prototype.
  */
 export function downloadArgs(model: string, checkpointsDir: string): string[] | null {
   if (!isDownloadableModel(model)) return null;
-  const { repo, include } = MODEL_DOWNLOADS[model];
+  const { repo, include } = isLmModel(model) ? LM_DOWNLOADS[model] : MODEL_DOWNLOADS[model];
   if (include) return ['download', repo, '--include', include, '--local-dir', checkpointsDir];
   return ['download', repo, '--local-dir', path.join(checkpointsDir, model)];
 }

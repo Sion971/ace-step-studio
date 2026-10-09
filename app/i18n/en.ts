@@ -1301,4 +1301,7 @@ export const en = {
     // Menu des modèles : un téléchargement ou un changement de modèle qui échoue le dit
     modelSwitchFailed: "Could not load {{name}}: {{reason}}",
     modelDownloadFailed: "Could not download {{name}}. Check your connection and try again.",
+
+    // Modèle de langage (LM) : téléchargement à la demande depuis le sélecteur
+    lmDownloadFailed: "Could not download {{name}}. Check your connection and try again.",
 };

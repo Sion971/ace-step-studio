@@ -1284,4 +1284,7 @@ export const zh = {
     // Menu des modèles : un téléchargement ou un changement de modèle qui échoue le dit
     modelSwitchFailed: "无法加载 {{name}}:{{reason}}",
     modelDownloadFailed: "无法下载 {{name}}。请检查网络连接后重试。",
+
+    // Modèle de langage (LM) : téléchargement à la demande depuis le sélecteur
+    lmDownloadFailed: "无法下载 {{name}}。请检查网络连接后重试。",
 };

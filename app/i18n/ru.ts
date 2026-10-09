@@ -1295,4 +1295,7 @@ export const ru = {
     // Menu des modèles : un téléchargement ou un changement de modèle qui échoue le dit
     modelSwitchFailed: "Не удалось загрузить {{name}}: {{reason}}",
     modelDownloadFailed: "Не удалось скачать {{name}}. Проверьте подключение и повторите попытку.",
+
+    // Modèle de langage (LM) : téléchargement à la demande depuis le sélecteur
+    lmDownloadFailed: "Не удалось скачать {{name}}. Проверьте подключение и повторите попытку.",
 };

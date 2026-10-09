@@ -1284,4 +1284,7 @@ export const ja = {
     // Menu des modèles : un téléchargement ou un changement de modèle qui échoue le dit
     modelSwitchFailed: "{{name}} を読み込めませんでした: {{reason}}",
     modelDownloadFailed: "{{name}} をダウンロードできませんでした。接続を確認して、もう一度お試しください。",
+
+    // Modèle de langage (LM) : téléchargement à la demande depuis le sélecteur
+    lmDownloadFailed: "{{name}} をダウンロードできませんでした。接続を確認して、もう一度お試しください。",
 };

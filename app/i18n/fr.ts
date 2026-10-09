@@ -1318,4 +1318,7 @@ export const fr = {
     // Menu des modèles : un téléchargement ou un changement de modèle qui échoue le dit
     modelSwitchFailed: "Impossible de charger {{name}} : {{reason}}",
     modelDownloadFailed: "Impossible de télécharger {{name}}. Vérifiez votre connexion et réessayez.",
+
+    // Modèle de langage (LM) : téléchargement à la demande depuis le sélecteur
+    lmDownloadFailed: "Impossible de télécharger {{name}}. Vérifiez votre connexion et réessayez.",
 };

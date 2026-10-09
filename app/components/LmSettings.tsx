@@ -9,6 +9,10 @@ interface LmSettingsProps {
   onLmBackendChange: (value: 'pt' | 'vllm') => void;
   lmModel: string;
   onLmModelChange: (value: string) => void;
+  /** Les LM présents sur le disque ; null tant que le serveur ne l'a pas dit (alors aucune mention n'est ajoutée). */
+  lmOnDisk?: readonly string[] | null;
+  /** Dernier échec de téléchargement ou de chargement du LM, montré sous le bouton. */
+  applyError?: string | null;
   /** Marque une edition manuelle en cours — evite qu'un poll serveur ne
    *  reecrase la selection avant que l'utilisateur ait clique "Appliquer".
    *  Mutee directement (pas de setter), comme dans le code d'origine. */
@@ -57,6 +61,8 @@ export const LmSettings: React.FC<LmSettingsProps> = ({
   onLmBackendChange,
   lmModel,
   onLmModelChange,
+  lmOnDisk = null,
+  applyError = null,
   lmEditingRef,
   modelSwitchStatus,
   onApply,
@@ -94,9 +100,11 @@ export const LmSettings: React.FC<LmSettingsProps> = ({
               onChange={(e) => { onLmModelChange(e.target.value); lmEditingRef.current = true; }}
               className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800 [&>option]:text-zinc-900 [&>option]:dark:text-white"
             >
-              <option value="acestep-5Hz-lm-0.6B">{t('lmModel06B')}</option>
-              <option value="acestep-5Hz-lm-1.7B">{t('lmModel17B')}</option>
-              <option value="acestep-5Hz-lm-4B">{t('lmModel4B')}</option>
+              {([['acestep-5Hz-lm-0.6B', 'lmModel06B'], ['acestep-5Hz-lm-1.7B', 'lmModel17B'], ['acestep-5Hz-lm-4B', 'lmModel4B']] as const).map(([id, key]) => (
+                <option key={id} value={id}>
+                  {t(key)}{lmOnDisk !== null && !lmOnDisk.includes(id) ? ` — ${t('modelNotDownloaded')}` : ''}
+                </option>
+              ))}
             </select>
             <p className="text-[10px] text-zinc-500">{t('lmModelHint')}</p>
           </div>
@@ -117,6 +125,11 @@ export const LmSettings: React.FC<LmSettingsProps> = ({
             tf('applyLmSettings', 'Apply LM Settings (restart pipeline)')
           )}
         </button>
+      )}
+      {!useOpenRouter && applyError && (
+        <p role="alert" data-testid="lm-apply-error" className="rounded-md border border-red-300 bg-red-50 p-2 text-[11px] text-red-700 dark:border-red-500/40 dark:bg-red-950 dark:text-red-300">
+          {applyError}
+        </p>
       )}
 
       {/* OpenRouter provider config — shown when toggle is ON. Deplace

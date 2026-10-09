@@ -1284,4 +1284,7 @@ export const ko = {
     // Menu des modèles : un téléchargement ou un changement de modèle qui échoue le dit
     modelSwitchFailed: "{{name}}을(를) 불러오지 못했습니다: {{reason}}",
     modelDownloadFailed: "{{name}}을(를) 다운로드하지 못했습니다. 연결을 확인한 후 다시 시도해 주세요.",
+
+    // Modèle de langage (LM) : téléchargement à la demande depuis le sélecteur
+    lmDownloadFailed: "{{name}}을(를) 다운로드하지 못했습니다. 연결을 확인한 후 다시 시도해 주세요.",
 };

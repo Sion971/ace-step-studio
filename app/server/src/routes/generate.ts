@@ -8,7 +8,7 @@ import { generateUUID } from '../db/sqlite.js';
 import { config } from '../config/index.js';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { getGradioClient } from '../services/gradio-client.js';
-import { LISTED_DIT_MODELS, downloadArgs, isDownloadableModel } from '../services/model-downloads.js';
+import { LISTED_DIT_MODELS, LISTED_LM_MODELS, downloadArgs, isDownloadableModel, isLmModel } from '../services/model-downloads.js';
 import {
   generateMusicViaAPI,
   getJobStatus,
@@ -1302,6 +1302,12 @@ router.get('/download-model', authMiddleware, async (req: AuthenticatedRequest, 
     if (line && !line.includes('Warning')) send({ status: 'progress', message: line });
   });
   proc.on('close', async (code) => {
+    // A language model needs none of the post-processing below, which is made for DiT models (it would copy the config of the XL SFT into a folder that lacks one).
+    if (code === 0 && isLmModel(model)) {
+      send({ status: 'done', model, message: 'Download complete' });
+      res.end();
+      return;
+    }
     if (code === 0) {
       // Post-process: rename safetensors + copy config from reference model
       try {
@@ -1453,7 +1459,20 @@ router.get('/models', async (_req, res: Response) => {
       return a.name.localeCompare(b.name);
     });
 
-    res.json({ models });
+    // The language models, for the selector of the LM: what is on the disk (a folder with its config and weights), so that the interface can offer to download the rest.
+    const lmOnDisk = (name: string): boolean => {
+      try {
+        const dir = path.join(checkpointsDir, name);
+        return existsSync(path.join(dir, 'config.json')) && readdirSync(dir).some((f: string) => f.endsWith('.safetensors'));
+      } catch { return false; }
+    };
+    const lmNames = [...LISTED_LM_MODELS];
+    try {
+      for (const entry of readdirSync(checkpointsDir)) if (entry.startsWith('acestep-5Hz-lm-') && !lmNames.includes(entry)) lmNames.push(entry);
+    } catch { /* checkpoints dir may not exist */ }
+    const lm_models = lmNames.map(name => ({ name, is_preloaded: lmOnDisk(name) }));
+
+    res.json({ models, lm_models });
   } catch (error) {
     console.error('Models error:', error);
     res.status(500).json({ error: (error as Error).message });

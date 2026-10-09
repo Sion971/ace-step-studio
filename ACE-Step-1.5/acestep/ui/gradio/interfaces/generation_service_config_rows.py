@@ -206,6 +206,9 @@ def build_lm_backend_controls(
         lm_model_path = gr.Dropdown(
             label=t("service.lm_model_path_label"),
             choices=all_lm_models,
+            # Comme pour le DiT : les choix sont fixés au démarrage, et un LM téléchargé ENSUITE depuis le sélecteur du Studio serait refusé par Gradio
+            # (« Value: … is not in the list of choices ») jusqu'au prochain redémarrage.
+            allow_custom_value=True,
             value=(
                 params.get("lm_model_path", default_lm_model)
                 if service_pre_initialized and params.get("lm_model_path", default_lm_model) in all_lm_models

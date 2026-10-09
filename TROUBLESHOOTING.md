@@ -2037,3 +2037,26 @@ avec la raison renvoyée par le serveur (en anglais : c'est son texte). Avant, t
 **Limites.** Le correctif du moteur est validé sur un Gradio isolé, pas sur le vrai moteur : il faut redémarrer le moteur une fois pour qu'il le prenne, puis télécharger un modèle APRÈS ce
 démarrage pour le voir fonctionner. Le moteur peut encore refuser un modèle pour une autre raison (dossier incomplet, mémoire) : le message le dira désormais. Les textes japonais, coréen, russe et
 chinois ne sont pas relus par un locuteur natif.
+
+---
+
+## 44. Modèle de langage (LM) : téléchargement à la demande
+
+**Constat.** Le sélecteur du LM (`components/LmSettings.tsx`) proposait 0.6B, 1.7B et 4B, mais rien ne téléchargeait un LM depuis l'interface : le moteur ne le fait qu'à son démarrage, pour le LM par défaut
+(`ensure_lm_model`, dans `acestep_v15_pipeline.py`), jamais par le chemin d'« Appliquer » (`init_service_wrapper`). Un LM absent du disque ne pouvait donc pas être choisi. Le menu du moteur pour
+le LM (`lm_model_path`) a en plus les choix fixés au démarrage, comme celui du DiT (voir la section précédente) : Gradio refuse « … is not in the list of choices ».
+
+**Ce qui est fait.** (1) `services/model-downloads.ts` a une seconde table, `LM_DOWNLOADS` : 0.6B et 4B ont leur dépôt ; le 1.7B est un dossier du dépôt principal `ACE-Step/Ace-Step1.5`
+(`--include 'acestep-5Hz-lm-1.7B/*'`, environ 3,5 Go), comme le Turbo 2B. (2) La route de téléchargement n'applique PAS à un LM le post-traitement des DiT (renommage des poids, config empruntée au XL SFT). (3) `GET /api/generate/models`
+renvoie aussi `lm_models` : un LM est « sur le disque » quand son dossier a un `config.json` ET des poids (un fichier ou plusieurs) ; un dossier à moitié téléchargé n'y est pas. (4) « Appliquer les
+réglages du LM » télécharge d'abord un LM absent (avec progression), puis le charge (`services/lmSwitch.ts`, testé sans React) ; un échec s'affiche sous le bouton, quinze secondes. (5) Le sélecteur
+ajoute « — non téléchargé » aux LM absents. (6) `allow_custom_value=True` sur le menu du LM du moteur ; un test lit le fichier (une mise à jour du moteur depuis l'amont l'effacerait).
+
+**Ne rien deviner.** Tant que le serveur n'a pas dit ce qui est sur le disque (serveur plus ancien, réponse sans `lm_models`), aucune mention n'est ajoutée et rien n'est téléchargé : le chargement se fait comme avant.
+Un flux de téléchargement coupé avant l'événement `done` n'est pas pris pour un succès.
+
+**Pas de filtre par VRAM sur le sélecteur du LM** (décision de l'utilisateur) : les libellés disent déjà la mémoire de chacun, et les seuils n'ont pas été mesurés.
+
+**Limites.** Validé avec le vrai serveur et le vrai navigateur, mais avec un téléchargement SIMULÉ (aucun LM n'a été téléchargé depuis Hugging Face ici) et un moteur simulé. Il faut redémarrer le moteur une fois pour qu'il
+prenne la ligne `allow_custom_value`. Le dépôt du LM 4B n'a pas été téléchargé : sa disposition est celle du registre du moteur. Le texte d'aide du sélecteur (« Téléchargé automatiquement si absent ») était faux avant ce correctif ;
+il ne l'est plus. Le japonais, le coréen, le russe et le chinois ne sont pas relus par un locuteur natif.
