@@ -327,6 +327,38 @@ if errorlevel 1 (
 )
 call .venv\Scripts\activate.bat
 
+REM Controle de l'interpreteur AVANT de telecharger quoi que ce soit. Cas rencontre sous Windows 11 :
+REM "DLL load failed while importing _overlapped : Une strategie de controle d'application a bloque ce
+REM fichier" - Windows refuse de charger les fichiers du Python telecharge par uv ^(non signes^), et
+REM TOUT script Python qui utilise asyncio ^(Gradio, uvicorn...^) echouerait alors, torch ou pas.
+REM Premier essai de contournement : un Python 3.12 deja installe sur la machine ^(celui de python.org
+REM est signe^), choisi par uv avec --python-preference only-system. Sinon, message clair.
+.venv\Scripts\python.exe -c "import asyncio, ssl, sqlite3, ctypes" >nul 2>"%TEMP%\py_check.txt"
+if not errorlevel 1 goto :python_ok
+echo.
+echo ERREUR : cet interpreteur Python ne peut pas charger ses propres modules ^(erreur ci-dessous^) :
+type "%TEMP%\py_check.txt"
+echo.
+echo Essai avec un Python 3.12 installe sur la machine ^(signe^) a la place...
+rmdir /s /q ".venv"
+uv venv --python 3.12 --python-preference only-system .venv
+if errorlevel 1 goto :python_blocked
+call .venv\Scripts\activate.bat
+.venv\Scripts\python.exe -c "import asyncio, ssl, sqlite3, ctypes" >nul 2>nul
+if errorlevel 1 goto :python_blocked
+echo   OK - Python 3.12 du systeme utilise.
+goto :python_ok
+:python_blocked
+echo.
+echo   Impossible d'obtenir un Python utilisable. Si l'erreur ci-dessus parle d'une strategie de
+echo   controle d'application ^(Smart App Control, WDAC, AppLocker^), Windows bloque les fichiers du
+echo   Python telecharge par uv. Solution : installer Python 3.12 depuis https://www.python.org/downloads/
+echo   ^(binaires signes par la Python Software Foundation^), puis relancer ce script.
+echo   Details et diagnostic : TROUBLESHOOTING.md.
+pause
+exit /b 1
+:python_ok
+
 REM Outils de build ^(pas de cmake ni ninja : aucune compilation sous Windows, roues precompilees^).
 uv pip install hatchling editables setuptools wheel
 
@@ -368,7 +400,17 @@ if errorlevel 1 (
     echo   ATTENTION : torchaudio/torchcodec absents de l'index %CUDA_VERSION% - repli sur PyPI.
     uv pip install torchaudio==%TORCHAUDIO_VERSION% torchcodec
 )
-REM Controle : torch doit etre la version CUDA, pas la roue CPU de PyPI.
+REM Controle 1 : torch doit pouvoir s'importer. Un echec ici n'est PAS une roue CPU : l'erreur
+REM affichee dit pourquoi ^(DLL bloquee, Visual C++ manquant...^).
+.venv\Scripts\python.exe -c "import torch"
+if errorlevel 1 (
+    echo ERREUR : PyTorch est installe mais ne s'importe pas ^(voir l'erreur ci-dessus^).
+    echo   Une strategie de controle d'application ^(Smart App Control, WDAC^) ou un Visual C++
+    echo   Redistributable manquant sont les causes habituelles. Voir TROUBLESHOOTING.md.
+    pause
+    exit /b 1
+)
+REM Controle 2 : torch doit etre la version CUDA, pas la roue CPU de PyPI.
 .venv\Scripts\python.exe -c "import sys, torch; print('torch', torch.__version__); sys.exit(0 if '+cu' in torch.__version__ else 1)"
 if errorlevel 1 (
     echo ERREUR : PyTorch installe est la version CPU, pas %CUDA_VERSION%. Le GPU ne serait pas utilise.
