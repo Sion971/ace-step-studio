@@ -1636,7 +1636,7 @@ dit avant d'installer et demande confirmation pour continuer (voir aussi les pla
   charge sous 12 Go) : c'est le choix du Studio, validé en pratique sur 8 Go.
 - **Téléchargement des modèles.** Il se déclenche au premier lancement, dans ACE-Step
   (`initialize_service` : paquet principal, puis DiT demandé ; le LM seulement s'il est actif),
-  pas dans `run.sh`. Le bouton de l'interface et `download_model.sh` ne gèrent que les modèles XL.
+  pas dans `run.sh`. Le menu des modèles de l'interface télécharge les DiT (XL et 2B) et, depuis le sélecteur du LM, les LM ; `download_model.sh` est supprimé, le menu le remplace.
   Le profil règle donc ce qui est téléchargé : DiT par défaut, LM actif ou non. Composition
   **mesurée** du dépôt `ACE-Step/Ace-Step1.5` (tailles en Go décimaux, comme les affiche Hugging Face) :
   turbo 2B 4,79 Go, LM 1,7B 3,76 Go, encodeur de texte 1,20 Go, VAE 0,34 Go ; le LM 0,6B a son
@@ -2057,6 +2057,6 @@ Un flux de téléchargement coupé avant l'événement `done` n'est pas pris pou
 
 **Pas de filtre par VRAM sur le sélecteur du LM** (décision de l'utilisateur) : les libellés disent déjà la mémoire de chacun, et les seuils n'ont pas été mesurés.
 
-**Limites.** Validé avec le vrai serveur et le vrai navigateur, mais avec un téléchargement SIMULÉ (aucun LM n'a été téléchargé depuis Hugging Face ici) et un moteur simulé. Il faut redémarrer le moteur une fois pour qu'il
-prenne la ligne `allow_custom_value`. Le dépôt du LM 4B n'a pas été téléchargé : sa disposition est celle du registre du moteur. Le texte d'aide du sélecteur (« Téléchargé automatiquement si absent ») était faux avant ce correctif ;
+**Limites.** Validé avec le vrai serveur et le vrai navigateur, mais avec un téléchargement SIMULÉ et un moteur simulé. **Vérifié ensuite par l'utilisateur sur une vraie machine** (2026-10-08) : téléchargement depuis le sélecteur puis mise en mémoire du LM 1.7B (« LM=acestep-5Hz-lm-1.7B (pt) », sans redémarrage) et du LM 4B. Il faut redémarrer le moteur une fois pour qu'il
+prenne la ligne `allow_custom_value`. Le texte d'aide du sélecteur (« Téléchargé automatiquement si absent ») était faux avant ce correctif ;
 il ne l'est plus. Le japonais, le coréen, le russe et le chinois ne sont pas relus par un locuteur natif.
