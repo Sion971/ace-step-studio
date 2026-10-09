@@ -137,7 +137,7 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
 |-------------|---------------|
 | **OS** | Linux (developed on Linux Mint / Ubuntu 24.04) or Windows 10/11 |
 | **Node.js** | 22 LTS |
-| **Python** | Managed automatically by `uv` — 3.12 on Linux, 3.11 on Windows for the main environment; a separate isolated 3.11 environment on both platforms for MIDI conversion (and, on Linux, another for stem separation) |
+| **Python** | Managed automatically by `uv` — 3.12 on both platforms for the main environment; a separate isolated 3.11 environment on both platforms for MIDI conversion (and, on Linux, another for stem separation) |
 | **NVIDIA GPU** | 4GB+ VRAM (works without LLM), 12GB+ recommended (with LLM) |
 | **NVIDIA driver (Linux)** | **580 or newer** for the CUDA 13.0 stack (the default for RTX 20-series and newer); **525 or newer** for the older CUDA 12.x stacks; **570 or newer** for any RTX 50-series card. The installer reads `nvidia-smi`, suggests the newest stack your driver allows, and warns before installing if the driver is too old |
 | **CUDA compiler (`nvcc`)** | Linux only, and only when `flash-attn` has to be compiled: on the CUDA 12.x stacks for RTX 30/40-series cards, or if a prebuilt wheel cannot be downloaded — `nvcc` must then support your card (the installer checks and falls back to SDPA if not). The CUDA 13.0 stack and RTX 50-series installs use a prebuilt wheel that is tested on your GPU after installation. Windows uses a prebuilt wheel too, no local compiler needed |
@@ -239,18 +239,21 @@ cd ace-step-studio
 install.bat
 ```
 
-The installer walks through ten steps, all self-checking and safe to re-run:
+The installer walks through thirteen steps, all self-checking and safe to re-run. It follows the Linux installer — one script, one menu — and replaces the former `install-blackwell-native.bat`:
 
-1. `uv` install (if missing) and GPU / CUDA selection (Pascal through Blackwell, or CPU-only)
-2. Python 3.11 virtual environment (via `uv`)
-3. PyTorch, matched to your selected CUDA version
-4. ACE-Step dependencies, including `flash-attn` — a prebuilt wheel on Blackwell (RTX 50-series), verified specifically for Python 3.11 + PyTorch 2.7 + CUDA 12.8, no local compiler needed
-5. `pytorch_wavelets` patch — same `pkg_resources` fix as Linux, same reasoning
-6. Node.js
-7. npm install (frontend and server)
-8. Frontend build (FFmpeg is downloaded automatically around this point too, if missing)
-9. Database migration (playlist/workspace schema) — idempotent, safe on every reinstall
-10. Isolated `basic-pitch` environment for MIDI conversion, its own `uv`-managed venv to avoid a `tensorboard`/`tensorflow` version conflict with ACE-Step's own pin
+1. Working directory structure
+2. GPU detection (`nvidia-smi`: name, VRAM, compute capability, driver) with a suggested menu option — Enter accepts it. RTX 20-series and newer choose between CUDA 13.0 (suggested when your driver allows it) and CUDA 12.8; older cards (Pascal, Volta) use CUDA 12.6; AMD and Intel are pointed to ACE-Step's own scripts. Driver checks run before anything is installed
+3. `uv` install (if missing)
+4. Python 3.12 virtual environment (via `uv`), recreated from scratch on every run
+5. PyTorch, matched to your selected CUDA version — 2.14.1 on the CUDA 13.0 stack, 2.11.0 on the others; the installer first checks that the PyTorch index offers that version for Windows, and afterwards that the CUDA build (not the CPU one) was installed
+6. ACE-Step dependencies, `triton-windows`, and `flash-attn` — on the CUDA 13.0 stack a prebuilt wheel for RTX 30/40/50-series cards (no local compiler needed), tested on your GPU after installation and removed if it does not run; the other stacks use SDPA
+7. `pytorch_wavelets` patch — same `pkg_resources` fix as Linux, same reasoning — and the `sitecustomize.py` warning filter
+8. Node.js
+9. npm install (frontend and server)
+10. Frontend build
+11. FFmpeg, downloaded automatically if missing, then a `torchcodec` load check
+12. Database migration (playlist/workspace schema) — idempotent, safe on every reinstall
+13. Isolated `basic-pitch` environment for MIDI conversion (Python 3.11), its own `uv`-managed venv to avoid a `tensorboard`/`tensorflow` version conflict with ACE-Step's own pin
 
 If `torchaudio` fails to load with `Could not find module ... (or one of its dependencies)`, install the [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) — a very common missing piece for compiled Python extensions on a fresh Windows install, unrelated to this project specifically.
 

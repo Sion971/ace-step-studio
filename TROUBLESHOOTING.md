@@ -2060,3 +2060,18 @@ Un flux de téléchargement coupé avant l'événement `done` n'est pas pris pou
 **Limites.** Validé avec le vrai serveur et le vrai navigateur, mais avec un téléchargement SIMULÉ et un moteur simulé. **Vérifié ensuite par l'utilisateur sur une vraie machine** (2026-10-08) : téléchargement depuis le sélecteur puis mise en mémoire du LM 1.7B (« LM=acestep-5Hz-lm-1.7B (pt) », sans redémarrage) et du LM 4B. Il faut redémarrer le moteur une fois pour qu'il
 prenne la ligne `allow_custom_value`. Le texte d'aide du sélecteur (« Téléchargé automatiquement si absent ») était faux avant ce correctif ;
 il ne l'est plus. Le japonais, le coréen, le russe et le chinois ne sont pas relus par un locuteur natif.
+
+---
+
+## 45. Windows : un seul installateur (`install.bat`)
+
+**Constat.** Windows avait deux installateurs : `install.bat` (pile « éprouvée » : PyTorch 2.7.1, Python 3.11) et `install-blackwell-native.bat` (variante expérimentale RTX 50xx : PyTorch 2.10.0, diffusers 0.39.0). Linux, lui, a un seul `install.sh` avec un menu et deux piles CUDA (13.0 / 12.8), des contrôles de pilote et une roue flash-attn précompilée testée sur le GPU.
+
+**Ce qui est fait.** `install.bat` reprend la structure de `install.sh` ; `install-blackwell-native.bat` est supprimé.
+- Menu : 1 = RTX 20xx et plus récentes (puis choix de la pile : CUDA 13.0 / PyTorch 2.14.1, ou CUDA 12.8 / PyTorch 2.11.0), 2 = Pascal/Volta (CUDA 12.6), 3 = CPU, 4 = AMD/Intel (redirection vers les scripts d'ACE-Step, comme avant). `nvidia-smi` suggère l'option et vérifie le plancher de pilote avant d'installer (580 pour CUDA 13.0, 525 pour CUDA 12.x, 570 pour une RTX 50xx).
+- Python 3.12 (au lieu de 3.11) : la roue flash-attn est `cp312`. L'ancien `.venv` est supprimé à chaque lancement (comme sous Linux) : un environnement en 3.11 serait inutilisable. L'environnement `basic-pitch` reste en 3.11 (tensorflow n'a pas de roue pour 3.12).
+- flash-attn : roue `flash_attn-2.8.3+cu130torch2.14-cp312-cp312-win_amd64.whl` (release v0.10.2 de mjun0812/flash-attention-prebuild-wheels), installée seulement sur la pile CUDA 13.0 et une carte de capacité 8.0 ou plus, puis testée par un vrai appel sur le GPU ; retirée si elle ne s'exécute pas (SDPA prend le relais). Son binaire contient les noyaux sm_80, sm_90, sm_100 et sm_120 (vérifié) : RTX 30xx, 40xx et 50xx. Aucune roue Windows vérifiée n'existe pour la pile CUDA 12.8 : SDPA.
+- diffusers 0.40.0 installé avec `--no-deps` et `huggingface-hub<1.0`, comme `install.sh` (voir la section sur diffusers 0.41.0 : il échoue à l'import avec huggingface-hub 0.36.x). torchao 0.17.x, triton-windows 3.8 (PyTorch 2.14) ou 3.6 (PyTorch 2.11), selon la version de Triton qu'exige chaque PyTorch.
+- Gardes avant téléchargement : l'index PyTorch propose-t-il cette version pour Windows et Python 3.12 ? Après installation : la version de torch est-elle bien `+cuXXX` (et non la roue CPU de PyPI) ?
+
+**NON VALIDÉ sous Windows** : ce script a été écrit sans pouvoir l'exécuter (aucun Windows disponible). Contrôlé seulement par lecture et par un analyseur des pièges de cmd (parenthèses, `!`, étiquettes). À vérifier à la première exécution : (1) l'index PyTorch Windows publie bien torch 2.14.1 pour `cu130` ; (2) `torchaudio` 2.11.0 en `+cu130` existe pour Windows (sinon repli automatique sur la roue PyPI, sans conséquence pour torchaudio) ; (3) la roue flash-attn passe le test fonctionnel ; (4) `torchcodec` 0.17 se charge sous Windows (l'ancienne pile torch 2.10/cu130 cassait l'export MP3 : voir le message de l'installateur, FLAC/WAV en repli) ; (5) `triton-windows` 3.8 compile (`torch.compile`). Pas portés sous Windows : l'environnement Demucs (pas de script `.bat`) et `hardware_profile.env` (que `run.bat` ne lit pas).
