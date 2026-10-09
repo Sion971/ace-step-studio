@@ -2003,7 +2003,7 @@ dans aucun menu, et on ne pouvait pas les choisir depuis le Studio. Un test lit 
 
 **Le Turbo 2B n'a pas de dépôt à lui** : c'est le dossier `acestep-v15-turbo/` du dépôt `ACE-Step/Ace-Step1.5`. Il est donc téléchargé avec `--include 'acestep-v15-turbo/*'` dans
 `checkpoints/` (et non `--local-dir checkpoints/acestep-v15-turbo`, qui créerait un dossier de plus). Base et SFT ont chacun leur dépôt, dont les fichiers sont à la racine.
-**SFT : la disposition du dépôt n'a pas été vérifiée** (elle est supposée identique à celle de Base).
+**SFT : disposition vérifiée** (téléchargé depuis le menu, le 2026-10-08) : `ACE-Step/acestep-v15-sft` met ses fichiers à la racine (`model.safetensors` en un seul fichier de 4,8 Go, `config.json`, `silence_latent.pt`, `configuration_acestep_v15.py`, `modeling_acestep_v15_base.py`, `apg_guidance.py`), comme Base.
 
 **Le filtre par VRAM** (`utils/modelFit.ts`, `components/ModelMenu.tsx`). La mémoire de la carte vient de `/api/generate/system-info` (`vram_total`, en Go). Un modèle dont le `vramMin`
 (`MODEL_INFO`) dépasse la mémoire de plus de 0,5 Go est replié derrière le lien « Afficher les modèles qui demandent plus de VRAM (N) » ; une fois déplié, chacun porte la note « Demande
@@ -2016,7 +2016,7 @@ fusionné) ; le modèle sélectionné, le modèle chargé, et ceux déjà prése
 **Ajouter un modèle** : une entrée dans `MODEL_DOWNLOADS` et `LISTED_DIT_MODELS`, une dans `MODEL_INFO`, une dans `FIXED_ORDER` de `ModelMenu.tsx`. Le test échoue tant qu'il en manque une.
 
 **Limites.** Vérifié dans un vrai navigateur (Chromium) avec le vrai serveur et un faux `nvidia-smi` à 8 Go : liste, lien, notes, anglais et français, six langues sans débordement.
-**Pas vérifié** : le téléchargement réel du Turbo 2B (le Hugging Face réel n'a pas été joint), le chargement d'un 2B par le vrai moteur, et le réglage du moteur de langage pour un 2B.
+**Vérifié sur une vraie machine** (2026-10-08) : le téléchargement et la mise en mémoire de Turbo, Base et SFT depuis le menu, et le chargement d'un LoRA avec Base. **Pas examiné** : le réglage du moteur de langage propre à un 2B.
 Le japonais, le coréen, le russe et le chinois ne sont pas relus par un locuteur natif. `services/acestep.ts` garde sa propre copie de `MODEL_HF_REPOS`, non touchée.
 
 ---
