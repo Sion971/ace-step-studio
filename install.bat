@@ -568,34 +568,41 @@ call "%SCRIPT_DIR%node\npx.cmd" vite build
 REM === 11. FFmpeg ===============================================================
 cd /d "%SCRIPT_DIR%"
 echo [11/13] FFmpeg ^(rendu video^)...
-if exist "ffmpeg\ffmpeg.exe" goto :ffmpeg_done
-echo Telechargement de FFmpeg...
+REM FFmpeg en version PARTAGEE ^(avec ses DLL^) : torchcodec ^(donc torchaudio.save, donc l'export MP3^)
+REM charge les DLL d'FFmpeg. La version statique ^(ffmpeg.exe seul^) installee auparavant les omettait :
+REM "Could not load libtorchcodec" a la premiere generation en MP3. Branche 8.1 ^(torchcodec gere 4 a 9^),
+REM repli sur la version de developpement. Une ancienne installation statique est remplacee.
+if exist "ffmpeg\ffmpeg.exe" if exist "ffmpeg\avcodec-*.dll" goto :ffmpeg_done
+echo Telechargement de FFmpeg ^(version avec DLL^)...
 if not exist "ffmpeg" mkdir ffmpeg
-powershell -Command "& {[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip' -OutFile 'downloads\ffmpeg.zip'}"
-if not exist "downloads\ffmpeg.zip" (
-    echo ATTENTION : FFmpeg n'a pas pu etre telecharge. Le rendu video ne fonctionnera pas.
-    goto :ffmpeg_done
-)
-powershell -Command "& {Expand-Archive -Path 'downloads\ffmpeg.zip' -DestinationPath 'downloads\ffmpeg-extract' -Force}"
-powershell -Command "& {Get-ChildItem 'downloads\ffmpeg-extract\ffmpeg-*\bin\ffmpeg.exe' | Copy-Item -Destination 'ffmpeg\ffmpeg.exe' -Force}"
-powershell -Command "& {Get-ChildItem 'downloads\ffmpeg-extract\ffmpeg-*\bin\ffprobe.exe' | Copy-Item -Destination 'ffmpeg\ffprobe.exe' -Force}"
+if exist "downloads\ffmpeg-shared.zip" del "downloads\ffmpeg-shared.zip"
+powershell -Command "& {[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-win64-gpl-shared-8.1.zip' -OutFile 'downloads\ffmpeg-shared.zip'}"
+if exist "downloads\ffmpeg-shared.zip" goto :ffmpeg_extract
+echo   Branche 8.1 indisponible - essai avec la version de developpement...
+powershell -Command "& {[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip' -OutFile 'downloads\ffmpeg-shared.zip'}"
+if exist "downloads\ffmpeg-shared.zip" goto :ffmpeg_extract
+echo ATTENTION : FFmpeg n'a pas pu etre telecharge. Le rendu video et l'export MP3 ne fonctionneront pas.
+goto :ffmpeg_done
+:ffmpeg_extract
+powershell -Command "& {Expand-Archive -Path 'downloads\ffmpeg-shared.zip' -DestinationPath 'downloads\ffmpeg-extract' -Force}"
+powershell -Command "& {Get-ChildItem 'downloads\ffmpeg-extract\ffmpeg-*\bin\*' -Include *.exe,*.dll | Copy-Item -Destination 'ffmpeg' -Force}"
 if exist "downloads\ffmpeg-extract" rmdir /s /q "downloads\ffmpeg-extract"
 echo [OK] FFmpeg installe
 :ffmpeg_done
 
-REM Verification de torchcodec ^(INFORMATIVE^) : mieux vaut le savoir ici qu'au premier fichier audio.
-REM Sur l'ancienne pile torch 2.10 / cu130, torchcodec ne chargeait pas ses DLL sous Windows ^(export
-REM MP3 casse, bug amont meta-pytorch/torchcodec #1233, #1289, #1006^). Cette pile-ci ^(torch 2.14,
-REM torchcodec 0.17^) n'a PAS ete verifiee sous Windows : si le message ci-dessous apparait, utiliser
-REM FLAC ou WAV comme format de sortie ^(ils passent par soundfile, jamais par torchcodec^).
+REM Verification de torchcodec ^(INFORMATIVE^) : on encode reellement 1 seconde en MP3, c'est ce que fait
+REM la generation ^(torchaudio.save passe par torchcodec pour TOUS les formats^). Un simple "import
+REM torchcodec" reussissait meme quand les DLL d'FFmpeg manquaient : le defaut n'apparaissait qu'a la
+REM premiere generation en MP3.
 if "%CUDA_VERSION%"=="cpu" goto :tc_done
 set "PATH=%SCRIPT_DIR%ffmpeg;%PATH%"
-.venv\Scripts\python.exe -c "import torchcodec" >nul 2>nul
+.venv\Scripts\python.exe -c "import torch; from torchcodec.encoders import AudioEncoder; AudioEncoder(torch.zeros(2,48000), sample_rate=48000).to_tensor(format='mp3')" >nul 2>"%TEMP%\tc_check.txt"
 if errorlevel 1 (
-    echo   ATTENTION : torchcodec ne se charge pas. L'export MP3 echouera peut-etre :
-    echo   utilisez FLAC ou WAV comme format de sortie. Voir TROUBLESHOOTING.md.
+    echo   ATTENTION : l'encodage MP3 via torchcodec echoue ^(derniere ligne de l'erreur ci-dessous^).
+    echo   Utilisez FLAC ou WAV comme format de sortie. Voir TROUBLESHOOTING.md.
+    powershell -Command "& {Get-Content '%TEMP%\tc_check.txt' -Tail 2}"
 ) else (
-    echo   OK - torchcodec se charge correctement.
+    echo   OK - torchcodec encode le MP3.
 )
 :tc_done
 

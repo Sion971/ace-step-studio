@@ -2092,6 +2092,20 @@ L'installateur affichait alors, à tort, « PyTorch installé est la version CPU
 
 **Marche à suivre.** Installer Python 3.12 depuis python.org (binaires signés), puis relancer `install.bat` : `uv` le préférera s'il le trouve dans le PATH ou via le lanceur `py`. Désactiver Smart App Control règle aussi le problème, mais Windows ne permet pas de le réactiver ensuite sans réinitialiser la machine : à ne faire qu'en connaissance de cause.
 
-**Résultat du premier test complet (Windows 11, RTX 5060).** Le blocage a disparu après l'installation de Python 3.12.10 depuis python.org, alors que `uv` utilisait toujours son propre CPython 3.12.14 : la cause exacte reste donc inconnue (l'hypothèse « Python non signé » seule ne l'explique pas). L'installation complète a ensuite réussi : test fonctionnel de flash-attn réussi sur la carte, torchcodec chargé, triton-windows 3.8.0 installé. Deux défauts mineurs relevés puis corrigés : le contrôle de `Python.h` cherchait au mauvais endroit (téléchargement 404 inutile) et `patch-pytorch-wavelets.py` ne pouvait pas corriger l'erreur `pkg_resources`.
+**Résultat du premier test complet (Windows 11, RTX 5060).** Le blocage a disparu après l'installation de Python 3.12.10 depuis python.org, alors que `uv` utilisait toujours son propre CPython 3.12.14 : la cause exacte reste donc inconnue (l'hypothèse « Python non signé » seule ne l'explique pas). L'installation complète a ensuite réussi : test fonctionnel de flash-attn réussi sur la carte, triton-windows 3.8.0 installé ; `torchcodec` s'importait, mais l'encodage MP3 échouait ensuite (§47). Deux défauts mineurs relevés puis corrigés : le contrôle de `Python.h` cherchait au mauvais endroit (téléchargement 404 inutile) et `patch-pytorch-wavelets.py` ne pouvait pas corriger l'erreur `pkg_resources`.
 
 **Limites.** Le contournement automatique (Python du système) n'a pas été exécuté sous Windows. Le même blocage pourrait toucher d'autres fichiers non signés (Node.js, FFmpeg, les wheels de flash-attn ou de triton-windows) : on ne le saura qu'en allant plus loin.
+
+## 47. Windows : l'export MP3 échoue (« Could not load libtorchcodec »)
+
+**Constat** (Windows 11, RTX 5060, 2026-10-09). Une génération en MP3 échoue : `Failed to create AudioEncoder: Could not load libtorchcodec`, avec `Could not find module '...torchcodec\libtorchcodec_core{4..9}.dll' (or one of its dependencies)`. Le FLAC fonctionne.
+
+**Cause (établie par le journal et la lecture du code).** `torchaudio` 2.9 et suivants n'a plus de moteurs d'écriture propres : `torchaudio.save` passe par `torchcodec`, quel que soit le format demandé (le paramètre `backend='soundfile'` du moteur est ignoré). `torchcodec` a besoin des **DLL d'FFmpeg** (`avcodec-*.dll`…). L'installateur téléchargeait la version *statique* de BtbN (un `ffmpeg.exe` seul, sans DLL), qui suffit pour le rendu vidéo mais pas pour `torchcodec`. Le FLAC et le WAV n'échouent pas visiblement parce que le moteur retombe sur `soundfile` après l'erreur ; le MP3, lui, est « sans repli ».
+
+**Pourquoi l'installateur ne l'a pas vu.** Son contrôle faisait seulement `import torchcodec`, qui réussit sans les DLL d'FFmpeg (elles ne sont chargées qu'à la première utilisation). La ligne « torchcodec se charge correctement » de la section 45 était donc trop optimiste.
+
+**Correctif.** `install.bat` installe la version *partagée* de BtbN (branche 8.1, repli sur la version de développement), copie `ffmpeg.exe`, `ffprobe.exe` **et les DLL** dans `ffmpeg\`, dossier que `run.bat` place dans le `PATH` ; `torchcodec` y cherche les DLL (`shutil.which("ffmpeg")`). Le contrôle de fin d'installation encode maintenant une seconde en MP3.
+
+**Mise à jour d'une installation existante.** Relancer `install.bat` : une installation statique (sans `avcodec-*.dll`) est détectée et remplacée. Ou, à la main : télécharger `ffmpeg-n8.1-latest-win64-gpl-shared-8.1.zip` sur https://github.com/BtbN/FFmpeg-Builds/releases/tag/latest et copier le contenu de `bin\` dans `ffmpeg\`.
+
+**Non vérifié sous Windows au moment de l'écriture** : le correctif a été contrôlé par lecture et par l'analyseur de pièges de cmd, pas exécuté. Le résultat attendu : le contrôle affiche « OK - torchcodec encode le MP3 » et une génération en MP3 aboutit.
