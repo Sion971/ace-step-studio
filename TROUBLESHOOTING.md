@@ -2092,4 +2092,6 @@ L'installateur affichait alors, à tort, « PyTorch installé est la version CPU
 
 **Marche à suivre.** Installer Python 3.12 depuis python.org (binaires signés), puis relancer `install.bat` : `uv` le préférera s'il le trouve dans le PATH ou via le lanceur `py`. Désactiver Smart App Control règle aussi le problème, mais Windows ne permet pas de le réactiver ensuite sans réinitialiser la machine : à ne faire qu'en connaissance de cause.
 
+**Résultat du premier test complet (Windows 11, RTX 5060).** Le blocage a disparu après l'installation de Python 3.12.10 depuis python.org, alors que `uv` utilisait toujours son propre CPython 3.12.14 : la cause exacte reste donc inconnue (l'hypothèse « Python non signé » seule ne l'explique pas). L'installation complète a ensuite réussi : test fonctionnel de flash-attn réussi sur la carte, torchcodec chargé, triton-windows 3.8.0 installé. Deux défauts mineurs relevés puis corrigés : le contrôle de `Python.h` cherchait au mauvais endroit (téléchargement 404 inutile) et `patch-pytorch-wavelets.py` ne pouvait pas corriger l'erreur `pkg_resources`.
+
 **Limites.** Le contournement automatique (Python du système) n'a pas été exécuté sous Windows. Le même blocage pourrait toucher d'autres fichiers non signés (Node.js, FFmpeg, les wheels de flash-attn ou de triton-windows) : on ne le saura qu'en allant plus loin.

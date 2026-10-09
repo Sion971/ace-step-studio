@@ -441,7 +441,9 @@ echo Installation de Triton pour torch.compile...
 uv pip install "triton-windows%TRITON_SPEC%"
 REM Les distributions Python de uv incluent deja les en-tetes de developpement ; cette etape
 REM ne devrait normalement plus se declencher, gardee par securite.
-if exist ".venv\Include\Python.h" goto :triton_done
+REM Chemin reel des en-tetes : demande a Python ^(un venv uv n'a pas de dossier Include^).
+.venv\Scripts\python.exe -c "import sysconfig,os,sys; sys.exit(0 if os.path.exists(os.path.join(sysconfig.get_paths()['include'],'Python.h')) else 1)" >nul 2>&1
+if not errorlevel 1 goto :triton_done
 echo Installation des en-tetes Python pour Triton...
 for /f "tokens=*" %%v in ('.venv\Scripts\python.exe -c "import sys; print(sys.version.split()[0])"') do set "PY_VER=%%v"
 powershell -Command "& {[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/!PY_VER!/amd64/dev.msi' -OutFile 'downloads\pydev.msi'}"
