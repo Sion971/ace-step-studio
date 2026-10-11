@@ -2106,6 +2106,14 @@ L'installateur affichait alors, à tort, « PyTorch installé est la version CPU
 
 **Correctif.** `install.bat` installe la version *partagée* de BtbN (branche 8.1, repli sur la version de développement), copie `ffmpeg.exe`, `ffprobe.exe` **et les DLL** dans `ffmpeg\`, dossier que `run.bat` place dans le `PATH` ; `torchcodec` y cherche les DLL (`shutil.which("ffmpeg")`). Le contrôle de fin d'installation encode maintenant une seconde en MP3.
 
+**Premier essai raté (2026-10-09).** Le téléchargement de la version partagée a réussi, mais `ffmpeg\` ne contenait toujours que les deux anciens `.exe` : la copie (`Get-ChildItem … -Include *.exe,*.dll | Copy-Item`) n'avait rien copié, sans message, et l'installateur affichait quand même « OK ». La même copie faite à la main (`Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force`) a fonctionné. Corrigé : `install.bat` utilise cette forme et vérifie que `avcodec-*.dll` est présent. La cause exacte de l'échec de l'ancienne forme n'est pas établie.
+
+**Copie manuelle** (si l'installateur signale que les DLL manquent), dans PowerShell, depuis le dossier du projet :
+```
+Expand-Archive -Path downloads\ffmpeg-shared.zip -DestinationPath downloads\ffmpeg-extract -Force
+Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
+```
+
 **Mise à jour d'une installation existante.** Relancer `install.bat` : une installation statique (sans `avcodec-*.dll`) est détectée et remplacée. Ou, à la main : télécharger `ffmpeg-n8.1-latest-win64-gpl-shared-8.1.zip` sur https://github.com/BtbN/FFmpeg-Builds/releases/tag/latest et copier le contenu de `bin\` dans `ffmpeg\`.
 
 **Non vérifié sous Windows au moment de l'écriture** : le correctif a été contrôlé par lecture et par l'analyseur de pièges de cmd, pas exécuté. Le résultat attendu : le contrôle affiche « OK - torchcodec encode le MP3 » et une génération en MP3 aboutit.

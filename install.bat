@@ -585,8 +585,15 @@ echo ATTENTION : FFmpeg n'a pas pu etre telecharge. Le rendu video et l'export M
 goto :ffmpeg_done
 :ffmpeg_extract
 powershell -Command "& {Expand-Archive -Path 'downloads\ffmpeg-shared.zip' -DestinationPath 'downloads\ffmpeg-extract' -Force}"
-powershell -Command "& {Get-ChildItem 'downloads\ffmpeg-extract\ffmpeg-*\bin\*' -Include *.exe,*.dll | Copy-Item -Destination 'ffmpeg' -Force}"
+REM Copie simple de bin\* ^(exe ET dll^) : la forme precedente ^(Get-ChildItem -Include^) n'a rien copie
+REM chez l'utilisateur, sans message ; celle-ci a ete verifiee a la main sur sa machine.
+powershell -Command "& {Copy-Item 'downloads\ffmpeg-extract\*\bin\*' 'ffmpeg' -Force}"
 if exist "downloads\ffmpeg-extract" rmdir /s /q "downloads\ffmpeg-extract"
+if exist "ffmpeg\avcodec-*.dll" goto :ffmpeg_ok
+echo ATTENTION : les DLL d'FFmpeg n'ont pas ete copiees dans ffmpeg. L'export MP3 echouera.
+echo   Copie manuelle : voir TROUBLESHOOTING.md, section 47.
+goto :ffmpeg_done
+:ffmpeg_ok
 echo [OK] FFmpeg installe
 :ffmpeg_done
 
