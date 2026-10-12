@@ -400,16 +400,27 @@ if errorlevel 1 (
     echo   ATTENTION : torchaudio/torchcodec absents de l'index %CUDA_VERSION% - repli sur PyPI.
     uv pip install torchaudio==%TORCHAUDIO_VERSION% torchcodec
 )
-REM Controle 1 : torch doit pouvoir s'importer. Un echec ici n'est PAS une roue CPU : l'erreur
-REM affichee dit pourquoi ^(DLL bloquee, Visual C++ manquant...^).
-.venv\Scripts\python.exe -c "import torch"
-if errorlevel 1 (
-    echo ERREUR : PyTorch est installe mais ne s'importe pas ^(voir l'erreur ci-dessus^).
-    echo   Une strategie de controle d'application ^(Smart App Control, WDAC^) ou un Visual C++
-    echo   Redistributable manquant sont les causes habituelles. Voir TROUBLESHOOTING.md.
-    pause
-    exit /b 1
-)
+REM Controle 1 : torch et torchaudio doivent pouvoir s'importer. Un echec ici n'est PAS une roue CPU.
+REM Windows a bloque ces fichiers de facon INTERMITTENTE ^("strategie de controle d'application"^) :
+REM refuse a un essai, accepte quelques instants plus tard ^(constate sur torchaudio, puis sur torch._C
+REM juste apres la creation du venv^). On reessaie donc quelques fois avant de conclure a un echec.
+set "TORCH_TRY=0"
+:torch_try
+.venv\Scripts\python.exe -c "import torch, torchaudio" >nul 2>"%TEMP%\torch_check.txt"
+if not errorlevel 1 goto :torch_import_ok
+set /a TORCH_TRY+=1
+if %TORCH_TRY% GEQ 6 goto :torch_blocked
+echo   Import de PyTorch refuse ^(essai %TORCH_TRY% sur 6^) - nouvel essai dans 20 secondes...
+timeout /t 20 /nobreak >nul
+goto :torch_try
+:torch_blocked
+type "%TEMP%\torch_check.txt"
+echo ERREUR : PyTorch est installe mais ne s'importe pas ^(erreur ci-dessus, 6 essais^).
+echo   Une strategie de controle d'application ^(Smart App Control, WDAC^) ou un Visual C++
+echo   Redistributable manquant sont les causes habituelles. Voir TROUBLESHOOTING.md ^(section 46^).
+pause
+exit /b 1
+:torch_import_ok
 REM Controle 2 : torch doit etre la version CUDA, pas la roue CPU de PyPI.
 .venv\Scripts\python.exe -c "import sys, torch; print('torch', torch.__version__); sys.exit(0 if '+cu' in torch.__version__ else 1)"
 if errorlevel 1 (

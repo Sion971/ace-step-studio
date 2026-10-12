@@ -2094,6 +2094,15 @@ L'installateur affichait alors, à tort, « PyTorch installé est la version CPU
 
 **Résultat du premier test complet (Windows 11, RTX 5060).** Le blocage a disparu après l'installation de Python 3.12.10 depuis python.org, alors que `uv` utilisait toujours son propre CPython 3.12.14 : la cause exacte reste donc inconnue (l'hypothèse « Python non signé » seule ne l'explique pas). L'installation complète a ensuite réussi : test fonctionnel de flash-attn réussi sur la carte, triton-windows 3.8.0 installé ; `torchcodec` s'importait, mais l'encodage MP3 échouait ensuite (§47). Deux défauts mineurs relevés puis corrigés : le contrôle de `Python.h` cherchait au mauvais endroit (téléchargement 404 inutile) et `patch-pytorch-wavelets.py` ne pouvait pas corriger l'erreur `pkg_resources`.
 
+**Retour du blocage (2026-10-12).** Sur le même PC, l'installation a de nouveau échoué : `ImportError: DLL load failed while importing _C: Une stratégie de contrôle d'application a bloqué ce fichier`, cette fois sur `torch._C`, juste après la création d'un environnement neuf (les trois installations précédentes avaient réussi, avec le même Python de `uv`). Le blocage est donc **intermittent** : il a déjà touché `torchaudio` au premier lancement du moteur, puis passé à l'essai suivant, une minute plus tard. Hypothèse (non prouvée) : Windows évalue les fichiers récemment écrits et en refuse d'abord le chargement. Mesure prise : `install.bat` réessaie l'import de `torch` et `torchaudio` jusqu'à 6 fois, à 20 secondes d'intervalle, avant de s'arrêter. En attendant, relancer simplement la commande ou `install.bat` suffit souvent.
+
+**Pour identifier la cause**, dans PowerShell :
+```
+Get-WinEvent -LogName "Microsoft-Windows-CodeIntegrity/Operational" -MaxEvents 30 | Where-Object { $_.Id -in 3076,3077,3033,3034 } | Format-List TimeCreated,Id,Message
+(Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy).VerifiedAndReputablePolicyState
+```
+Le premier affiche les fichiers refusés et la stratégie en cause. Le second donne l'état de Smart App Control : 0 = désactivé, 1 = activé, 2 = en évaluation.
+
 **Limites.** Le contournement automatique (Python du système) n'a pas été exécuté sous Windows. Le même blocage pourrait toucher d'autres fichiers non signés (Node.js, FFmpeg, les wheels de flash-attn ou de triton-windows) : on ne le saura qu'en allant plus loin.
 
 ## 47. Windows : l'export MP3 échoue (« Could not load libtorchcodec »)
