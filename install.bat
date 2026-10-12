@@ -614,14 +614,24 @@ REM torchcodec" reussissait meme quand les DLL d'FFmpeg manquaient : le defaut n
 REM premiere generation en MP3.
 if "%CUDA_VERSION%"=="cpu" goto :tc_done
 set "PATH=%SCRIPT_DIR%ffmpeg;%PATH%"
+REM Smart App Control ^(actif sur ce PC, voir TROUBLESHOOTING section 46^) refuse parfois une DLL
+REM inconnue ^(torchcodec\libavif.dll constate^) puis l'accepte plus tard : on reessaie 4 fois.
+set "TC_TRY=0"
+:tc_try
 .venv\Scripts\python.exe -c "import torch; from torchcodec.encoders import AudioEncoder; AudioEncoder(torch.zeros(2,48000), sample_rate=48000).to_tensor(format='mp3')" >nul 2>"%TEMP%\tc_check.txt"
-if errorlevel 1 (
-    echo   ATTENTION : l'encodage MP3 via torchcodec echoue ^(derniere ligne de l'erreur ci-dessous^).
-    echo   Utilisez FLAC ou WAV comme format de sortie. Voir TROUBLESHOOTING.md.
-    powershell -Command "& {Get-Content '%TEMP%\tc_check.txt' -Tail 2}"
-) else (
-    echo   OK - torchcodec encode le MP3.
-)
+if not errorlevel 1 goto :tc_ok
+set /a TC_TRY+=1
+if %TC_TRY% GEQ 4 goto :tc_failed
+echo   Encodage MP3 refuse ^(essai %TC_TRY% sur 4^) - nouvel essai dans 20 secondes...
+timeout /t 20 /nobreak >nul
+goto :tc_try
+:tc_failed
+echo   ATTENTION : l'encodage MP3 via torchcodec echoue ^(derniere ligne de l'erreur ci-dessous^).
+echo   Utilisez FLAC ou WAV comme format de sortie. Voir TROUBLESHOOTING.md.
+powershell -Command "& {Get-Content '%TEMP%\tc_check.txt' -Tail 2}"
+goto :tc_done
+:tc_ok
+echo   OK - torchcodec encode le MP3.
 :tc_done
 
 REM === 12. Migration de la base =================================================
@@ -635,10 +645,17 @@ REM Environnement SEPARE - CONFIRME NECESSAIRE : basic-pitch entraine tensorflow
 REM tensorboard^<2.16, or ace-step exige tensorboard>=2.20.0. Un second venv evite ce conflit
 REM ^(meme logique que sous Linux^). Python 3.11 ici : tensorflow n'a pas de roue pour 3.12.
 echo [13/13] Environnement basic-pitch ^(conversion MIDI^)...
-if exist ".venv-basicpitch\Scripts\python.exe" (
-    echo [OK] Environnement basic-pitch deja installe
-    goto :basicpitch_done
-)
+REM Un environnement existant n'est conserve que s'il FONCTIONNE ^(un numpy 2 installe par erreur le
+REM rendait inutilisable, et l'ancien test "le python.exe existe" le gardait indefiniment^).
+if not exist ".venv-basicpitch\Scripts\python.exe" goto :bp_create
+.venv-basicpitch\Scripts\python.exe -c "from basic_pitch.inference import predict" >nul 2>nul
+if errorlevel 1 goto :bp_recreate
+echo [OK] Environnement basic-pitch deja installe
+goto :basicpitch_done
+:bp_recreate
+echo   Environnement basic-pitch inutilisable - recreation...
+rmdir /s /q ".venv-basicpitch"
+:bp_create
 uv venv --python 3.11 .venv-basicpitch
 if errorlevel 1 (
     echo   ATTENTION : creation de l'environnement basic-pitch impossible - la conversion MIDI ne fonctionnera pas.
@@ -648,7 +665,9 @@ REM Version figee : sans elle, pip peut reculer vers d'anciennes versions de bas
 REM un numpy anterieur a 1.24. setuptools^<81 EXPLICITE : depuis setuptools 82, pkg_resources n'est
 REM plus fourni par defaut, et resampy ^(dependance de basic-pitch^) l'importe sans le declarer.
 uv pip install --python .venv-basicpitch\Scripts\python.exe "setuptools<81"
-uv pip install --python .venv-basicpitch\Scripts\python.exe "basic-pitch[onnx]==0.4.0"
+REM numpy^<2 EXPLICITE : le resolveur de uv choisit tensorflow 2.14 avec numpy 2.x ^(import impossible :
+REM "module compiled using NumPy 1.x cannot be run in NumPy 2"^) ; avec numpy^<2 il retient tensorflow 2.15.
+uv pip install --python .venv-basicpitch\Scripts\python.exe "numpy<2" "basic-pitch[onnx]==0.4.0"
 .venv-basicpitch\Scripts\python.exe -c "from basic_pitch.inference import predict"
 if errorlevel 1 (
     echo   ATTENTION : basic-pitch ne s'importe pas correctement ^(voir l'erreur ci-dessus^). La conversion MIDI ne fonctionnera pas.

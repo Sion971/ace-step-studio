@@ -2103,6 +2103,12 @@ Get-WinEvent -LogName "Microsoft-Windows-CodeIntegrity/Operational" -MaxEvents 3
 ```
 Le premier affiche les fichiers refusés et la stratégie en cause. Le second donne l'état de Smart App Control : 0 = désactivé, 1 = activé, 2 = en évaluation.
 
+**Cause établie (2026-10-12).** `(Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy).VerifiedAndReputablePolicyState` renvoie **1** : Smart App Control est **activé**. Le journal CodeIntegrity (événements 3033 et 3077) montre les refus : `DLLs\_decimal.pyd` du Python de `uv` (quatre refus entre 15:23 et 15:25), puis `torchcodec\libavif.dll` (15:25:11), avec « did not meet the Enterprise signing level requirements or violated code integrity policy » (stratégie {0283ac0f-fff1-49ae-ada1-8a933130cad6}). Ces fichiers ne sont pas corrompus : Windows refuse de charger des binaires non signés qu'il ne connaît pas. Smart App Control s'appuie sur un service de réputation en ligne ; l'intermittence observée (refus, puis accepté quelques instants plus tard) est compatible avec cette évaluation, mais ce mécanisme précis n'est pas prouvé.
+
+**Ce que fait l'installateur** : il réessaie l'import de `torch` et `torchaudio` (6 fois) et l'encodage MP3 de `torchcodec` (4 fois), à 20 secondes d'intervalle. Un blocage durable resterait possible. **Solutions de fond** : installer Python 3.12 depuis python.org (binaires signés) ; ou désactiver Smart App Control (Sécurité Windows > Contrôle des applications et du navigateur). Attention : Windows ne permet pas de le réactiver ensuite sans réinitialiser le système, et il n'offre pas d'exclusion par dossier. À ne faire qu'en connaissance de cause.
+
+**basic-pitch et numpy 2.** Sur une installation neuve, `uv` a résolu basic-pitch vers tensorflow 2.14 avec numpy 2.4 (`A module that was compiled using NumPy 1.x cannot be run in NumPy 2`) ; Linux, qui utilise pip, n'est pas concerné. `install.bat` impose maintenant `numpy<2` (le résolveur retient alors tensorflow 2.15, vérifié) et recrée un environnement `.venv-basicpitch` existant s'il n'importe pas `basic_pitch`.
+
 **Limites.** Le contournement automatique (Python du système) n'a pas été exécuté sous Windows. Le même blocage pourrait toucher d'autres fichiers non signés (Node.js, FFmpeg, les wheels de flash-attn ou de triton-windows) : on ne le saura qu'en allant plus loin.
 
 ## 47. Windows : l'export MP3 échoue (« Could not load libtorchcodec »)
