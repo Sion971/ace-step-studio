@@ -131,6 +131,47 @@ class AudioSaver:
             logger.warning(f"Unsupported format {default_format}, using 'flac'")
             self.default_format = "flac"
     
+    # Niveau de compression libsndfile (MP3, debit constant) -> debit. Valeurs mesurees avec
+    # libsndfile 1.2.2 (celui de soundfile 0.14) : 0.0 -> 320k, 0.15 -> 256k, 0.42 -> 192k, 0.65 -> 128k.
+    _MP3_SOUNDFILE_LEVELS = {"128k": 0.65, "192k": 0.42, "256k": 0.15, "320k": 0.0}
+
+    def _save_mp3_soundfile(
+        self,
+        audio_tensor: torch.Tensor,
+        output_path: Path,
+        sample_rate: int,
+        bitrate: str,
+    ) -> bool:
+        """Encode le MP3 directement avec libsndfile (soundfile), sans ffmpeg ni torchcodec.
+
+        Retourne True si le fichier est ecrit, False si l'appelant doit se rabattre sur ffmpeg.
+        Sous Windows, Smart App Control peut empecher ffmpeg.exe de demarrer (TROUBLESHOOTING.md) ;
+        libsndfile est deja charge pour le FLAC.
+        """
+        try:
+            import soundfile as sf
+
+            if "MP3" not in sf.available_formats():
+                return False
+            data = audio_tensor.detach().cpu().float().transpose(0, 1).contiguous().numpy()
+            sf.write(
+                str(output_path),
+                data,
+                int(sample_rate),
+                format="MP3",
+                bitrate_mode="CONSTANT",
+                compression_level=self._MP3_SOUNDFILE_LEVELS[bitrate],
+            )
+            logger.debug(f"[AudioSaver] Saved audio to {output_path} (mp3 via soundfile, {sample_rate}Hz, {bitrate})")
+            return True
+        except Exception as e:
+            logger.warning(f"[AudioSaver] MP3 via soundfile indisponible ({e}) ; essai avec ffmpeg")
+            try:
+                Path(output_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+            return False
+
     def _save_mp3(
         self,
         audio_tensor: torch.Tensor,
@@ -139,7 +180,7 @@ class AudioSaver:
         mp3_bitrate: Optional[str] = None,
         mp3_sample_rate: Optional[int] = None,
     ) -> None:
-        """Save MP3 with explicit ffmpeg settings and 128k/48k defaults."""
+        """Save MP3 (128k/48k by default): soundfile first, ffmpeg as fallback."""
         bitrate = str(mp3_bitrate or self.MP3_DEFAULT_BITRATE).strip().lower()
         if bitrate not in self.MP3_ALLOWED_BITRATES:
             bitrate = self.MP3_DEFAULT_BITRATE
@@ -154,6 +195,9 @@ class AudioSaver:
         tensor_to_save = audio_tensor
         if int(input_sample_rate) != int(target_sample_rate):
             tensor_to_save = torchaudio.functional.resample(audio_tensor, int(input_sample_rate), int(target_sample_rate))
+
+        if self._save_mp3_soundfile(tensor_to_save, output_path, int(target_sample_rate), bitrate):
+            return
 
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_wav:
             temp_wav_path = Path(temp_wav.name)
