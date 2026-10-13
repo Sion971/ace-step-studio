@@ -85,6 +85,11 @@ def init_handler(AceStepHandler, args, ace_root: str):
             f"{[m for m in dir(handler) if not m.startswith('_')][:40]}"
         )
 
+    # initialize_service exige config_path : a defaut, modele du moteur (DEFAULT_MODEL),
+    # puis le repli du moteur lui-meme.
+    if not args.config:
+        args.config = os.environ.get("DEFAULT_MODEL") or "acestep-v15-turbo"
+
     wanted = {
         "project_root": ace_root,
         "checkpoint_path": args.checkpoint,

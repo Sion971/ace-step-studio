@@ -357,7 +357,11 @@ router.post('/preprocess', authMiddleware, async (req: AuthenticatedRequest, res
     }
     const scriptPath = path.resolve(__dirname, '../../scripts/preprocess_dataset.py');
     const pythonPath = resolvePythonPath(aceStepDir);
-    const resolvedOutput = outputDir || path.join(config.datasets.dir, 'preprocessed_tensors');
+    // Chemin relatif : resolu depuis ACE-Step-1.5, comme le fait le script Python (cwd = aceStepDir).
+    // Sans cela, mkdir creait un dossier datasets/ parasite a la racine du Studio.
+    const resolvedOutput = outputDir
+      ? (path.isAbsolute(outputDir) ? outputDir : path.resolve(aceStepDir, outputDir))
+      : path.join(config.datasets.dir, 'preprocessed_tensors');
 
     // Ensure output dir exists
     await mkdir(resolvedOutput, { recursive: true });
@@ -367,6 +371,10 @@ router.post('/preprocess', authMiddleware, async (req: AuthenticatedRequest, res
       scriptPath,
       '--dataset', datasetPath,
       '--output', resolvedOutput,
+      // Meme modele que le moteur ; le script exige un config_path.
+      '--config', config.pipeline.defaultModel,
+      '--offload',
+      '--quantization',
       '--json',
     ], {
       cwd: aceStepDir,
@@ -389,8 +397,16 @@ router.post('/preprocess', authMiddleware, async (req: AuthenticatedRequest, res
           res.json({ status: 'Preprocessing complete', output: stdout.trim() });
         }
       } else {
+        // Cause reelle : message du JSON final du script, sinon dernieres lignes de stderr.
+        let detail = '';
+        try {
+          const last = JSON.parse(stdout.trim().split('\n').pop() || '{}');
+          if (last && typeof last.message === 'string') detail = last.message;
+        } catch { /* sortie non JSON */ }
+        if (!detail) detail = stderr.trim().split('\n').slice(-5).join(' | ');
+        console.error('[Training] Preprocess failed (code ' + code + '):\n' + stderr.trim());
         res.status(500).json({
-          error: 'Preprocessing failed',
+          error: detail ? `Preprocessing failed: ${detail}` : 'Preprocessing failed',
           code,
           stderr: stderr.trim(),
           stdout: stdout.trim(),

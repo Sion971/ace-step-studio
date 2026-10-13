@@ -2152,3 +2152,15 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 **Mise à jour.** Relancer `install.bat` (les environnements déjà en place ne sont pas refaits), puis `run.bat`.
 
 **Non vérifié sous Windows au moment de l'écriture** : résolution des paquets contrôlée à distance pour Windows et Python 3.11 (30 paquets, tous en roues binaires), mais ni la séparation ni la conversion MIDI n'ont encore été essayées de bout en bout sur ce système.
+
+## 49. Prétraitement LoRA : « 500: Preprocessing failed »
+
+**Symptôme.** Le bouton « Prétraiter en tenseurs » renvoie `Error: 500: Preprocessing failed`, sans autre précision.
+
+**Cause (2026-10-13).** Le serveur lançait `preprocess_dataset.py` sans `--config`. Le script appelle `initialize_service()`, dont `config_path` est obligatoire : `missing 1 required positional argument: 'config_path'`. Le script n'était pas non plus lancé avec `--offload --quantization`, indispensables sur une carte de 8 Go.
+
+**Dossier `datasets` en double.** Le serveur créait le dossier de sortie (chemin relatif `./datasets/preprocessed_tensors`) depuis la racine du Studio, alors que Python résout ce chemin depuis `ACE-Step-1.5`. Il en résultait un dossier vide `datasets/` à la racine. Les chemins relatifs sont maintenant résolus depuis `ACE-Step-1.5`. Le dossier parasite peut être supprimé.
+
+**Correctif.** Le serveur passe `--config` (le modèle du moteur, `DEFAULT_MODEL`), `--offload` et `--quantization`. En cas d'échec, l'interface affiche la cause (message du script ou dernières lignes de stderr) et le serveur l'écrit dans sa console.
+
+**À vérifier.** Prétraitement avec le moteur démarré (les deux modèles sont alors en mémoire sur 8 Go) : non testé au moment de l'écriture. Les tenseurs doivent correspondre au modèle sur lequel on entraîne.
