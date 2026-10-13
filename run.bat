@@ -214,6 +214,39 @@ if "%GRADIO_ONLY%"=="true" (
     goto :end
 )
 
+REM === Attente Smart App Control ==================================================
+REM install.bat cree sac_pending.txt quand Windows refusait encore des fichiers natifs a la fin de l'installation.
+REM On attend ici qu'il les accepte ^(20 minutes au plus^) plutot que de laisser le moteur echouer en boucle.
+if not exist "%SCRIPT_DIR%sac_pending.txt" goto :sac_wait_done
+set "SAC_TRY=0"
+echo.
+echo Windows verifie encore certains fichiers de l'installation ^(Smart App Control^). Attente en cours...
+:sac_wait
+set "SAC_BAD=0"
+"%PYTHON_PATH%" "%SCRIPT_DIR%check-imports.py" main 2>nul
+if errorlevel 1 set "SAC_BAD=1"
+if exist "%SCRIPT_DIR%.venv-basicpitch\Scripts\python.exe" (
+    "%SCRIPT_DIR%.venv-basicpitch\Scripts\python.exe" "%SCRIPT_DIR%check-imports.py" basicpitch 2>nul
+    if errorlevel 1 set "SAC_BAD=1"
+)
+if exist "%SCRIPT_DIR%.venv-demucs\Scripts\python.exe" (
+    "%SCRIPT_DIR%.venv-demucs\Scripts\python.exe" "%SCRIPT_DIR%check-imports.py" demucs 2>nul
+    if errorlevel 1 set "SAC_BAD=1"
+)
+if "%SAC_BAD%"=="0" goto :sac_wait_ok
+set /a SAC_TRY+=1
+if %SAC_TRY% GEQ 60 goto :sac_wait_giveup
+echo   Essai %SAC_TRY% sur 60 - nouvel essai dans 20 secondes...
+timeout /t 20 /nobreak >nul
+goto :sac_wait
+:sac_wait_giveup
+echo   Des fichiers sont toujours refuses : demarrage quand meme ^(le moteur reessaiera^).
+goto :sac_wait_done
+:sac_wait_ok
+del "%SCRIPT_DIR%sac_pending.txt"
+echo   OK - Windows a accepte les fichiers.
+:sac_wait_done
+
 REM === npm dependencies ===========================================================
 if not exist "app\node_modules" (
     echo Installing npm dependencies ^(frontend^)...

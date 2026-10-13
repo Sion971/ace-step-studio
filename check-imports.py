@@ -53,9 +53,18 @@ def main(argv):
         print(f"  [{name}] tous les modules se chargent.")
         return 0
     for module, err in bad:
-        lines = str(err).strip().splitlines()
-        last = lines[-1] if lines else type(err).__name__
-        print(f"  [{name}] REFUSE : {module} - {type(err).__name__}: {last[:200]}")
+        # Message de l'exception ET de sa cause (ex. numba : "failed to import" cache le vrai message
+        # "DLL load failed ... stratégie de contrôle d'application").
+        parts, e = [], err
+        while e is not None and len(parts) < 4:
+            lines = str(e).strip().splitlines()
+            parts.append(lines[-1] if lines else type(e).__name__)
+            e = e.__cause__ or e.__context__
+        text = " | ".join(parts)
+        low = text.lower()
+        sac = "4551" in low or ("application" in low and ("contr" in low or "control" in low))
+        tag = "Smart App Control" if sac else "autre erreur"
+        print(f"  [{name}] REFUSE ({tag}) : {module} - {type(err).__name__}: {text[:260]}")
     return 1
 
 

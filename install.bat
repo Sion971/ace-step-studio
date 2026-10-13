@@ -724,14 +724,14 @@ echo Controle final des fichiers natifs ^(jusqu'a %SAC_MAX% essais, 30 secondes 
 set "SAC_TRY=0"
 :sac_try
 set "SAC_BAD=0"
-.venv\Scripts\python.exe check-imports.py main
+.venv\Scripts\python.exe check-imports.py main 2>nul
 if errorlevel 1 set "SAC_BAD=1"
 if exist ".venv-basicpitch\Scripts\python.exe" (
-    .venv-basicpitch\Scripts\python.exe check-imports.py basicpitch
+    .venv-basicpitch\Scripts\python.exe check-imports.py basicpitch 2>nul
     if errorlevel 1 set "SAC_BAD=1"
 )
 if exist ".venv-demucs\Scripts\python.exe" (
-    .venv-demucs\Scripts\python.exe check-imports.py demucs
+    .venv-demucs\Scripts\python.exe check-imports.py demucs 2>nul
     if errorlevel 1 set "SAC_BAD=1"
 )
 if exist "ffmpeg\ffmpeg.exe" (
@@ -751,12 +751,15 @@ goto :sac_try
 set "SAC_FAILED=1"
 echo.
 echo   ATTENTION : des fichiers sont toujours refuses ^(liste ci-dessus^). Ce n'est pas une erreur d'installation :
-echo   Smart App Control les accepte en general au bout de quelques minutes a une demi-heure. Relancez
-echo   install.bat plus tard ^(il ne refait que ce qui manque^), ou lancez run.bat : il reessaie pendant
-echo   une dizaine de minutes. Details : TROUBLESHOOTING.md, section 46.
+echo   Smart App Control les accepte en general au bout de quelques minutes a une demi-heure.
+echo   Lancez simplement run.bat : il attend automatiquement ^(20 minutes au plus^) que Windows ait fini.
+echo   Ne relancez pas install.bat pour cela : il recree .venv et fait repartir l'attente de zero.
+echo   Details : TROUBLESHOOTING.md, section 46.
+echo en attente> sac_pending.txt
 goto :sac_done
 :sac_ok
 echo [OK] Tous les fichiers natifs se chargent.
+if exist "sac_pending.txt" del "sac_pending.txt"
 :sac_done
 
 REM === Configuration GPU enregistree ===========================================
