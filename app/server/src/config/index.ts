@@ -19,7 +19,8 @@ export const config = {
     port: parseInt(process.env.ACESTEP_PORT || '8001', 10),
     healthCheckInterval: 10_000,  // 10 seconds
     startupTimeout: 300_000,     // 5 minutes (model loading is slow)
-    maxRestarts: 10,
+    // 10 par defaut ; run.bat le releve pour Windows (Smart App Control, voir TROUBLESHOOTING.md section 46).
+    maxRestarts: Number.parseInt(process.env.PIPELINE_MAX_RESTARTS || '', 10) || 10,
     backoffBase: 500,            // ms, doubles each restart
     backoffMax: 15_000,          // 15 seconds max
   },

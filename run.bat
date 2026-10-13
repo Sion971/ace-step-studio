@@ -147,6 +147,9 @@ set "PATH=%SCRIPT_DIR%node;%PATH%"
 REM === Pipeline config ===========================================================
 set "PYTHON_PATH=%SCRIPT_DIR%.venv\Scripts\python.exe"
 set "ACESTEP_PATH=%SCRIPT_DIR%ACE-Step-1.5"
+REM Smart App Control peut refuser un fichier natif pendant plusieurs minutes ^(TROUBLESHOOTING.md, section 46^) :
+REM on laisse le gestionnaire relancer le moteur plus longtemps avant d'abandonner ^(10 par defaut, environ 2 min 30^).
+if not defined PIPELINE_MAX_RESTARTS set "PIPELINE_MAX_RESTARTS=40"
 REM Python des environnements isoles ^(conversion MIDI et separation de stems^), crees par install.bat.
 REM Sans ces variables, le serveur cherche des chemins Linux ^(bin/python3^) et ne trouve rien sous Windows.
 set "BASIC_PITCH_PYTHON_PATH=%SCRIPT_DIR%.venv-basicpitch\Scripts\python.exe"

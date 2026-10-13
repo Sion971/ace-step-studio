@@ -608,30 +608,24 @@ goto :ffmpeg_done
 echo [OK] FFmpeg installe
 :ffmpeg_done
 
-REM Verification de torchcodec ^(INFORMATIVE^) : on encode reellement 1 seconde en MP3, c'est ce que fait
-REM la generation ^(torchaudio.save passe par torchcodec pour TOUS les formats^). Un simple "import
-REM torchcodec" reussissait meme quand les DLL d'FFmpeg manquaient : le defaut n'apparaissait qu'a la
-REM premiere generation en MP3.
-if "%CUDA_VERSION%"=="cpu" goto :tc_done
-set "PATH=%SCRIPT_DIR%ffmpeg;%PATH%"
-REM Smart App Control ^(actif sur ce PC, voir TROUBLESHOOTING section 46^) refuse parfois une DLL
-REM inconnue ^(torchcodec\libavif.dll constate^) puis l'accepte plus tard : on reessaie 4 fois.
-set "TC_TRY=0"
-:tc_try
-.venv\Scripts\python.exe -c "import torch; from torchcodec.encoders import AudioEncoder; AudioEncoder(torch.zeros(2,48000), sample_rate=48000).to_tensor(format='mp3')" >nul 2>"%TEMP%\tc_check.txt"
-if not errorlevel 1 goto :tc_ok
-set /a TC_TRY+=1
-if %TC_TRY% GEQ 4 goto :tc_failed
-echo   Encodage MP3 refuse ^(essai %TC_TRY% sur 4^) - nouvel essai dans 20 secondes...
+REM Verification de l'export MP3 ^(INFORMATIVE^) : le moteur encode le MP3 avec libsndfile ^(soundfile^), sans
+REM programme externe. On ecrit reellement 0,1 seconde en MP3 avec ce meme chemin.
+set "MP3_TRY=0"
+:mp3_try
+.venv\Scripts\python.exe -c "import numpy as np, soundfile as sf, os, tempfile; p = os.path.join(tempfile.gettempdir(), 'ace_mp3_check.mp3'); assert 'MP3' in sf.available_formats(); sf.write(p, np.zeros((4800, 2), dtype='float32'), 48000, format='MP3'); assert os.path.getsize(p) > 0" >nul 2>"%TEMP%\mp3_check.txt"
+if not errorlevel 1 goto :mp3_ok
+set /a MP3_TRY+=1
+if %MP3_TRY% GEQ 4 goto :mp3_failed
+echo   Encodage MP3 refuse ^(essai %MP3_TRY% sur 4^) - nouvel essai dans 20 secondes...
 timeout /t 20 /nobreak >nul
-goto :tc_try
-:tc_failed
-echo   ATTENTION : l'encodage MP3 via torchcodec echoue ^(derniere ligne de l'erreur ci-dessous^).
-echo   Utilisez FLAC ou WAV comme format de sortie. Voir TROUBLESHOOTING.md.
-powershell -Command "& {Get-Content '%TEMP%\tc_check.txt' -Tail 2}"
+goto :mp3_try
+:mp3_failed
+echo   ATTENTION : l'encodage MP3 par soundfile echoue ^(derniere ligne de l'erreur ci-dessous^).
+echo   Le moteur essaiera ffmpeg en secours ; sinon utilisez FLAC ou WAV. Voir TROUBLESHOOTING.md.
+powershell -Command "& {Get-Content '%TEMP%\mp3_check.txt' -Tail 2}"
 goto :tc_done
-:tc_ok
-echo   OK - torchcodec encode le MP3.
+:mp3_ok
+echo   OK - l'export MP3 fonctionne.
 :tc_done
 
 REM === 12. Migration de la base =================================================
@@ -681,7 +675,9 @@ REM Environnement SEPARE comme basic-pitch ^(meme logique que app/server/setup-d
 REM Memes versions figees que sous Linux, sans torchaudio : demucs.api ne l'utilise pas ^(il n'est requis que
 REM par ses modules d'entrainement^). Sous Windows, le torch de PyPI est la version CPU, ce qui suffit ici.
 echo [14/14] Environnement Demucs ^(separation de stems^)...
-set "TORCH_HOME=%~dp0models\torch"
+REM Meme dossier de cache Hugging Face que run.bat ^(HF_HOME^) : sinon le modele pre-telecharge ici
+REM est ignore au demarrage et re-telecharge a la premiere separation.
+set "HF_HOME=%~dp0models"
 if not exist ".venv-demucs\Scripts\python.exe" goto :dm_create
 .venv-demucs\Scripts\python.exe -c "import demucs.api" >nul 2>nul
 if errorlevel 1 goto :dm_recreate
@@ -718,12 +714,61 @@ echo   Telechargement du modele de separation ^(6 stems, quelques minutes^)...
 if errorlevel 1 echo   ATTENTION : modele non telecharge ^(il le sera au premier usage^).
 :demucs_done
 
+REM === Controle final : fichiers natifs et Smart App Control ====================
+REM Windows peut refuser TEMPORAIREMENT le chargement d'un fichier natif non signe, puis l'accepter quelques
+REM minutes plus tard ^(TROUBLESHOOTING.md, section 46^). On charge ici les modules sensibles de chaque
+REM environnement et on reessaie, pour que le premier lancement de run.bat ne tombe pas sur un refus.
+if not defined SAC_MAX set "SAC_MAX=12"
+echo.
+echo Controle final des fichiers natifs ^(jusqu'a %SAC_MAX% essais, 30 secondes d'intervalle^)...
+set "SAC_TRY=0"
+:sac_try
+set "SAC_BAD=0"
+.venv\Scripts\python.exe check-imports.py main
+if errorlevel 1 set "SAC_BAD=1"
+if exist ".venv-basicpitch\Scripts\python.exe" (
+    .venv-basicpitch\Scripts\python.exe check-imports.py basicpitch
+    if errorlevel 1 set "SAC_BAD=1"
+)
+if exist ".venv-demucs\Scripts\python.exe" (
+    .venv-demucs\Scripts\python.exe check-imports.py demucs
+    if errorlevel 1 set "SAC_BAD=1"
+)
+if exist "ffmpeg\ffmpeg.exe" (
+    ffmpeg\ffmpeg.exe -version >nul 2>nul
+    if errorlevel 1 (
+        echo   [ffmpeg] REFUSE : ffmpeg.exe ne demarre pas ^(rendu video et normalisation indisponibles pour l'instant^)
+        set "SAC_BAD=1"
+    )
+)
+if "%SAC_BAD%"=="0" goto :sac_ok
+set /a SAC_TRY+=1
+if %SAC_TRY% GEQ %SAC_MAX% goto :sac_failed
+echo   Essai %SAC_TRY% sur %SAC_MAX% - nouvel essai dans 30 secondes...
+timeout /t 30 /nobreak >nul
+goto :sac_try
+:sac_failed
+set "SAC_FAILED=1"
+echo.
+echo   ATTENTION : des fichiers sont toujours refuses ^(liste ci-dessus^). Ce n'est pas une erreur d'installation :
+echo   Smart App Control les accepte en general au bout de quelques minutes a une demi-heure. Relancez
+echo   install.bat plus tard ^(il ne refait que ce qui manque^), ou lancez run.bat : il reessaie pendant
+echo   une dizaine de minutes. Details : TROUBLESHOOTING.md, section 46.
+goto :sac_done
+:sac_ok
+echo [OK] Tous les fichiers natifs se chargent.
+:sac_done
+
 REM === Configuration GPU enregistree ===========================================
 echo %CUDA_VERSION%> cuda_version.txt
 
 echo.
 echo ========================================
-echo   Installation terminee avec succes.
+if defined SAC_FAILED (
+    echo   Installation terminee, AVEC DES AVERTISSEMENTS ^(voir ci-dessus^).
+) else (
+    echo   Installation terminee avec succes.
+)
 echo.
 echo   Demarrage : run.bat
 echo   Les modeles se telechargent au premier lancement.
