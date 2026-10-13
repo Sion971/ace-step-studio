@@ -1086,6 +1086,8 @@ router.get('/model-status', async (_req, res: Response) => {
 
 // GPU/System info endpoint - uses nvidia-smi for real data (cached 2s)
 let systemInfoCache: { data: any; ts: number } = { data: null, ts: 0 };
+// Sans nvidia-smi (CPU, AMD, Intel), on ne le relance qu'une fois par minute, sans afficher l'erreur de cmd.
+let nvidiaSmiRetryAt = 0;
 router.get('/system-info', async (_req, res: Response) => {
   const now = Date.now();
   if (systemInfoCache.data && now - systemInfoCache.ts < 2000) {
@@ -1099,9 +1101,10 @@ router.get('/system-info', async (_req, res: Response) => {
   let gpu = 'N/A', vram_total = 0, vram_used = 0, gpu_util = 0, gpu_temp = 0;
 
   try {
+    if (now < nvidiaSmiRetryAt) throw new Error('nvidia-smi indisponible');
     const smi = execSync(
       'nvidia-smi --query-gpu=name,memory.total,memory.used,utilization.gpu,temperature.gpu --format=csv,noheader,nounits',
-      { encoding: 'utf-8', timeout: 3000 }
+      { encoding: 'utf-8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }
     ).trim();
     const parts = smi.split(',').map(s => s.trim());
     gpu = parts[0] || 'NVIDIA GPU';
@@ -1109,7 +1112,9 @@ router.get('/system-info', async (_req, res: Response) => {
     vram_used = Math.round(parseInt(parts[2] || '0') / 1024 * 10) / 10;
     gpu_util = parseInt(parts[3] || '0');
     gpu_temp = parseInt(parts[4] || '0');
-  } catch {}
+  } catch {
+    if (now >= nvidiaSmiRetryAt) nvidiaSmiRetryAt = now + 60_000;
+  }
 
   const totalMem = Math.round(os.totalmem() / 1024 / 1024 / 1024 * 10) / 10;
   const freeMem = Math.round(os.freemem() / 1024 / 1024 / 1024 * 10) / 10;

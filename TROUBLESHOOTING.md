@@ -2164,3 +2164,13 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 **Correctif.** Le serveur passe `--config` (le modèle du moteur, `DEFAULT_MODEL`), `--offload` et `--quantization`. En cas d'échec, l'interface affiche la cause (message du script ou dernières lignes de stderr) et le serveur l'écrit dans sa console.
 
 **À vérifier.** Prétraitement avec le moteur démarré (les deux modèles sont alors en mémoire sur 8 Go) : non testé au moment de l'écriture. Les tenseurs doivent correspondre au modèle sur lequel on entraîne.
+
+## 50. Windows : modèle par défaut selon la VRAM (profil matériel sous Windows)
+
+**Symptôme (2026-10-13).** Sur un PC sans GPU NVIDIA (Ryzen 5 5600G, option 3 « CPU »), `run.bat` lançait le moteur avec `marcorez8/acestep-v15-xl-turbo-bf16` (XL BF16, environ 9 Go) et le modèle de langage activé. Le premier lancement télécharge alors ce modèle inutilement et dépasse le délai de démarrage de 5 minutes. Cause : seul `install.sh` écrivait `hardware_profile.env` (§34, §35) ; `run.bat` imposait le XL à tout le monde.
+
+**Correctif.** `write-hardware-profile.py` (racine) applique les règles de §34 et écrit `hardware_profile.env` : palier ACE-Step d'après PyTorch (repli `nvidia-smi`), XL Turbo BF16 si la VRAM nominale est d'au moins 8 Go, sinon `acestep-v15-turbo` (2B), modèle de langage désactivé aux paliers 1 et 2, et en mode processeur délai de génération porté à 3600 s. `install.bat` l'appelle en fin d'installation. `run.bat` le lit, et le crée lui-même s'il manque (installation existante : un simple `git pull` suffit, sans réinstaller). Priorités : `DEFAULT_MODEL` déjà défini, puis `ACE-Step-1.5\.env`, puis le profil, puis l'ancien défaut. Pour une carte de 8 Go ou plus, le modèle reste `marcorez8/acestep-v15-xl-turbo-bf16` : rien ne change.
+
+**Autres changements.** `ACE-Step-1.5/.env.example` explique que le Studio choisit le modèle ; la route `/system-info` ne relance plus `nvidia-smi` qu'une fois par minute quand il est absent et n'affiche plus l'erreur de `cmd` (des centaines de lignes « nvidia-smi n'est pas reconnu » dans le journal).
+
+**Non vérifié sous Windows.** La logique Python est testée sous Linux avec un faux `nvidia-smi` (RTX 5060, GTX 1650, RTX 4090, mode CPU, sans `nvidia-smi`). Les lignes ajoutées à `run.bat` et `install.bat` ne sont contrôlées que par lecture. Le DiT 2B sur ce processeur n'a pas été mesuré ; les temps de §35 (14 à 16 fois la durée de l'audio) viennent d'un autre portable.

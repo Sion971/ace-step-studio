@@ -765,6 +765,12 @@ if exist "sac_pending.txt" del "sac_pending.txt"
 REM === Configuration GPU enregistree ===========================================
 echo %CUDA_VERSION%> cuda_version.txt
 
+REM === Profil materiel : modele par defaut selon la VRAM =======================
+REM Ecrit hardware_profile.env, lu par run.bat ^(meme logique que install.sh^).
+echo.
+.venv\Scripts\python.exe write-hardware-profile.py
+if errorlevel 1 echo   ATTENTION : le profil materiel n'a pas ete ecrit ^(run.bat le refera au prochain lancement^).
+
 echo.
 echo ========================================
 if defined SAC_FAILED (

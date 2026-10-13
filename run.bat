@@ -154,7 +154,24 @@ REM Python des environnements isoles ^(conversion MIDI et separation de stems^),
 REM Sans ces variables, le serveur cherche des chemins Linux ^(bin/python3^) et ne trouve rien sous Windows.
 set "BASIC_PITCH_PYTHON_PATH=%SCRIPT_DIR%.venv-basicpitch\Scripts\python.exe"
 set "DEMUCS_PYTHON_PATH=%SCRIPT_DIR%.venv-demucs\Scripts\python.exe"
+REM Profil materiel ^(install.bat, ou ici s'il manque^) : modele par defaut selon la VRAM, comme run.sh.
+REM Priorites : DEFAULT_MODEL deja defini, puis ACE-Step-1.5\.env ^(lu plus bas^), puis le profil, puis l'ancien defaut.
+if exist "%SCRIPT_DIR%hardware_profile.env" goto :hw_profile_read
+if not exist "%SCRIPT_DIR%write-hardware-profile.py" goto :hw_profile_done
+"%PYTHON_PATH%" "%SCRIPT_DIR%write-hardware-profile.py" 2>nul
+:hw_profile_read
+if not exist "%SCRIPT_DIR%hardware_profile.env" goto :hw_profile_done
+for /f "usebackq tokens=1,* delims==" %%a in ("%SCRIPT_DIR%hardware_profile.env") do (
+    set "line=%%a"
+    if "!line:~0,3!"=="HW_" set "%%a=%%b"
+)
+:hw_profile_done
+if not defined DEFAULT_MODEL if defined HW_DEFAULT_MODEL set "DEFAULT_MODEL=!HW_DEFAULT_MODEL!"
 if not defined DEFAULT_MODEL set "DEFAULT_MODEL=marcorez8/acestep-v15-xl-turbo-bf16"
+REM Aucun modele de langage aux paliers 1 et 2 ^(4 Go de VRAM ou moins, et mode processeur^).
+if /i "!HW_INIT_LLM!"=="false" if not defined INIT_LLM set "INIT_LLM=false" & set "ACESTEP_INIT_LLM=false"
+REM Mode processeur : la limite de 600 s d'ACE-Step est faite pour des GPU.
+if defined HW_GENERATION_TIMEOUT if not defined ACESTEP_GENERATION_TIMEOUT set "ACESTEP_GENERATION_TIMEOUT=!HW_GENERATION_TIMEOUT!"
 set "MANAGE_PIPELINE=true"
 set "PORT=%WEB_PORT%"
 
@@ -187,6 +204,17 @@ if "%NO_BROWSER%"=="true" set "NO_AUTO_BROWSER=true"
 if exist "cuda_version.txt" (
     set /p CUDA_VERSION=<cuda_version.txt
     echo GPU: !CUDA_VERSION!
+)
+if defined HW_GPU_NAME (
+    if /i "!HW_MODE!"=="cpu" (
+        echo Profil materiel : mode processeur, palier ACE-Step !HW_ACE_TIER!
+        echo Delai de generation : !ACESTEP_GENERATION_TIMEOUT! s
+    ) else (
+        echo Profil materiel : !HW_GPU_NAME!, !HW_VRAM_CLASS_GB! Go, palier ACE-Step !HW_ACE_TIER!
+    )
+    set "LM_TXT=active"
+    if /i "!INIT_LLM!"=="false" set "LM_TXT=desactive"
+    echo Modele par defaut : !DEFAULT_MODEL!, modele de langage !LM_TXT!
 )
 
 REM === Gradio-only mode ==========================================================
