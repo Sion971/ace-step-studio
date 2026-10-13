@@ -40,3 +40,5 @@ app/server/public/models/
 app/server/public/vendor/
 app/server/basic-pitch-venv/
 app/server/demucs-venv/
+.venv-basicpitch/
+.venv-demucs/

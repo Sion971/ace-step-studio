@@ -33,7 +33,7 @@ REM l'installation, quelle que soit la version de huggingface_hub installee.
 set "HF_XET_HIGH_PERFORMANCE=1"
 
 REM === 1. Arborescence ==========================================================
-echo [1/13] Creation des repertoires de travail...
+echo [1/14] Creation des repertoires de travail...
 if not exist "downloads" mkdir downloads
 if not exist "models" mkdir models
 if not exist "cache" mkdir cache
@@ -86,7 +86,7 @@ set "HW_SUGGESTED=2"
 if %HW_CC_INT% GEQ 75 set "HW_SUGGESTED=1"
 
 :hw_done
-echo [2/13] Materiel
+echo [2/14] Materiel
 if defined HW_GPU_NAME (
     set /a HW_VRAM_GB=^(HW_VRAM_MIB+512^)/1024
     echo   GPU detecte : !HW_GPU_NAME! - !HW_VRAM_GB! Go de VRAM, capacite de calcul !HW_CC!
@@ -294,7 +294,7 @@ echo [OK] uv deja installe
 goto :uv_done
 :uv_install
 if exist "%USERPROFILE%\.local\bin\uv.exe" goto :uv_path
-echo [3/13] Installation de uv...
+echo [3/14] Installation de uv...
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 if not exist "%USERPROFILE%\.local\bin\uv.exe" (
     echo ERREUR : l'installation de uv a echoue.
@@ -308,7 +308,7 @@ set "PATH=%USERPROFILE%\.local\bin;%PATH%"
 REM === 4. Environnement virtuel Python 3.12 =====================================
 REM Python 3.12 ^(et non plus 3.11^) : la roue flash-attn est cp312. Comme install.sh, on
 REM repart d'un environnement vierge : un ancien .venv en Python 3.11 serait inutilisable.
-echo [4/13] Environnement virtuel Python 3.12...
+echo [4/14] Environnement virtuel Python 3.12...
 if exist ".venv" (
     echo Suppression de l'ancien environnement pour un reset propre...
     rmdir /s /q ".venv"
@@ -363,7 +363,7 @@ REM Outils de build ^(pas de cmake ni ninja : aucune compilation sous Windows, r
 uv pip install hatchling editables setuptools wheel
 
 REM === 5. PyTorch ===============================================================
-echo [5/13] PyTorch %TORCH_VERSION% ^(%CUDA_NAME%^)...
+echo [5/14] PyTorch %TORCH_VERSION% ^(%CUDA_NAME%^)...
 if "%CUDA_VERSION%"=="cpu" goto :torch_cpu
 
 REM Garde AVANT telechargement : l'index PyTorch propose-t-il torch %TORCH_VERSION% pour cette
@@ -440,7 +440,7 @@ if errorlevel 1 (
 :torch_done
 
 REM === 6. Dependances d'ACE-Step ================================================
-echo [6/13] Dependances ACE-Step...
+echo [6/14] Dependances ACE-Step...
 REM nano-vllm en --no-deps : son pyproject epingle une roue flash-attn Windows cu128 / torch 2.7.1 /
 REM Python 3.11 ^(inutilisable ici^). Ses autres dependances ^(torch, transformers, xxhash^) sont
 REM installees explicitement plus bas.
@@ -515,7 +515,7 @@ REM Installer ace-step en dernier ^(toutes ses dependances sont deja satisfaites
 uv pip install -e ACE-Step-1.5/ --no-deps
 
 REM === 7. Correctifs ============================================================
-echo [7/13] Correctif pytorch_wavelets ^(pkg_resources^)...
+echo [7/14] Correctif pytorch_wavelets ^(pkg_resources^)...
 REM pytorch_wavelets ^(dependance de DCW^) utilise encore "from pkg_resources import resource_stream".
 REM Depuis setuptools 82, pkg_resources n'est plus fourni par defaut et l'import echoue
 REM silencieusement - DCW se desactive alors proprement. Correctif chirurgical du fichier
@@ -542,7 +542,7 @@ REM === 8. Node.js =============================================================
 if exist "node\node.exe" (
     echo [OK] Node.js deja installe
 ) else (
-    echo [8/13] Telechargement de Node.js 22 LTS...
+    echo [8/14] Telechargement de Node.js 22 LTS...
     if not exist "node" mkdir node
     powershell -Command "& {[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://nodejs.org/dist/v22.18.0/node-v22.18.0-win-x64.zip' -OutFile 'downloads\node.zip'}"
     if not exist "downloads\node.zip" (
@@ -557,7 +557,7 @@ if exist "node\node.exe" (
 )
 
 REM === 9. Dependances npm =======================================================
-echo [9/13] Dependances npm ^(frontend et serveur^)...
+echo [9/14] Dependances npm ^(frontend et serveur^)...
 set "PATH=%SCRIPT_DIR%node;%PATH%"
 
 echo   Frontend...
@@ -571,14 +571,14 @@ cd app\server
 call "%SCRIPT_DIR%node\npm.cmd" install
 
 REM === 10. Compilation du frontend ==============================================
-echo [10/13] Compilation du frontend...
+echo [10/14] Compilation du frontend...
 cd /d "%SCRIPT_DIR%"
 cd app
 call "%SCRIPT_DIR%node\npx.cmd" vite build
 
 REM === 11. FFmpeg ===============================================================
 cd /d "%SCRIPT_DIR%"
-echo [11/13] FFmpeg ^(rendu video^)...
+echo [11/14] FFmpeg ^(rendu video^)...
 REM FFmpeg en version PARTAGEE ^(avec ses DLL^) : torchcodec ^(donc torchaudio.save, donc l'export MP3^)
 REM charge les DLL d'FFmpeg. La version statique ^(ffmpeg.exe seul^) installee auparavant les omettait :
 REM "Could not load libtorchcodec" a la premiere generation en MP3. Branche 8.1 ^(torchcodec gere 4 a 9^),
@@ -637,14 +637,14 @@ echo   OK - torchcodec encode le MP3.
 REM === 12. Migration de la base =================================================
 REM La colonne 'kind' est ajoutee directement dans app/server/src/db/migrate.ts, qui s'execute
 REM automatiquement a CHAQUE demarrage de run.bat - rien a faire ici.
-echo [12/13] Migration de la base de donnees...
+echo [12/14] Migration de la base de donnees...
 echo   Geree automatiquement au demarrage de run.bat - rien a faire ici.
 
 REM === 13. Environnement basic-pitch ============================================
 REM Environnement SEPARE - CONFIRME NECESSAIRE : basic-pitch entraine tensorflow^<2.15.1, qui force
 REM tensorboard^<2.16, or ace-step exige tensorboard>=2.20.0. Un second venv evite ce conflit
 REM ^(meme logique que sous Linux^). Python 3.11 ici : tensorflow n'a pas de roue pour 3.12.
-echo [13/13] Environnement basic-pitch ^(conversion MIDI^)...
+echo [13/14] Environnement basic-pitch ^(conversion MIDI^)...
 REM Un environnement existant n'est conserve que s'il FONCTIONNE ^(un numpy 2 installe par erreur le
 REM rendait inutilisable, et l'ancien test "le python.exe existe" le gardait indefiniment^).
 if not exist ".venv-basicpitch\Scripts\python.exe" goto :bp_create
@@ -675,6 +675,48 @@ if errorlevel 1 (
     echo [OK] Environnement basic-pitch installe
 )
 :basicpitch_done
+
+REM === 14. Environnement Demucs ^(separation de stems^) ===========================
+REM Environnement SEPARE comme basic-pitch ^(meme logique que app/server/setup-demucs-venv.sh sous Linux^).
+REM Memes versions figees que sous Linux, sans torchaudio : demucs.api ne l'utilise pas ^(il n'est requis que
+REM par ses modules d'entrainement^). Sous Windows, le torch de PyPI est la version CPU, ce qui suffit ici.
+echo [14/14] Environnement Demucs ^(separation de stems^)...
+set "TORCH_HOME=%~dp0models\torch"
+if not exist ".venv-demucs\Scripts\python.exe" goto :dm_create
+.venv-demucs\Scripts\python.exe -c "import demucs.api" >nul 2>nul
+if errorlevel 1 goto :dm_recreate
+echo [OK] Environnement Demucs deja installe
+goto :demucs_done
+:dm_recreate
+echo   Environnement Demucs inutilisable - recreation...
+rmdir /s /q ".venv-demucs"
+:dm_create
+uv venv --python 3.11 .venv-demucs
+if errorlevel 1 (
+    echo   ATTENTION : creation de l'environnement Demucs impossible - la separation de stems ne fonctionnera pas.
+    goto :demucs_done
+)
+uv pip install --python .venv-demucs\Scripts\python.exe "torch==2.14.1" "demucs==4.1.0" "numpy==2.4.6"
+REM Smart App Control peut refuser un fichier non signe puis l'accepter plus tard : on reessaie ^(voir TROUBLESHOOTING.md^).
+set "DM_TRY=0"
+:dm_try
+.venv-demucs\Scripts\python.exe -c "import demucs.api" >nul 2>"%TEMP%\dm_check.txt"
+if not errorlevel 1 goto :dm_ok
+set /a DM_TRY+=1
+if %DM_TRY% GEQ 6 goto :dm_failed
+echo   Import de Demucs refuse ^(essai %DM_TRY% sur 6^) - nouvel essai dans 20 secondes...
+timeout /t 20 /nobreak >nul
+goto :dm_try
+:dm_failed
+echo   ATTENTION : Demucs ne s'importe pas ^(derniere ligne de l'erreur ci-dessous^). La separation de stems ne fonctionnera pas.
+powershell -Command "& {Get-Content '%TEMP%\dm_check.txt' -Tail 2}"
+goto :demucs_done
+:dm_ok
+echo [OK] Demucs installe
+echo   Telechargement du modele de separation ^(6 stems, quelques minutes^)...
+.venv-demucs\Scripts\python.exe -c "from demucs.pretrained import get_model; get_model('htdemucs_6s')"
+if errorlevel 1 echo   ATTENTION : modele non telecharge ^(il le sera au premier usage^).
+:demucs_done
 
 REM === Configuration GPU enregistree ===========================================
 echo %CUDA_VERSION%> cuda_version.txt

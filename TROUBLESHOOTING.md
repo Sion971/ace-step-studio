@@ -2134,3 +2134,15 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 **Non vérifié sous Windows au moment de l'écriture** : le correctif a été contrôlé par lecture et par l'analyseur de pièges de cmd, pas exécuté. Le résultat attendu : le contrôle affiche « OK - torchcodec encode le MP3 » et une génération en MP3 aboutit.
 
 **Export MP3 par soundfile (2026-10-12).** Sur le PC avec Smart App Control, la génération MP3 échouait avec `returned non-zero exit status 3236495362` : c'est `0xC0E90002`, le code de sortie de `ffmpeg.exe` lorsque Windows lui refuse une DLL (événement CodeIntegrity : `ffmpeg\avdevice-62.dll`, 20:14 et 20:16). Le moteur encode donc maintenant le MP3 **directement avec libsndfile** via `soundfile` (déjà utilisé pour le FLAC, donc déjà chargé), sans `ffmpeg.exe` ni torchcodec. `ffmpeg` reste le secours si `soundfile` ne sait pas écrire de MP3. Les débits 128k, 192k, 256k et 320k sont conservés (mode débit constant, niveau de compression correspondant mesuré avec libsndfile 1.2.2).
+
+## 48. Windows : « Demucs environment not found » (séparation de stems) et conversion MIDI
+
+**Symptôme (2026-10-12).** Sur Windows, la séparation de stems affiche une erreur « environnement introuvable ».
+
+**Cause.** Deux défauts, tous deux propres à Windows. (1) `install.bat` ne créait pas d'environnement Demucs (l'étape existait seulement dans `install.sh`). (2) Le serveur cherche les Python isolés dans `app/server/basic-pitch-venv/bin/python3` et `app/server/demucs-venv/bin/python3`, des chemins Linux ; l'environnement basic-pitch de Windows (`.venv-basicpitch\Scripts\python.exe`, à la racine) n'était donc jamais utilisé non plus : la conversion MIDI était concernée de la même façon.
+
+**Correctif.** `install.bat` crée maintenant `.venv-demucs` (étape 14/14 : Python 3.11, `torch==2.14.1`, `demucs==4.1.0`, `numpy==2.4.6`, mêmes versions que Linux, puis pré-téléchargement du modèle `htdemucs_6s`) et réessaie l'import de Demucs en cas de refus de Smart App Control (section 46). `run.bat` définit `BASIC_PITCH_PYTHON_PATH` et `DEMUCS_PYTHON_PATH`, que le serveur lit déjà. `torchaudio` n'est pas installé dans cet environnement : `demucs.api` ne l'utilise pas (seuls ses modules d'entraînement l'importent) et il écrit lui-même les fichiers WAV. Sous Windows, le `torch` de PyPI est la version CPU, ce qui correspond au choix Linux (séparation sur CPU).
+
+**Mise à jour.** Relancer `install.bat` (les environnements déjà en place ne sont pas refaits), puis `run.bat`.
+
+**Non vérifié sous Windows au moment de l'écriture** : résolution des paquets contrôlée à distance pour Windows et Python 3.11 (30 paquets, tous en roues binaires), mais ni la séparation ni la conversion MIDI n'ont encore été essayées de bout en bout sur ce système.
