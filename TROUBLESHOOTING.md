@@ -2194,3 +2194,13 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 **Correctif.** `silence_latent` est ramené sur `device` avant `torch.cat`. De plus, la route Express traite « Preprocessed 0/N » comme un échec (le moteur commence son message par ✅ même quand aucun échantillon n'a réussi) et renvoie le message à l'interface.
 
 **Non vérifié sous Windows** : la correction est de deux lignes, mais PyTorch n'était pas disponible pour l'exécuter ici. Le prochain essai dira si une autre étape échoue après celle-ci.
+
+## 53. Menu des modèles : « téléchargé » affiché à tort
+
+**Symptôme (2026-10-14).** Le menu des modèles marquait `acestep-v15-base` comme « téléchargé », mais en le choisissant le moteur déclarait `DiT model 'acestep-v15-base' not found, starting auto-download...` et téléchargeait les 4,79 Go.
+
+**Cause.** La route `GET /api/generate/models` considérait un modèle du registre comme téléchargé dès que son dossier existait dans `checkpoints/`, sans regarder son contenu. Un dossier vide ou resté d'un téléchargement interrompu suffisait. Le moteur, lui, cherche les poids.
+
+**Correctif.** Le dossier doit contenir au moins un fichier `.safetensors`, comme pour les modèles trouvés par le balayage du disque. Un modèle dont le dossier est vide apparaît donc « non téléchargé » et le menu propose le téléchargement.
+
+**Non vérifié sous Windows.** Le dossier vide de `acestep-v15-base` n'a pas été constaté directement (le téléchargement l'a rempli entre-temps) : c'est l'explication la plus simple du symptôme, pas une certitude.

@@ -1380,10 +1380,18 @@ router.get('/models', async (_req, res: Response) => {
     // Matches Gradio's handler.py check_model_exists() and get_available_acestep_v15_models()
     const { existsSync, statSync } = await import('fs');
     const downloaded = new Set<string>();
+    // Un dossier vide ou partiel (telechargement interrompu) ne compte pas : il faut au moins un fichier de poids,
+    // comme le verifie le moteur (« DiT model ... not found, starting auto-download »).
+    const { readdirSync: readModelDir } = await import('fs');
+    const hasModelWeights = (dir: string): boolean => {
+      try {
+        return readModelDir(dir).some((f: string) => f.endsWith('.safetensors'));
+      } catch { return false; }
+    };
     for (const model of ALL_DIT_MODELS) {
       const modelPath = path.join(checkpointsDir, model);
       try {
-        if (existsSync(modelPath) && statSync(modelPath).isDirectory()) {
+        if (existsSync(modelPath) && statSync(modelPath).isDirectory() && hasModelWeights(modelPath)) {
           downloaded.add(model);
         }
       } catch { /* skip */ }
