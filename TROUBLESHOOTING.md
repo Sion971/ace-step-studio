@@ -2174,3 +2174,13 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 **Autres changements.** `ACE-Step-1.5/.env.example` explique que le Studio choisit le modèle ; la route `/system-info` ne relance plus `nvidia-smi` qu'une fois par minute quand il est absent et n'affiche plus l'erreur de `cmd` (des centaines de lignes « nvidia-smi n'est pas reconnu » dans le journal).
 
 **Non vérifié sous Windows.** La logique Python est testée sous Linux avec un faux `nvidia-smi` (RTX 5060, GTX 1650, RTX 4090, mode CPU, sans `nvidia-smi`). Les lignes ajoutées à `run.bat` et `install.bat` ne sont contrôlées que par lecture. Le DiT 2B sur ce processeur n'a pas été mesuré ; les temps de §35 (14 à 16 fois la durée de l'audio) viennent d'un autre portable.
+
+## 51. Prétraitement LoRA : « spawn UNKNOWN » (Windows)
+
+**Symptôme (2026-10-14).** « Prétraiter en tenseurs » renvoie `Error: 500: spawn UNKNOWN` et Windows affiche une fenêtre disant qu'il ne peut pas vérifier `python.exe` pour Node.js. Le journal du serveur montre `Error: spawn UNKNOWN` (errno -4094) à `training.ts`. Le moteur, lui, tourne normalement.
+
+**Cause.** La route lançait un **second** `python.exe` depuis Node. Windows (Smart App Control, voir §46) peut refuser ce lancement, et l'erreur côté Node est seulement `UNKNOWN`. Ce second processus rechargeait aussi un modèle complet, alors que le moteur occupe déjà la carte (8 Go).
+
+**Correctif.** Le prétraitement passe désormais par le moteur déjà démarré, comme l'étiquetage (`/auto_label_all`) et la sauvegarde (`/save_dataset`) : la route recharge le dataset dans la session Gradio (`/load_existing_dataset_for_preprocess`) puis appelle `/preprocess_dataset` (nom d'API ajouté dans `training_dataset_preprocess_wiring.py`). Aucun processus supplémentaire, et le moteur gère lui-même le déport CPU. `app/server/scripts/preprocess_dataset.py` reste utilisable à la main mais n'est plus appelé.
+
+**Non vérifié sous Windows.** Pas de barre de progression : la requête reste ouverte jusqu'à la fin (longue sur un grand dataset). L'entraînement lance, lui, son propre `python.exe` depuis Node (`training-runner.ts`) : si Windows refuse ce lancement, l'erreur sera la même (diagnostic : événements CodeIntegrity 3033/3077, §46).

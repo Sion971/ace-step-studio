@@ -84,4 +84,5 @@ def register_training_preprocess_handler(context: TrainingWiringContext) -> None
             training_section["dataset_builder_state"],
         ],
         outputs=[training_section["preprocess_progress"]],
+        api_name="preprocess_dataset",  # Express calls via @gradio/client by this name
     )

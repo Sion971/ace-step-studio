@@ -17,7 +17,7 @@ import { existsSync, readdirSync, statSync, readFileSync } from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import { mkdir, writeFile, readFile } from 'fs/promises';
-import { execSync, spawn } from 'child_process';
+import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
 
 const router = Router();
@@ -338,7 +338,7 @@ router.get('/audio', (req, _res, next) => {
   }
 });
 
-// POST /api/training/preprocess — Spawn Python preprocessing script
+// POST /api/training/preprocess — Convertit le dataset en tenseurs via le moteur (Gradio)
 router.post('/preprocess', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { datasetPath, outputDir } = req.body;
@@ -355,68 +355,32 @@ router.post('/preprocess', authMiddleware, async (req: AuthenticatedRequest, res
         { datasetsDir: config.datasets.dir, uploadsDir: config.datasets.uploadsDir, baseDir: aceStepDir },
       );
     }
-    const scriptPath = path.resolve(__dirname, '../../scripts/preprocess_dataset.py');
-    const pythonPath = resolvePythonPath(aceStepDir);
-    // Chemin relatif : resolu depuis ACE-Step-1.5, comme le fait le script Python (cwd = aceStepDir).
-    // Sans cela, mkdir creait un dossier datasets/ parasite a la racine du Studio.
+    // Chemin relatif : resolu depuis ACE-Step-1.5, comme le fait le moteur (son cwd).
     const resolvedOutput = outputDir
       ? (path.isAbsolute(outputDir) ? outputDir : path.resolve(aceStepDir, outputDir))
       : path.join(config.datasets.dir, 'preprocessed_tensors');
-
-    // Ensure output dir exists
     await mkdir(resolvedOutput, { recursive: true });
 
-    // Spawn Python process
-    const child = spawn(pythonPath, [
-      scriptPath,
-      '--dataset', datasetPath,
-      '--output', resolvedOutput,
-      // Meme modele que le moteur ; le script exige un config_path.
-      '--config', config.pipeline.defaultModel,
-      '--offload',
-      '--quantization',
-      '--json',
-    ], {
-      cwd: aceStepDir,
-      env: { ...process.env },
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
-    child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
-
-    child.on('close', (code: number | null) => {
-      if (code === 0) {
-        // Try to parse JSON output
-        try {
-          const result = JSON.parse(stdout.trim().split('\n').pop() || '{}');
-          res.json({ status: 'Preprocessing complete', ...result });
-        } catch {
-          res.json({ status: 'Preprocessing complete', output: stdout.trim() });
-        }
-      } else {
-        // Cause reelle : message du JSON final du script, sinon dernieres lignes de stderr.
-        let detail = '';
-        try {
-          const last = JSON.parse(stdout.trim().split('\n').pop() || '{}');
-          if (last && typeof last.message === 'string') detail = last.message;
-        } catch { /* sortie non JSON */ }
-        if (!detail) detail = stderr.trim().split('\n').slice(-5).join(' | ');
-        console.error('[Training] Preprocess failed (code ' + code + '):\n' + stderr.trim());
-        res.status(500).json({
-          error: detail ? `Preprocessing failed: ${detail}` : 'Preprocessing failed',
-          code,
-          stderr: stderr.trim(),
-          stdout: stdout.trim(),
-        });
-      }
-    });
-
-    child.on('error', (err: Error) => {
-      res.status(500).json({ error: `Failed to spawn process: ${err.message}` });
-    });
+    // Le pretraitement passe par le moteur deja demarre (session Gradio), comme l'etiquetage et la
+    // sauvegarde : pas de second python.exe (Smart App Control pouvait le refuser : "spawn UNKNOWN"),
+    // pas de second modele en memoire sur une carte de 8 Go. Le dataset est recharge dans la session
+    // pour que son etat existe meme apres un redemarrage du serveur.
+    const client = await getGradioClient();
+    const loaded = await client.predict('/load_existing_dataset_for_preprocess', [datasetPath]);
+    const loadStatus = String(gv((loaded.data as unknown[])[0]) ?? '');
+    if (loadStatus.startsWith('\u274c')) {
+      res.status(500).json({ error: `Preprocessing failed: ${loadStatus}` });
+      return;
+    }
+    const mode = req.body.mode === 'LoKr' ? 'LoKr' : 'LoRA';
+    const result = await client.predict('/preprocess_dataset', [resolvedOutput, mode]);
+    const message = String(gv((result.data as unknown[])[0]) ?? '');
+    if (message.startsWith('\u274c')) {
+      console.error('[Training] Preprocess failed:', message);
+      res.status(500).json({ error: `Preprocessing failed: ${message}` });
+      return;
+    }
+    res.json({ status: 'Preprocessing complete', message, outputDir: resolvedOutput });
   } catch (error) {
     console.error('[Training] Preprocess error:', error);
     res.status(500).json({ error: gradioErrorMessage(error, 'Preprocessing failed') });
