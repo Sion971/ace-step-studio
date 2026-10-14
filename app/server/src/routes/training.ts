@@ -380,6 +380,13 @@ router.post('/preprocess', authMiddleware, async (req: AuthenticatedRequest, res
       res.status(500).json({ error: `Preprocessing failed: ${message}` });
       return;
     }
+    // Le moteur commence son message par un coche meme quand aucun echantillon n'a reussi ("Preprocessed 0/1").
+    const counts = /Preprocessed (\d+)\/(\d+)/.exec(message);
+    if (counts && Number(counts[1]) === 0) {
+      console.error('[Training] Preprocess: aucun echantillon traite -', message);
+      res.status(500).json({ error: `Preprocessing failed: ${message}. La cause est dans la console du serveur.` });
+      return;
+    }
     res.json({ status: 'Preprocessing complete', message, outputDir: resolvedOutput });
   } catch (error) {
     console.error('[Training] Preprocess error:', error);

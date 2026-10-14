@@ -2184,3 +2184,13 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 **Correctif.** Le prétraitement passe désormais par le moteur déjà démarré, comme l'étiquetage (`/auto_label_all`) et la sauvegarde (`/save_dataset`) : la route recharge le dataset dans la session Gradio (`/load_existing_dataset_for_preprocess`) puis appelle `/preprocess_dataset` (nom d'API ajouté dans `training_dataset_preprocess_wiring.py`). Aucun processus supplémentaire, et le moteur gère lui-même le déport CPU. `app/server/scripts/preprocess_dataset.py` reste utilisable à la main mais n'est plus appelé.
 
 **Non vérifié sous Windows.** Pas de barre de progression : la requête reste ouverte jusqu'à la fin (longue sur un grand dataset). L'entraînement lance, lui, son propre `python.exe` depuis Node (`training-runner.ts`) : si Windows refuse ce lancement, l'erreur sera la même (diagnostic : événements CodeIntegrity 3033/3077, §46).
+
+## 52. Prétraitement LoRA : « Expected all tensors to be on the same device »
+
+**Symptôme (2026-10-14).** Après le passage par le moteur (§ précédent), le prétraitement affichait « ✅ Preprocessed 0/1 samples … (1 failed) ». Le journal du moteur donnait : `RuntimeError: Expected all tensors to be on the same device, but got tensors is on cuda:0, different from other tensors on cpu` dans `build_context_latents` (`preprocess_context.py`, `torch.cat`).
+
+**Cause.** Bogue du code ACE-Step d'origine avec le déport CPU (carte de 8 Go) : `build_context_latents` créait les masques sur `device` (GPU) mais prenait `silence_latent` tel quel, resté sur le CPU quand le modèle est déchargé. Le mode LoRA est le seul concerné (le mode LoKr utilise les latents de l'échantillon, déjà sur le bon périphérique). `training_v2/preprocess.py` appelle la même fonction.
+
+**Correctif.** `silence_latent` est ramené sur `device` avant `torch.cat`. De plus, la route Express traite « Preprocessed 0/N » comme un échec (le moteur commence son message par ✅ même quand aucun échantillon n'a réussi) et renvoie le message à l'interface.
+
+**Non vérifié sous Windows** : la correction est de deux lignes, mais PyTorch n'était pas disponible pour l'exécuter ici. Le prochain essai dira si une autre étape échoue après celle-ci.

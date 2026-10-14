@@ -10,7 +10,9 @@ def build_context_latents(
 ):
     """Build context latents for text2music."""
     if src_latents is None:
-        src_latents = silence_latent[:, :latent_length, :].to(dtype)
+        # Studio : silence_latent peut etre sur le CPU (modele decharge, offload) alors que les masques
+        # ci-dessous sont crees sur `device` : tout est ramene sur `device` avant torch.cat (ACE-Step Studio).
+        src_latents = silence_latent[:, :latent_length, :].to(device=device, dtype=dtype)
     else:
         if src_latents.dim() == 2:
             src_latents = src_latents.unsqueeze(0)
@@ -23,7 +25,7 @@ def build_context_latents(
         src_latents = torch.cat(
             [
                 src_latents,
-                silence_latent[:, :pad_len, :].expand(1, -1, -1).to(dtype),
+                silence_latent[:, :pad_len, :].expand(1, -1, -1).to(device=device, dtype=dtype),
             ],
             dim=1,
         )
