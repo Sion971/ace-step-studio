@@ -2617,12 +2617,12 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               label={t('duration')}
               value={duration}
               min={-1}
-              max={600}
+              max={activeMaxDuration}
               step={5}
               onChange={setDuration}
               formatDisplay={(val) => val === -1 ? t('auto') : `${val}${t('seconds')}`}
               autoLabel={t('auto')}
-              helpText={`${t('auto')} - 10 ${t('min')}`}
+              helpText={`${t('auto')} - ${Math.round(activeMaxDuration / 60)} ${t('min')}`}
             />
 
             {/* Batch Size */}

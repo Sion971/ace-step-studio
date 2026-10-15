@@ -82,7 +82,7 @@ function getAudioDuration(filePath: string): number {
   try {
     const result = execSync(
       `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`,
-      { encoding: 'utf-8', timeout: 10000 }
+      { encoding: 'utf-8', timeout: 30000 }
     );
     const duration = parseFloat(result.trim());
     return isNaN(duration) ? 0 : Math.round(duration);
