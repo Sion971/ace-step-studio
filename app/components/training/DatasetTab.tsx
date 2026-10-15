@@ -3,6 +3,7 @@ import { Upload, FileAudio, X, Search, Loader2, FolderOpen, Wand2, Volume2, Edit
 import { trainingApi, getTrainingAudioUrl, TrainingSample, DatasetSettings } from '../../services/api';
 import { Section, FieldRow } from './TrainingUIComponents';
 import { fillTemplate } from '../../utils/fillTemplate';
+import { savePathForName } from './datasetPaths';
 
 type PipelineStepKey = 'upload' | 'edit' | 'save' | 'preprocess' | 'train' | 'export';
 
@@ -243,6 +244,7 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
       const dp = result.datasetPath || `./datasets/${uploadDatasetName || 'my_lora_dataset'}.json`;
       setDatasetPath(dp);
       setSavePath(dp);
+      setPreprocessDatasetPath(dp);
       setDatasetStatus(safeString(result.status));
       setQueuedFiles([]);
       markStep('upload');
@@ -290,6 +292,7 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
       const dp = built.datasetPath || `./datasets/${datasetSettings.datasetName || 'my_lora_dataset'}.json`;
       setDatasetPath(dp);
       setSavePath(dp);
+      setPreprocessDatasetPath(dp);
       setScanStatus(safeString(built.status));
       markStep('upload');
     } catch (error) {
@@ -318,6 +321,7 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
       parseDataframe(result.dataframe);
       setDatasetStatus(safeString(result.status));
       setSavePath(datasetPath);
+      setPreprocessDatasetPath(datasetPath);
       markStep('upload');
     } catch (error) {
       setDatasetStatus(`${t('error')}: ${error instanceof Error ? error.message : safeString(error)}`);
@@ -422,7 +426,9 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
         genreRatio: datasetSettings.genreRatio,
       }, token);
       setSaveStatus(safeString(result.status));
-      if (result.path) setSavePath(result.path);
+      const savedPath = result.path || savePath || `./datasets/${safeName}.json`;
+      setSavePath(savedPath);
+      setPreprocessDatasetPath(savedPath);
       markStep('save');
     } catch (error) {
       setSaveStatus(`${t('error')}: ${error instanceof Error ? error.message : safeString(error)}`);
@@ -575,6 +581,7 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
                     onChange={e => {
                       const val = e.target.value;
                       setDatasetSettings(s => ({ ...s, datasetName: val }));
+                      setSavePath(p => savePathForName(p, val));
                     }}
                     className="flex-1 bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-200"
                   />
