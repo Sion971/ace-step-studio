@@ -282,8 +282,24 @@ class PipelineManager {
     }
   }
 
+  /**
+   * Number of consecutive failed probes tolerated before the engine is declared a zombie.
+   *
+   * The engine runs the language model's constrained decoding in its event loop, so it answers no probe while it
+   * decodes: ~25 s on a GPU at a cold start, several minutes on a CPU. Killing it at 3 failures (30 s) cut those
+   * calls short. The tolerated silence is PIPELINE_HEALTH_TOLERANCE_SEC if set, else ACESTEP_GENERATION_TIMEOUT
+   * (the profile sets it to 3600 s on a CPU), never less than 120 s.
+   */
+  private healthFailureLimit(): number {
+    const explicit = Number.parseInt(process.env.PIPELINE_HEALTH_TOLERANCE_SEC || '', 10);
+    const generation = Number.parseInt(process.env.ACESTEP_GENERATION_TIMEOUT || '', 10);
+    const toleranceSec = explicit > 0 ? explicit : Math.max(120, generation > 0 ? generation : 0);
+    return Math.max(3, Math.ceil((toleranceSec * 1000) / config.pipeline.healthCheckInterval));
+  }
+
   private startHealthCheck() {
     this.stopHealthCheck();
+    const failureLimit = this.healthFailureLimit();
     let consecutiveFailures = 0;
 
     this.healthCheckTimer = setInterval(async () => {
@@ -297,18 +313,25 @@ class PipelineManager {
         );
         clearTimeout(timer);
         if (res.ok || res.status < 500) {
+          if (consecutiveFailures > 0) {
+            console.log(`[Pipeline] Health check recovered after ${consecutiveFailures} failed probe(s)`);
+          }
           consecutiveFailures = 0;
         } else {
           consecutiveFailures++;
-          console.warn(`[Pipeline] Health check failed: HTTP ${res.status} (${consecutiveFailures}/3)`);
+          if (consecutiveFailures === 1 || consecutiveFailures % 6 === 0) {
+            console.warn(`[Pipeline] Health check failed: HTTP ${res.status} (${consecutiveFailures}/${failureLimit})`);
+          }
         }
       } catch {
         consecutiveFailures++;
-        console.warn(`[Pipeline] Health check failed: no response (${consecutiveFailures}/3)`);
+        if (consecutiveFailures === 1 || consecutiveFailures % 6 === 0) {
+          console.warn(`[Pipeline] Health check failed: no response (${consecutiveFailures}/${failureLimit}) - the engine may just be busy`);
+        }
       }
 
-      // Only act after 3 consecutive failures to avoid false positives during generation
-      if (consecutiveFailures >= 3) {
+      // Act only after a long enough silence: a busy engine (language model, CPU) is not a zombie
+      if (consecutiveFailures >= failureLimit) {
         this.handleUnhealthy();
         consecutiveFailures = 0;
       }

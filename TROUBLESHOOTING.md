@@ -2204,3 +2204,13 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 **Correctif.** Le dossier doit contenir au moins un fichier `.safetensors`, comme pour les modèles trouvés par le balayage du disque. Un modèle dont le dossier est vide apparaît donc « non téléchargé » et le menu propose le téléchargement.
 
 **Non vérifié sous Windows.** Le dossier vide de `acestep-v15-base` n'a pas été constaté directement (le téléchargement l'a rempli entre-temps) : c'est l'explication la plus simple du symptôme, pas une certitude.
+
+## 54. Contrôle de santé : le moteur occupé était pris pour un « zombie »
+
+**Symptôme (2026-10-14, Linux, RTX 5060).** Pendant le premier appel du modèle de langage (« Créer un échantillon »), la console affiche `[Pipeline] Health check failed: no response (1/3)` puis `(2/3)`. Au troisième échec, le serveur tue le moteur (`Zombie detected, killing process...`) et le relance.
+
+**Cause.** Le décodage contraint du modèle de langage s'exécute dans la boucle d'événements du moteur : tant qu'il dure, le moteur ne répond à aucune sonde. Ça prend ~25 s sur GPU à froid (10 tokens/s, 235 tokens), bien davantage sur CPU. Le serveur sonde toutes les 10 s (délai 5 s) et tuait le moteur après 3 échecs, soit 30 s de silence.
+
+**Correctif.** Le silence toléré est `PIPELINE_HEALTH_TOLERANCE_SEC` s'il est défini, sinon `ACESTEP_GENERATION_TIMEOUT` (3600 s en mode CPU, posé par le profil matériel), et jamais moins de 120 s. Les échecs sont journalisés au premier puis toutes les minutes, avec « Health check recovered » au retour. Un vrai moteur planté est détecté plus tard (2 min sur GPU), mais s'il meurt, sa sortie est détectée tout de suite par le gestionnaire du processus.
+
+**Non vérifié.** Le correctif n'a pas été exercé sur le Ryzen (CPU) ; les tests simulent la sonde avec des horloges factices.
