@@ -1052,6 +1052,18 @@ let modelLoadingStatus: { state: string; model: string; progress?: string } = {
 };
 
 let lmSynced = false;
+// Longest duration the engine accepts for this machine (it depends on the GPU's memory, and on the language model).
+// The interface asks for it before it lets the duration slider go up; 503 while the engine has not printed it yet.
+router.get('/limits', async (_req, res: Response) => {
+  const { pipelineManager } = await import('../services/pipeline-manager.js');
+  const limits = pipelineManager.getLimits();
+  if (!limits) {
+    res.status(503).json({ error: 'The engine has not reported its limits yet' });
+    return;
+  }
+  res.json({ max_duration_with_lm: limits.withLm, max_duration_without_lm: limits.withoutLm });
+});
+
 router.get('/model-status', async (_req, res: Response) => {
   // Check real Gradio health (includes LM info)
   let gradioAlive = false;

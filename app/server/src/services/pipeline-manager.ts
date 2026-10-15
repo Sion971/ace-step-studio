@@ -41,6 +41,16 @@ class PipelineManager {
   private onRestartCallbacks: Array<() => void> = [];
   private tracker = new DownloadTracker();
   private router = new StdoutRouter();
+  /** Longest song the engine accepts, as it prints it at start-up for this GPU (acestep/gpu_config.py). */
+  private limitWithLm: number | null = null;
+  private limitWithoutLm: number | null = null;
+  private stdoutTail = '';
+
+  /** The engine's own duration limits in seconds, or null until it has printed them. */
+  getLimits(): { withLm: number; withoutLm: number } | null {
+    if (this.limitWithLm === null || this.limitWithoutLm === null) return null;
+    return { withLm: this.limitWithLm, withoutLm: this.limitWithoutLm };
+  }
 
   /** Register a callback that fires after pipeline restarts (model state reset). */
   onRestart(cb: () => void): void {
@@ -229,7 +239,18 @@ class PipelineManager {
     });
   }
 
+  /** "  Max Duration (with LM): 480s (8 min)" -- a line can arrive cut in two chunks, so the tail of the last one is kept. */
+  private parseLimits(text: string) {
+    const window = this.stdoutTail + text;
+    this.stdoutTail = window.slice(-160);
+    const withLm = window.match(/Max Duration \(with LM\):\s*(\d+)s/);
+    const withoutLm = window.match(/Max Duration \(without LM\):\s*(\d+)s/);
+    if (withLm) this.limitWithLm = parseInt(withLm[1], 10);
+    if (withoutLm) this.limitWithoutLm = parseInt(withoutLm[1], 10);
+  }
+
   private parseStdout(text: string) {
+    this.parseLimits(text);
     if (text.includes('GPU Memory:') || text.includes('GPU Configuration')) {
       this.message = 'GPU detected, configuring...';
     }

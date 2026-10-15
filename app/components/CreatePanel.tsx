@@ -26,6 +26,7 @@ import { useI18n } from '../context/I18nContext';
 import type { TranslationKey } from '../i18n/translations';
 import { generateApi, settingsApi } from '../services/api';
 import { applyLmSettings, lmOnDiskFrom } from '../services/lmSwitch';
+import { watchEngineLimits } from '../services/engineLimits';
 import { fillTemplate } from '../utils/fillTemplate';
 import { MAIN_STYLES } from '../data/genres';
 import { EditableSlider } from './EditableSlider';
@@ -933,25 +934,20 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   useEffect(() => {
     const loadModelsAndLimits = async () => {
       await refreshModels();
-
-      // Fetch limits
-      try {
-        const response = await fetch('/api/generate/limits');
-        if (!response.ok) return;
-        const data = await response.json();
-        if (typeof data.max_duration_with_lm === 'number') {
-          setMaxDurationWithLm(data.max_duration_with_lm);
-        }
-        if (typeof data.max_duration_without_lm === 'number') {
-          setMaxDurationWithoutLm(data.max_duration_without_lm);
-        }
-      } catch {
-        // ignore limits fetch failures
-      }
     };
 
     loadModelsAndLimits();
   }, []);
+
+  // The longest song depends on the machine (its GPU memory, and the language model): the server reads it from the
+  // engine, which may still be starting. 240 s is only what the slider allows until the engine has answered.
+  useEffect(() => watchEngineLimits(
+    () => fetch('/api/generate/limits'),
+    ({ withLm, withoutLm }) => {
+      setMaxDurationWithLm(withLm);
+      setMaxDurationWithoutLm(withoutLm);
+    },
+  ), []);
 
   // Re-fetch models after generation completes to update active model
   const prevIsGeneratingRef = useRef(isGenerating);

@@ -8,6 +8,7 @@
 - Dataset tab: the save path follows the dataset name, and the "Preprocess to tensors" path follows the file just saved, loaded, imported or scanned
 
 ### Fixed
+- Duration slider: the longest song now comes from the engine (up to 10 minutes on a card with enough memory) instead of a fixed 240 s: the interface asked `/api/generate/limits`, a route the server never had
 - LoKr training: the rank and alpha from the screen were ignored (they became `--rank` / `--alpha`, which only LoRA reads); they now go out as `--lokr-linear-dim` / `--lokr-linear-alpha`
 - "Startup timeout ... pipeline still loading" no longer prints minutes after the fact when the engine was ready, stopped for a training or had exited
 
