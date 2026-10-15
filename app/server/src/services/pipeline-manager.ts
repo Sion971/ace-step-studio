@@ -37,6 +37,7 @@ class PipelineManager {
   private wasStoppedForTraining = false;
   private readyResolve: (() => void) | null = null;
   private readyReject: ((err: Error) => void) | null = null;
+  private startupTimer: ReturnType<typeof setTimeout> | null = null;
   private onRestartCallbacks: Array<() => void> = [];
   private tracker = new DownloadTracker();
   private router = new StdoutRouter();
@@ -187,6 +188,7 @@ class PipelineManager {
       const leftover = this.router.flush();
       if (leftover) process.stdout.write(`[Gradio] ${leftover}`);
       this.process = null;
+      this.clearStartupTimer();
       this.stopHealthCheck();
 
       if (this.readyReject) {
@@ -215,7 +217,8 @@ class PipelineManager {
       this.readyResolve = () => resolve();
       this.readyReject = () => resolve(); // resolve anyway so Express starts
 
-      setTimeout(() => {
+      this.startupTimer = setTimeout(() => {
+        this.startupTimer = null;
         if (this.state !== 'ready') {
           this.readyResolve = null;
           this.readyReject = null;
@@ -275,6 +278,7 @@ class PipelineManager {
 
     this.startHealthCheck();
 
+    this.clearStartupTimer();
     if (this.readyResolve) {
       this.readyResolve();
       this.readyResolve = null;
@@ -384,7 +388,16 @@ class PipelineManager {
     }, delay);
   }
 
+  /** The start-up delay only concerns the engine being started: once it is ready, stopped or gone, it must not speak. */
+  private clearStartupTimer() {
+    if (this.startupTimer) {
+      clearTimeout(this.startupTimer);
+      this.startupTimer = null;
+    }
+  }
+
   private killProcess() {
+    this.clearStartupTimer();
     if (!this.process?.pid) return;
     const proc = this.process;          // capture : évite de tuer un futur process
     try {

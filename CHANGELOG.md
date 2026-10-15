@@ -1,5 +1,102 @@
 # Changelog
 
+## 2026-10-15
+
+### Added
+- Trained LoRAs join the LoRA menu on export, with their trigger word, base model, adapter type, rank, epochs and dataset (`lora_output/training_info.json` at launch, `lora_hub.json` on export); an empty export path now picks a name from the dataset and adapter (`<dataset>-lora` / `-lokr`) without reusing an existing one
+- LoKr folders (`lokr_weights.safetensors`) are listed in the LoRA menu (`services/lora-available.ts`)
+- Dataset tab: the save path follows the dataset name, and the "Preprocess to tensors" path follows the file just saved, loaded, imported or scanned
+
+### Fixed
+- LoKr training: the rank and alpha from the screen were ignored (they became `--rank` / `--alpha`, which only LoRA reads); they now go out as `--lokr-linear-dim` / `--lokr-linear-alpha`
+- "Startup timeout ... pipeline still loading" no longer prints minutes after the fact when the engine was ready, stopped for a training or had exited
+
+## 2026-10-14
+
+### Added
+- LoRA training starts from VRAM presets (8, 12, 16, 24 GB, quick test, high quality — ACE-Step's own values) plus four more `train.py` options
+- After a training the server restarts the engine itself (it is stopped to free the VRAM); the Train tab shows a note while it comes back
+- Export copies the adapter files on disk, so it no longer needs the engine
+- Clear messages when the engine is down ("Connection errored out" is gone) and when a dataset file does not exist
+- `run.bat` rebuilds the interface when the repository version changes
+
+### Fixed
+- Dataset audio picker lost files picked in a row (a live `FileList` was read after the input was reset)
+- Health check: a busy engine (language-model decoding blocks its event loop for tens of seconds, minutes on a CPU) is no longer killed as a "zombie"; tolerated silence is 120 s, or `ACESTEP_GENERATION_TIMEOUT`
+- LoRA preprocessing goes through the running engine instead of a second `python.exe` (Smart App Control refused it with `spawn UNKNOWN`; a second model also did not fit in 8 GB), and `silence_latent` is moved to the masks' device
+- Model menu: "downloaded" only when the folder holds weights
+- Windows: `download_model.bat` removed
+
+## 2026-10-13
+
+### Added
+- Windows picks the default model from the VRAM (`hardware_profile.env`), as Linux does
+- `run.bat` waits for Smart App Control refusals to end (`sac_pending.txt`)
+
+### Fixed
+- LoRA preprocessing passes `--config` / `--offload` / `--quantization` and shows its error
+
+## 2026-10-12
+
+### Added
+- Windows: Demucs environment (stem separation) and MIDI / Demucs wiring
+- MP3 export through `soundfile` (libsndfile): `ffmpeg.exe` is no longer required
+
+### Fixed
+- `install.bat`: Smart App Control identified as the cause of intermittent refusals; PyTorch / torchaudio import and the MP3 check are retried
+
+## 2026-10-09 to 2026-10-11
+
+### Changed
+- Windows has a single installer, `install.bat`, like `install.sh`; `install-blackwell-native.bat` removed
+- FFmpeg installed as the shared build (DLLs) for MP3 export, with a real encoding check; DLL copy made reliable and verified
+- `install.bat` checks the Python interpreter before any download and `Python.h` correctly
+
+### Fixed
+- `pytorch_wavelets` patched without importing it (setuptools >= 82)
+
+## 2026-10-07 to 2026-10-08
+
+### Added
+- LoRA Hub: install a LoRA from a Hugging Face link, read the author's `<weights>.metadata.json`, a catalogue with compatibility checks and pinned versions, shown in the LoRA panel (70 texts in six languages); an installed LoRA can be loaded and a refused load no longer looks successful
+- A language model missing from disk can be downloaded then loaded from the interface; a model downloaded after the engine started can be loaded; download or switch failures are visible
+- 2B models are back in the menu, with a VRAM filter and a "Show more" link
+
+### Fixed
+- Hard-coded French texts and missing translation keys (hundreds of keys, six languages) with a test that forbids their return; server messages are in English
+- React types installed: the interface type check is real (all remaining errors fixed)
+- The "Your name" field no longer triggers browser autofill
+
+## 2026-10-04 to 2026-10-06
+
+### Added
+- Server-side stem separation (Demucs, 6 stems, isolated venv), synchronised playback and waveform, editor opening
+- MIDI piano roll with synthesizer playback from the stems; loudness (LUFS) normalisation per platform
+- First-launch screen, with the browser opened as soon as the server listens; engine download events and tracking exposed by `/api/pipeline/status`
+- Generated fallback covers (16 styles); CPU mode: adapted generation timeout and accurate banner
+- On-demand downloader for the 2B DiT and 1.7B LM
+
+### Changed
+- Hardware profile tier follows PyTorch's measurement, as ACE-Step does
+- Frontend: React 19.3, Vite 8, plugin-react 6, Vitest 5, lucide-react 1.x; server: multer 2.4, body-parser 1.20.8
+- `run.sh` rebuilds the interface when it changed
+
+### Fixed
+- Pascal cards: quantised `w8a8_dynamic` weights moved to the GPU
+- Installer reads the CUDA version from recent drivers' `nvidia-smi` header
+
+## 2026-08-28 to 2026-09-19
+
+### Added
+- Full Windows support (uv installer), AMD (ROCm) / Intel (XPU) detection with official redirection, direct microphone recording in the create panel
+- LoRA with quantisation: INT8 switch from the interface (`ACESTEP_QUANTIZATION`), safe model / quantisation switching, dropdown, automatic renaming
+- Tailwind built in (no CDN, works offline); fallback covers generated locally; playlist / workspace creation dialog
+- Experimental native Blackwell installer and torch 2.11.0 (standard stays on 2.10.0); `HF_XET_HIGH_PERFORMANCE` in the scripts
+
+### Fixed
+- DCW: no more distorted sound on non-turbo (base / sft) models
+- `playlists.kind` is finally reliable; pure CPU path with pinned versions
+
 ## 2026-08-27
 
 ### Added
