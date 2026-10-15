@@ -2214,3 +2214,15 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 **Correctif.** Le silence toléré est `PIPELINE_HEALTH_TOLERANCE_SEC` s'il est défini, sinon `ACESTEP_GENERATION_TIMEOUT` (3600 s en mode CPU, posé par le profil matériel), et jamais moins de 120 s. Les échecs sont journalisés au premier puis toutes les minutes, avec « Health check recovered » au retour. Un vrai moteur planté est détecté plus tard (2 min sur GPU), mais s'il meurt, sa sortie est détectée tout de suite par le gestionnaire du processus.
 
 **Non vérifié.** Le correctif n'a pas été exercé sur le Ryzen (CPU) ; les tests simulent la sonde avec des horloges factices.
+
+## 55. L'interface n'est pas mise à jour après un `git pull` (Windows)
+
+**Symptôme (2026-10-14).** Après un `git pull` sous Windows, l'onglet Entraînement n'affichait ni le sélecteur de préréglages ni les nouvelles options : c'était l'ancienne interface.
+
+**Cause.** `run.bat` ne compilait l'interface (`vite build`) que si le dossier `app\dist` n'existait pas. `run.sh` compare déjà les sources à la dernière compilation ; `run.bat` n'avait pas cette règle.
+
+**Correctif.** `run.bat` note la version du dépôt (`git rev-parse HEAD`) dans `app\dist\.build-commit` et recompile quand elle diffère de celle du dépôt, ou quand `app\dist` manque. La compilation se fait dans `app\dist.tmp` : si elle échoue, l'ancienne interface reste servie. `install.bat` écrit le même fichier après sa compilation. Sans `git` dans le `PATH`, seule l'absence de `app\dist` déclenche la compilation.
+
+**Limites.** Seule la version commitée compte : des fichiers modifiés à la main sans commit ne déclenchent rien (supprimer `app\dist` force la recompilation). La première exécution après cette mise à jour recompile une fois, faute de fichier `.build-commit`. Si l'ancienne interface s'affiche encore, faites Ctrl+F5 dans le navigateur.
+
+**Non testé sous Windows.** Ce fichier batch n'a été relu que par un contrôle de syntaxe automatique sous Linux.

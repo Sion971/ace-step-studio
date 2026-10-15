@@ -295,13 +295,35 @@ if not exist "app\server\node_modules" (
     cd /d "%SCRIPT_DIR%"
 )
 
-REM === Build frontend if dist/ missing ============================================
-if not exist "app\dist" (
-    echo Building frontend...
-    cd /d "%SCRIPT_DIR%app"
-    call "%SCRIPT_DIR%node\npx.cmd" vite build
-    cd /d "%SCRIPT_DIR%"
-)
+REM === Compilation du frontend : app\dist manque, ou la version du depot a change ===
+REM Avant, l'interface n'etait compilee que si app\dist MANQUAIT : apres un git pull, l'ancienne interface
+REM restait servie. On note la version ^(git rev-parse HEAD^) dans app\dist\.build-commit et on recompile
+REM quand elle differe. La compilation se fait dans app\dist.tmp : un echec garde l'ancienne interface.
+REM Sans git, seule l'absence de app\dist declenche la compilation.
+set "FRONT_NOW="
+set "FRONT_BUILT="
+set "FRONT_BUILD="
+where git >nul 2>&1
+if not errorlevel 1 for /f %%h in ('git -C "%SCRIPT_DIR%." rev-parse HEAD 2^>nul') do set "FRONT_NOW=%%h"
+if exist "app\dist\.build-commit" set /p FRONT_BUILT=<"app\dist\.build-commit"
+if not exist "app\dist\index.html" set "FRONT_BUILD=1"
+if defined FRONT_NOW if /i not "!FRONT_NOW!"=="!FRONT_BUILT!" set "FRONT_BUILD=1"
+if not defined FRONT_BUILD goto :front_done
+echo Compilation du frontend...
+if exist "app\dist.tmp" rmdir /s /q "app\dist.tmp"
+cd /d "%SCRIPT_DIR%app"
+call "%SCRIPT_DIR%node\npx.cmd" vite build --outDir dist.tmp --emptyOutDir
+set "FRONT_RC=!errorlevel!"
+cd /d "%SCRIPT_DIR%"
+if not "!FRONT_RC!"=="0" goto :front_failed
+if exist "app\dist" rmdir /s /q "app\dist"
+ren "app\dist.tmp" "dist"
+if defined FRONT_NOW >"app\dist\.build-commit" echo !FRONT_NOW!
+goto :front_done
+:front_failed
+echo ATTENTION : la compilation du frontend a echoue. L'ancienne interface est conservee si elle existe.
+if exist "app\dist.tmp" rmdir /s /q "app\dist.tmp"
+:front_done
 
 REM === Output directories ==========================================================
 if not exist "app\data" mkdir "app\data"

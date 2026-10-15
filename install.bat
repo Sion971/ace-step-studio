@@ -575,6 +575,10 @@ echo [10/14] Compilation du frontend...
 cd /d "%SCRIPT_DIR%"
 cd app
 call "%SCRIPT_DIR%node\npx.cmd" vite build
+cd /d "%SCRIPT_DIR%"
+REM Version du depot compilee : run.bat recompile l'interface quand elle change ^(voir TROUBLESHOOTING.md^).
+where git >nul 2>&1
+if not errorlevel 1 if exist "app\dist\index.html" for /f %%h in ('git rev-parse HEAD 2^>nul') do >"app\dist\.build-commit" echo %%h
 
 REM === 11. FFmpeg ===============================================================
 cd /d "%SCRIPT_DIR%"
