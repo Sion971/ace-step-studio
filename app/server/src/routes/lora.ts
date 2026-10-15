@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { getGradioClient, callInitServiceWrapper, fetchCurrentInitServiceValues, QUANTIZATION_COMPONENT_ID, MAIN_MODEL_PATH_COMPONENT_ID } from '../services/gradio-client.js';
-import { readdirSync, statSync, existsSync, renameSync } from 'fs';
+import { listAvailableLoras } from '../services/lora-available.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { describeLoadFailure } from '../services/lora-engine-status.js';
@@ -187,56 +187,7 @@ const EXCLUDED_LORA_DIRS = new Set(['checkpoints', 'runs']);
 
 router.get('/available', authMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    if (!existsSync(LORA_OUTPUT_DIR)) {
-      res.json({ loras: [] });
-      return;
-    }
-
-    const entries = readdirSync(LORA_OUTPUT_DIR);
-    const loras: Array<{ name: string; path: string }> = [];
-
-    for (const entry of entries) {
-      if (EXCLUDED_LORA_DIRS.has(entry)) continue;
-      const entryPath = path.join(LORA_OUTPUT_DIR, entry);
-      if (!statSync(entryPath).isDirectory()) continue;
-
-      // PEFT exige precisement le nom "adapter_model.safetensors" — un
-      // fichier .safetensors present mais nomme differemment (courant
-      // pour les LoRA telecharges depuis HuggingFace, qui gardent souvent
-      // le nom d'origine de leur propre depot) semblerait valide ici sans
-      // correction, mais echouerait au chargement avec un message confus
-      // ("Failed to load LoRA: 'module name can't contain \".\"'" ou une
-      // erreur de decalage de dimensions sans rapport avec le vrai
-      // probleme). Renomme automatiquement quand c'est SANS AMBIGUITE :
-      // un seul fichier .safetensors present, et il n'a pas deja le bon
-      // nom. Ne renomme jamais si plusieurs candidats existent (ambigu,
-      // mieux vaut laisser une intervention manuelle) ou si le fichier
-      // correctement nomme existe deja (rien a faire).
-      const hasConfig = existsSync(path.join(entryPath, 'adapter_config.json'));
-      const correctlyNamedPath = path.join(entryPath, 'adapter_model.safetensors');
-      let hasSafetensors = existsSync(correctlyNamedPath);
-
-      if (hasConfig && !hasSafetensors) {
-        const safetensorFiles = readdirSync(entryPath).filter((f) => f.endsWith('.safetensors'));
-        if (safetensorFiles.length === 1) {
-          const oldPath = path.join(entryPath, safetensorFiles[0]);
-          try {
-            renameSync(oldPath, correctlyNamedPath);
-            console.log(`[LoRA] Renomme automatiquement : ${entry}/${safetensorFiles[0]} -> adapter_model.safetensors`);
-            hasSafetensors = true;
-          } catch (renameError) {
-            console.error(`[LoRA] Echec du renommage automatique pour ${entry}:`, renameError);
-          }
-        }
-      }
-
-      if (!hasConfig || !hasSafetensors) continue;
-
-      loras.push({ name: entry, path: `./lora_output/${entry}` });
-    }
-
-    loras.sort((a, b) => a.name.localeCompare(b.name));
-    res.json({ loras });
+    res.json({ loras: listAvailableLoras(LORA_OUTPUT_DIR) });
   } catch (error) {
     console.error('[LoRA] Available list error:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to list available LoRAs' });

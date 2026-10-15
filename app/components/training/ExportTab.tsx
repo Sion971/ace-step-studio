@@ -12,7 +12,7 @@ interface ExportTabProps {
 }
 
 export const ExportTab: React.FC<ExportTabProps> = ({ token, t, markStep }) => {
-  const [exportPath, setExportPath] = useState('./lora_output/final_lora');
+  const [exportPath, setExportPath] = useState('');
   const [exportOutputDir, setExportOutputDir] = useState('./lora_output');
   const [exportStatus, setExportStatus] = useState('');
   const [exporting, setExporting] = useState(false);
@@ -37,7 +37,7 @@ export const ExportTab: React.FC<ExportTabProps> = ({ token, t, markStep }) => {
       <Section title={t('exportLora')}>
         <div className="space-y-2">
           <FieldRow label={t('exportPath') || 'Chemin d\'exportation'}>
-            <input type="text" value={exportPath} onChange={e => setExportPath(e.target.value)} className="flex-1 bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-200" />
+            <input type="text" value={exportPath} onChange={e => setExportPath(e.target.value)} placeholder={t('exportPathAuto')} className="flex-1 bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-200" />
           </FieldRow>
           <FieldRow label={t('loraOutputDir') || 'Dossier de sortie LoRA'}>
             <input type="text" value={exportOutputDir} onChange={e => setExportOutputDir(e.target.value)} className="flex-1 bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-200" />

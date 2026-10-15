@@ -8,6 +8,7 @@ import { parseDatasetSettings } from '../services/dataset-settings.js';
 import { gv, dataframeRowCount, gradioErrorMessage, engineDownMessage } from '../services/gradio-value.js';
 import { healDatasetAudioPaths } from '../services/dataset-paths.js';
 import { exportLora, LoraExportError } from '../services/lora-export.js';
+import { recordTrainingStart } from '../services/training-info.js';
 import { config } from '../config/index.js';
 import { resolvePythonPath } from '../services/acestep.js';
 import multer from 'multer';
@@ -894,6 +895,13 @@ router.post('/start', authMiddleware, async (req: AuthenticatedRequest, res: Res
       }
     }
 
+    // What this run is (trigger word, base model, adapter): kept so that the export can list the LoRA with it.
+    try {
+      recordTrainingStart(params, aceStepDir);
+    } catch (infoError) {
+      console.warn('[Training] Could not record the training details:', infoError);
+    }
+
     try {
       trainingRunner.start(params, pythonPath, aceStepDir);
     } catch (startError) {
@@ -962,11 +970,14 @@ router.post('/export', authMiddleware, async (req: AuthenticatedRequest, res: Re
     // A copy of files: it works while the engine is stopped for training (it used to go through Gradio).
     const result = await exportLora({
       baseDir: getAceStepDir(),
-      exportPath: exportPath ?? './lora_output/final_lora',
+      exportPath: typeof exportPath === 'string' ? exportPath : '', // blank: named after the dataset
       loraOutputDir: loraOutputDir ?? './lora_output',
     });
 
-    res.json({ status: `LoRA exported to ${result.destination}` });
+    res.json({
+      status: `LoRA exported to ${result.destination}`
+        + (result.listed ? '. It is now in the LoRA menu with its trigger word and training details.' : '.'),
+    });
   } catch (error) {
     if (error instanceof LoraExportError) {
       res.status(400).json({ error: error.message });

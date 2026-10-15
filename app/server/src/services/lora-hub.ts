@@ -28,6 +28,7 @@ import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { boundedInteger, boundedNumber, modelLabel, normalizeSha, plain, plainList } from './lora-text.js';
 import { parseSidecar, pickSidecar, type SidecarInfo } from './lora-sidecar.js';
+import { readTrainedRecord, type TrainingSummary } from './training-info.js';
 
 export const DEFAULT_ENDPOINT = 'https://huggingface.co';
 const DEFAULT_MAX_WEIGHTS_BYTES = 4 * 1024 ** 3;
@@ -123,6 +124,10 @@ export interface InstalledLora {
   baseModel: string[];
   triggerWord: string | null;
   recommended: { scale: number | null; steps: number | null; guidance: number | null; shift: number | null };
+  /** 'studio-training' for a LoRA trained and exported by the Studio; absent for those installed from the catalog. */
+  source?: string;
+  /** What the Studio recorded when it trained it. */
+  training?: TrainingSummary;
 }
 
 export interface LoraHubOptions {
@@ -442,7 +447,8 @@ export class LoraHub {
   }
 
   /**
-   * The LoRA that this engine installed (those with a lora_hub.json), with what was recorded then. A trained LoRA has no such file and is not listed.
+   * The LoRA that this engine installed (those with a lora_hub.json), with what was recorded then. A LoRA trained here is listed once exported (the export
+   * writes the same file, marked source "studio-training").
    * The file is read as untrusted: it sits on the user's disk, where anything can have written it.
    */
   listInstalled(): InstalledLora[] {
@@ -481,6 +487,7 @@ export class LoraHub {
         baseModel: plainList(raw.baseModel, 5, 120),
         triggerWord: plain(side.triggerWord, 60),
         recommended: { scale: boundedNumber(rec.scale, 0, 4), steps: boundedInteger(rec.steps, 1, 200), guidance: boundedNumber(rec.guidance, 0, 50), shift: boundedNumber(rec.shift, 0, 20) },
+        ...readTrainedRecord(raw),
       });
     }
     return installed;

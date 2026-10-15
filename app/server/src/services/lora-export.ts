@@ -1,11 +1,15 @@
 // services/lora-export.ts
 //
-// Export of a trained LoRA: a plain copy of the `final` folder (or, failing that, of the newest `checkpoints/epoch_N`) to the
-// path chosen by the user. It used to go through the Gradio engine, which is stopped while a LoRA trains ("Free VRAM") and
-// answered "Connection errored out" right when the user wanted to export. Copying files needs no engine.
-import { readdirSync, statSync } from 'fs';
+// Export of a trained LoRA: a plain copy of the `final` folder (or, failing that, of the newest `checkpoints/epoch_N`). It used to go through
+// the Gradio engine, which is stopped while a LoRA trains ("Free VRAM") and answered "Connection errored out" right when the user wanted to
+// export. Copying files needs no engine.
+//
+// The copy is also listed in the LoRA menu with what the Studio recorded when the run started (trigger word, base model, adapter, size): a
+// lora_hub.json is written next to the weights (see training-info.ts). Without a path, the export is named after the dataset.
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { cp, mkdir, rm } from 'fs/promises';
 import path from 'path';
+import { TRAINED_LORA_SOURCE, autoExportName, loadTrainingInfo, trainingInfoIsCurrent, writeTrainedLoraRecord } from './training-info.js';
 
 /** A problem the user can fix (bad path, nothing trained yet): reported as HTTP 400, not as a server fault. */
 export class LoraExportError extends Error {}
@@ -53,29 +57,56 @@ export function findTrainedLora(loraDir: string): string {
   return path.join(checkpointsDir, epochs[epochs.length - 1].name);
 }
 
+/** A LoRA installed from the catalog must not be replaced by an export: only a folder this export wrote itself may be overwritten. */
+function refuseOverwritingInstalled(destination: string): void {
+  const file = path.join(destination, 'lora_hub.json');
+  if (!existsSync(file)) return;
+  let source: unknown;
+  try {
+    source = JSON.parse(readFileSync(file, 'utf8'))?.source;
+  } catch {
+    source = undefined;
+  }
+  if (source !== TRAINED_LORA_SOURCE) {
+    throw new LoraExportError(`"${path.basename(destination)}" is a LoRA installed from the catalog; choose another name`);
+  }
+}
+
 export interface LoraExportOptions {
   /** The ACE-Step folder: relative paths are resolved against it and nothing outside it is touched. */
   baseDir: string;
+  /** Blank: a name is made from the dataset and the adapter, inside the LoRA output folder. */
   exportPath?: string;
   loraOutputDir?: string;
 }
 
-export async function exportLora(opts: LoraExportOptions): Promise<{ source: string; destination: string }> {
-  const baseDir = path.resolve(opts.baseDir);
-  const exportPath = (opts.exportPath ?? '').trim();
-  if (!exportPath) throw new LoraExportError('Export path is required');
+export interface LoraExportResult {
+  source: string;
+  destination: string;
+  /** True when the training details were recorded, so the LoRA menu shows its trigger word and base model. */
+  listed: boolean;
+}
 
+export async function exportLora(opts: LoraExportOptions): Promise<LoraExportResult> {
+  const baseDir = path.resolve(opts.baseDir);
   const loraDir = resolveInside(baseDir, (opts.loraOutputDir ?? '').trim() || './lora_output', 'LoRA output folder');
-  const destination = resolveInside(baseDir, exportPath, 'Export path');
   const source = findTrainedLora(loraDir);
+
+  const recorded = loadTrainingInfo(loraDir);
+  const info = recorded && trainingInfoIsCurrent(recorded, source) ? recorded : null;
+
+  const requested = (opts.exportPath ?? '').trim();
+  const destination = requested ? resolveInside(baseDir, requested, 'Export path') : path.join(loraDir, autoExportName(loraDir, info));
 
   // The destination is emptied before the copy: never let that be the trained adapter or a folder holding it.
   if (isInside(destination, source) || isInside(source, destination)) {
     throw new LoraExportError('The export path would overwrite the trained LoRA itself; choose another folder');
   }
+  refuseOverwritingInstalled(destination);
 
   await mkdir(path.dirname(destination), { recursive: true });
   await rm(destination, { recursive: true, force: true });
   await cp(source, destination, { recursive: true });
-  return { source, destination };
+  if (info) writeTrainedLoraRecord(destination, info);
+  return { source, destination, listed: info !== null };
 }

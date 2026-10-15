@@ -60,6 +60,18 @@ export interface InstalledLoraDto {
   baseModel: string[];
   triggerWord: string | null;
   recommended: RecommendedDto;
+  /** 'studio-training': trained and exported by the Studio. Absent for the LoRA installed from the catalog. */
+  source?: string;
+  training?: {
+    adapterType: 'lora' | 'lokr';
+    rank: number | null;
+    alpha: number | null;
+    epochs: number | null;
+    datasetName: string | null;
+    samples: number | null;
+    trainedAt: string | null;
+    modelVariant: string | null;
+  };
 }
 
 export interface CatalogEntryDto {
@@ -345,5 +357,18 @@ export function recommendedParts(recommended: RecommendedDto, t: T): string[] {
   if (recommended.steps !== null) parts.push(fillTemplate(t('loraHubSteps'), { value: recommended.steps }));
   if (recommended.guidance !== null) parts.push(fillTemplate(t('loraHubGuidance'), { value: recommended.guidance }));
   if (recommended.shift !== null) parts.push(fillTemplate(t('loraHubShift'), { value: recommended.shift }));
+  return parts;
+}
+
+/** What the Studio recorded about a LoRA it trained: base model, adapter, size, epochs, dataset. Empty for any other LoRA. */
+export function trainedParts(info: InstalledLoraDto, t: T): string[] {
+  const training = info.training;
+  if (!training) return [];
+  const parts: string[] = [];
+  if (info.baseModel.length > 0) parts.push(fillTemplate(t('loraHubNeeds'), { model: info.baseModel[0] }));
+  parts.push(training.adapterType === 'lokr' ? 'LoKr' : 'LoRA');
+  if (training.rank !== null) parts.push(fillTemplate(t('loraHubAdapter'), { rank: training.rank }));
+  if (training.epochs !== null) parts.push(fillTemplate(t('loraHubEpochs'), { count: training.epochs }));
+  if (training.datasetName) parts.push(fillTemplate(t('loraHubDataset'), { name: training.datasetName }));
   return parts;
 }

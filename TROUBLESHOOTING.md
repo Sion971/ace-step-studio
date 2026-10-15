@@ -2245,3 +2245,19 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 **À savoir.** Les fichiers importés s'accumulent dans `uploads/<nom du jeu>` et le jeu est reconstruit depuis tout ce dossier : ajouter un fichier fait passer de 2 à 3 échantillons, c'est voulu. Pour repartir de zéro, changez le nom du jeu de données ou videz ce dossier.
 
 **Non vérifié.** La relance automatique n'a pas été exercée avec un vrai moteur ; les tests simulent l'entraînement et l'état du moteur.
+
+## 57. LoKr : rang et alpha ignorés, dossier absent de la liste ; LoRA entraîné sans déclencheur
+
+**Symptômes (2026-10-15).** (1) En choisissant LoKr, les réglages de taille de l'onglet Entraînement (rang, alpha, donc aussi les préréglages 8 Go) n'avaient aucun effet : l'adaptateur s'entraînait avec les valeurs par défaut de LoKr (64 / 128). (2) Un LoKr entraîné n'apparaissait pas dans le menu des LoRA. (3) Un LoRA exporté était un dossier anonyme : rien sur son mot déclencheur ni sur le modèle de base utilisé.
+
+**Causes.** (1) Le Studio transmettait `--rank` et `--alpha`, qui n'existent que pour LoRA ; LoKr a `--lokr-linear-dim` et `--lokr-linear-alpha`. (2) La liste ne retenait que les dossiers contenant `adapter_config.json` et `adapter_model.safetensors` ; un LoKr produit `lokr_weights.safetensors` seul (le moteur le charge sans problème). (3) Seuls les LoRA installés depuis le catalogue avaient un `lora_hub.json`, le fichier que le menu lit pour afficher le déclencheur.
+
+**Correctif.**
+- Avec LoKr, le rang et l'alpha de l'écran deviennent `--lokr-linear-dim` et `--lokr-linear-alpha`. Les autres réglages propres à LoKr (facteur, Tucker, DoRA) ne sont pas exposés : ils gardent les valeurs de train.py.
+- Un dossier avec `lokr_weights.safetensors` est proposé dans le menu.
+- Au lancement de l'entraînement, le Studio note le modèle de base, le type d'adaptateur, sa taille, les époques et le jeu de données dans `lora_output/training_info.json`, et lit le mot déclencheur (le tag personnalisé du jeu de données) dans le `manifest.json` du prétraitement. À l'export, ces informations sont copiées avec les poids dans un `lora_hub.json` (source `studio-training`) : le menu affiche alors le mot déclencheur (copiable), le modèle requis, l'adaptateur, le rang, les époques et le jeu de données.
+- Le champ « Chemin d'exportation » peut rester vide : le dossier est nommé d'après le jeu de données et l'adaptateur (`<jeu>-lora`, `<jeu>-lokr`, puis `-2`, `-3`... sans jamais réutiliser un nom). Un export ne peut pas remplacer un LoRA installé depuis le catalogue.
+
+**À savoir.** Les informations ne sont inscrites que si les poids exportés ont été écrits après le lancement noté : un LoRA plus ancien, ou un entraînement lancé hors du Studio, s'exporte normalement mais sans déclencheur. Pour un LoRA exporté avant ce correctif, le plus simple est de le réexporter si `final` est encore là.
+
+**Non vérifié.** Aucun entraînement réel n'a été lancé avec LoKr : les tests contrôlent les arguments transmis et les fichiers écrits. LoKr est « expérimental » chez ACE-Step.

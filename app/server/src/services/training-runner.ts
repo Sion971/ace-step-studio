@@ -232,8 +232,14 @@ class TrainingRunner {
 
     // Adaptateur
     args.push('--adapter-type', p.adapterType ?? 'lora');
-    if (p.rank != null) args.push('--rank', String(p.rank));
-    if (p.alpha != null) args.push('--alpha', String(p.alpha));
+    if (p.adapterType === 'lokr') {
+      // LoKr has its own size settings: --rank / --alpha only exist for LoRA and were ignored (LoKr then trained with 64 / 128).
+      if (p.rank != null) args.push('--lokr-linear-dim', String(p.rank));
+      if (p.alpha != null) args.push('--lokr-linear-alpha', String(p.alpha));
+    } else {
+      if (p.rank != null) args.push('--rank', String(p.rank));
+      if (p.alpha != null) args.push('--alpha', String(p.alpha));
+    }
     if (p.dropout != null) args.push('--dropout', String(p.dropout));
 
     // Entraînement
