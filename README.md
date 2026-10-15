@@ -61,7 +61,36 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
 </p>
 
 <p align="center">
-  <em>All four Demucs stems, opened together as separate tracks in the AudioMass editor.</em>
+  <em>All six Demucs stems, opened together as separate tracks in the AudioMass editor.</em>
+</p>
+
+### Stems, MIDI and loudness
+
+<table>
+  <tr>
+    <td width="50%"><img src="app/docs/screenshots/05-stems-choice.png" alt="Choosing 4 or 6 stems"></td>
+    <td width="50%"><img src="app/docs/screenshots/06-midi-piano-roll.png" alt="MIDI piano roll"></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Separate a song into 4 stems, or 6 with guitar and piano</em></td>
+    <td align="center"><em>Piano roll with synthesizer playback, and a .mid download</em></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="app/docs/screenshots/07-song-menu.png" alt="Song menu"></td>
+    <td width="50%"><img src="app/docs/screenshots/08-loudness-target.png" alt="Loudness target"></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Stems and normalized download, one click from any song</em></td>
+    <td align="center"><em>Pick a streaming platform's LUFS target, or your own</em></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="app/docs/screenshots/09-loudness-compare.png" alt="Loudness before and after" width="400">
+</p>
+
+<p align="center">
+  <em>Listen to the original and the normalized version before downloading.</em>
 </p>
 
 ---
