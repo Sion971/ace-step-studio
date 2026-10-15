@@ -43,3 +43,12 @@ export function watchEngineLimits(
     if (timer) clearTimeout(timer);
   };
 }
+
+/**
+ * The engine's duration limit follows whether the language model is LOADED in the engine, not the "thinking" switch of the
+ * screen: its duration field takes the "with LM" maximum as soon as the model is loaded (acestep/ui/gradio/events/generation/
+ * service_init.py), and refuses a longer song even when thinking is off. Until the server has said which, assume the lower.
+ */
+export function pickMaxDuration(limits: EngineLimits, lmLoaded: boolean | null): number {
+  return lmLoaded === false ? limits.withoutLm : limits.withLm;
+}

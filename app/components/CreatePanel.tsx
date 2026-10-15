@@ -26,7 +26,7 @@ import { useI18n } from '../context/I18nContext';
 import type { TranslationKey } from '../i18n/translations';
 import { generateApi, settingsApi } from '../services/api';
 import { applyLmSettings, lmOnDiskFrom } from '../services/lmSwitch';
-import { watchEngineLimits } from '../services/engineLimits';
+import { watchEngineLimits, pickMaxDuration } from '../services/engineLimits';
 import { fillTemplate } from '../utils/fillTemplate';
 import { MAIN_STYLES } from '../data/genres';
 import { EditableSlider } from './EditableSlider';
@@ -958,7 +958,11 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     prevIsGeneratingRef.current = isGenerating;
   }, [isGenerating, refreshModels]);
 
-  const activeMaxDuration = thinking ? maxDurationWithLm : maxDurationWithoutLm;
+  // The limit follows the language model being loaded in the engine (activeLmModel, polled), not the thinking switch.
+  const activeMaxDuration = pickMaxDuration(
+    { withLm: maxDurationWithLm, withoutLm: maxDurationWithoutLm },
+    serverPollSeen ? !!activeLmModel : null,
+  );
 
   useEffect(() => {
     if (duration > activeMaxDuration) {
