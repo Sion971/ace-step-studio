@@ -1214,6 +1214,7 @@ export const ja = {
     attentionType: "対象のアテンション層",
     resumeCheckpoint: "チェックポイントから再開",
     restartPipeline: "サーバーを再起動",
+    engineRestarting: "トレーニング後にエンジンを再起動しています...",
     elapsed: "経過時間",
     copyPath: "パスをコピー",
     trainingLoss: "損失",

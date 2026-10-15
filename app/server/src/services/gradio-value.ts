@@ -54,3 +54,25 @@ export function gradioErrorMessage(error: unknown, fallback: string): string {
   if (!message) return fallback;
   return message.length > 600 ? message.slice(0, 600) + '…' : message;
 }
+
+const ENGINE_DOWN = /connection errored out|fetch failed|econnrefused|econnreset|socket hang up|failed to connect|enotfound/i;
+
+/**
+ * The engine (Gradio) is stopped on purpose while a LoRA trains ("Free VRAM") and restarts when training ends. A call made in
+ * the meantime fails with "Connection errored out", which tells the user nothing. Returns a clear message when the error looks
+ * like an unreachable engine, null otherwise.
+ */
+export function engineDownMessage(error: unknown): string | null {
+  let text = '';
+  if (error instanceof Error) {
+    text = `${error.message} ${String((error as { cause?: { code?: unknown } }).cause?.code ?? '')}`;
+  } else if (typeof error === 'object' && error !== null) {
+    const m = (error as { message?: unknown }).message;
+    if (typeof m === 'string') text = m;
+  } else if (typeof error === 'string') {
+    text = error;
+  }
+  if (!ENGINE_DOWN.test(text)) return null;
+  return 'The engine is not reachable. It is stopped while a LoRA trains and restarts by itself when training ends '
+    + '(or use "Restart the server" in the Train tab). Wait for it to be ready, then try again.';
+}

@@ -60,6 +60,18 @@ interface TrainTabProps {
 
 const POLL_INTERVAL_MS = 1500;
 
+/** State of the Gradio engine as the server sees it ('ready', 'stopped', 'starting'...), null if unknown. */
+async function fetchEngineState(): Promise<string | null> {
+  try {
+    const response = await fetch('/api/pipeline/status');
+    if (!response.ok) return null;
+    const body = await response.json();
+    return typeof body?.state === 'string' ? body.state : null;
+  } catch {
+    return null;
+  }
+}
+
 const MODEL_VARIANTS = ['base', 'sft', 'turbo', 'xl_base', 'xl_sft', 'xl_turbo'];
 const OPTIMIZERS = ['adamw8bit', 'adamw', 'adafactor', 'prodigy'];
 const PRECISIONS = ['bf16', 'fp16', 'fp32', 'auto'];
@@ -236,7 +248,9 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
   const [status, setStatus] = useState<TrainingStatus | null>(null);
   const [tensorInfo, setTensorInfo] = useState('');
   const [actionError, setActionError] = useState('');
-  const [pipelineStopped, setPipelineStopped] = useState(false);
+  // Gradio engine: stopped during training ("Free VRAM"), restarted by the server when training ends.
+  const [engineState, setEngineState] = useState<string | null>(null);
+  const engineStateRef = useRef<string | null>(null);
   const [copied, setCopied] = useState(false);
   const logRef = useRef<HTMLPreElement>(null);
   const markedRef = useRef(false);
@@ -258,6 +272,14 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
         const s = await trainingApi.trainingStatus(token);
         if (cancelled) return;
         setStatus(s);
+        if (ACTIVE_STATES.includes(s.state)) {
+          engineStateRef.current = null; // read the engine again once the run is over
+        } else if (engineStateRef.current !== 'ready') {
+          const engine = await fetchEngineState();
+          if (cancelled) return;
+          engineStateRef.current = engine;
+          setEngineState(engine);
+        }
         if (s.state === 'completed' && !markedRef.current) {
           markedRef.current = true;
           markStep('train');
@@ -287,11 +309,11 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
     if (!token) return;
     setActionError('');
     try {
-      const res = await trainingApi.startTraining({
+      await trainingApi.startTraining({
         ...params,
         resumeCheckpoint: params.resumeCheckpoint.trim() || null,
       }, token);
-      setPipelineStopped(Boolean(res.pipelineStopped));
+      engineStateRef.current = null;
       setStatus(s => (s ? { ...s, state: 'starting', message: t('starting') } : s));
       // Relance immédiate du polling
       const fresh = await trainingApi.trainingStatus(token);
@@ -316,7 +338,8 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
     if (!token) return;
     try {
       await trainingApi.restartPipeline(token);
-      setPipelineStopped(false);
+      engineStateRef.current = null;
+      setEngineState('starting');
     } catch (error) {
       setActionError(error instanceof Error ? error.message : t('trainRestartFailed'));
     }
@@ -649,7 +672,7 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
           </button>
         )}
 
-        {pipelineStopped && !isActive && (
+        {!isActive && (engineState === 'stopped' || engineState === 'error') && (
           <button
             type="button"
             onClick={handleRestartPipeline}
@@ -658,6 +681,13 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
             <RotateCw size={16} />
             {t('restartPipeline') || 'Relancer le serveur'}
           </button>
+        )}
+
+        {!isActive && (engineState === 'starting' || engineState === 'loading_model' || engineState === 'restarting') && (
+          <span className="px-2 py-2.5 text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+            <RotateCw size={14} className="animate-spin" />
+            {t('engineRestarting')}
+          </span>
         )}
       </div>
 

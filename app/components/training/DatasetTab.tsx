@@ -211,10 +211,11 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
   }, []);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setQueuedFiles(prev => [...prev, ...Array.from(e.target.files!)]);
-    }
+    // Copy the list BEFORE resetting the input: React may run the state updater after the reset, when the live
+    // FileList is already empty - the files then silently never appeared in the queue.
+    const picked = e.target.files ? Array.from(e.target.files) : [];
     e.target.value = '';
+    if (picked.length > 0) setQueuedFiles(prev => [...prev, ...picked]);
   }, []);
 
   const handleUploadAndBuild = useCallback(async () => {

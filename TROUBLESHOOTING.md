@@ -2226,3 +2226,22 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 **Limites.** Seule la version commitée compte : des fichiers modifiés à la main sans commit ne déclenchent rien (supprimer `app\dist` force la recompilation). La première exécution après cette mise à jour recompile une fois, faute de fichier `.build-commit`. Si l'ancienne interface s'affiche encore, faites Ctrl+F5 dans le navigateur.
 
 **Non testé sous Windows.** Ce fichier batch n'a été relu que par un contrôle de syntaxe automatique sous Linux.
+
+## 56. « Connection errored out » après l'entraînement (Charger, aperçu, export)
+
+**Symptôme (2026-10-14, Linux).** Après un entraînement, « Charger » un jeu de données affichait `Erreur: 500: Connection errored out.`, l'enregistrement disait « Gradio not available for live preview » et l'export échouait de la même façon, alors que le LoRA était bien dans `lora_output/final`.
+
+**Cause.** Avec « Libérer la VRAM » (par défaut), le serveur arrête le moteur au lancement de l'entraînement : sur 8 Go, il ne tient pas à côté de l'entraînement. Le moteur n'était relancé que par le bouton « Relancer le serveur », et seulement tant que la page n'avait pas été rechargée. Tout ce qui passe par le moteur (charger, aperçu, export) échouait donc avec le message brut du client.
+
+**Correctif.**
+- Le serveur relance le moteur tout seul quand l'entraînement se termine, est arrêté ou échoue (y compris s'il n'a pas pu démarrer). L'onglet affiche « Le moteur redémarre après l'entraînement... » pendant ce temps.
+- Le bouton « Relancer le serveur » se base sur l'état réel du moteur (il survit à un rechargement de la page) et n'apparaît que s'il est arrêté.
+- L'export est une copie de fichiers (`final`, sinon le dernier `checkpoints/epoch_N`) : il marche même moteur arrêté. Le dossier d'export doit rester dans le dossier d'ACE-Step et ne peut pas écraser l'adaptateur entraîné.
+- Un moteur injoignable donne un message clair (« The engine is not reachable… ») au lieu de « Connection errored out ».
+- « Charger » avec un chemin inexistant répond « Dataset file not found: <chemin complet> » : les chemins relatifs (`./datasets/...`) se lisent depuis le dossier d'ACE-Step, identique chez tout le monde.
+
+**Sélecteur de fichiers.** Sélectionner des fichiers audio « ne faisait parfois rien » : la liste était lue après la remise à zéro du champ, quand le navigateur l'avait déjà vidée. Elle est maintenant copiée avant. Le glisser-déposer n'était pas touché.
+
+**À savoir.** Les fichiers importés s'accumulent dans `uploads/<nom du jeu>` et le jeu est reconstruit depuis tout ce dossier : ajouter un fichier fait passer de 2 à 3 échantillons, c'est voulu. Pour repartir de zéro, changez le nom du jeu de données ou videz ce dossier.
+
+**Non vérifié.** La relance automatique n'a pas été exercée avec un vrai moteur ; les tests simulent l'entraînement et l'état du moteur.

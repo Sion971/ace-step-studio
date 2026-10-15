@@ -1231,6 +1231,7 @@ export const en = {
     attentionType: "Attention layers targeted",
     resumeCheckpoint: "Resume from a checkpoint",
     restartPipeline: "Restart the server",
+    engineRestarting: "The engine is restarting after training...",
     elapsed: "Elapsed",
     copyPath: "Copy path",
     trainingLoss: "Loss",

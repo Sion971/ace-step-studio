@@ -148,11 +148,29 @@ class TrainingRunner {
   private metrics: TrainingMetricPoint[] = [];
   private log = '';
   private stdoutTail = '';
+  private finishListeners: Array<() => void> = [];
 
   /* -- État --------------------------------------------------------------- */
 
   isRunning(): boolean {
     return this.state === 'starting' || this.state === 'running';
+  }
+
+  /** Calls `cb` once, when the current run ends (completed, stopped or failed). */
+  onFinish(cb: () => void): void {
+    this.finishListeners.push(cb);
+  }
+
+  private notifyFinished(): void {
+    const listeners = this.finishListeners;
+    this.finishListeners = [];
+    for (const cb of listeners) {
+      try {
+        cb();
+      } catch (err) {
+        console.error('[Training] onFinish listener failed:', err);
+      }
+    }
   }
 
   getStatus(): TrainingStatus {
@@ -290,6 +308,7 @@ class TrainingRunner {
       this.lastError = err.message;
       this.message = `Lancement impossible : ${err.message}`;
       this.process = null;
+      this.notifyFinished();
     });
 
     this.process.on('close', (code: number | null, signal: string | null) => {
@@ -307,6 +326,7 @@ class TrainingRunner {
         this.message = `Entraînement échoué (code ${code})`;
         if (!this.lastError) this.lastError = this.tailLog(1200);
       }
+      this.notifyFinished();
     });
   }
 

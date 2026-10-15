@@ -3,10 +3,11 @@ import { pipelineManager } from '../services/pipeline-manager.js';
 
 import { Router, Request, Response } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
-import { getGradioClient } from '../services/gradio-client.js';
+import { getGradioClient, resetGradioClient } from '../services/gradio-client.js';
 import { parseDatasetSettings } from '../services/dataset-settings.js';
-import { gv, dataframeRowCount, gradioErrorMessage } from '../services/gradio-value.js';
+import { gv, dataframeRowCount, gradioErrorMessage, engineDownMessage } from '../services/gradio-value.js';
 import { healDatasetAudioPaths } from '../services/dataset-paths.js';
+import { exportLora, LoraExportError } from '../services/lora-export.js';
 import { config } from '../config/index.js';
 import { resolvePythonPath } from '../services/acestep.js';
 import multer from 'multer';
@@ -21,6 +22,23 @@ import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
 
 const router = Router();
+
+/** Error text for the browser: a clear sentence when the engine is simply stopped (training), the engine's own text otherwise. */
+function trainingErrorMessage(error: unknown, fallback: string): string {
+  const down = engineDownMessage(error);
+  if (down) {
+    resetGradioClient(); // the cached connection points at the engine that was stopped
+    return down;
+  }
+  return trainingErrorMessage(error, fallback);
+}
+
+/** The engine is stopped to free the VRAM while a LoRA trains: bring it back once the run is over. */
+function restartEngineAfterTraining(why: string): void {
+  if (trainingRunner.isRunning()) return; // another run was started in the meantime
+  console.log(`[Training] Restarting the engine (${why})`);
+  pipelineManager.start().catch((err) => console.warn('[Training] Engine restart failed:', err));
+}
 
 // --- Audio upload via multer disk storage ---
 const AUDIO_EXTENSIONS = ['.wav', '.mp3', '.flac', '.ogg', '.opus'];
@@ -107,7 +125,7 @@ router.post('/upload-audio', authMiddleware, audioUpload.array('audio', 50), asy
     });
   } catch (error) {
     console.error('[Training] Upload audio error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Upload failed') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Upload failed') });
   }
 });
 
@@ -237,7 +255,7 @@ router.post('/build-dataset', authMiddleware, async (req: AuthenticatedRequest, 
       // Gradio may not be running — still return dataset info
       console.warn('[Training] Gradio load failed, returning dataset JSON only:', gradioError);
       res.json({
-        status: `Dataset saved (${samples.length} samples). Gradio not available for live preview.`,
+        status: `Dataset saved (${samples.length} samples). The engine is not running (it is stopped while a LoRA trains), so there is no preview.`,
         dataframe: null,
         sampleCount: samples.length,
         sample: samples.length > 0 ? {
@@ -268,7 +286,7 @@ router.post('/build-dataset', authMiddleware, async (req: AuthenticatedRequest, 
     }
   } catch (error) {
     console.error('[Training] Build dataset error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Failed to build dataset') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Failed to build dataset') });
   }
 });
 
@@ -334,7 +352,7 @@ router.get('/audio', (req, _res, next) => {
     res.sendFile(resolved);
   } catch (error) {
     console.error('[Training] Audio proxy error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Failed to serve audio') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Failed to serve audio') });
   }
 });
 
@@ -390,7 +408,7 @@ router.post('/preprocess', authMiddleware, async (req: AuthenticatedRequest, res
     res.json({ status: 'Preprocessing complete', message, outputDir: resolvedOutput });
   } catch (error) {
     console.error('[Training] Preprocess error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Preprocessing failed') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Preprocessing failed') });
   }
 });
 
@@ -459,7 +477,7 @@ router.post('/scan-directory', authMiddleware, async (req: AuthenticatedRequest,
     });
   } catch (error) {
     console.error('[Training] Scan directory error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Failed to scan directory') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Failed to scan directory') });
   }
 });
 
@@ -501,7 +519,7 @@ router.post('/auto-label', authMiddleware, async (req: AuthenticatedRequest, res
     }
   } catch (error) {
     console.error('[Training] Auto-label error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Auto-label failed') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Auto-label failed') });
   }
 });
 
@@ -554,7 +572,7 @@ router.post('/init-model', authMiddleware, async (req: AuthenticatedRequest, res
     }
   } catch (error) {
     console.error('[Training] Init model error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Model init failed') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Model init failed') });
   }
 });
 
@@ -583,7 +601,7 @@ router.get('/checkpoints', authMiddleware, async (_req: AuthenticatedRequest, re
     res.json({ checkpoints, configs: configDirs });
   } catch (error) {
     console.error('[Training] List checkpoints error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Failed to list checkpoints') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Failed to list checkpoints') });
   }
 });
 
@@ -623,7 +641,7 @@ router.get('/lora-checkpoints', authMiddleware, async (req: AuthenticatedRequest
     res.json({ checkpoints, outputDir: resolvedDir });
   } catch (error) {
     console.error('[Training] List LoRA checkpoints error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Failed to list checkpoints') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Failed to list checkpoints') });
   }
 });
 
@@ -643,11 +661,19 @@ router.post('/load-dataset', authMiddleware, async (req: AuthenticatedRequest, r
       return;
     }
 
+    const aceDir = getAceStepDir();
+    const datasetFile = path.isAbsolute(datasetPath) ? datasetPath : path.resolve(aceDir, datasetPath);
+    if (!existsSync(datasetFile)) {
+      res.status(404).json({
+        error: `Dataset file not found: ${datasetFile}. Create one with "Upload and create", or enter the path of an existing .json file.`,
+      });
+      return;
+    }
+
     // Dataset copié d'une autre installation ou machine : chemins audio absolus périmés
     // (Gradio refuserait sinon de servir l'aperçu : InvalidPathError). Corrigés dans le JSON.
-    const aceDir = getAceStepDir();
     const healed = await healDatasetAudioPaths(
-      path.isAbsolute(datasetPath) ? datasetPath : path.resolve(aceDir, datasetPath),
+      datasetFile,
       { datasetsDir: config.datasets.dir, uploadsDir: config.datasets.uploadsDir, baseDir: aceDir },
     );
     if (healed.repaired > 0) {
@@ -694,7 +720,7 @@ router.post('/load-dataset', authMiddleware, async (req: AuthenticatedRequest, r
     });
   } catch (error) {
     console.error('[Training] Load dataset error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Failed to load dataset') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Failed to load dataset') });
   }
 });
 
@@ -725,7 +751,7 @@ router.get('/sample-preview', authMiddleware, async (req: AuthenticatedRequest, 
     });
   } catch (error) {
     console.error('[Training] Sample preview error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Failed to get sample preview') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Failed to get sample preview') });
   }
 });
 
@@ -756,7 +782,7 @@ router.post('/save-sample', authMiddleware, async (req: AuthenticatedRequest, re
     });
   } catch (error) {
     console.error('[Training] Save sample error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Failed to save sample edit') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Failed to save sample edit') });
   }
 });
 
@@ -792,7 +818,7 @@ router.post('/update-settings', authMiddleware, async (req: AuthenticatedRequest
     res.json({ success: true, applied: settings });
   } catch (error) {
     console.error('[Training] Update settings error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Failed to update settings') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Failed to update settings') });
   }
 });
 
@@ -820,7 +846,7 @@ router.post('/save-dataset', authMiddleware, async (req: AuthenticatedRequest, r
     });
   } catch (error) {
     console.error('[Training] Save dataset error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Failed to save dataset') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Failed to save dataset') });
   }
 });
 
@@ -838,7 +864,7 @@ router.post('/load-tensors', authMiddleware, async (req: AuthenticatedRequest, r
     res.json({ status: gv(data[0]) });
   } catch (error) {
     console.error('[Training] Load tensors error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Failed to load training dataset') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Failed to load training dataset') });
   }
 });
 
@@ -868,7 +894,14 @@ router.post('/start', authMiddleware, async (req: AuthenticatedRequest, res: Res
       }
     }
 
-    trainingRunner.start(params, pythonPath, aceStepDir);
+    try {
+      trainingRunner.start(params, pythonPath, aceStepDir);
+    } catch (startError) {
+      if (pipelineStopped) restartEngineAfterTraining('training could not start');
+      throw startError;
+    }
+    // Stopped (or finished, or failed): the engine comes back by itself, no button to remember.
+    if (pipelineStopped) trainingRunner.onFinish(() => restartEngineAfterTraining('training ended'));
 
     res.json({
       status: 'started',
@@ -878,7 +911,7 @@ router.post('/start', authMiddleware, async (req: AuthenticatedRequest, res: Res
   } catch (error) {
     console.error('[Training] Start error:', error);
     res.status(500).json({
-      error: gradioErrorMessage(error, 'Failed to start training'),
+      error: trainingErrorMessage(error, 'Failed to start training'),
     });
   }
 });
@@ -896,7 +929,7 @@ router.post('/stop', authMiddleware, async (_req: AuthenticatedRequest, res: Res
   } catch (error) {
     console.error('[Training] Stop error:', error);
     res.status(500).json({
-      error: gradioErrorMessage(error, 'Failed to stop training'),
+      error: trainingErrorMessage(error, 'Failed to stop training'),
     });
   }
 });
@@ -917,7 +950,7 @@ router.post('/restart-pipeline', authMiddleware, async (_req: AuthenticatedReque
     res.json({ status: 'Pipeline relancé', pipeline: pipelineManager.getStatus() });
   } catch (error) {
     console.error('[Training] Restart pipeline error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Failed to restart pipeline') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Failed to restart pipeline') });
   }
 });
 
@@ -926,17 +959,21 @@ router.post('/export', authMiddleware, async (req: AuthenticatedRequest, res: Re
   try {
     const { exportPath, loraOutputDir } = req.body;
 
-    const client = await getGradioClient();
-    const result = await client.predict('/export_lora', [
-      exportPath ?? './lora_output/final_lora',
-      loraOutputDir ?? './lora_output',
-    ]);
-    const data = result.data as unknown[];
+    // A copy of files: it works while the engine is stopped for training (it used to go through Gradio).
+    const result = await exportLora({
+      baseDir: getAceStepDir(),
+      exportPath: exportPath ?? './lora_output/final_lora',
+      loraOutputDir: loraOutputDir ?? './lora_output',
+    });
 
-    res.json({ status: gv(data[0]) });
+    res.json({ status: `LoRA exported to ${result.destination}` });
   } catch (error) {
+    if (error instanceof LoraExportError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     console.error('[Training] Export LoRA error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Failed to export LoRA') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Failed to export LoRA') });
   }
 });
 
@@ -954,7 +991,7 @@ router.post('/import-dataset', authMiddleware, async (req: AuthenticatedRequest,
     res.json({ status: gv(data[0]) });
   } catch (error) {
     console.error('[Training] Import dataset error:', error);
-    res.status(500).json({ error: gradioErrorMessage(error, 'Failed to import dataset') });
+    res.status(500).json({ error: trainingErrorMessage(error, 'Failed to import dataset') });
   }
 });
 

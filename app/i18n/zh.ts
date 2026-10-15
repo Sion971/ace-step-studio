@@ -1214,6 +1214,7 @@ export const zh = {
     attentionType: "目标注意力层",
     resumeCheckpoint: "从检查点继续",
     restartPipeline: "重启服务器",
+    engineRestarting: "训练结束，引擎正在重新启动...",
     elapsed: "已用时间",
     copyPath: "复制路径",
     trainingLoss: "损失",

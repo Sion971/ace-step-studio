@@ -841,6 +841,7 @@ export const fr = {
     attentionType: "Couches d'attention ciblées",
     copyPath: 'Copier le chemin',
     restartPipeline: 'Relancer le serveur',
+    engineRestarting: 'Le moteur redémarre après l\'entraînement...',
     trainingLoss: 'Perte',
     elapsed: 'Écoulé',
     waitingForMetrics: 'En attente des premières époques...',

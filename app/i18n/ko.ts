@@ -1214,6 +1214,7 @@ export const ko = {
     attentionType: "대상 어텐션 레이어",
     resumeCheckpoint: "체크포인트에서 이어서 시작",
     restartPipeline: "서버 다시 시작",
+    engineRestarting: "학습이 끝나 엔진을 다시 시작하는 중...",
     elapsed: "경과 시간",
     copyPath: "경로 복사",
     trainingLoss: "손실",

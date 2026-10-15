@@ -1225,6 +1225,7 @@ export const ru = {
     attentionType: "Целевые слои внимания",
     resumeCheckpoint: "Продолжить с чекпоинта",
     restartPipeline: "Перезапустить сервер",
+    engineRestarting: "Движок перезапускается после обучения...",
     elapsed: "Прошло",
     copyPath: "Скопировать путь",
     trainingLoss: "Потери",
