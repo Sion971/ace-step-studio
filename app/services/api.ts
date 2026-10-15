@@ -882,6 +882,11 @@ export interface TrainingParams {
   // Mémoire / performance
   precision?: string;
   optimizerType?: string;
+  /** Preselection fields sent to train.py fixed. */
+  warmupSteps?: number;
+  schedulerType?: string;
+  cfgRatio?: number;
+  attentionType?: string;
   gradientCheckpointing?: boolean;
   offloadEncoder?: boolean;
   numWorkers?: number;

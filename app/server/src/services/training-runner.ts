@@ -40,6 +40,8 @@ export interface TrainingParams {
   rank?: number;
   alpha?: number;
   dropout?: number;
+  /** Couches d'attention visées : both | self | cross (train.py --attention-type). */
+  attentionType?: string;
 
   // Entraînement
   learningRate?: number;
@@ -50,6 +52,11 @@ export interface TrainingParams {
   shift?: number;
   saveEvery?: number;
   resumeCheckpoint?: string | null;
+  warmupSteps?: number;
+  /** cosine | cosine_restarts | linear | constant | constant_with_warmup (train.py --scheduler-type). */
+  schedulerType?: string;
+  /** Probabilite de remplacer la condition par la condition nulle (CFG dropout), entre 0 et 1. */
+  cfgRatio?: number;
 
   // Mémoire / performance
   precision?: 'auto' | 'bf16' | 'fp16' | 'fp32';
@@ -222,6 +229,14 @@ class TrainingRunner {
     if (p.shift != null) args.push('--shift', String(p.shift));
     if (p.saveEvery != null) args.push('--save-every', String(p.saveEvery));
     if (p.resumeCheckpoint) args.push('--resume-from', p.resumeCheckpoint);
+    // Valeurs verifiees ici : train.py les refuserait avec un message d'argparse peu lisible pour l'utilisateur.
+    const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
+    if (finite(p.warmupSteps) && p.warmupSteps >= 0) args.push('--warmup-steps', String(Math.round(p.warmupSteps)));
+    if (p.schedulerType && ['cosine', 'cosine_restarts', 'linear', 'constant', 'constant_with_warmup'].includes(p.schedulerType)) {
+      args.push('--scheduler-type', p.schedulerType);
+    }
+    if (finite(p.cfgRatio) && p.cfgRatio >= 0 && p.cfgRatio <= 1) args.push('--cfg-ratio', String(p.cfgRatio));
+    if (p.attentionType && ['both', 'self', 'cross'].includes(p.attentionType)) args.push('--attention-type', p.attentionType);
 
     // Mémoire
     args.push('--precision', p.precision ?? 'bf16');

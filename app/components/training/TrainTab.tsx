@@ -16,6 +16,10 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { FolderOpen, Play, Square, RotateCw, Copy, Check } from 'lucide-react';
 import { trainingApi } from '../../services/api';
 import { Section, FieldRow, ParamSlider } from './TrainingUIComponents';
+import { fillTemplate } from '../../utils/fillTemplate';
+import {
+  ATTENTION_TYPES, DEFAULT_PRESET_VALUES, SCHEDULER_TYPES, TRAINING_PRESETS, findPreset, presetForVram, type PresetValues,
+} from '../../services/training-presets';
 
 /* ----------------------------------------------------------------------------
  * 1. TYPES
@@ -59,6 +63,7 @@ const POLL_INTERVAL_MS = 1500;
 const MODEL_VARIANTS = ['base', 'sft', 'turbo', 'xl_base', 'xl_sft', 'xl_turbo'];
 const OPTIMIZERS = ['adamw8bit', 'adamw', 'adafactor', 'prodigy'];
 const PRECISIONS = ['bf16', 'fp16', 'fp32', 'auto'];
+const DEFAULT_PRESET = 'default';
 
 const ACTIVE_STATES: TrainingState[] = ['starting', 'running'];
 
@@ -159,6 +164,7 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
     rank: 16,
     alpha: 32,
     dropout: 0.1,
+    attentionType: 'both',
 
     // Entraînement
     learningRate: 0.0001,
@@ -169,6 +175,9 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
     shift: 3.0,
     saveEvery: 10,
     resumeCheckpoint: '',
+    warmupSteps: DEFAULT_PRESET_VALUES.warmupSteps,
+    schedulerType: DEFAULT_PRESET_VALUES.schedulerType,
+    cfgRatio: DEFAULT_PRESET_VALUES.cfgRatio,
 
     // Mémoire
     precision: 'bf16',
@@ -182,9 +191,46 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
     freeVram: true,
   });
 
+  // Préréglage : choisi tout seul selon la mémoire de la carte, tant que l'utilisateur n'a rien touché.
+  const [presetId, setPresetId] = useState<string>(DEFAULT_PRESET);
+  const [detectedVram, setDetectedVram] = useState<number | null>(null);
+  const touchedRef = useRef(false);
+
   const set = useCallback(<K extends keyof typeof params>(key: K, value: typeof params[K]) => {
+    touchedRef.current = true;
     setParams(p => ({ ...p, [key]: value }));
   }, []);
+
+  const applyPreset = useCallback((id: string) => {
+    const values: Partial<PresetValues> | undefined = id === DEFAULT_PRESET ? DEFAULT_PRESET_VALUES : findPreset(id)?.values;
+    if (!values) return;
+    setParams(p => ({ ...p, ...values }));
+    setPresetId(id);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch('/api/pipeline/status');
+        if (!response.ok) return;
+        const body = await response.json();
+        const profile = body?.download?.profile;
+        if (cancelled || !profile) return;
+        if (typeof profile.vramGiB === 'number') setDetectedVram(profile.vramGiB);
+        const id = presetForVram(profile.vramGiB, profile.mode);
+        if (id && !touchedRef.current) applyPreset(id);
+      } catch {
+        /* serveur indisponible : on garde les valeurs du Studio */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [applyPreset]);
+
+  const activePreset = presetId === DEFAULT_PRESET ? undefined : findPreset(presetId);
+  const presetModified = activePreset
+    ? (Object.keys(activePreset.values) as (keyof PresetValues)[]).some(k => params[k] !== activePreset.values[k])
+    : false;
 
   /* -- 5.2 État runtime --------------------------------------------------- */
   const [status, setStatus] = useState<TrainingStatus | null>(null);
@@ -344,6 +390,30 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
         </div>
       </Section>
 
+      {/* ---- Préréglage ---- */}
+      <Section title={t('trainingPreset') || 'Préréglage'}>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={presetId}
+            onChange={e => { touchedRef.current = true; applyPreset(e.target.value); }}
+            disabled={isActive}
+            className={`${INPUT_CLASS} disabled:opacity-50`}
+          >
+            <option value={DEFAULT_PRESET}>{t('trainingPresetStudio')}</option>
+            {TRAINING_PRESETS.map(p => <option key={p.id} value={p.id}>{t(p.labelKey)}</option>)}
+          </select>
+          {presetModified && (
+            <span className="text-[11px] text-amber-500">({t('trainingPresetModified')})</span>
+          )}
+          {detectedVram != null && (
+            <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
+              {fillTemplate(t('trainingPresetDetected'), { vram: detectedVram.toFixed(1) })}
+            </span>
+          )}
+        </div>
+        <p className="text-[10px] text-zinc-500 mt-1.5 leading-relaxed">{t('trainingPresetHint')}</p>
+      </Section>
+
       {/* ---- Paramètres adaptateur & entraînement ---- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <Section title={t('loraSettings') || 'Paramètres de l\'adaptateur'}>
@@ -357,6 +427,16 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
               >
                 <option value="lora">LoRA</option>
                 <option value="lokr">LoKr</option>
+              </select>
+            </FieldRow>
+            <FieldRow label={t('attentionType')}>
+              <select
+                value={params.attentionType}
+                onChange={e => set('attentionType', e.target.value)}
+                disabled={isActive}
+                className={`flex-1 ${INPUT_CLASS} disabled:opacity-50`}
+              >
+                {ATTENTION_TYPES.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </FieldRow>
             <ParamSlider
@@ -412,6 +492,32 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
               value={params.saveEvery} min={1} max={200} step={1}
               onChange={v => set('saveEvery', v)}
             />
+            <ParamSlider
+              label={t('cfgRatio')}
+              value={params.cfgRatio} min={0} max={0.5} step={0.05}
+              onChange={v => set('cfgRatio', v)}
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <FieldRow label={t('trainingSchedulerType')}>
+                <select
+                  value={params.schedulerType}
+                  onChange={e => set('schedulerType', e.target.value)}
+                  disabled={isActive}
+                  className={`flex-1 ${INPUT_CLASS} disabled:opacity-50`}
+                >
+                  {SCHEDULER_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </FieldRow>
+              <FieldRow label={t('warmupSteps')}>
+                <input
+                  type="number" min={0} step={10}
+                  value={params.warmupSteps}
+                  onChange={e => set('warmupSteps', Math.max(0, parseInt(e.target.value) || 0))}
+                  disabled={isActive}
+                  className={`w-24 ${INPUT_CLASS} disabled:opacity-50`}
+                />
+              </FieldRow>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <FieldRow label={t('seed') || 'Graine'}>
                 <input
