@@ -100,7 +100,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
              </div>
 
              {/* Tabs */}
-             <div data-library-tabs className="sticky -top-6 lg:-top-10 z-20 -mx-6 lg:-mx-10 px-6 lg:px-10 pt-4 mb-6 bg-white dark:bg-black transition-colors duration-300">
+             <div data-library-tabs className="sticky -top-6 lg:-top-10 z-20 -mx-6 lg:-mx-10 px-6 lg:px-10 pt-4 pb-4 mb-2 bg-white dark:bg-black transition-colors duration-300">
              <div className="flex items-center gap-4 border-b border-zinc-200 dark:border-white/10 pb-1">
                  <button 
                     onClick={() => setActiveTab('all')}

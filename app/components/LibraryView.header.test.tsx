@@ -31,7 +31,7 @@ describe('the tabs of the library', () => {
     expect(bar).not.toBeNull();
     const classes = bar.className.split(/\s+/);
     // -top-6 / lg:-top-10 cancel the padding of the scrolling area (p-6 / lg:p-10): a sticky offset is counted from its content box.
-    for (const c of ['sticky', '-top-6', 'lg:-top-10', 'z-20', 'bg-white', 'dark:bg-black']) expect(classes, c).toContain(c);
+    for (const c of ['sticky', '-top-6', 'lg:-top-10', 'z-20', 'pb-4', 'bg-white', 'dark:bg-black']) expect(classes, c).toContain(c);
     expect(bar.closest('.overflow-y-auto')).not.toBeNull();
   });
 
