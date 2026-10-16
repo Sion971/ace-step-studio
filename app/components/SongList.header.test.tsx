@@ -31,7 +31,7 @@ describe('the header of the song list', () => {
     const header = container.querySelector<HTMLElement>('[data-song-list-header]')!;
     expect(header).not.toBeNull();
     const classes = header.className.split(/\s+/);
-    for (const c of ['sticky', 'top-0', 'z-20', 'bg-white', 'dark:bg-black']) expect(classes, c).toContain(c);
+    for (const c of ['sticky', '-top-6', 'z-20', 'bg-white', 'dark:bg-black']) expect(classes, c).toContain(c);
   });
 
   it('holds the workspace breadcrumb and the search box, so both stay in view', () => {

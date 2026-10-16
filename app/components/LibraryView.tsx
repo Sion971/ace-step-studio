@@ -95,12 +95,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     return (
         <>
         <div className="flex-1 bg-white dark:bg-black overflow-y-auto custom-scrollbar p-6 lg:p-10 pb-32 transition-colors duration-300">
-             <div className="flex items-center justify-between mb-8">
+             <div className="flex items-center justify-between mb-4">
                 <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">{t('yourLibrary')}</h1>
              </div>
 
              {/* Tabs */}
-             <div className="flex items-center gap-4 mb-8 border-b border-zinc-200 dark:border-white/10 pb-1">
+             <div data-library-tabs className="sticky -top-6 lg:-top-10 z-20 -mx-6 lg:-mx-10 px-6 lg:px-10 pt-4 mb-6 bg-white dark:bg-black transition-colors duration-300">
+             <div className="flex items-center gap-4 border-b border-zinc-200 dark:border-white/10 pb-1">
                  <button 
                     onClick={() => setActiveTab('all')}
                     className={`pb-3 text-sm font-bold transition-colors relative ${activeTab === 'all' ? 'text-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'}`}
@@ -137,6 +138,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     {t('uploads')}
                     {activeTab === 'uploads' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-500 rounded-full"></div>}
                  </button>
+             </div>
              </div>
 
              {/* Content */}
