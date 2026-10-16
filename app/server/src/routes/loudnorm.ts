@@ -7,6 +7,9 @@
 // correction avec ces valeurs mesurees plutot que des estimations.
 // Nettement plus fidele qu'une normalisation en une seule passe.
 //
+// Avant la normalisation, un mastering facultatif (services/mastering.ts) : chaleur
+// (saturation douce), harmoniques, tonalite, compression « glue », largeur stereo.
+//
 // Cibles par plateforme (LUFS integre / crete vraie dBTP), confirmees
 // via plusieurs sources independantes recentes (2026) :
 //   Spotify -14/-1.0, Apple Music -16/-1.0, YouTube -14/-1.0,
@@ -18,6 +21,7 @@ import { spawn } from 'child_process';
 import { existsSync, mkdtempSync, rmSync } from 'fs';
 import path from 'path';
 import os from 'os';
+import { buildMasteringFilter, isMasteringActive, limiterCeiling, parseMasteringSettings } from '../services/mastering.js';
 
 const router = Router();
 
@@ -72,6 +76,10 @@ router.post('/normalize', upload.single('audio'), async (req: Request, res: Resp
   const targetI = parseFloat(req.body?.targetI) || -14;
   const targetTP = parseFloat(req.body?.targetTP) || -1.0;
   const targetLRA = parseFloat(req.body?.targetLRA) || 11;
+  // Mastering facultatif, applique avant la mesure ET avant la correction : la loudness est mesuree sur le son deja masterise.
+  const mastering = parseMasteringSettings(req.body);
+  const masteringChain = buildMasteringFilter(mastering);
+  const chainPrefix = masteringChain ? masteringChain + ',' : '';
 
   const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'loudnorm-'));
   const inputPath = path.join(tmpDir, 'input' + path.extname(req.file.originalname || '.wav'));
@@ -84,7 +92,7 @@ router.post('/normalize', upload.single('audio'), async (req: Request, res: Resp
     // Passe 1 : mesure, aucun fichier de sortie reel (-f null -).
     const analysisArgs = [
       '-i', inputPath,
-      '-af', `loudnorm=I=${targetI}:TP=${targetTP}:LRA=${targetLRA}:print_format=json`,
+      '-af', `${chainPrefix}loudnorm=I=${targetI}:TP=${targetTP}:LRA=${targetLRA}:print_format=json`,
       '-f', 'null', '-',
     ];
     const analysisOutput = await runFfmpeg(analysisArgs);
@@ -97,7 +105,7 @@ router.post('/normalize', upload.single('audio'), async (req: Request, res: Resp
     const applyArgs = [
       '-i', inputPath,
       '-af', [
-        `loudnorm=I=${targetI}:TP=${targetTP}:LRA=${targetLRA}`,
+        `${chainPrefix}loudnorm=I=${targetI}:TP=${targetTP}:LRA=${targetLRA}`,
         `measured_I=${measured.input_i}`,
         `measured_TP=${measured.input_tp}`,
         `measured_LRA=${measured.input_lra}`,
@@ -105,7 +113,10 @@ router.post('/normalize', upload.single('audio'), async (req: Request, res: Resp
         `offset=${measured.target_offset}`,
         'linear=true',
         'print_format=json',
-      ].join(':'),
+      ].join(':') + (isMasteringActive(mastering)
+        // loudnorm sort a 192 kHz : on revient a 48 kHz puis un limiteur tient le plafond de crete choisi apres la saturation.
+        ? `,aresample=48000,alimiter=limit=${limiterCeiling(targetTP).toFixed(4)}:level=disabled`
+        : ''),
       '-ar', '48000',
       '-y', outputPath,
     ];

@@ -3,6 +3,7 @@
 ## 2026-10-15
 
 ### Added
+- Mastering in the loudness window (optional, off by default): warmth (soft saturation that adds harmonics on the peaks), harmonics (air), tone, glue compression and stereo width, with five presets (Light, Warm, Bright, Punchy); it runs before the loudness measure so the target is reached on the mastered sound, and a limiter holds the true-peak ceiling
 - Trained LoRAs join the LoRA menu on export, with their trigger word, base model, adapter type, rank, epochs and dataset (`lora_output/training_info.json` at launch, `lora_hub.json` on export); an empty export path now picks a name from the dataset and adapter (`<dataset>-lora` / `-lokr`) without reusing an existing one
 - LoKr folders (`lokr_weights.safetensors`) are listed in the LoRA menu (`services/lora-available.ts`)
 - Dataset tab: the save path follows the dataset name, and the "Preprocess to tensors" path follows the file just saved, loaded, imported or scanned

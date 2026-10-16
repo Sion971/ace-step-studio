@@ -11,6 +11,7 @@ import React, { useState, useRef } from 'react';
 import { X, Gauge, Loader2, Play, Pause, Download } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
 import { fillTemplate } from '../utils/fillTemplate';
+import { MASTERING_PRESETS, NO_MASTERING, isMasteringOn, matchPreset, type MasteringSettings } from '../services/masteringPresets';
 
 interface LoudnessNormalizationModalProps {
   audioUrl: string;
@@ -34,6 +35,15 @@ const PRESETS: PlatformPreset[] = [
   { label: 'Deezer', targetI: -15, targetTP: -1.0 },
 ];
 
+// The five mastering sliders: the key is both the field sent to the server and the setting changed.
+const MASTERING_SLIDERS: { key: keyof MasteringSettings; labelKey: 'masteringHarmonics' | 'masteringWarmth' | 'masteringTone' | 'masteringGlue' | 'masteringWidth'; min: number }[] = [
+  { key: 'warmth', labelKey: 'masteringWarmth', min: 0 },
+  { key: 'harmonics', labelKey: 'masteringHarmonics', min: 0 },
+  { key: 'tone', labelKey: 'masteringTone', min: -100 },
+  { key: 'glue', labelKey: 'masteringGlue', min: 0 },
+  { key: 'width', labelKey: 'masteringWidth', min: 0 },
+];
+
 export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProps> = ({
   audioUrl,
   songTitle,
@@ -47,6 +57,7 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
   const [error, setError] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [playingWhich, setPlayingWhich] = useState<'before' | 'after' | null>(null);
+  const [mastering, setMastering] = useState<MasteringSettings>(NO_MASTERING);
 
   const beforeRef = useRef<HTMLAudioElement>(null);
   const afterRef = useRef<HTMLAudioElement>(null);
@@ -66,6 +77,7 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
       formData.append('targetI', String(targetI));
       formData.append('targetTP', String(targetTP));
       formData.append('targetLRA', '11');
+      for (const { key } of MASTERING_SLIDERS) formData.append(key, String(mastering[key]));
 
       const response = await fetch('/api/loudnorm/normalize', { method: 'POST', body: formData });
       if (!response.ok) {
@@ -98,7 +110,7 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
     if (!resultUrl) return;
     const link = document.createElement('a');
     link.href = resultUrl;
-    link.download = `${songTitle || 'song'}-normalized.wav`;
+    link.download = `${songTitle || 'song'}-${isMasteringOn(mastering) ? 'mastered' : 'normalized'}.wav`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -110,7 +122,7 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-white/10 w-full max-w-md"
+        className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-white/10 w-full max-w-md max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-white/5">
@@ -182,6 +194,52 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
                 )}
               </div>
 
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('masteringSection')}</label>
+                  {matchPreset(mastering) === null && (
+                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500">{t('masteringCustom')}</span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {MASTERING_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      data-preset={preset.id}
+                      onClick={() => setMastering(preset.settings)}
+                      disabled={isProcessing}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors disabled:opacity-50 ${
+                        matchPreset(mastering) === preset.id
+                          ? 'bg-pink-500 text-white'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      {t(preset.labelKey)}
+                    </button>
+                  ))}
+                </div>
+                <div className="space-y-1.5">
+                  {MASTERING_SLIDERS.map(({ key, labelKey, min }) => (
+                    <label key={key} className="flex items-center gap-2 text-[11px] text-zinc-600 dark:text-zinc-400">
+                      <span className="w-40 flex-shrink-0">{t(labelKey)}</span>
+                      <input
+                        type="range"
+                        data-mastering={key}
+                        min={min}
+                        max={100}
+                        step={1}
+                        value={mastering[key]}
+                        disabled={isProcessing}
+                        onChange={(e) => setMastering({ ...mastering, [key]: parseInt(e.target.value, 10) })}
+                        className="flex-1 accent-pink-500"
+                      />
+                      <span className="w-8 text-right tabular-nums">{mastering[key]}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-[10px] leading-snug text-zinc-400 dark:text-zinc-500">{t('masteringHint')}</p>
+              </div>
+
               <button
                 onClick={handleNormalize}
                 disabled={isProcessing}
@@ -240,7 +298,7 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg shadow-pink-500/20 hover:from-pink-600 hover:to-purple-700 transition-all"
               >
                 <Download size={16} />
-                {t('loudnessDownload')}
+                {isMasteringOn(mastering) ? t('loudnessDownloadMastered') : t('loudnessDownload')}
               </button>
             </div>
           )}
