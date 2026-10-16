@@ -95,12 +95,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     return (
         <>
         <div className="flex-1 bg-white dark:bg-black overflow-y-auto custom-scrollbar p-6 lg:p-10 pb-32 transition-colors duration-300">
-             <div className="flex items-center justify-between mb-4">
+             {/* Titre et onglets : restent en haut quand la liste defile */}
+             <div data-library-tabs className="sticky -top-6 lg:-top-10 z-20 -mx-6 lg:-mx-10 -mt-6 lg:-mt-10 px-6 lg:px-10 pt-6 lg:pt-10 pb-4 mb-2 bg-white dark:bg-black transition-colors duration-300">
+             <div className="flex items-center justify-between mb-8">
                 <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">{t('yourLibrary')}</h1>
              </div>
 
-             {/* Tabs */}
-             <div data-library-tabs className="sticky -top-6 lg:-top-10 z-20 -mx-6 lg:-mx-10 px-6 lg:px-10 pt-4 pb-4 mb-2 bg-white dark:bg-black transition-colors duration-300">
              <div className="flex items-center gap-4 border-b border-zinc-200 dark:border-white/10 pb-1">
                  <button 
                     onClick={() => setActiveTab('all')}

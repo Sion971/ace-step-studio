@@ -35,6 +35,13 @@ describe('the tabs of the library', () => {
     expect(bar.closest('.overflow-y-auto')).not.toBeNull();
   });
 
+  it('keep the title of the page with them, so it does not scroll away', () => {
+    render();
+    const bar = container.querySelector<HTMLElement>('[data-library-tabs]')!;
+    expect(bar.querySelector('h1')).not.toBeNull();
+    expect(bar.querySelector('h1')!.textContent!.trim().length).toBeGreaterThan(0);
+  });
+
   it('hold the five tabs, and come before the content', () => {
     render();
     const bar = container.querySelector<HTMLElement>('[data-library-tabs]')!;

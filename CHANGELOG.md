@@ -14,6 +14,7 @@
 - Dataset tab: the save path follows the dataset name, and the "Preprocess to tensors" path follows the file just saved, loaded, imported or scanned
 
 ### Fixed
+- Library: the page title ("Your library") stays at the top with the tabs
 - Library tabs (sticky): a little solid space under the line, so the rows passing under it are not cut right against it
 - Song list header (sticky): it now sticks to the very top edge; with the padding of the scrolling area songs were still visible above it
 - Advanced settings "Duration" slider stops at the same limit as the quick one (it was fixed at 10 minutes, so it showed a longer song than the engine accepts); `ffprobe` gets 30 s instead of 10 s on first run
