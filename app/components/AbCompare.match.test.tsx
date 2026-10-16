@@ -40,6 +40,16 @@ describe('the level matching of the before / after listening', () => {
     expect(audio(1).volume).toBe(1);
   });
 
+  it('shows the two measured levels, so a small gap can be seen for what it is', () => {
+    render(-20, -14);
+    expect(container.querySelector('[data-ab-levels]')!.textContent).toBe('Original -20.0 LUFS · Mastered -14.0 LUFS');
+    render(-14, -14.1); // negligible gap: no option, but the numbers still explain why nothing changes
+    expect(box()).toBeNull();
+    expect(container.querySelector('[data-ab-levels]')!.textContent).toBe('Original -14.0 LUFS · Mastered -14.1 LUFS');
+    render(null, -14);
+    expect(container.querySelector('[data-ab-levels]')).toBeNull();
+  });
+
   it('shows nothing, and changes nothing, without both levels or with a negligible gap', () => {
     render(null, -14);
     expect(box()).toBeNull();

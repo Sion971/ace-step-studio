@@ -144,6 +144,12 @@ export const AbCompare: React.FC<AbCompareProps> = ({ beforeUrl, afterUrl, befor
         <span className="w-9">{formatTime(duration)}</span>
       </div>
 
+      {typeof beforeLufs === 'number' && typeof afterLufs === 'number' && Number.isFinite(beforeLufs) && Number.isFinite(afterLufs) && (
+        <p data-ab-levels className="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums">
+          {beforeLabel} {beforeLufs.toFixed(1)} LUFS · {afterLabel} {afterLufs.toFixed(1)} LUFS
+        </p>
+      )}
+
       {volumes && matchLabel && (
         <label className="flex items-center gap-2 text-[11px] text-zinc-600 dark:text-zinc-300 cursor-pointer">
           <input type="checkbox" data-ab-match checked={match} onChange={(e) => setMatch(e.target.checked)} className="accent-pink-600" />
