@@ -28,7 +28,7 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
 - **Playlists vs. Workspaces** — a real separation between curated playlists and working sessions, with exclusive workspace membership (a song lives in one workspace at a time) and a virtual "default" view computed by exclusion.
 - **Stem separation, server-side** — [Demucs](https://github.com/facebookresearch/demucs) running in its own isolated environment, in 4 or 6 stems (adding guitar and piano). Synchronized playback with a per-stem mute, and no more browser RAM ceiling on the 6-stem model.
 - **MIDI conversion, server-side** — [basic-pitch](https://github.com/spotify/basic-pitch) running in an isolated Python 3.11 environment (its TensorFlow dependency doesn't ship wheels for newer Python), converting stems to MIDI in seconds rather than tens of minutes in-browser, with a piano roll and built-in synthesizer to hear the result.
-- **Loudness normalization** — normalize a track to a streaming platform's LUFS target (Spotify, Apple Music, YouTube, ...) with two-pass `ffmpeg` loudnorm, and compare before/after before downloading.
+- **Mastering and loudness normalization** — optional mastering (warmth and harmonics, tone, glue compression, stereo width, with presets), then normalization to a streaming platform's LUFS target (Spotify, Apple Music, YouTube, ...) with two-pass `ffmpeg` loudnorm; compare the original and the result at the same volume before downloading.
 - **AudioMass, updated and wired in** — upgraded to the multitrack build, with direct-load support: open a single stem or all of a song's stems together as separate tracks, straight from the browser, no manual export/import round-trip.
 - **LoRA training from the UI** — the full scan → label → preprocess → train pipeline, drivable from React without dropping into Gradio directly.
 - **One installer per platform, both `uv`-based and GPU-aware** — detects your actual compute capability and compiler version, not just a menu choice, and knows when `flash-attn` will and won't build correctly for your hardware (Blackwell/RTX 50-series needs CUDA 12.8+ to compile it at all on Linux, or a matching prebuilt wheel on Windows — both installers check this before attempting work that's doomed to fail).
@@ -64,7 +64,7 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
   <em>All six Demucs stems, opened together as separate tracks in the AudioMass editor.</em>
 </p>
 
-### Stems, MIDI and loudness
+### Stems, MIDI, mastering and loudness
 
 <table>
   <tr>
@@ -81,16 +81,16 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
   </tr>
   <tr>
     <td align="center"><em>Stems and normalized download, one click from any song</em></td>
-    <td align="center"><em>Pick a streaming platform's LUFS target, or your own</em></td>
+    <td align="center"><em>Optional mastering, then a streaming platform's LUFS target (or your own)</em></td>
   </tr>
 </table>
 
 <p align="center">
-  <img src="app/docs/screenshots/09-loudness-compare.png" alt="Loudness before and after" width="400">
+  <img src="app/docs/screenshots/09-loudness-compare.png" alt="Before and after listening" width="400">
 </p>
 
 <p align="center">
-  <em>Listen to the original and the normalized version before downloading.</em>
+  <em>One play button and an Original / Mastered switch that keeps the position, with the measured loudness of both and an option to play them at the same volume.</em>
 </p>
 
 ---
@@ -141,7 +141,7 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
 | **Multitrack Audio Editor** | Trim, fade, and mix with AudioMass — open single stems or all of them together as separate tracks |
 | **Stem Extraction** | Separate a song into 4 stems (vocals, drums, bass, other) or 6 (adding guitar and piano) with Demucs, server-side, with synchronized playback and per-stem mute |
 | **MIDI Conversion** | Turn any stem into MIDI server-side, in seconds, with a piano roll and built-in synthesizer to hear it |
-| **Loudness Normalization** | Normalize a track to a streaming platform's LUFS target, with before/after listening |
+| **Mastering and Loudness** | Optional mastering (warmth, harmonics, tone, glue, width), then normalization to a streaming platform's LUFS target, with before/after listening at the same volume |
 | **LoRA Training** | Full training pipeline, driven from the UI |
 | **Video Generator** | Create music videos with Pexels backgrounds |
 | **Gradient Covers** | Procedural album art, no internet needed |
@@ -349,7 +349,7 @@ Generate several variations of the same prompt in one pass to compare results qu
 
 **MIDI Conversion (basic-pitch)** — runs server-side in its own isolated environment, converts any stem to MIDI in seconds. A piano roll shows the notes and a built-in synthesizer plays them back; the `.mid` file can be downloaded.
 
-**Loudness Normalization** — in a song's menu, **Télécharger normalisé…** adjusts the track to a platform's integrated-LUFS target using a two-pass `ffmpeg` loudnorm (measure, then apply an exact linear correction that preserves dynamics). Presets for Spotify, YouTube, Tidal, Amazon Music, Deezer and Apple Music, or a custom target, with before/after listening.
+**Loudness Normalization** — in a song's menu, **Télécharger normalisé…** adjusts the track to a platform's integrated-LUFS target using a two-pass `ffmpeg` loudnorm (measure, then apply an exact linear correction that preserves dynamics). Presets for Spotify, YouTube, Tidal, Amazon Music, Deezer and Apple Music, or a custom target. An optional mastering step runs first (soft saturation for warmth, high-frequency harmonics, tone, glue compression, stereo width, with Light, Warm, Bright and Punchy presets), so the target is reached on the mastered sound and a limiter holds the peak ceiling. Before/after listening uses one player with an Original / Mastered switch that keeps the position, shows both measured loudnesses and can play them at the same volume.
 
 **LoRA Training** — scan your dataset, label, preprocess, and train, all from the UI.
 
