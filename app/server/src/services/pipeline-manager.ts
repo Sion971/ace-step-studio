@@ -2,7 +2,8 @@ import { spawn, ChildProcess, execSync } from 'child_process';
 import { existsSync } from 'fs';
 import path from 'path';
 import { config } from '../config/index.js';
-import { DownloadTracker, StdoutRouter, type DownloadEvent, type DownloadSnapshot } from './download-tracker.js';
+import { DownloadTracker, StdoutRouter, readHardwareProfile, type DownloadEvent, type DownloadSnapshot } from './download-tracker.js';
+import { dropGpuDiagnostic } from './cpu-log-filter.js';
 
 export type PipelineState =
   | 'stopped'
@@ -91,9 +92,18 @@ class PipelineManager {
     const { passthrough, events } = this.router.push(chunk);
     for (const event of events) this.onDownloadEvent(event);
     if (passthrough) {
-      process.stdout.write(`[Gradio] ${passthrough}`);
+      // Processor mode is a choice, not a failure: the engine's "GPU NOT DETECTED" block is only noise there.
+      const shown = this.isCpuMode() ? dropGpuDiagnostic(passthrough) : passthrough;
+      if (shown) process.stdout.write(`[Gradio] ${shown}`);
       this.parseStdout(passthrough);
     }
+  }
+
+  /** True when the install chose the processor (HW_MODE=cpu in the environment or in hardware_profile.env). */
+  private isCpuMode(): boolean {
+    if (process.env.HW_MODE) return process.env.HW_MODE === 'cpu';
+    const file = process.env.HARDWARE_PROFILE_PATH || path.join(config.pipeline.aceStepDir, '..', 'hardware_profile.env');
+    return readHardwareProfile(file)?.mode === 'cpu';
   }
 
   private onDownloadEvent(event: DownloadEvent): void {
