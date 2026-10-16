@@ -7,10 +7,11 @@
  * cote serveur, pas un limiteur).
  * ==========================================================================*/
 
-import React, { useState, useRef } from 'react';
-import { X, Gauge, Loader2, Play, Pause, Download } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Gauge, Loader2, Download } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
 import { fillTemplate } from '../utils/fillTemplate';
+import { AbCompare } from './AbCompare';
 import { MASTERING_PRESETS, NO_MASTERING, isMasteringOn, matchPreset, type MasteringSettings } from '../services/masteringPresets';
 
 interface LoudnessNormalizationModalProps {
@@ -56,11 +57,8 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
-  const [playingWhich, setPlayingWhich] = useState<'before' | 'after' | null>(null);
   const [mastering, setMastering] = useState<MasteringSettings>(NO_MASTERING);
 
-  const beforeRef = useRef<HTMLAudioElement>(null);
-  const afterRef = useRef<HTMLAudioElement>(null);
 
   const handleNormalize = async () => {
     setIsProcessing(true);
@@ -92,18 +90,6 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  const toggleCompare = (which: 'before' | 'after') => {
-    beforeRef.current?.pause();
-    afterRef.current?.pause();
-    if (playingWhich === which) {
-      setPlayingWhich(null);
-      return;
-    }
-    const ref = which === 'before' ? beforeRef.current : afterRef.current;
-    void ref?.play();
-    setPlayingWhich(which);
   };
 
   const handleDownload = () => {
@@ -269,29 +255,15 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
                 {fillTemplate(t('loudnessResult'), { lufs: useCustom ? customI : selectedPreset.targetI })}
               </p>
 
-              <div className="space-y-2">
-                <button
-                  onClick={() => toggleCompare('before')}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-zinc-50 dark:bg-black/20 border border-zinc-100 dark:border-white/5 hover:bg-zinc-100 dark:hover:bg-black/30 transition-colors"
-                >
-                  <span className="w-8 h-8 flex-shrink-0 rounded-full bg-zinc-400 text-white flex items-center justify-center">
-                    {playingWhich === 'before' ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
-                  </span>
-                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Original</span>
-                </button>
-                <button
-                  onClick={() => toggleCompare('after')}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-zinc-50 dark:bg-black/20 border border-zinc-100 dark:border-white/5 hover:bg-zinc-100 dark:hover:bg-black/30 transition-colors"
-                >
-                  <span className="w-8 h-8 flex-shrink-0 rounded-full bg-pink-500 text-white flex items-center justify-center">
-                    {playingWhich === 'after' ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
-                  </span>
-                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{t('loudnessNormalized')}</span>
-                </button>
-              </div>
-
-              <audio ref={beforeRef} src={audioUrl} onEnded={() => setPlayingWhich(null)} className="hidden" />
-              <audio ref={afterRef} src={resultUrl} onEnded={() => setPlayingWhich(null)} className="hidden" />
+              <AbCompare
+                beforeUrl={audioUrl}
+                afterUrl={resultUrl}
+                beforeLabel={t('abOriginal')}
+                afterLabel={isMasteringOn(mastering) ? t('abMastered') : t('loudnessNormalized')}
+                playLabel={t('abPlay')}
+                pauseLabel={t('abPause')}
+                hint={t('abHint')}
+              />
 
               <button
                 onClick={handleDownload}

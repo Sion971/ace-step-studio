@@ -57,6 +57,9 @@ describe('the mastering part of the loudness window', () => {
     expect(posted!.get('warmth')).toBe('55');
     expect(posted!.get('tone')).toBe('-30');
     expect(posted!.get('targetI')).toBe('-14');
+    // the result shows the single before/after player, on the processed side
+    expect(container.querySelector('[data-ab="after"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelectorAll('[data-ab-play]').length).toBe(1);
   });
 
   it('keeps the value of a slider moved by hand', async () => {
