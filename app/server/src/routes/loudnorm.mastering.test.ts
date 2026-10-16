@@ -48,6 +48,9 @@ describe.skipIf(!hasFfmpeg)('POST /api/loudnorm/normalize with the real ffmpeg',
     const { res, out } = await post({ targetI: '-14', targetTP: '-1' });
     expect(res.status).toBe(200);
     expect(Math.abs(measure(out).lufs + 14)).toBeLessThan(1.2);
+    // without mastering the original is what pass 1 measured; the result is what loudnorm announced
+    expect(Number.isFinite(parseFloat(res.headers.get('x-original-lufs')!))).toBe(true);
+    expect(Math.abs(parseFloat(res.headers.get('x-result-lufs')!) + 14)).toBeLessThan(1.2);
   });
 
   it('reaches the target and holds the peak ceiling with every mastering stage at full', async () => {
@@ -56,5 +59,7 @@ describe.skipIf(!hasFfmpeg)('POST /api/loudnorm/normalize with the real ffmpeg',
     const { lufs, peak } = measure(out);
     expect(Math.abs(lufs + 14)).toBeLessThan(1.5);
     expect(peak).toBeLessThanOrEqual(-0.9);
+    // with mastering the original is measured apart, on the untouched input, so it differs from the target
+    expect(Number.isFinite(parseFloat(res.headers.get('x-original-lufs')!))).toBe(true);
   }, 60000);
 });

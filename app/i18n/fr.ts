@@ -1227,6 +1227,7 @@ export const fr = {
     abPlay: "Lecture",
     abPause: "Pause",
     abHint: "Changez pendant la lecture : la position est conservée.",
+    abMatch: "Même volume pour les deux ({{db}} dB sur le plus fort)",
     downloadNormalized: "Télécharger normalisé…",
     midiConverting: "Conversion en MIDI...",
     midiConversionError: "Erreur de conversion.",

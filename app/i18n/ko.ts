@@ -1147,6 +1147,7 @@ export const ko = {
     abPlay: "재생",
     abPause: "일시정지",
     abHint: "재생 중에 전환해도 위치가 유지됩니다.",
+    abMatch: "두 파일을 같은 볼륨으로 듣기(큰 쪽을 {{db}} dB 낮춤)",
     downloadNormalized: "정규화하여 다운로드…",
     midiConverting: "MIDI로 변환 중...",
     midiConversionError: "변환 오류.",

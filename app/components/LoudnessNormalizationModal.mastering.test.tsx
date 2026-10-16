@@ -21,7 +21,7 @@ describe('the mastering part of the loudness window', () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
       if (url === '/api/loudnorm/normalize') {
         posted = init?.body as FormData;
-        return new Response(new Blob(['x'], { type: 'audio/wav' }), { status: 200 });
+        return new Response(new Blob(['x'], { type: 'audio/wav' }), { status: 200, headers: { 'X-Original-LUFS': '-20.0', 'X-Result-LUFS': '-14.0' } });
       }
       return new Response(new Blob(['y'], { type: 'audio/mpeg' }), { status: 200 });
     }));
@@ -60,6 +60,8 @@ describe('the mastering part of the loudness window', () => {
     // the result shows the single before/after player, on the processed side
     expect(container.querySelector('[data-ab="after"]')?.getAttribute('aria-pressed')).toBe('true');
     expect(container.querySelectorAll('[data-ab-play]').length).toBe(1);
+    // the levels the server measured reach the player: its same-volume option is offered
+    expect(container.querySelector('[data-ab-match]')).not.toBeNull();
   });
 
   it('keeps the value of a slider moved by hand', async () => {

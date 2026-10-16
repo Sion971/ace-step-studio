@@ -3,6 +3,7 @@
 ## 2026-10-15
 
 ### Added
+- Before / after listening: an option (on by default) plays both files at the same volume by turning the louder one down, with the levels measured by the server (`X-Original-LUFS` / `X-Result-LUFS` headers); the files themselves are not changed
 - Loudness / mastering window: listen to the original and the processed file with one play button and an Original / Processed switch; switching while it plays keeps the position, so the difference is heard at the exact same moment (plus a shared position bar)
 - Mastering in the loudness window (optional, off by default): warmth (soft saturation that adds harmonics on the peaks), harmonics (air), tone, glue compression and stereo width, with five presets (Light, Warm, Bright, Punchy); it runs before the loudness measure so the target is reached on the mastered sound, and a limiter holds the true-peak ceiling
 - Trained LoRAs join the LoRA menu on export, with their trigger word, base model, adapter type, rank, epochs and dataset (`lora_output/training_info.json` at launch, `lora_hub.json` on export); an empty export path now picks a name from the dataset and adapter (`<dataset>-lora` / `-lokr`) without reusing an existing one

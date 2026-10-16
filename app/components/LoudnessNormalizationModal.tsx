@@ -12,6 +12,7 @@ import { X, Gauge, Loader2, Download } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
 import { fillTemplate } from '../utils/fillTemplate';
 import { AbCompare } from './AbCompare';
+import { parseLufsHeader } from '../services/levelMatch';
 import { MASTERING_PRESETS, NO_MASTERING, isMasteringOn, matchPreset, type MasteringSettings } from '../services/masteringPresets';
 
 interface LoudnessNormalizationModalProps {
@@ -57,6 +58,7 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [levels, setLevels] = useState<{ original: number | null; result: number | null }>({ original: null, result: null });
   const [mastering, setMastering] = useState<MasteringSettings>(NO_MASTERING);
 
 
@@ -83,6 +85,7 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
         throw new Error(data.error || fillTemplate(t('loudnessFailed'), { status: response.status }));
       }
 
+      setLevels({ original: parseLufsHeader(response.headers.get('X-Original-LUFS')), result: parseLufsHeader(response.headers.get('X-Result-LUFS')) });
       const blob = await response.blob();
       setResultUrl(URL.createObjectURL(blob));
     } catch (err) {
@@ -263,6 +266,9 @@ export const LoudnessNormalizationModal: React.FC<LoudnessNormalizationModalProp
                 playLabel={t('abPlay')}
                 pauseLabel={t('abPause')}
                 hint={t('abHint')}
+                beforeLufs={levels.original}
+                afterLufs={levels.result}
+                matchLabel={t('abMatch')}
               />
 
               <button

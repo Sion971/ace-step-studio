@@ -1147,6 +1147,7 @@ export const zh = {
     abPlay: "播放",
     abPause: "暂停",
     abHint: "播放时可随时切换：播放位置保持不变。",
+    abMatch: "两者音量一致（较响的一方降低 {{db}} dB）",
     downloadNormalized: "下载标准化版本…",
     midiConverting: "正在转换为 MIDI...",
     midiConversionError: "转换错误。",

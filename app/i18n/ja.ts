@@ -1147,6 +1147,7 @@ export const ja = {
     abPlay: "再生",
     abPause: "一時停止",
     abHint: "再生中に切り替えても位置は保たれます。",
+    abMatch: "両方を同じ音量で聴く（大きい方を {{db}} dB 下げる）",
     downloadNormalized: "正規化してダウンロード…",
     midiConverting: "MIDI に変換中...",
     midiConversionError: "変換エラー。",

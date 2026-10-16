@@ -10,6 +10,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Play, Pause } from 'lucide-react';
+import { matchVolumes } from '../services/levelMatch';
+import { fillTemplate } from '../utils/fillTemplate';
 
 export type AbSide = 'before' | 'after';
 
@@ -21,6 +23,11 @@ interface AbCompareProps {
   playLabel: string;
   pauseLabel: string;
   hint?: string;
+  /** Measured loudness (LUFS) of each file, to compare at the same volume. */
+  beforeLufs?: number | null;
+  afterLufs?: number | null;
+  /** Text of the option, with {{db}} for the gap. */
+  matchLabel?: string;
 }
 
 const formatTime = (seconds: number) => {
@@ -29,13 +36,22 @@ const formatTime = (seconds: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 
-export const AbCompare: React.FC<AbCompareProps> = ({ beforeUrl, afterUrl, beforeLabel, afterLabel, playLabel, pauseLabel, hint }) => {
+export const AbCompare: React.FC<AbCompareProps> = ({ beforeUrl, afterUrl, beforeLabel, afterLabel, playLabel, pauseLabel, hint, beforeLufs, afterLufs, matchLabel }) => {
   const beforeRef = useRef<HTMLAudioElement>(null);
   const afterRef = useRef<HTMLAudioElement>(null);
   const [side, setSide] = useState<AbSide>('after');
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  // Same-volume listening: the louder file is turned down (nothing is written to the files), so that louder does not pass for better.
+  const [match, setMatch] = useState(true);
+  const volumes = matchVolumes(beforeLufs, afterLufs);
+  const beforeVolume = match && volumes ? volumes.before : 1;
+  const afterVolume = match && volumes ? volumes.after : 1;
+  useEffect(() => {
+    if (beforeRef.current) beforeRef.current.volume = beforeVolume;
+    if (afterRef.current) afterRef.current.volume = afterVolume;
+  }, [beforeVolume, afterVolume]);
 
   const el = (which: AbSide) => (which === 'before' ? beforeRef.current : afterRef.current);
 
@@ -127,6 +143,13 @@ export const AbCompare: React.FC<AbCompareProps> = ({ beforeUrl, afterUrl, befor
         />
         <span className="w-9">{formatTime(duration)}</span>
       </div>
+
+      {volumes && matchLabel && (
+        <label className="flex items-center gap-2 text-[11px] text-zinc-600 dark:text-zinc-300 cursor-pointer">
+          <input type="checkbox" data-ab-match checked={match} onChange={(e) => setMatch(e.target.checked)} className="accent-pink-600" />
+          {fillTemplate(matchLabel, { db: volumes.diffDb.toFixed(1) })}
+        </label>
+      )}
 
       {hint && <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{hint}</p>}
 

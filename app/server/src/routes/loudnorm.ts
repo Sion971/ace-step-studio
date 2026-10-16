@@ -33,6 +33,7 @@ interface LoudnormMeasurement {
   input_lra: string;
   input_thresh: string;
   target_offset: string;
+  output_i?: string;
 }
 
 /** Lance ffmpeg et capture sa sortie stderr complete — c'est la ou
@@ -120,13 +121,29 @@ router.post('/normalize', upload.single('audio'), async (req: Request, res: Resp
       '-ar', '48000',
       '-y', outputPath,
     ];
-    await runFfmpeg(applyArgs);
+    const applyOutput = await runFfmpeg(applyArgs);
+
+    // Niveaux mesures, renvoyes en en-tetes : l'ecoute avant/apres s'en sert pour comparer a volume egal. L'original est mesure tel quel
+    // (avec un mastering, la passe 1 a deja traite le son : une passe de plus est necessaire).
+    let originalLufs = parseFloat(measured.input_i);
+    if (isMasteringActive(mastering)) {
+      try {
+        originalLufs = parseFloat(extractLoudnormJson(await runFfmpeg(['-i', inputPath, '-af', 'loudnorm=I=-14:TP=-1:LRA=11:print_format=json', '-f', 'null', '-'])).input_i);
+      } catch { originalLufs = NaN; }
+    }
+    let resultLufs = targetI;
+    try {
+      const out = parseFloat(extractLoudnormJson(applyOutput).output_i ?? '');
+      if (Number.isFinite(out)) resultLufs = out;
+    } catch { /* la cible est une bonne valeur de remplacement */ }
 
     if (!existsSync(outputPath)) {
       res.status(500).json({ error: 'ffmpeg finished without error but the output file was not found.' });
       return;
     }
 
+    if (Number.isFinite(originalLufs)) res.setHeader('X-Original-LUFS', originalLufs.toFixed(1));
+    if (Number.isFinite(resultLufs)) res.setHeader('X-Result-LUFS', resultLufs.toFixed(1));
     res.setHeader('Content-Type', 'audio/wav');
     res.setHeader('Content-Disposition', 'attachment; filename="normalized.wav"');
     res.sendFile(outputPath, (err) => {

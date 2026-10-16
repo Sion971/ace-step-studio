@@ -1164,6 +1164,7 @@ export const en = {
     abPlay: "Play",
     abPause: "Pause",
     abHint: "Switch while it plays: the position stays.",
+    abMatch: "Same volume for both ({{db}} dB on the louder one)",
     downloadNormalized: "Download normalized…",
     midiConverting: "Converting to MIDI...",
     midiConversionError: "Conversion error.",
