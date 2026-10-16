@@ -3,6 +3,7 @@
 ## 2026-10-15
 
 ### Added
+- Song list (Create tab): the workspace breadcrumb, the search box and the filters stay at the top while a long list scrolls
 - Before / after listening shows the loudness measured for each file (LUFS), so a small gap between them is visible
 - Before / after listening: an option (on by default) plays both files at the same volume by turning the louder one down, with the levels measured by the server (`X-Original-LUFS` / `X-Result-LUFS` headers); the files themselves are not changed
 - Loudness / mastering window: listen to the original and the processed file with one play button and an Original / Processed switch; switching while it plays keeps the position, so the difference is heard at the exact same moment (plus a shared position bar)

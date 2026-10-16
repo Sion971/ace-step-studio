@@ -263,7 +263,7 @@ export const SongList: React.FC<SongListProps> = ({
             <div className="max-w-5xl mx-auto w-full"> {/* Container constraint */}
 
                 {/* Header */}
-                <div className="flex flex-col gap-6 mb-8">
+                <div data-song-list-header className="sticky top-0 z-20 flex flex-col gap-6 mb-4 -mx-6 -mt-6 px-6 pt-6 pb-4 bg-white dark:bg-black transition-colors duration-300">
                     <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
                         <span
                             className="hover:text-black dark:hover:text-white cursor-pointer transition-colors"
