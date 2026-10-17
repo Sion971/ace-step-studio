@@ -4,7 +4,7 @@ Local album-cover generator (SDXL Turbo) for ACE-Step Studio.
 
 Long-lived worker driven by the Node server over stdin/stdout, one JSON object per line:
 
-  stdin  : {"id": 1, "prompt": "...", "seed": 123, "steps": 3, "size": 512}
+  stdin  : {"id": 1, "prompt": "...", "seed": 123, "steps": 4, "size": 512}
   stdout : {"id": 1, "ok": true, "mime": "image/jpeg", "data": "<base64>"}
            {"id": 1, "ok": false, "error": "..."}
            {"event": "loading"} / {"event": "ready"}   (progress, no id)
@@ -63,9 +63,17 @@ def load_pipeline():
     if not torch.cuda.is_available():
         raise RuntimeError("no CUDA GPU available for local covers")
     patch_hub_for_diffusers()
+    import warnings
+
+    warnings.filterwarnings("ignore", category=FutureWarning)
     # The SDXL class directly, not AutoPipelineForText2Image: the auto pipeline imports every pipeline of diffusers, and
     # some of them need packages the installer does not provide.
     from diffusers import StableDiffusionXLPipeline
+
+    # diffusers repeats "modules that should be kept in float32" on every call (dozens of lines per cover): errors only.
+    from diffusers.utils import logging as diffusers_logging
+
+    diffusers_logging.set_verbosity_error()
 
     send({"event": "loading"})
     log("loading", MODEL_ID, "(first use downloads about 7 GB)")
@@ -88,7 +96,7 @@ def generate(pipe, req):
     generator = torch.Generator("cpu").manual_seed(int(req.get("seed") or 0) & 0x7FFFFFFF)
     image = pipe(
         prompt=str(req["prompt"])[:600],
-        num_inference_steps=int(req.get("steps") or 3),
+        num_inference_steps=int(req.get("steps") or 4),
         guidance_scale=0.0,  # SDXL Turbo is distilled for guidance-free sampling
         width=size,
         height=size,

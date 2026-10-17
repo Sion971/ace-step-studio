@@ -7,12 +7,34 @@ export interface CoverPromptInput {
   topic: string;
   /** Language code of the lyrics. The image prompt stays in English: the image model is English-trained. */
   language: string;
-  /** True for instrumentals — adds a hint about no vocalist persona. */
+  /** True for instrumentals. Kept for callers; the prompt now steers away from people for every song. */
   instrumental: boolean;
 }
 
 const MAX_CAPTION = 110;
 const MAX_TOPIC = 100;
+
+/** Scenery the model draws well at 512 px, appended unless the user asked for a person themselves. */
+const SCENERY = 'landscape, still life, abstract shapes';
+
+/**
+ * Words that put a person in the picture. SDXL Turbo draws faces badly at 512 px with a few steps (warped, uncanny), and
+ * it draws one as soon as it reads "vocals" or "singer". A negative clause cannot help: the model runs without guidance,
+ * and "no people" only adds the word "people". So the vocal descriptors are dropped and scenery is asked for instead.
+ */
+const VOCAL_WORDS =
+  /\b(?:(?:fe)?male\s+)?(?:lead\s+|backing\s+)?(?:vocals?|vocalists?|voices?|singers?|singing|sung)\b|\b(?:fe)?male\b/gi;
+/** The user's own brief names a person, so they want one: no scenery steering. */
+const ASKS_FOR_PERSON =
+  /\b(?:portrait|person|people|man|men|woman|women|girl|boy|face|faces|couple|child|children|dancer|musician|figure|silhouette|singer|band|crowd)\b/i;
+
+const withoutVocalWords = (text: string): string =>
+  text
+    .replace(VOCAL_WORDS, '')
+    .split(',')
+    .map((part) => part.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join(', ');
 
 const oneLine = (text: string): string => text.replace(/\s*[\r\n]+\s*/g, ', ').replace(/\s+/g, ' ').trim();
 
@@ -39,10 +61,10 @@ function clip(text: string, max: number): string {
 export function buildCoverPrompt(input: CoverPromptInput): string {
   const bits: string[] = [];
   const topic = clip(oneLine(input.topic), MAX_TOPIC);
-  const caption = clip(oneLine(input.caption), MAX_CAPTION);
+  const caption = clip(withoutVocalWords(oneLine(input.caption)), MAX_CAPTION);
   if (topic) bits.push(topic);
   if (caption && caption !== topic) bits.push(caption);
-  if (input.instrumental) bits.push('no people');
+  if (!ASKS_FOR_PERSON.test(topic)) bits.push(SCENERY);
   bits.push('atmospheric, cinematic lighting, highly detailed');
   return bits.join(', ');
 }

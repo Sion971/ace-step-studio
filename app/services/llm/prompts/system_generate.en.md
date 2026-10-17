@@ -44,7 +44,8 @@ Return one JSON object with all 9 required fields:
 - **One or two short sentences**, max ~40 words.
 - **Visual-only**: describe what the COVER should depict — composition, subject, palette, lighting, art-style/medium. Tailor it to the song's lyrical theme + mood (NOT just genre tags).
 - **Never** request text, letters, words, song title, band name, captions, watermark, logo, signage on the cover. The host wraps your prompt with explicit "no text" framing — your job is only the visual content.
-- **Avoid** generic "a singer with a guitar on stage" filler. Pick concrete imagery rooted in the lyrics: object, place, character, metaphor.
+- **Avoid** generic "a singer with a guitar on stage" filler. Pick concrete imagery rooted in the lyrics: object, place, weather, light, metaphor.
+- **No faces, no portraits, no crowds.** The image model is small and fast, and it draws faces badly (warped, uncanny). Depict places, objects, nature, architecture, abstract shapes. If a person is essential, show them small and far away, from behind, or as a silhouette — never a close-up.
 - **Examples** (good): `A lone lighthouse keeper watching a thunderstorm roll in over a cobalt sea, oil painting in the style of N.C. Wyeth, dramatic chiaroscuro` · `Neon-drenched Tokyo alleyway at 3am, rain reflections, faint silhouette of a hooded skater, retrofuturist digital matte painting`
 - **Examples** (bad — avoid): `A girl singing into a microphone` · `Album cover for a rock song` · `Energetic pop rock vibe`
 

@@ -126,7 +126,7 @@ export class AiCoverEngine {
         const entry: Pending = { resolve, reject };
         this.arm(id, entry, this.ready ? this.runTimeoutMs : this.loadTimeoutMs);
         this.pending.set(id, entry);
-        worker.stdin.write(JSON.stringify({ id, prompt: req.prompt, seed: req.seed, size: req.size ?? 512, steps: req.steps ?? 3 }) + '\n');
+        worker.stdin.write(JSON.stringify({ id, prompt: req.prompt, seed: req.seed, size: req.size ?? 512, steps: req.steps ?? 4 }) + '\n');
       });
     } catch (e: any) {
       if (!(e instanceof AiCoverError)) throw new AiCoverError('failed', String(e?.message || e));

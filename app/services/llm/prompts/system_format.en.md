@@ -40,7 +40,7 @@ Your job is to return a polished, valid `SongDraft` JSON with all 9 required fie
   "keyScale":       string  (e.g. "A minor")
   "timeSignature":  string  (e.g. "4/4")
   "durationSec":    integer (15–600)
-  "coverPrompt":    string  (1–2 sentences, English, visual-only album cover description rooted in the lyrics — composition, subject, palette, art-style/medium; NEVER request text/letters/title/logo on the cover; avoid generic "singer with guitar" filler)
+  "coverPrompt":    string  (1–2 sentences, English, visual-only album cover description rooted in the lyrics — composition, subject, palette, art-style/medium; NEVER request text/letters/title/logo on the cover; avoid generic "singer with guitar" filler; NO faces, portraits or crowds — the image model draws faces badly, so depict places, objects, nature or abstract shapes, and show any person small, from behind or as a silhouette)
 }
 ```
 
