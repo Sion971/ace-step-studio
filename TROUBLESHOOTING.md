@@ -2285,3 +2285,11 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 **« L'image n'a pas pu être générée ».** Une image seule a échoué (par exemple une image noire, signalée par le processus plutôt qu'enregistrée) ; réessayer donne une autre graine.
 
 **Non vérifié.** Le chemin SDXL Turbo complet (téléchargement, chargement avec `enable_model_cpu_offload`, génération sur une carte de 8 Go à côté du moteur audio) n'a pas pu être exécuté dans l'environnement de développement, qui n'a pas de GPU : les tests couvrent le protocole entre le serveur et le processus avec un faux processus, les routes, le dégradé et l'interface.
+
+## 59. Video Studio : « La vidéo de fond n'a pas pu être chargée » alors que la vidéo est chargée
+
+**Constat (2026-10-17, Firefox).** Après l'import d'une vidéo de fond (« ✓ Video loaded », l'aperçu la lit), l'avertissement « La vidéo de fond n'a pas pu être chargée — une image est utilisée à la place » s'affichait quand même au-dessus du bouton de rendu.
+
+**Cause.** Quand la vidéo de fond est remplacée (autre fichier, autre onglet de fond, retour sur « Video »), l'ancien élément vidéo est libéré en vidant sa source. Le navigateur déclenche alors, un instant plus tard, un événement d'erreur « source vide » sur cet ancien élément ; ses gestionnaires étaient encore actifs et levaient l'avertissement, alors que la nouvelle vidéo se chargeait normalement (reproduit dans Chromium avec une vraie vidéo : l'erreur arrive après le chargement du nouvel élément). Corrigé le 2026-10-18 : l'ancien élément est rendu muet avant d'être libéré (`app/services/backgroundVideo.ts`).
+
+**Si l'avertissement reste affiché après la correction**, c'est un vrai échec : le navigateur ne sait pas lire cette vidéo. Causes fréquentes : codec non pris en charge (H.265/HEVC, certains enregistrements de téléphone ; Firefox sous Linux dépend des bibliothèques ffmpeg du système) ou source distante sans en-têtes CORS. Ré-encoder en H.264 (MP4) ou en WebM règle le premier cas : `ffmpeg -i entree.mov -c:v libx264 -pix_fmt yuv420p -c:a aac sortie.mp4`. Le rendu utilise alors une image à la place de la vidéo, comme le dit le message.

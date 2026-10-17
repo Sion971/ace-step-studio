@@ -4,6 +4,7 @@ import { Song } from '../types';
 import { X, Play, Pause, Download, Wand2, Image as ImageIcon, Music, Video, Loader2, Palette, Layers, Zap, Type, Monitor, Aperture, Activity, Circle, Grid, Box, BarChart2, Waves, Disc, Upload, Plus, Trash2, Settings2, MousePointer2, Search, ExternalLink, Sun, Film, Minus } from 'lucide-react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { getCoverUrl } from '../services/api';
+import { openBackgroundVideo } from '../services/backgroundVideo';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { useResponsive } from '../context/ResponsiveContext';
 import type { TranslationKey } from '../i18n/translations';
@@ -511,32 +512,21 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
     }
 
     setVideoBgError(false);
-    const video = document.createElement('video');
-    // `crossOrigin` n'a de sens que pour une source distante. Sur une URL
-    // `blob:` (MP4 importe) il est au mieux inutile.
-    if (!videoUrl.startsWith('blob:') && !videoUrl.startsWith('data:')) {
-      video.crossOrigin = 'anonymous';
-    }
-    video.src = videoUrl;
-    video.loop = true;
-    video.muted = true;
-    video.playsInline = true;
-    video.autoplay = true;
-
-    video.onloadeddata = () => {
-      bgVideoRef.current = video;
-      video.play().catch(console.error);
-    };
-
-    video.onerror = () => {
-      console.error('Failed to load video:', videoUrl);
-      bgVideoRef.current = null;
-      setVideoBgError(true);
-    };
+    const dispose = openBackgroundVideo(videoUrl, {
+      onReady: (video) => {
+        bgVideoRef.current = video;
+        video.play().catch(console.error);
+      },
+      onError: () => {
+        console.error('Failed to load video:', videoUrl);
+        bgVideoRef.current = null;
+        setVideoBgError(true);
+      },
+    });
 
     return () => {
-      video.pause();
-      video.src = '';
+      dispose();
+      bgVideoRef.current = null;
     };
   }, [backgroundType, videoUrl]);
 
