@@ -12,7 +12,7 @@ import path from 'node:path';
 // download route does around a download that succeeds (it must not treat a language model like a DiT model).
 vi.mock('../db/pool.js', () => ({ pool: {} }));
 vi.mock('../db/sqlite.js', () => ({ generateUUID: () => 'id' }));
-vi.mock('../config/index.js', () => ({ config: { acestep: { apiUrl: 'http://127.0.0.1:9' }, storage: {}, pollinations: {} } }));
+vi.mock('../config/index.js', () => ({ config: { acestep: { apiUrl: 'http://127.0.0.1:9' }, storage: {} } }));
 vi.mock('../middleware/auth.js', () => ({ authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next() }));
 vi.mock('../services/gradio-client.js', () => ({ getGradioClient: vi.fn() }));
 vi.mock('../services/acestep.js', () => ({

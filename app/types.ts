@@ -181,17 +181,10 @@ export interface GenerationParams {
   // existing card instead of creating a duplicate.
   _tempId?: string;
 
-  // Pollinations.ai cover-generation config — opaque blob mirrored to backend.
-  pollinations?: {
-    enabled: boolean;
-    apiKey?: string;
-    model?: string;
-    width?: number;
-    height?: number;
+  // Local AI cover — see GenerationParams in services/api.ts.
+  cover?: {
+    ai: boolean;
     seedMode?: 'song' | 'random';
-    enhance?: boolean;
-    nologo?: boolean;
-    safe?: boolean;
     prompt?: string;
   };
 }

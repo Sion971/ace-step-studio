@@ -64,8 +64,8 @@ app.use(helmet({
       formAction: ["'self'"],
       frameAncestors: ["'self'"],
       // `blob:` is required for the cover-regen modal preview — generated
-      // images come back as Blob from gen.pollinations.ai and we render them
-      // via `<img src={URL.createObjectURL(blob)}>`. Without `blob:` here
+      // (or uploaded) images are held as a Blob and rendered via
+      // `<img src={URL.createObjectURL(blob)}>`. Without `blob:` here
       // the preview shows as a broken image even though the bytes are fine
       // (Save still works, but the user can't see what they're saving).
       imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
@@ -90,7 +90,7 @@ app.use(helmet({
       // sans la moindre erreur visible hors de la console elle-meme.
       workerSrc: ["'self'", 'blob:'],
       styleSrc: ["'self'", 'https:', "'unsafe-inline'"],
-      connectSrc: ["'self'", 'https://esm.sh', 'https://openrouter.ai', 'https://image.pollinations.ai', 'https://gen.pollinations.ai', 'http://localhost:*', 'ws://localhost:*'],
+      connectSrc: ["'self'", 'https://esm.sh', 'https://openrouter.ai', 'http://localhost:*', 'ws://localhost:*'],
       upgradeInsecureRequests: [],
     },
   },

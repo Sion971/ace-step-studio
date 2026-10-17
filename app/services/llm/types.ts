@@ -40,10 +40,10 @@ export interface SongDraft {
   durationSec: number;
   /**
    * One-or-two-sentence English visual description of an album cover for THIS
-   * specific song. The LLM tailors it to the lyrics and mood. Used as the core
-   * Pollinations prompt — backend wraps it with "square music album cover
-   * artwork, … , no text" framing. Empty string is a valid value (the
-   * Pollinations layer falls back to a keyword-based default when it's empty).
+   * specific song. The LLM tailors it to the lyrics and mood. Used as the local AI
+   * cover prompt — the server puts "album cover art" and an art style in front of it.
+   * Empty string is a valid value (buildCoverPrompt then falls back to a
+   * keyword-based default built from the caption).
    */
   coverPrompt: string;
 }

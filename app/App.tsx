@@ -284,7 +284,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [songForVideo, setSongForVideo] = useState<Song | null>(null);
 
-  // Cover regen modal — manual Pollinations / upload entry from SongList row
+  // Cover regen modal — manual AI / upload entry from SongList row
   // and RightSidebar. Updates songs.cover_url via /api/songs/:id/regen-cover.
   const [songForCoverRegen, setSongForCoverRegen] = useState<Song | null>(null);
 
@@ -525,7 +525,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
           title: s.title,
           lyrics: s.lyrics,
           style: s.style,
-          // Prefer the real cover saved by the audio-gen pipeline (Pollinations).
+          // Prefer the real cover saved by the audio-gen pipeline (local AI cover).
           // Fallback vers une pochette generee localement pour les
           // chansons sans cover_url (voir getCoverUrl dans services/api.ts).
           coverUrl: s.cover_url || s.coverUrl || getCoverUrl(s.id),
@@ -1059,7 +1059,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         title: s.title,
         lyrics: s.lyrics,
         style: s.style,
-        // Prefer real cover saved by Pollinations integration.
+        // Prefer the real cover saved by the local AI cover job.
         coverUrl: (s as any).cover_url || (s as any).coverUrl || getCoverUrl(s.id),
         duration: s.duration && s.duration > 0 ? `${Math.floor(s.duration / 60)}:${String(Math.floor(s.duration % 60)).padStart(2, '0')}` : '0:00',
         createdAt: new Date(s.created_at),
@@ -1385,8 +1385,8 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         loraLoaded: params.loraLoaded,
         // OpenRouter — model id used for the AI lyric/caption run (persisted on song row).
         openrouterModel: params.openrouterModel,
-        // Pollinations.ai cover-gen config — opaque blob mirrored to backend.
-        pollinations: params.pollinations,
+        // Local AI cover request, mirrored to the backend.
+        cover: params.cover,
         // Pre-created placeholder card id (instant feedback at click time).
         _tempId: params._tempId,
       }, token);

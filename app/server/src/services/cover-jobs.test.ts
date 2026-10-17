@@ -1,13 +1,12 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
-// Mock the network call before the module under test imports it.
-vi.mock('./pollinations.js', () => ({
-  generatePollinationsCover: vi.fn(),
-  songIdToSeed: (id: string) => id.charCodeAt(0) % 1000,
+// Mock the worker before the module under test imports it.
+vi.mock('./ai-cover.js', () => ({
+  aiCover: { generate: vi.fn(), status: vi.fn() },
 }));
 
-import { generatePollinationsCover } from './pollinations.js';
+import { aiCover } from './ai-cover.js';
 import {
   startCoverGen,
   getCoverState,
@@ -15,32 +14,29 @@ import {
   awaitCoverWithTimeout,
   _resetCoverJobs,
 } from './cover-jobs.js';
+import { songIdToSeed } from './cover-seed.js';
 
-const mockGenerate = vi.mocked(generatePollinationsCover);
+const mockGenerate = vi.mocked(aiCover.generate);
 
 const baseCfg = {
-  enabled: true,
-  apiKey: 'sk_test',
-  model: 'zimage',
-  width: 1024,
-  height: 1024,
   seedMode: 'song' as const,
-  enhance: true,
-  nologo: true,
-  safe: true,
-  prompt: 'square album cover',
+  prompt: 'synthwave, 80s, female vocals',
 };
 
 const fakeJpegBytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+const ok = { buffer: fakeJpegBytes, mimeType: 'image/jpeg' as const };
 
 describe('cover-jobs state machine', () => {
   beforeEach(() => {
     _resetCoverJobs();
     mockGenerate.mockReset();
+    vi.mocked(aiCover.status).mockReset().mockReturnValue({ available: true });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
     _resetCoverJobs();
+    vi.restoreAllMocks();
   });
 
   it('returns undefined for an unknown jobId', () => {
@@ -48,13 +44,12 @@ describe('cover-jobs state machine', () => {
   });
 
   it('transitions idle → pending → ready on success', async () => {
-    mockGenerate.mockResolvedValue({ buffer: fakeJpegBytes, mimeType: 'image/jpeg' });
+    mockGenerate.mockResolvedValue(ok);
 
     const entry = startCoverGen('job-1', baseCfg);
     expect(entry.state).toBe('pending');
     expect(getCoverState('job-1')?.state).toBe('pending');
 
-    // Wait for the inner promise
     if (entry.state === 'pending') await entry.promise;
 
     const after = getCoverState('job-1');
@@ -65,32 +60,19 @@ describe('cover-jobs state machine', () => {
     }
   });
 
-  it('transitions to failed on undefined response', async () => {
-    mockGenerate.mockResolvedValue(undefined);
+  it('transitions to failed when the worker refuses (no GPU, no model…)', async () => {
+    mockGenerate.mockRejectedValue(new Error('no CUDA GPU available for local covers'));
 
     const entry = startCoverGen('job-fail', baseCfg);
     if (entry.state === 'pending') await entry.promise;
 
     const after = getCoverState('job-fail');
     expect(after?.state).toBe('failed');
-    if (after?.state === 'failed') {
-      expect(after.reason).toMatch(/timeout|undefined/i);
-    }
-  });
-
-  it('transitions to failed on thrown error', async () => {
-    mockGenerate.mockRejectedValue(new Error('network down'));
-
-    const entry = startCoverGen('job-err', baseCfg);
-    if (entry.state === 'pending') await entry.promise;
-
-    const after = getCoverState('job-err');
-    expect(after?.state).toBe('failed');
-    if (after?.state === 'failed') expect(after.reason).toContain('network down');
+    if (after?.state === 'failed') expect(after.reason).toContain('no CUDA');
   });
 
   it('is idempotent — same jobId twice returns same entry', () => {
-    mockGenerate.mockResolvedValue({ buffer: fakeJpegBytes, mimeType: 'image/jpeg' });
+    mockGenerate.mockResolvedValue(ok);
     const e1 = startCoverGen('idem', baseCfg);
     const e2 = startCoverGen('idem', baseCfg);
     expect(e1).toBe(e2);
@@ -98,7 +80,7 @@ describe('cover-jobs state machine', () => {
   });
 
   it('consume drops the entry from the map', async () => {
-    mockGenerate.mockResolvedValue({ buffer: fakeJpegBytes, mimeType: 'image/jpeg' });
+    mockGenerate.mockResolvedValue(ok);
     const entry = startCoverGen('consume-test', baseCfg);
     if (entry.state === 'pending') await entry.promise;
 
@@ -112,7 +94,7 @@ describe('cover-jobs state machine', () => {
   });
 
   it('awaitCoverWithTimeout returns the entry if already resolved', async () => {
-    mockGenerate.mockResolvedValue({ buffer: fakeJpegBytes, mimeType: 'image/jpeg' });
+    mockGenerate.mockResolvedValue(ok);
     const e = startCoverGen('done-fast', baseCfg);
     if (e.state === 'pending') await e.promise;
 
@@ -122,59 +104,66 @@ describe('cover-jobs state machine', () => {
 
   it('awaitCoverWithTimeout returns null when timeout fires before completion', async () => {
     let resolveFn!: (v: any) => void;
-    mockGenerate.mockImplementation(
-      () => new Promise(r => { resolveFn = r; })
-    );
+    mockGenerate.mockImplementation(() => new Promise((r) => { resolveFn = r; }));
 
     startCoverGen('slow', baseCfg);
     const r = await awaitCoverWithTimeout('slow', 50);
     expect(r).toBeNull();
 
-    // Cleanup: resolve the dangling promise so vitest doesn't hang
-    resolveFn({ buffer: fakeJpegBytes, mimeType: 'image/jpeg' });
+    resolveFn(ok);
   });
 
-  it('passes pollinations config through to the gen call (with style modifier appended)', async () => {
-    mockGenerate.mockResolvedValue({ buffer: fakeJpegBytes, mimeType: 'image/jpeg' });
-    const e = startCoverGen('cfg-test', { ...baseCfg, model: 'flux', width: 768, height: 768 });
+  it('puts the style hint first, then the interface prompt', async () => {
+    mockGenerate.mockResolvedValue(ok);
+    const e = startCoverGen('cfg-test', baseCfg);
     if (e.state === 'pending') await e.promise;
 
-    expect(mockGenerate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: 'flux',
-        width: 768,
-        height: 768,
-        apiKey: 'sk_test',
-      })
-    );
-    // Original prompt is preserved as a prefix; per-job style modifier
-    // appended for visual diversity (see STYLE_MODIFIERS in cover-jobs.ts).
     const call = mockGenerate.mock.calls[0]?.[0];
-    expect(call?.prompt.startsWith('square album cover, ')).toBe(true);
-    expect(call?.prompt.length).toBeGreaterThan('square album cover, '.length);
+    expect(call?.prompt.startsWith('album cover art, ')).toBe(true);
+    expect(call?.prompt.endsWith(', synthwave, 80s, female vocals')).toBe(true);
   });
 
-  it('two different jobIds with the same prompt get different style modifiers', async () => {
-    mockGenerate.mockResolvedValue({ buffer: fakeJpegBytes, mimeType: 'image/jpeg' });
-    const a = startCoverGen('aaa', baseCfg);
-    if (a.state === 'pending') await a.promise;
-    const b = startCoverGen('bbb', baseCfg);
-    if (b.state === 'pending') await b.promise;
+  it('cuts a very long prompt, so that the style hint is never the part that is lost', async () => {
+    mockGenerate.mockResolvedValue(ok);
+    const e = startCoverGen('long', { ...baseCfg, prompt: 'x'.repeat(2000) });
+    if (e.state === 'pending') await e.promise;
 
-    const callA = mockGenerate.mock.calls[0]?.[0];
-    const callB = mockGenerate.mock.calls[1]?.[0];
-    // Different jobIds → different songIdToSeed → different modifier index.
-    // (Mock songIdToSeed in the test uses charCodeAt(0) % 1000, so 'a'=97, 'b'=98 → different mod 16.)
-    expect(callA?.prompt).not.toEqual(callB?.prompt);
+    expect(mockGenerate.mock.calls[0]?.[0].prompt.length).toBeLessThan(400);
   });
 
-  it('omits seed when seedMode is random', async () => {
-    mockGenerate.mockResolvedValue({ buffer: fakeJpegBytes, mimeType: 'image/jpeg' });
+  it('still works without an interface prompt', async () => {
+    mockGenerate.mockResolvedValue(ok);
+    const e = startCoverGen('no-prompt', { ...baseCfg, prompt: '  ' });
+    if (e.state === 'pending') await e.promise;
+
+    expect(mockGenerate.mock.calls[0]?.[0].prompt.startsWith('album cover art, ')).toBe(true);
+  });
+
+  it('two different jobIds with the same prompt get different style hints', async () => {
+    mockGenerate.mockResolvedValue(ok);
+    for (const id of ['job_1791000000000_abc1234', 'job_1791000001237_zzz9876']) {
+      const e = startCoverGen(id, baseCfg);
+      if (e.state === 'pending') await e.promise;
+    }
+    expect(mockGenerate.mock.calls[0]?.[0].prompt).not.toEqual(mockGenerate.mock.calls[1]?.[0].prompt);
+  });
+
+  it('derives the seed from the jobId when seedMode is song', async () => {
+    mockGenerate.mockResolvedValue(ok);
+    const e = startCoverGen('song-seed', baseCfg);
+    if (e.state === 'pending') await e.promise;
+
+    expect(mockGenerate.mock.calls[0]?.[0].seed).toBe(songIdToSeed('song-seed'));
+  });
+
+  it('draws a new seed when seedMode is random', async () => {
+    mockGenerate.mockResolvedValue(ok);
     const e = startCoverGen('random-seed', { ...baseCfg, seedMode: 'random' });
     if (e.state === 'pending') await e.promise;
 
-    const call = mockGenerate.mock.calls[0]?.[0];
-    expect(call?.seed).toBeUndefined();
+    const seed = mockGenerate.mock.calls[0]?.[0].seed;
+    expect(Number.isInteger(seed)).toBe(true);
+    expect(seed).toBeGreaterThanOrEqual(0);
   });
 
   it('consumeCoverState tombstones the jobId so a still-running gen does not resurrect the entry', async () => {
@@ -183,22 +172,18 @@ describe('cover-jobs state machine', () => {
 
     const e = startCoverGen('zombie', baseCfg);
     expect(e.state).toBe('pending');
-    expect(getCoverState('zombie')?.state).toBe('pending');
 
-    // User cancels mid-flight
     consumeCoverState('zombie');
     expect(getCoverState('zombie')).toBeUndefined();
 
-    // Now the in-flight Pollinations call returns
-    resolveFn({ buffer: fakeJpegBytes, mimeType: 'image/jpeg' });
+    resolveFn(ok);
     if (e.state === 'pending') await e.promise;
 
-    // Entry should NOT be resurrected
     expect(getCoverState('zombie')).toBeUndefined();
   });
 
-  it('startCoverGen on a tombstoned jobId returns failed without firing the network call', async () => {
-    consumeCoverState('tombstoned'); // tombstone w/o ever starting
+  it('startCoverGen on a tombstoned jobId returns failed without starting the model', async () => {
+    consumeCoverState('tombstoned');
     mockGenerate.mockReset();
 
     const e = startCoverGen('tombstoned', baseCfg);
@@ -206,13 +191,35 @@ describe('cover-jobs state machine', () => {
     expect(mockGenerate).not.toHaveBeenCalled();
   });
 
-  it('derives seed from jobId when seedMode is song', async () => {
-    mockGenerate.mockResolvedValue({ buffer: fakeJpegBytes, mimeType: 'image/jpeg' });
-    const e = startCoverGen('song-seed', baseCfg);
+  it('skips the model while the GPU is busy with audio', async () => {
+    const gate = vi.fn().mockResolvedValue(false);
+    const e = startCoverGen('busy', baseCfg, gate);
     if (e.state === 'pending') await e.promise;
 
-    const call = mockGenerate.mock.calls[0]?.[0];
-    // Mock songIdToSeed returns charCodeAt(0) % 1000 = 's'.charCodeAt(0) % 1000 = 115
-    expect(call?.seed).toBe(115);
+    expect(gate).toHaveBeenCalledTimes(1);
+    expect(mockGenerate).not.toHaveBeenCalled();
+    const after = getCoverState('busy');
+    expect(after?.state).toBe('failed');
+    if (after?.state === 'failed') expect(after.reason).toMatch(/busy/i);
+  });
+
+  it('runs the model once the gate lets it through', async () => {
+    mockGenerate.mockResolvedValue(ok);
+    const e = startCoverGen('free', baseCfg, async () => true);
+    if (e.state === 'pending') await e.promise;
+    expect(getCoverState('free')?.state).toBe('ready');
+  });
+
+  it('does not wait for the GPU, nor start the model, when AI covers are unavailable (processor mode)', async () => {
+    vi.mocked(aiCover.status).mockReturnValue({ available: false, reason: 'cpu-mode' });
+    const gate = vi.fn().mockResolvedValue(true);
+    const e = startCoverGen('cpu', baseCfg, gate);
+    if (e.state === 'pending') await e.promise;
+
+    expect(gate).not.toHaveBeenCalled();
+    expect(mockGenerate).not.toHaveBeenCalled();
+    const after = getCoverState('cpu');
+    expect(after?.state).toBe('failed');
+    if (after?.state === 'failed') expect(after.reason).toContain('cpu-mode');
   });
 });

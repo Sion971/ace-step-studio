@@ -23,12 +23,32 @@ import {
   resolvePythonPath,
 } from '../services/acestep.js';
 import { getStorageProvider } from '../services/storage/factory.js';
-import { tagMp3Buffer, fetchCoverImage, updateMp3Cover, type PollinationsCoverConfig } from '../services/id3-tagger.js';
+import { tagMp3Buffer, fetchCoverImage, updateMp3Cover } from '../services/id3-tagger.js';
 import {
   startCoverGen,
   consumeCoverState,
   getCoverState,
+  type CoverGate,
 } from '../services/cover-jobs.js';
+
+/**
+ * Lets the AI cover use the GPU only when no audio generation is queued or running: the cover model shares the card with
+ * the audio engine. Polls the job table; gives up (the default gradient stays) after half an hour.
+ */
+function makeCoverGate(jobId: string): CoverGate {
+  return async () => {
+    const deadline = Date.now() + 30 * 60_000;
+    while (Date.now() < deadline) {
+      const r = await pool.query(
+        `SELECT COUNT(*) AS c FROM generation_jobs WHERE status IN ('pending', 'queued', 'running') AND id != ?`,
+        [jobId],
+      );
+      if (Number(r.rows?.[0]?.c ?? 0) === 0) return true;
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
+    return false;
+  };
+}
 
 // Le serveur tourne en ESM : `__dirname` n'existe pas. On le reconstruit
 // depuis l'URL du module courant.
@@ -244,21 +264,12 @@ interface GenerateBody {
   // OpenRouter
   openrouterModel?: string;
 
-  // Pollinations.ai cover generation — opaque blob mirroring PollinationsCoverConfig
-  // (see app/server/src/services/id3-tagger.ts). When `enabled=true` and a model
-  // is set, the audio-gen pipeline routes the post-render cover fetch through
-  // Pollinations, persists the bytes to /audio/{userId}/covers/{songId}.jpg and
-  // writes that path into songs.cover_url.
-  pollinations?: {
-    enabled: boolean;
-    apiKey?: string;
-    model?: string;
-    width?: number;
-    height?: number;
+  // Local AI cover (SDXL Turbo, see services/ai-cover.ts). When `ai` is true, once the audio is done the server makes a
+  // cover from `prompt`, saves it under /audio/{userId}/covers/{songId} and writes that path into songs.cover_url.
+  // Without it the song keeps the default gradient (cover_url stays NULL).
+  cover?: {
+    ai: boolean;
     seedMode?: 'song' | 'random';
-    enhance?: boolean;
-    nologo?: boolean;
-    safe?: boolean;
     prompt?: string;
   };
 }
@@ -395,7 +406,7 @@ router.post('/', authMiddleware, async (req: AuthenticatedRequest, res: Response
       repaintStrength,
       ditModel,
       openrouterModel,
-      pollinations,
+      cover,
       // DCW / Retake / FlowEdit / lora — frontend has been forwarding these
       // for a while, but the backend destructure was dropping them silently
       // on the floor. Added so the persisted `params` blob actually mirrors
@@ -500,7 +511,7 @@ router.post('/', authMiddleware, async (req: AuthenticatedRequest, res: Response
       repaintStrength,
       ditModel,
       openrouterModel,
-      pollinations,
+      cover,
       // mirror to persisted params blob
       dcwEnabled,
       dcwMode,
@@ -526,11 +537,8 @@ router.post('/', authMiddleware, async (req: AuthenticatedRequest, res: Response
       [localJobId, req.user!.id, JSON.stringify(params)]
     );
 
-    // NOTE: cover-gen is NOT kicked off here. It starts later in the status
-    // poller, in the moment the audio job transitions queued→running for
-    // THIS jobId. That keeps the user's "queue" mental model intact: a
-    // cancelled queued job never spends user money on Pollinations, and
-    // 10 queued clicks don't fire 10 simultaneous Pollinations calls.
+    // NOTE: cover-gen is NOT kicked off here. It starts in the status poller, once the audio of THIS jobId has succeeded:
+    // the cover model shares the GPU with the audio engine, so it must never run while a generation is in progress.
 
     // Generation params logged
 
@@ -580,38 +588,6 @@ router.get('/status/:jobId', authMiddleware, async (req: AuthenticatedRequest, r
       try {
         const aceStatus = await getJobStatus(job.acestep_task_id);
 
-        // First time we see this job in flight — kick off Pollinations cover
-        // gen. ONLY on `running` (not `succeeded`): if we also fired on the
-        // `succeeded` status, then after `attachCover.finally` runs
-        // `consumeCoverState(jobId)` the entry is gone, and the next poll
-        // (still seeing `succeeded`) would re-fire a brand-new cover gen
-        // (= burns Pollinations quota + leaks bytes).
-        // The "missed transition" risk is bounded: ACE-Step turbo audio takes
-        // 30+s and we poll every 2s, so we'll always catch at least one
-        // `running` poll between queued and succeeded.
-        if (
-          aceStatus.status === 'running' &&
-          !getCoverState(req.params.jobId)
-        ) {
-          const params = typeof job.params === 'string' ? JSON.parse(job.params) : job.params;
-          const pol = params?.pollinations;
-          if (pol?.enabled && pol.model && pol.prompt) {
-            const polCfg: PollinationsCoverConfig = {
-              enabled: true,
-              apiKey: pol.apiKey || '',
-              model: pol.model,
-              width: pol.width ?? 1024,
-              height: pol.height ?? 1024,
-              seedMode: pol.seedMode ?? 'song',
-              enhance: pol.enhance ?? true,
-              nologo: pol.nologo ?? true,
-              safe: pol.safe ?? true,
-              prompt: pol.prompt,
-            };
-            startCoverGen(req.params.jobId, polCfg);
-          }
-        }
-
         if (aceStatus.status !== job.status) {
           // Use optimistic lock: only update if status hasn't changed (prevents duplicate song creation)
           let updateQuery = `UPDATE generation_jobs SET status = ?, updated_at = datetime('now')`;
@@ -657,18 +633,15 @@ router.get('/status/:jobId', authMiddleware, async (req: AuthenticatedRequest, r
                 let { buffer } = await downloadAudioToBuffer(audioUrl);
                 const ext = audioUrl.includes('.flac') ? '.flac' : '.mp3';
 
-                // Tag MP3 with ID3 metadata (title, artist, fast picsum cover, lyrics).
-                // We DO NOT block the audio-gen flow on Pollinations cover gen —
-                // that can take 30-60s on cold path and would freeze the UI's
-                // "Создать" button. Instead:
-                //   1. Synchronously fetch a fast picsum cover for the ID3 tag
-                //      (so downloaded MP3 has a thumbnail).
-                //   2. After INSERT, kick off Pollinations cover gen in the
-                //      background and UPDATE songs.cover_url when ready.
+                // Tag MP3 with ID3 metadata (title, artist, default gradient cover, lyrics).
+                // We DO NOT block the audio-gen flow on the AI cover: it can take a while (model load) and would freeze
+                // the UI's create button. Instead:
+                //   1. Embed the default gradient (drawn locally, instant) in the ID3 tag.
+                //   2. After INSERT, if the AI cover is on, make it in the background and UPDATE songs.cover_url when
+                //      ready (the ID3 cover is replaced by it too).
                 if (ext === '.mp3') {
                   try {
-                    // Fast path only — picsum, no Pollinations here.
-                    const fastCover = await fetchCoverImage(songId, undefined);
+                    const fastCover = await fetchCoverImage(songId);
                     buffer = tagMp3Buffer(buffer, {
                       title: songTitle,
                       artist: req.user!.username || 'ACE-Step Studio',
@@ -682,7 +655,7 @@ router.get('/status/:jobId', authMiddleware, async (req: AuthenticatedRequest, r
                     console.warn('ID3 tagging failed, saving without tags:', tagErr);
                   }
                 }
-                // cover_url is filled later by background Pollinations job
+                // cover_url is filled later by the background AI cover job
                 // (see "BACKGROUND COVER GEN" below). For now insert NULL.
                 const savedCoverUrl: string | null = null;
 
@@ -760,7 +733,7 @@ router.get('/status/:jobId', authMiddleware, async (req: AuthenticatedRequest, r
                 );
                 localPaths.push(audioUrl);
                 // Track even fallback songs so the cover-attach loop can
-                // UPDATE their cover_url when Pollinations finishes
+                // UPDATE their cover_url when the AI cover finishes
                 // (downloads can fail but the song row exists with the
                 // remote MP3 URL — covers still apply).
                 insertedSongIds.push(songId);
@@ -770,13 +743,19 @@ router.get('/status/:jobId', authMiddleware, async (req: AuthenticatedRequest, r
             aceStatus.result.audioUrls = localPaths;
             cleanupJob(job.acestep_task_id);
 
-            // Pollinations cover attachment — pure fire-and-forget. The
-            // status response goes out immediately; cover_url is UPDATEed
-            // whenever the background Pollinations gen finishes, regardless
-            // of how slow it is. This guarantees audio-gen flow + the bulk
-            // queue NEVER wait on image gen.
-            const polEntry = getCoverState(req.params.jobId);
-            if (insertedSongIds.length > 0 && polEntry) {
+            // Local AI cover — only when the interface asked for it. Pure fire-and-forget: the status response goes
+            // out immediately, and cover_url is UPDATEd whenever the background generation finishes, however long it
+            // takes. This guarantees audio-gen flow + the bulk queue NEVER wait on image gen.
+            const coverCfg = params?.cover;
+            if (insertedSongIds.length > 0 && coverCfg?.ai && !getCoverState(req.params.jobId)) {
+              startCoverGen(
+                req.params.jobId,
+                { prompt: coverCfg.prompt ?? '', seedMode: coverCfg.seedMode ?? 'song' },
+                makeCoverGate(req.params.jobId),
+              );
+            }
+            const coverEntry = getCoverState(req.params.jobId);
+            if (insertedSongIds.length > 0 && coverEntry) {
               const userId = req.user!.id;
               const songIds = [...insertedSongIds];
               const jobId = req.params.jobId;
@@ -798,9 +777,8 @@ router.get('/status/:jobId', authMiddleware, async (req: AuthenticatedRequest, r
 
                     // Also re-embed the new cover into the MP3's ID3 frame —
                     // without this the downloaded MP3 keeps showing the
-                    // initial picsum thumbnail (baked in at generate.ts:668)
-                    // forever, even though songs.cover_url already points at
-                    // the Pollinations image. Skipped if (a) the manual modal
+                    // initial gradient thumbnail forever, even though
+                    // songs.cover_url already points at the AI image. Skipped if (a) the manual modal
                     // already won the cover_url race (rowCount=0), (b) audio
                     // is remote-hosted, or (c) the storage provider has no
                     // read() method — best-effort, never breaks audio gen.
@@ -824,14 +802,14 @@ router.get('/status/:jobId', authMiddleware, async (req: AuthenticatedRequest, r
                 }
               };
 
-              if (polEntry.state === 'ready') {
+              if (coverEntry.state === 'ready') {
                 // Already done by the time audio finished — schedule to a
                 // microtask so we still don't add latency to this response.
                 Promise.resolve()
-                  .then(() => attachCover(polEntry))
+                  .then(() => attachCover(coverEntry))
                   .finally(() => consumeCoverState(jobId));
-              } else if (polEntry.state === 'pending') {
-                polEntry.promise
+              } else if (coverEntry.state === 'pending') {
+                coverEntry.promise
                   .then((result) => { if (result.state === 'ready') return attachCover(result); })
                   .catch((e) => console.warn(`[cover] background attach failed for job ${jobId}:`, e))
                   .finally(() => consumeCoverState(jobId));

@@ -35,7 +35,7 @@ recevant un handler se re-rend à chaque frappe clavier.
 
 - **`ModelMenu.tsx`** — sélection et bascule de modèle (~195 lignes). L'ancienne
   *étape 2* du plan est donc faite.
-- **`LmProviderPanel.tsx`**, **`PollinationsPanel.tsx`**,
+- **`LmProviderPanel.tsx`**, **`UseAiCoverToggle.tsx`**,
   **`GenerationStatusPanel.tsx`**, **`LoraPanel.tsx`** — extraits, mais
   `LoraPanel` remonte encore `loraLoaded` au parent.
 - **`utils/modelNames.ts`** — `getModelDisplayName`, `MODEL_INFO`,
@@ -66,7 +66,7 @@ sans réarchitecture.
 
 ### D. Modèle de langue
 `lmBackend`, `lmModel`, `activeLmModel`, `useOpenRouter`,
-`lastOpenRouterModelId`, `usePollinations`, `showLmParams`, `lmTemperature`,
+`lastOpenRouterModelId`, `useAiCover`, `showLmParams`, `lmTemperature`,
 `lmCfgScale`, `lmTopK`, `lmTopP`, `lmNegativePrompt`
 → **`<LmSettings />`** — 12 états, déjà partiellement isolé dans
 `LmProviderPanel.tsx`
@@ -184,7 +184,7 @@ avec le composant.
 **Gain : ~250 lignes. Risque : moyen — le glisser-déposer touche `window`.**
 
 ### Étape 7 — `<LmSettings />` (25 états)
-À faire en dernier : interagit avec OpenRouter, Pollinations et le pré-vol LLM
+À faire en dernier : interagit avec OpenRouter, la pochette IA et le pré-vol LLM
 avant génération. Le plus couplé au reste.
 **Gain : ~400 lignes. Risque : élevé.**
 

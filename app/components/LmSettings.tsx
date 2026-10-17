@@ -40,13 +40,13 @@ interface LmSettingsProps {
  * L'estimation d'origine incluait ce qui a ete absorbe par
  * LmParametersPanel (temperature, CFG, top-K/top-P, prompt negatif) lors
  * d'une session precedente — le perimetre reel restant est plus petit
- * (~86 lignes), pas de quoi forcer Pollinations.ai ou Shift dedans, qui
+ * (~86 lignes), pas de quoi forcer la section Pochette ou Shift dedans, qui
  * n'ont rien a voir avec le LM malgre leur proximite dans le fichier
  * d'origine.
  *
  * Reordonnancement delibere par rapport au code d'origine (confirme avec
  * l'utilisateur avant extraction) : la bascule Reflexion, auparavant
- * separee du reste par les sections Pollinations et Graine (SeedSettings),
+ * separee du reste par les sections Pochette et Graine (SeedSettings),
  * est desormais regroupee ici avec le reste des controles LM — change
  * l'ordre visuel de ces sections dans l'onglet Creer.
  *

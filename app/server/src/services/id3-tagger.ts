@@ -1,22 +1,5 @@
 import NodeID3 from 'node-id3';
-
-/**
- * Subset of PollinationsConfig that the cover fetcher needs. Sent from the
- * client in the audio-gen payload — we don't read localStorage server-side.
- */
-export interface PollinationsCoverConfig {
-  enabled: boolean;
-  apiKey: string;
-  model: string;
-  width: number;
-  height: number;
-  seedMode: 'song' | 'random';
-  enhance: boolean;
-  nologo: boolean;
-  safe: boolean;
-  /** Pre-built English cover prompt from buildCoverPrompt(). */
-  prompt: string;
-}
+import { renderGradientCover } from './gradient-cover.js';
 
 interface TagOptions {
   title: string;
@@ -113,40 +96,15 @@ export function tagMp3Buffer(buffer: Buffer, options: TagOptions): Buffer {
 }
 
 /**
- * Fetch a fast cover image (picsum) for embedding into the MP3 ID3 tag.
- *
- * Pollinations cover generation is NOT done here — it runs out-of-band in
- * `cover-jobs.ts` (kicked off by the status-poll endpoint) so audio-gen
- * pipeline is never blocked by image gen. The only purpose of this fetch
- * now is to give the downloaded MP3 file a thumbnail; the in-app UI cover
- * comes from `songs.cover_url` populated by the background attach.
- *
- * The unused `pol` parameter is kept on the signature for backwards
- * compatibility with callers that still pass it; if/when Pollinations
- * gen is fast enough to embed inline, this could fork on `pol.enabled`
- * again. For now it's ignored.
+ * The cover embedded in a freshly generated MP3: the default gradient of the song, drawn locally (no network, instant),
+ * identical to the one the app shows for a song without a real cover. If an AI cover is made afterwards, cover-jobs
+ * replaces it in the file (updateMp3Cover).
  */
 export async function fetchCoverImage(
   songId: string,
-  _pol?: PollinationsCoverConfig
 ): Promise<{ buffer: Buffer; mimeType: string } | undefined> {
   try {
-    // picsum.photos rejette systematiquement les graines contenant des
-    // tirets (confirme en pratique : 187 requetes sur 187 en echec 400
-    // avec un UUID brut utilise tel quel). Tirets retires plutot que la
-    // cause exacte confirmee au-dela de tout doute — la convention
-    // observee chez picsum.photos n'utilise jamais que des graines
-    // alphanumeriques simples. Voir aussi getCoverUrl dans
-    // app/services/api.ts (equivalent cote frontend).
-    const url = `https://picsum.photos/seed/${songId.replace(/-/g, '')}/400/400`;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(url, { signal: controller.signal, redirect: 'follow' });
-    clearTimeout(timer);
-    if (!res.ok) return undefined;
-    const mimeType = res.headers.get('content-type') || 'image/jpeg';
-    const arrayBuffer = await res.arrayBuffer();
-    return { buffer: Buffer.from(arrayBuffer), mimeType };
+    return { buffer: renderGradientCover(songId, 400), mimeType: 'image/png' };
   } catch {
     return undefined;
   }

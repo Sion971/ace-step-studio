@@ -1,6 +1,6 @@
 /**
- * Cover-generation job tracker — runs Pollinations cover gen in parallel
- * with ACE-Step audio gen. Audio pipeline is NEVER blocked by image gen.
+ * Cover-generation job tracker — runs the local AI cover (SDXL Turbo, see ai-cover.ts) in the background once the audio
+ * is done. Audio pipeline is NEVER blocked by image gen.
  *
  * State machine per jobId:
  *   idle (not in map)
@@ -14,8 +14,23 @@
  * give up. Memory is bounded by the audio-gen queue size.
  */
 
-import { generatePollinationsCover, songIdToSeed } from './pollinations.js';
-import type { PollinationsCoverConfig } from './id3-tagger.js';
+import { aiCover } from './ai-cover.js';
+import { songIdToSeed } from './cover-seed.js';
+
+/** What the interface asks for when "AI cover" is on: the prompt it built, and whether a retake reuses the same seed. */
+export interface CoverGenConfig {
+  prompt: string;
+  seedMode: 'song' | 'random';
+}
+
+/** CLIP reads about 77 tokens: a longer prompt is cut anyway, so keep it short and put the style first. */
+const MAX_PROMPT_CHARS = 240;
+
+/**
+ * Asked before the model is used: false means the GPU is busy with an audio generation, and the cover is skipped (the
+ * default gradient stays) rather than competing with the audio engine for VRAM.
+ */
+export type CoverGate = () => Promise<boolean>;
 
 /**
  * Sixteen art-style hints appended to every cover prompt, so that songs sharing a caption do not all get the same
@@ -75,10 +90,10 @@ const jobs = new Map<string, CoverEntry>();
 // Promise inside startCoverGen() checks this before its final jobs.set()
 // to prevent zombie resurrection (R3-1 / R3 agent07 M7 / R2 agent01 NIT).
 // Without this, consumeCoverState's jobs.delete() is undone seconds later
-// when Pollinations finally responds → ~300KB Buffer leak per cancel/fail
+// when the cover finally comes back → ~300KB Buffer leak per cancel/fail
 // that accumulates unbounded over weeks.
 const cancelled = new Set<string>();
-const TOMBSTONE_TTL_MS = 5 * 60_000; // forget after 5 min — long enough to outlive any in-flight Pollinations call
+const TOMBSTONE_TTL_MS = 5 * 60_000; // forget after 5 min — long enough to outlive any in-flight cover call
 
 /** Reset for tests. */
 export function _resetCoverJobs(): void {
@@ -100,8 +115,8 @@ export function consumeCoverState(jobId: string): CoverEntry | undefined {
   const e = jobs.get(jobId);
   jobs.delete(jobId);
   cancelled.add(jobId);
-  // Auto-evict the tombstone after the Pollinations call could not possibly
-  // still be running (60s timeout + slack).
+  // Auto-evict the tombstone after the cover call could not possibly
+  // still be running.
   setTimeout(() => cancelled.delete(jobId), TOMBSTONE_TTL_MS).unref?.();
   return e;
 }
@@ -115,7 +130,8 @@ export function consumeCoverState(jobId: string): CoverEntry | undefined {
  */
 export function startCoverGen(
   jobId: string,
-  pol: PollinationsCoverConfig,
+  cfg: CoverGenConfig,
+  gate?: CoverGate,
 ): CoverEntry {
   const existing = jobs.get(jobId);
   if (existing) return existing;
@@ -128,61 +144,44 @@ export function startCoverGen(
 
   const startedAt = Date.now();
 
-  const promise: Promise<CoverResult> = (async () => {
+  const finish = (result: CoverResult): CoverResult => {
+    // Don't resurrect a consumed entry (job was cancelled / failed).
+    if (!cancelled.has(jobId)) jobs.set(jobId, result);
+    return result;
+  };
+
+  // The entry is registered BEFORE the job starts: a job that settles without waiting (AI covers unavailable) must be able
+  // to replace it with its result, instead of being overwritten by 'pending' afterwards.
+  const pending: CoverPending = { state: 'pending', startedAt, promise: undefined as unknown as Promise<CoverResult> };
+  jobs.set(jobId, pending);
+
+  pending.promise = (async () => {
     try {
-      // For seedMode='song' we derive a deterministic seed from the songId
-      // so a re-take produces the same cover; for 'random' we leave seed
-      // undefined and Pollinations rolls its own.
-      const seed = pol.seedMode === 'song' ? songIdToSeed(jobId) : undefined;
+      // 'song': a deterministic seed from the job id, so a retake gives the same cover; 'random': a new one each time.
+      const seed = cfg.seedMode === 'song' ? songIdToSeed(jobId) : Math.floor(Math.random() * 0x7fffffff);
 
-      // Per-job style hint appended to the frontend prompt. The user never sees the enriched prompt, only the one
-      // the frontend built: log it, so that "the cover does not match my prompt" can be diagnosed.
+      // Per-job style hint put BEFORE the interface prompt (the text model reads the start first). The user never sees
+      // the enriched prompt: log it, so that "the cover does not match my prompt" can be diagnosed.
       const style = styleModifierFor(jobId);
-      const prompt = pol.prompt.trim() ? `${pol.prompt}, ${style}` : style;
-      console.log(`[cover] ${jobId} style="${style}" prompt="${prompt.slice(0, 300)}"`);
+      const body = cfg.prompt.trim().slice(0, MAX_PROMPT_CHARS);
+      const prompt = body ? `album cover art, ${style}, ${body}` : `album cover art, ${style}`;
+      console.log(`[cover] ${jobId} style="${style}" prompt="${prompt}"`);
 
-      const r = await generatePollinationsCover({
-        prompt,
-        model: pol.model,
-        width: pol.width,
-        height: pol.height,
-        seed,
-        enhance: pol.enhance,
-        nologo: pol.nologo,
-        safe: pol.safe,
-        apiKey: pol.apiKey || undefined,
-      });
-      if (!r) {
-        const result: CoverFailed = {
-          state: 'failed',
-          reason: 'pollinations returned undefined (timeout/error)',
-          finishedAt: Date.now(),
-        };
-        // Don't resurrect a consumed entry (job was cancelled / failed).
-        if (!cancelled.has(jobId)) jobs.set(jobId, result);
-        return result;
+      // No point waiting for a free GPU when there is none (processor mode) or the model cannot start.
+      const availability = aiCover.status();
+      if (!availability.available) {
+        return finish({ state: 'failed', reason: `AI cover unavailable (${availability.reason})`, finishedAt: Date.now() });
       }
-      const result: CoverReady = {
-        state: 'ready',
-        buffer: r.buffer,
-        mimeType: r.mimeType,
-        finishedAt: Date.now(),
-      };
-      if (!cancelled.has(jobId)) jobs.set(jobId, result);
-      return result;
+      if (gate && !(await gate())) {
+        return finish({ state: 'failed', reason: 'GPU busy with an audio generation', finishedAt: Date.now() });
+      }
+      const r = await aiCover.generate({ prompt, seed });
+      return finish({ state: 'ready', buffer: r.buffer, mimeType: r.mimeType, finishedAt: Date.now() });
     } catch (e: any) {
-      const result: CoverFailed = {
-        state: 'failed',
-        reason: String(e?.message || e),
-        finishedAt: Date.now(),
-      };
-      if (!cancelled.has(jobId)) jobs.set(jobId, result);
-      return result;
+      return finish({ state: 'failed', reason: String(e?.message || e), finishedAt: Date.now() });
     }
   })();
 
-  const pending: CoverPending = { state: 'pending', startedAt, promise };
-  jobs.set(jobId, pending);
   return pending;
 }
 
@@ -190,7 +189,7 @@ export function startCoverGen(
  * Wait for the cover-gen entry to resolve, or return null after `timeoutMs`.
  * Useful when the audio pipeline hits the song-INSERT step and wants to
  * attach the cover synchronously if it's already nearly done — but never
- * waste user time on a cold-path Pollinations call.
+ * waste user time on a cold-path cover call.
  */
 export async function awaitCoverWithTimeout(
   jobId: string,

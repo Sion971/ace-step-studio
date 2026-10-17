@@ -144,7 +144,7 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
 | **Mastering and Loudness** | Optional mastering (warmth, harmonics, tone, glue, width), then normalization to a streaming platform's LUFS target, with before/after listening at the same volume |
 | **LoRA Training** | Full training pipeline, driven from the UI |
 | **Video Generator** | Create music videos with Pexels backgrounds |
-| **Gradient Covers** | Procedural album art, no internet needed |
+| **Covers** | Every song gets a procedural gradient cover, no internet needed. Optionally, an AI cover drawn locally after the audio is done (SDXL Turbo, NVIDIA GPU only, about 7 GB downloaded on first use); no cloud service is involved |
 
 ---
 

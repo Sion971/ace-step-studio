@@ -898,8 +898,8 @@ const SongItem: React.FC<SongItemProps> = ({
                         </button>
 
                         {/* Manual cover regeneration — opens CoverRegenModal where the user can
-                            pick a model + prompt and either generate via Pollinations or
-                            upload a custom image from disk. Only shown for owned songs. */}
+                            write a prompt and either generate with the local image model
+                            (GPU) or upload a custom image from disk. Only shown for owned songs. */}
                         {isOwner && (
                             <button
                                 className="p-2 rounded-full hover:bg-zinc-200 dark:hover:bg-white/5 text-zinc-400 hover:text-black dark:hover:text-white transition-colors"

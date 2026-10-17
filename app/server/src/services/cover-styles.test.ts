@@ -3,7 +3,7 @@
 // The cover style feature, with the REAL songIdToSeed (cover-jobs.test.ts mocks it, which is how the seed-0 defect
 // went unnoticed: every real job id, `job_<timestamp>_<random>`, used to give seed 0 and style 0).
 import { describe, it, expect } from 'vitest';
-import { songIdToSeed } from './pollinations.js';
+import { songIdToSeed } from './cover-seed.js';
 import { STYLE_MODIFIERS, styleModifierFor } from './cover-jobs.js';
 
 /** Small deterministic PRNG, so the distribution test never flakes. */
@@ -47,7 +47,7 @@ describe('songIdToSeed', () => {
     expect(songIdToSeed('job_1791300000000_abcdefg')).not.toBe(songIdToSeed('job_1791300000000_abcdefh'));
   });
 
-  it('stays inside 31 bits (Pollinations accepts int32)', () => {
+  it('stays inside 31 bits (a positive int32)', () => {
     for (const id of realisticJobIds(2000)) {
       const seed = songIdToSeed(id);
       expect(Number.isInteger(seed)).toBe(true);

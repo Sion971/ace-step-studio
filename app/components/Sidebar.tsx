@@ -10,7 +10,7 @@ import { llmStorage } from '../services/llm/storage';
 // risqueraient de diverger sans qu'on s'en apercoive, comme ce fut le cas
 // avant ce correctif.
 import faviconUrl from '../favicon.svg';
-import { pollinationsStorage } from '../services/pollinations/storage';
+import { aiCoverStorage } from '../services/cover/settings';
 
 interface SidebarProps {
   currentView: View;
@@ -111,11 +111,8 @@ const SystemWidget: React.FC<{ isOpen?: boolean }> = ({ isOpen }) => {
   const orReady = !!(orCfg && orCfg.apiKey && orCfg.model);
   const orModelShort = orReady ? (orCfg!.model.length > 24 ? orCfg!.model.split('/').pop()! : orCfg!.model) : '';
 
-  // Pollinations cover-gen status (independent of LLM provider).
-  const polEnabled = pollinationsStorage.getUsePollinations() === true;
-  const polCfg = polEnabled ? pollinationsStorage.getConfig() : null;
-  const polReady = !!(polCfg && polCfg.model);
-  const polModelShort = polReady ? (polCfg!.model.length > 18 ? polCfg!.model.slice(0, 15) + '…' : polCfg!.model) : '';
+  // Local AI cover status (independent of LLM provider): the browser preference read on each tick.
+  const imgEnabled = aiCoverStorage.get();
   void orTick; // re-renders only — values come straight from storage
 
   if (!isOpen) {
@@ -229,14 +226,14 @@ const SystemWidget: React.FC<{ isOpen?: boolean }> = ({ isOpen }) => {
         </span>
       </div>
 
-      {/* Pollinations cover generation status */}
-      <div className="flex items-center justify-between text-zinc-600" title={polReady ? `Pollinations ON · ${polCfg!.model}` : (polEnabled ? 'Pollinations ON, but model not picked' : 'Pollinations OFF')}>
+      {/* Local AI cover status */}
+      <div className="flex items-center justify-between text-zinc-600" title={imgEnabled ? 'AI cover ON · SDXL Turbo (local)' : 'AI cover OFF · default gradient'}>
         <span className="flex items-center gap-1">
-          <span className={`w-1.5 h-1.5 rounded-full ${polReady ? 'bg-green-500' : (polEnabled ? 'bg-yellow-500' : 'bg-zinc-700')}`}></span>
+          <span className={`w-1.5 h-1.5 rounded-full ${imgEnabled ? 'bg-green-500' : 'bg-zinc-700'}`}></span>
           <span className="text-[9px] text-zinc-600">IMG</span>
         </span>
-        <span className={`text-[9px] truncate max-w-[120px] ${polReady ? 'text-zinc-500' : 'text-zinc-600'}`}>
-          {polReady ? polModelShort : (polEnabled ? 'no model' : 'off')}
+        <span className={`text-[9px] truncate max-w-[120px] ${imgEnabled ? 'text-zinc-500' : 'text-zinc-600'}`}>
+          {imgEnabled ? 'SDXL' : 'off'}
         </span>
       </div>
 

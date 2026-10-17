@@ -32,14 +32,13 @@ import { MAIN_STYLES } from '../data/genres';
 import { EditableSlider } from './EditableSlider';
 import { UseOpenRouterToggle } from './UseOpenRouterToggle';
 import { GenerationStatusPanel } from './GenerationStatusPanel';
-import { UsePollinationsToggle } from './UsePollinationsToggle';
-import { PollinationsPanel } from './PollinationsPanel';
+import { UseAiCoverToggle } from './UseAiCoverToggle';
 import { useOpenRouterGeneration } from '../services/llm/useOpenRouterGeneration';
 import { OpenRouterProvider } from '../services/llm/openrouter';
 import { llmStorage } from '../services/llm/storage';
 import type { SongDraft } from '../services/llm/types';
-import { pollinationsStorage } from '../services/pollinations/storage';
-import { buildCoverPrompt } from '../services/pollinations/prompts';
+import { aiCoverStorage } from '../services/cover/settings';
+import { buildCoverPrompt } from '../services/cover/prompts';
 
 interface ReferenceTrack {
   id: string;
@@ -318,11 +317,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   });
   const [lastOpenRouterModelId, setLastOpenRouterModelId] = useState<string | null>(null);
 
-  // Pollinations.ai cover generation — independent toggle, default OFF.
-  const [usePollinations, setUsePollinations] = useState<boolean>(() => {
-    return pollinationsStorage.getUsePollinations() ?? false;
-  });
-  useEffect(() => { pollinationsStorage.setUsePollinations(usePollinations); }, [usePollinations]);
+  // Local AI cover (SDXL Turbo, GPU) — independent toggle, default OFF.
+  const [useAiCover, setUseAiCover] = useState<boolean>(() => aiCoverStorage.get());
+  useEffect(() => { aiCoverStorage.set(useAiCover); }, [useAiCover]);
 
   // FIFO queue for OR pre-flight LLM calls — bulk clicks chain through this
   // ref so the LLM hits one request at a time AND each click waits for the
@@ -1689,7 +1686,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
 
   const handleGenerate = async () => {
     // Per-click LLM draft from pre-flight (used to populate effStyle/effLyrics/etc
-    // and the Pollinations cover prompt). null = pre-flight either didn't run
+    // and the AI cover prompt). null = pre-flight either didn't run
     // (custom mode or local LM available) or failed (we'd have early-returned).
     // MUST be local to handleGenerate — declared at component-body scope, two
     // overlapping clicks within the same render would share the variable and
@@ -1927,32 +1924,20 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         // first click of a session by the time this synchronous closure
         // captures it. The localStorage read is sync and always fresh.
         openrouterModel: (useOpenRouter ? llmStorage.getOpenRouter().model : '') || lastOpenRouterModelId,
-        // Pollinations cover-gen config — backend handles cover gen async on
-        // queued→running transition (see app/server/src/routes/generate.ts).
-        pollinations: usePollinations ? (() => {
-          const polCfg = pollinationsStorage.getConfig();
-          return {
-            enabled: true,
-            apiKey: polCfg.apiKey,
-            model: polCfg.model,
-            width: polCfg.width,
-            height: polCfg.height,
-            seedMode: polCfg.seedMode,
-            enhance: polCfg.enhance,
-            nologo: polCfg.nologo,
-            safe: polCfg.safe,
-            // Prefer the LLM-tailored cover prompt (visual sentences derived
-            // from the lyrics) when available; fall back to a keyword-based
-            // prompt assembled from caption/topic.
-            prompt: effCoverPrompt || buildCoverPrompt({
-              title: effTitle,
-              caption: styleWithGender,
-              topic: songDescription,
-              language: vocalLanguage,
-              instrumental,
-            }),
-          };
-        })() : { enabled: false },
+        // Local AI cover — the backend makes it once the audio is done (see app/server/src/routes/generate.ts).
+        // Prefer the LLM-tailored cover prompt (visual sentences derived from the lyrics) when available; fall back
+        // to a keyword-based prompt assembled from caption/topic.
+        cover: useAiCover ? {
+          ai: true,
+          seedMode: 'song' as const,
+          prompt: effCoverPrompt || buildCoverPrompt({
+            title: effTitle,
+            caption: styleWithGender,
+            topic: songDescription,
+            language: vocalLanguage,
+            instrumental,
+          }),
+        } : { ai: false },
         enhance,
         audioFormat,
         inferMethod,
@@ -2772,16 +2757,14 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               tf={tf}
             />
 
-            {/* ───── Pollinations.ai cover generation ─────
-                Independent of the LLM provider above. When ON, after audio
-                renders, the server hits Pollinations to generate an album
-                cover and persists it to song.cover_url. */}
+            {/* ───── Local AI cover ─────
+                Independent of the LLM provider above. When ON, after the audio is done the server draws an album
+                cover on the GPU and saves it as the song cover; otherwise the song keeps its default gradient. */}
             <div className="border-t border-zinc-200 dark:border-white/5 pt-2 mt-2">
               <div className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-500 mb-1">
-                {tf('pollinations.sectionTitle', 'Cover image (Pollinations.ai)')}
+                {t('aiCover.sectionTitle')}
               </div>
-              <UsePollinationsToggle value={usePollinations} onChange={setUsePollinations} />
-              {usePollinations && <PollinationsPanel />}
+              <UseAiCoverToggle value={useAiCover} onChange={setUseAiCover} token={token} />
             </div>
 
             {/* Graine de génération et Nouvelle prise — voir SeedSettings.tsx.

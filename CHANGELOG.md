@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-16
+
+### Changed
+- Covers are made locally: the Pollinations.ai online service is gone (panel, API key, model list, sidebar indicator, network calls). With the new "AI cover (local)" switch in the Create tab (off by default), the server draws the cover on the GPU once the audio is done, with SDXL Turbo (`scripts/cover_worker.py`, diffusers; about 7 GB downloaded into `models/` on first use, then kept loaded for a few minutes and released). It never runs while an audio generation is queued or running, so the two do not compete for VRAM
+- Without a GPU (processor mode), or with the switch off, a song keeps its default gradient cover, as before; the switch says it is unavailable in processor mode. `COVER_AI=off` turns the feature off, `COVER_MODEL` changes the Hugging Face model
+- The cover embedded in a freshly generated MP3 is now that same gradient, drawn by the server (PNG, no network), instead of a random photo fetched from picsum.photos
+- Cover window (song menu): the prompt is sent to the local model (a seed per click, several tries kept, then "Save as cover"), or you upload an image; without a GPU, only the upload is offered
+
+### Removed
+- Pollinations.ai: `pollinations.ts`, the Pollinations panel and toggle, the model picker of the cover window, the 35 `pollinations.*` / `coverRegen.*` texts in six languages, the two Pollinations hosts of the content security policy
+
 ## 2026-10-15
 
 ### Added

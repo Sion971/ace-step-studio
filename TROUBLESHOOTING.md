@@ -2261,3 +2261,19 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 **À savoir.** Les informations ne sont inscrites que si les poids exportés ont été écrits après le lancement noté : un LoRA plus ancien, ou un entraînement lancé hors du Studio, s'exporte normalement mais sans déclencheur. Pour un LoRA exporté avant ce correctif, le plus simple est de le réexporter si `final` est encore là.
 
 **Non vérifié.** Aucun entraînement réel n'a été lancé avec LoKr : les tests contrôlent les arguments transmis et les fichiers écrits. LoKr est « expérimental » chez ACE-Step.
+
+## 58. Pochettes IA locales : l'interrupteur est grisé, ou la pochette reste le dégradé
+
+**Contexte (2026-10-16).** Les pochettes ne viennent plus de Pollinations.ai : l'interrupteur « Pochette générée par IA (locale) » de l'onglet Créer fait dessiner la pochette par le serveur, avec SDXL Turbo (`app/server/scripts/cover_worker.py`, `diffusers`), une fois l'audio terminé. Sans cet interrupteur, ou sans GPU, un morceau garde son dégradé par défaut (celui de l'interface, aussi intégré au MP3).
+
+**Interrupteur grisé, texte « Indisponible en mode processeur ».** Normal sur un PC sans GPU : `HW_MODE=cpu` (voir `hardware_profile.env`). Seul le dégradé et l'import d'une image sont possibles.
+
+**Interrupteur grisé, texte « le modèle d'image local n'a pas pu démarrer ».** Le processus Python a échoué avant d'être prêt ; la console du serveur affiche la cause, ligne préfixée `[cover-ai]` ou `[cover-worker]`. Les causes prévues : pas de GPU CUDA visible par PyTorch ; `diffusers` ou une de ses dépendances absente de `.venv` ; téléchargement du modèle interrompu (`stabilityai/sdxl-turbo`, variante fp16, environ 7 Go, dans `models/`). Après un échec de démarrage, le serveur ne réessaie pas pendant 5 minutes ; il suffit ensuite de rouvrir l'onglet Créer. `COVER_AI=off` désactive la fonction, `COVER_MODEL=<dépôt Hugging Face>` change de modèle.
+
+**La première pochette met très longtemps.** Elle comprend le téléchargement (environ 7 Go) puis le chargement du modèle ; les suivantes prennent quelques secondes tant que le processus reste chargé (il est arrêté après 3 minutes d'inactivité pour rendre la mémoire vidéo).
+
+**La pochette arrive longtemps après la fin de l'audio.** Le serveur attend qu'aucune génération audio ne soit en file ou en cours (jusqu'à 30 minutes) : le modèle d'image et le moteur audio se partagent la carte, et une pochette ne doit jamais faire échouer un morceau par manque de mémoire. Si l'attente est dépassée, le morceau garde son dégradé ; « Régénérer la pochette » permet de la refaire à la demande.
+
+**« L'image n'a pas pu être générée ».** Une image seule a échoué (par exemple une image noire, signalée par le processus plutôt qu'enregistrée) ; réessayer donne une autre graine.
+
+**Non vérifié.** Le chemin SDXL Turbo complet (téléchargement, chargement avec `enable_model_cpu_offload`, génération sur une carte de 8 Go à côté du moteur audio) n'a pas pu être exécuté dans l'environnement de développement, qui n'a pas de GPU : les tests couvrent le protocole entre le serveur et le processus avec un faux processus, les routes, le dégradé et l'interface.

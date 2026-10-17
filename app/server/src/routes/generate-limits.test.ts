@@ -7,7 +7,7 @@ import type { AddressInfo } from 'node:net';
 // Same replacements as generate-models.test.ts: what is under test is only what /limits answers.
 vi.mock('../db/pool.js', () => ({ pool: {} }));
 vi.mock('../db/sqlite.js', () => ({ generateUUID: () => 'id' }));
-vi.mock('../config/index.js', () => ({ config: { acestep: { apiUrl: 'http://127.0.0.1:9' }, storage: {}, pollinations: {} } }));
+vi.mock('../config/index.js', () => ({ config: { acestep: { apiUrl: 'http://127.0.0.1:9' }, storage: {} } }));
 vi.mock('../middleware/auth.js', () => ({ authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next() }));
 vi.mock('../services/gradio-client.js', () => ({ getGradioClient: vi.fn() }));
 vi.mock('../services/acestep.js', () => ({

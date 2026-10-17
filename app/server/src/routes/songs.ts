@@ -6,9 +6,9 @@ import { pool } from '../db/pool.js';
 import { authMiddleware, optionalAuthMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { getStorageProvider } from '../services/storage/factory.js';
 import { updateMp3Cover } from '../services/id3-tagger.js';
+import { aiCover, AiCoverError } from '../services/ai-cover.js';
 
-// 10MB cap — Pollinations images at 2048×2048 jpeg are typically 200-600KB,
-// even PNG of the same dimensions stays comfortably under 5MB.
+// 10MB cap — a 512×512 AI cover is about 60KB; this leaves room for a photo the user uploads.
 const coverUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -22,6 +22,38 @@ const coverUpload = multer({
 });
 
 const router = Router();
+
+// Local AI covers (SDXL Turbo). Declared before the `/:id` routes so these paths are not read as song ids.
+
+// Is the local cover model usable on this machine? (processor mode, no GPU or a failed start say no.)
+router.get('/cover-ai-status', authMiddleware, (_req: AuthenticatedRequest, res: Response) => {
+  res.json(aiCover.status());
+});
+
+// Makes ONE cover image from a prompt and returns it, without saving it: the cover window shows it, and the user keeps it
+// (regen-cover) or tries again. Serialised with the background covers by the engine.
+router.post('/generate-cover', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim().slice(0, 600) : '';
+  if (!prompt) {
+    res.status(400).json({ error: 'Prompt is empty', code: 'EMPTY_PROMPT' });
+    return;
+  }
+  const seed = Number.isInteger(req.body?.seed) ? Number(req.body.seed) : Math.floor(Math.random() * 0x7fffffff);
+  try {
+    const cover = await aiCover.generate({ prompt, seed });
+    res.setHeader('Content-Type', cover.mimeType);
+    res.setHeader('X-Cover-Seed', String(seed));
+    res.send(cover.buffer);
+  } catch (e: any) {
+    if (e instanceof AiCoverError) {
+      const unavailable = e.code !== 'failed';
+      res.status(unavailable ? 503 : 502).json({ error: e.message, code: unavailable ? 'AI_UNAVAILABLE' : 'AI_FAILED', reason: e.code });
+      return;
+    }
+    console.error('generate-cover error:', e);
+    res.status(500).json({ error: 'Cover generation failed', code: 'AI_FAILED' });
+  }
+});
 
 // Helper: resolve audio URL (generates signed URL for S3)
 async function resolveAudioUrl(audioUrl: string | null): Promise<string | null> {

@@ -205,6 +205,14 @@ function transformSongs(songs: Song[]): Song[] {
   });
 }
 
+/** A failed local cover request: `code` is EMPTY_PROMPT, AI_UNAVAILABLE (no GPU / model) or AI_FAILED (this one image). */
+export class CoverApiError extends Error {
+  constructor(public readonly code: string, message: string) {
+    super(message);
+    this.name = 'CoverApiError';
+  }
+}
+
 export const songsApi = {
   getMySongs: async (token: string): Promise<{ songs: Song[] }> => {
     const result = await api('/api/songs', { token }) as { songs: Song[] };
@@ -323,9 +331,8 @@ export const songsApi = {
   togglePrivacy: (id: string, token: string): Promise<{ isPublic: boolean }> =>
     api(`/api/songs/${id}/privacy`, { method: 'PATCH', token }),
 
-  // Persist a manually picked cover image. The blob comes from the
-  // CoverRegenModal — we generate it client-side via gen.pollinations.ai and
-  // upload it to the same `${userId}/covers/${songId}.{ext}` path the
+  // Persist a manually picked cover image. The blob comes from the CoverRegenModal (made by the local model through
+  // generateCover below, or uploaded by the user) and goes to the same `${userId}/covers/${songId}.{ext}` path the
   // auto-pipeline uses, replacing the previous file in place.
   regenCover: async (id: string, blob: Blob, token: string): Promise<{ coverUrl: string }> => {
     const fd = new FormData();
@@ -341,6 +348,30 @@ export const songsApi = {
       throw new Error(`regen-cover failed ${res.status}: ${errText || res.statusText}`);
     }
     return res.json();
+  },
+
+  // Can this machine make AI covers? (No in processor mode, or when the local image model cannot start.)
+  coverAiStatus: (token: string): Promise<{ available: boolean; reason?: string; detail?: string }> =>
+    api('/api/songs/cover-ai-status', { token }),
+
+  // Makes one cover with the local image model and returns it WITHOUT saving it (see CoverRegenModal).
+  generateCover: async (
+    prompt: string,
+    token: string,
+    seed?: number,
+    signal?: AbortSignal,
+  ): Promise<{ blob: Blob; seed: number }> => {
+    const res = await fetch('/api/songs/generate-cover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ prompt, seed }),
+      signal,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({} as { code?: string; error?: string }));
+      throw new CoverApiError(body.code || 'AI_FAILED', body.error || res.statusText);
+    }
+    return { blob: await res.blob(), seed: Number(res.headers.get('X-Cover-Seed')) || 0 };
   },
 
   trackPlay: (id: string, token?: string | null): Promise<{ viewCount: number }> =>
@@ -486,19 +517,10 @@ export interface GenerationParams {
   // OpenRouter — model id used for the lyric/caption AI run (persisted on song row)
   openrouterModel?: string | null;
 
-  // Pollinations.ai cover-generation config — opaque blob mirrored to backend.
-  // When `enabled: true` and a model is set, post-render cover fetch routes
-  // through Pollinations and the bytes are persisted to song.cover_url.
-  pollinations?: {
-    enabled: boolean;
-    apiKey?: string;
-    model?: string;
-    width?: number;
-    height?: number;
+  // Local AI cover: when `ai` is true the server makes a cover from `prompt` once the audio is done (SDXL Turbo, GPU only).
+  cover?: {
+    ai: boolean;
     seedMode?: 'song' | 'random';
-    enhance?: boolean;
-    nologo?: boolean;
-    safe?: boolean;
     prompt?: string;
   };
 }
