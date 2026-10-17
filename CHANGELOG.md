@@ -2,6 +2,8 @@
 
 ## 2026-10-17
 
+### Fixed
+- AI cover only showed after a page reload (F5): the server draws it after the audio is done, when the interface had already stopped watching the song. The job status now says `coverPending` while the cover is being made, and the interface refreshes the list on its own when it is saved
 ### Changed
 - AI covers: fewer deformed faces. The model (SDXL Turbo, 512 px) draws faces badly, and the prompt used to invite them: the instrumental hint "no people" added the word "people" to the picture, and the song caption's "female vocals" / "male lead vocal" made it draw a singer. The caption's vocal descriptors are now dropped and every prompt asks for "landscape, still life, abstract shapes" (unless your own brief names a person); the language model is told to describe places, objects, nature or abstract shapes, never a portrait or a crowd
 - Covers use 4 steps instead of 3 (a little more detail, still a few seconds)

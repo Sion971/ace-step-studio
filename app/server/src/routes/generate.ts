@@ -35,6 +35,15 @@ import {
  * Lets the AI cover use the GPU only when no audio generation is queued or running: the cover model shares the card with
  * the audio engine. Polls the job table; gives up (the default gradient stays) after half an hour.
  */
+/**
+ * True while the AI cover of a finished job is not yet saved on the song. The interface stops watching a job when its
+ * audio is done, so it asks for this flag again and refreshes the list when it turns false (otherwise the cover only shows
+ * after F5). The entry is consumed only AFTER the image is stored and the song updated — a 'ready' entry still counts.
+ */
+function isCoverPending(jobId: string): boolean {
+  return getCoverState(jobId) !== undefined;
+}
+
 function makeCoverGate(jobId: string): CoverGate {
   return async () => {
     const deadline = Date.now() + 30 * 60_000;
@@ -829,6 +838,7 @@ router.get('/status/:jobId', authMiddleware, async (req: AuthenticatedRequest, r
           stage: aceStatus.stage,
           result: aceStatus.result,
           error: aceStatus.error,
+          coverPending: isCoverPending(req.params.jobId),
         });
         return;
       } catch (aceError) {
@@ -844,6 +854,7 @@ router.get('/status/:jobId', authMiddleware, async (req: AuthenticatedRequest, r
       stage: undefined,
       result: job.result && typeof job.result === 'string' ? JSON.parse(job.result) : job.result,
       error: job.error,
+      coverPending: isCoverPending(req.params.jobId),
     });
   } catch (error) {
     console.error('Status check error:', error);

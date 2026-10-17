@@ -1116,6 +1116,37 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     }
   }, [token]);
 
+  // The AI cover is made by the server AFTER the audio is done, so the job polling above has already stopped when it
+  // lands. Keep asking the job (cheap) until the server says the cover is no longer pending, then reload the list.
+  const coverWatchersRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+  useEffect(() => {
+    const watchers = coverWatchersRef.current;
+    return () => {
+      watchers.forEach((timer) => clearInterval(timer));
+      watchers.clear();
+    };
+  }, []);
+  const watchCover = useCallback((jobId: string) => {
+    if (!token || coverWatchersRef.current.has(jobId)) return;
+    const startedAt = Date.now();
+    const stop = () => {
+      clearInterval(timer);
+      coverWatchersRef.current.delete(jobId);
+    };
+    const timer = setInterval(async () => {
+      try {
+        const st = await generateApi.getStatus(jobId, token);
+        // 45 minutes is above the server's own 30-minute wait for a free GPU plus the model load.
+        if (st.coverPending && Date.now() - startedAt < 45 * 60 * 1000) return;
+        stop();
+        await refreshSongsList();
+      } catch {
+        stop();
+      }
+    }, 4000);
+    coverWatchersRef.current.set(jobId, timer);
+  }, [token, refreshSongsList]);
+
   const beginPollingJob = useCallback((jobId: string, tempId: string) => {
     if (!token) return;
     if (activeJobsRef.current.has(jobId)) return;
@@ -1146,6 +1177,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         if (status.status === 'succeeded' && status.result) {
           cleanupJob(jobId, tempId);
           await refreshSongsList();
+          if (status.coverPending) watchCover(jobId);
 
           if (window.innerWidth < 768) {
             setMobileShowList(true);
@@ -1170,7 +1202,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     setActiveJobCount(activeJobsRef.current.size);
     // No client-side timeout — backend reports status='failed' if something goes wrong.
     // Long generations (XL SFT 50 steps, batch, covers) can take 15+ minutes legitimately.
-  }, [token, cleanupJob, refreshSongsList]);
+  }, [token, cleanupJob, refreshSongsList, watchCover]);
 
   const buildTempSongFromParams = (params: GenerationParams, tempId: string, createdAt?: string) => ({
     id: tempId,

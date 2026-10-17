@@ -533,6 +533,8 @@ export interface GenerationJob {
   etaSeconds?: number;
   progress?: number;
   stage?: string;
+  /** True while the AI cover of a finished job is still being made on the server. */
+  coverPending?: boolean;
   params?: any;
   created_at?: string;
   result?: {

@@ -2276,6 +2276,8 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 
 **La première pochette met très longtemps.** Elle comprend le téléchargement (environ 7 Go) puis le chargement du modèle ; les suivantes prennent quelques secondes tant que le processus reste chargé (il est arrêté après 3 minutes d'inactivité pour rendre la mémoire vidéo).
 
+**La pochette n'apparaît qu'après un rechargement de la page (F5)** (corrigé le 2026-10-17). Le serveur dessine la pochette après la fin de l'audio ; l'interface arrêtait de suivre le morceau à ce moment-là. Elle interroge maintenant la tâche toutes les 4 secondes tant que le serveur indique `coverPending`, puis recharge la liste (45 minutes au plus). Si vous quittez ou rechargez la page pendant l'attente, la pochette est quand même enregistrée par le serveur et s'affiche au chargement suivant.
+
 **La pochette arrive longtemps après la fin de l'audio.** Le serveur attend qu'aucune génération audio ne soit en file ou en cours (jusqu'à 30 minutes) : le modèle d'image et le moteur audio se partagent la carte, et une pochette ne doit jamais faire échouer un morceau par manque de mémoire. Si l'attente est dépassée, le morceau garde son dégradé ; « Régénérer la pochette » permet de la refaire à la demande.
 
 **« L'image n'a pas pu être générée ».** Une image seule a échoué (par exemple une image noire, signalée par le processus plutôt qu'enregistrée) ; réessayer donne une autre graine.
