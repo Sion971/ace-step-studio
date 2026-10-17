@@ -123,12 +123,14 @@ describe('cover-jobs state machine', () => {
     expect(call?.prompt.endsWith(', synthwave, 80s, female vocals')).toBe(true);
   });
 
-  it('cuts a very long prompt, so that the style hint is never the part that is lost', async () => {
+  it('cuts a very long prompt at a word, so that the style hint is never the part that is lost', async () => {
     mockGenerate.mockResolvedValue(ok);
-    const e = startCoverGen('long', { ...baseCfg, prompt: 'x'.repeat(2000) });
+    const e = startCoverGen('long', { ...baseCfg, prompt: 'abcdefghi '.repeat(200) });
     if (e.state === 'pending') await e.promise;
 
-    expect(mockGenerate.mock.calls[0]?.[0].prompt.length).toBeLessThan(400);
+    const prompt = mockGenerate.mock.calls[0]?.[0].prompt ?? '';
+    expect(prompt.length).toBeLessThan(400);
+    expect(prompt.endsWith('abcdefghi')).toBe(true);
   });
 
   it('still works without an interface prompt', async () => {

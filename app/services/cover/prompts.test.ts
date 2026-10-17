@@ -13,9 +13,28 @@ describe('buildCoverPrompt', () => {
     expect(out).not.toContain('Звёздная пыль');
   });
 
-  it('puts the caption first, then the brief', () => {
+  it('puts what the user typed first, then the caption', () => {
     const out = buildCoverPrompt({ ...base, caption: 'synthwave, 80s, neon', topic: 'cyberpunk skyline' });
-    expect(out.startsWith('synthwave, 80s, neon, inspired by cyberpunk skyline, ')).toBe(true);
+    expect(out.startsWith('cyberpunk skyline, synthwave, 80s, neon, ')).toBe(true);
+  });
+
+  it('does not repeat the caption when it is the brief itself', () => {
+    const out = buildCoverPrompt({ ...base, caption: 'rock', topic: 'rock' });
+    expect(out.match(/rock/g)).toHaveLength(1);
+  });
+
+  it('cuts the long paragraph written by the language model at a clause, not in the middle of a word', () => {
+    const caption =
+      'The track begins with an introspective solo piano playing arpeggiated chords, setting a melancholic mood for the clear male lead vocal sung in French. The arrangement builds into an anthemic chorus.';
+    const out = buildCoverPrompt({ ...base, caption, topic: 'r&b, easy to sing, joy' });
+    expect(out).toBe('r&b, easy to sing, joy, The track begins with an introspective solo piano playing arpeggiated chords, atmospheric, cinematic lighting, highly detailed');
+    expect(out).not.toContain('setting');
+  });
+
+  it('cuts at a space when there is no clause to cut at', () => {
+    const out = buildCoverPrompt({ ...base, caption: 'word '.repeat(60) });
+    expect(out.startsWith('word word')).toBe(true);
+    expect(out).not.toMatch(/wor,|wo,|w,/);
   });
 
   it('writes no negative clause: the model runs without guidance and would draw the words', () => {
@@ -33,9 +52,9 @@ describe('buildCoverPrompt', () => {
     expect(out).not.toContain('\n');
   });
 
-  it('trims and cuts what the user typed, so the style hint added by the server is not pushed out', () => {
+  it('trims and bounds what the user typed, so the style hint added by the server is not pushed out', () => {
     const out = buildCoverPrompt({ ...base, caption: '  rock  ', topic: 'x'.repeat(500) });
-    expect(out.startsWith('rock, inspired by x')).toBe(true);
+    expect(out).toContain(', rock, ');
     expect(out.length).toBeLessThan(330);
   });
 

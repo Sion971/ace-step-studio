@@ -8,6 +8,10 @@
 - The cover embedded in a freshly generated MP3 is now that same gradient, drawn by the server (PNG, no network), instead of a random photo fetched from picsum.photos
 - Cover window (song menu): the prompt is sent to the local model (a seed per click, several tries kept, then "Save as cover"), or you upload an image; without a GPU, only the upload is offered
 
+### Fixed
+- AI covers did not start (`cannot import name 'get_cached_repo_tree' from 'huggingface_hub'`): diffusers 0.40 needs two names that huggingface_hub < 1.0 lacks; the cover process now supplies them and loads the SDXL pipeline class directly
+- AI cover prompt: the long paragraph the language model writes as caption was cut in the middle of a word ("The arran, inspired by…"); it is now cut at its first clause, after what you typed, and the server cuts at a word
+
 ### Removed
 - Pollinations.ai: `pollinations.ts`, the Pollinations panel and toggle, the model picker of the cover window, the 35 `pollinations.*` / `coverRegen.*` texts in six languages, the two Pollinations hosts of the content security policy
 

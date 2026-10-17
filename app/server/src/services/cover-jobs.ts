@@ -26,6 +26,14 @@ export interface CoverGenConfig {
 /** CLIP reads about 77 tokens: a longer prompt is cut anyway, so keep it short and put the style first. */
 const MAX_PROMPT_CHARS = 240;
 
+/** At most `max` characters, never cutting a word in half. */
+function clipAtWord(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const head = text.slice(0, max);
+  const cut = head.lastIndexOf(' ');
+  return (cut > 0 ? head.slice(0, cut) : head).replace(/[\s,.;:]+$/, '');
+}
+
 /**
  * Asked before the model is used: false means the GPU is busy with an audio generation, and the cover is skipped (the
  * default gradient stays) rather than competing with the audio engine for VRAM.
@@ -163,7 +171,7 @@ export function startCoverGen(
       // Per-job style hint put BEFORE the interface prompt (the text model reads the start first). The user never sees
       // the enriched prompt: log it, so that "the cover does not match my prompt" can be diagnosed.
       const style = styleModifierFor(jobId);
-      const body = cfg.prompt.trim().slice(0, MAX_PROMPT_CHARS);
+      const body = clipAtWord(cfg.prompt.trim(), MAX_PROMPT_CHARS);
       const prompt = body ? `album cover art, ${style}, ${body}` : `album cover art, ${style}`;
       console.log(`[cover] ${jobId} style="${style}" prompt="${prompt}"`);
 

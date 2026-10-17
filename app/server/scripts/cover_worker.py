@@ -32,15 +32,44 @@ def send(obj):
     sys.stdout.flush()
 
 
+def patch_hub_for_diffusers():
+    """
+    diffusers 0.40 (pinned by the installer for ACE-Step) imports two names that only exist in huggingface_hub 1.x, while
+    the installer keeps huggingface_hub below 1.0 for transformers: `get_cached_repo_tree` and
+    `huggingface_hub.errors.CachedRepoTreeNotFoundError`. Without them, importing ANY diffusers pipeline fails. diffusers
+    only calls the first one when it is offline, to read a file listing cached by an earlier online call; a stand-in that
+    reports "nothing cached" makes it take its normal path (snapshot_download), which is what we want.
+    """
+    import huggingface_hub
+    import huggingface_hub.errors as hub_errors
+
+    if not hasattr(hub_errors, "CachedRepoTreeNotFoundError"):
+
+        class CachedRepoTreeNotFoundError(Exception):
+            pass
+
+        hub_errors.CachedRepoTreeNotFoundError = CachedRepoTreeNotFoundError
+    if not hasattr(huggingface_hub, "get_cached_repo_tree"):
+
+        def get_cached_repo_tree(*_args, **_kwargs):
+            raise hub_errors.CachedRepoTreeNotFoundError("no cached file listing")
+
+        huggingface_hub.get_cached_repo_tree = get_cached_repo_tree
+
+
 def load_pipeline():
     import torch
-    from diffusers import AutoPipelineForText2Image
 
     if not torch.cuda.is_available():
         raise RuntimeError("no CUDA GPU available for local covers")
+    patch_hub_for_diffusers()
+    # The SDXL class directly, not AutoPipelineForText2Image: the auto pipeline imports every pipeline of diffusers, and
+    # some of them need packages the installer does not provide.
+    from diffusers import StableDiffusionXLPipeline
+
     send({"event": "loading"})
     log("loading", MODEL_ID, "(first use downloads about 7 GB)")
-    pipe = AutoPipelineForText2Image.from_pretrained(
+    pipe = StableDiffusionXLPipeline.from_pretrained(
         MODEL_ID, torch_dtype=torch.float16, variant="fp16", use_safetensors=True
     )
     pipe.enable_model_cpu_offload()
