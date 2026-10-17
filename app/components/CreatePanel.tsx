@@ -1936,6 +1936,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             topic: songDescription,
             language: vocalLanguage,
             instrumental,
+            lyrics: instrumental ? '' : effLyrics,
           }),
         } : { ai: false },
         enhance,

@@ -44,8 +44,8 @@ export const CoverRegenModal: React.FC<Props> = ({ song, token, onClose, onCover
   // Prompt prefill — a short visual hint derived from the song's caption / style. The user can override it completely;
   // we only seed something useful so that hitting "Generate" right away produces a reasonable image.
   const initialPrompt = useMemo(
-    () => buildCoverPrompt({ title: song.title || '', caption: song.style || '', topic: '', language: 'en', instrumental: false }),
-    [song.style, song.title],
+    () => buildCoverPrompt({ title: song.title || '', caption: song.style || '', topic: '', language: 'en', instrumental: false, lyrics: song.lyrics || '' }),
+    [song.style, song.title, song.lyrics],
   );
 
   const [prompt, setPrompt] = useState(initialPrompt);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildCoverPrompt } from './prompts';
+import { buildCoverPrompt, lyricsImagery } from './prompts';
 
 const base = { title: 'X', caption: '', topic: '', language: 'en', instrumental: false };
 
@@ -81,5 +81,59 @@ describe('buildCoverPrompt', () => {
 
   it('has no double commas', () => {
     expect(buildCoverPrompt({ ...base, caption: ' ' })).not.toMatch(/,\s*,/);
+  });
+
+  describe('with lyrics', () => {
+    const lyrics = [
+      '[Verse 1]',
+      'Midnight rain on the window glass',
+      'Streetlights drowning in the harbor',
+      '',
+      '[Chorus]',
+      'Burning lanterns over the silver sea',
+      'Burning lanterns over the silver sea',
+      'Carry me home, (oh oh) carry me home',
+    ].join('\n');
+    const caption = 'The track begins with an introspective solo piano playing arpeggiated chords, slow tempo';
+
+    it('shows the chorus, not the first verse, once, without tags or ad-libs', () => {
+      expect(lyricsImagery(lyrics)).toBe('Burning lanterns over the silver sea, Carry me home, carry me home');
+    });
+
+    it('falls back to the first section when there is no chorus', () => {
+      expect(lyricsImagery('[Verse]\nSnow falls on the empty pier\n[Bridge]\nSomething else')).toBe('Snow falls on the empty pier');
+    });
+
+    it('also reads lyrics that have no tags at all', () => {
+      expect(lyricsImagery('Snow falls on the empty pier\nThe ferry never came')).toBe('Snow falls on the empty pier, The ferry never came');
+    });
+
+    it('drops the words that draw a face', () => {
+      expect(lyricsImagery('[Chorus]\nOh baby, the girl by the sea\nCherie ma chérie')).not.toMatch(/baby|girl|chérie/i);
+    });
+
+    it('returns nothing for an instrumental marker or empty lyrics', () => {
+      expect(lyricsImagery('[Instrumental]')).toBe('');
+      expect(lyricsImagery('')).toBe('');
+    });
+
+    it('builds the picture from the lyrics and no longer from the sound of the song', () => {
+      const out = buildCoverPrompt({ ...base, caption, lyrics });
+      expect(out).toContain('Burning lanterns over the silver sea');
+      expect(out).not.toMatch(/piano|arpeggiated|chords/i);
+      expect(out).toContain('landscape, still life, abstract shapes');
+    });
+
+    it('keeps the scenery clause inside the 240 characters the server keeps', () => {
+      const out = buildCoverPrompt({ ...base, caption, topic: 'r&b, easy to sing, joy and a long extra sentence about it', lyrics });
+      expect(out.indexOf('abstract shapes') + 'abstract shapes'.length).toBeLessThanOrEqual(240);
+    });
+
+    it('ignores the lyrics of an instrumental, and lyrics too short to say anything', () => {
+      const instrumental = buildCoverPrompt({ ...base, caption: 'ambient piano', lyrics, instrumental: true });
+      expect(instrumental).toContain('ambient piano');
+      expect(instrumental).not.toContain('lanterns');
+      expect(buildCoverPrompt({ ...base, caption: 'ambient piano', lyrics: '[Verse]\nla la' })).toContain('ambient piano');
+    });
   });
 });

@@ -9,10 +9,18 @@ export interface CoverPromptInput {
   language: string;
   /** True for instrumentals. Kept for callers; the prompt now steers away from people for every song. */
   instrumental: boolean;
+  /** The song's lyrics. When present (and not an instrumental), they carry the imagery instead of the sound description. */
+  lyrics?: string;
 }
 
-const MAX_CAPTION = 110;
-const MAX_TOPIC = 100;
+// The server keeps about 240 characters of the prompt (the image model reads ~77 tokens after "album cover art, <style>"):
+// the budget below keeps the scenery clause (38 characters) inside them.
+const MAX_CAPTION = 90;
+const MAX_TOPIC = 70;
+const MAX_LYRICS = 90;
+const MAX_CAPTION_WITH_LYRICS = 50;
+// Lyrics that are too short to say anything about the song.
+const MIN_LYRICS_CHARS = 20;
 
 /** Scenery the model draws well at 512 px, appended unless the user asked for a person themselves. */
 const SCENERY = 'landscape, still life, abstract shapes';
@@ -27,6 +35,60 @@ const VOCAL_WORDS =
 /** The user's own brief names a person, so they want one: no scenery steering. */
 const ASKS_FOR_PERSON =
   /\b(?:portrait|person|people|man|men|woman|women|girl|boy|face|faces|couple|child|children|dancer|musician|figure|silhouette|singer|band|crowd)\b/i;
+
+/**
+ * Instruments name what the song SOUNDS like, not what the cover shows: "solo piano" in the caption turned a large share of
+ * the covers into pianos. Dropped from the caption whenever the lyrics carry the imagery.
+ */
+const INSTRUMENT_WORDS =
+  /\b(?:grand\s+|acoustic\s+|electric\s+|solo\s+)*(?:pianos?|keys|keyboards?|guitars?|bass|drums?|percussion|synths?|synthesi[sz]ers?|violins?|cellos?|strings|saxophones?|saxes|trumpets?|flutes?|organs?|harps?|banjos?|ukuleles?|arpeggiated|arpeggios?|chords?)\b/gi;
+/** Words of a lyric line that make the model draw a face or a couple. */
+const LYRIC_PERSON_WORDS = /\b(?:baby|babe|girl|boy|man|woman|lady|darling|b[ée]b[ée]|ch[ée]r(?:i|ie))\b/gi;
+
+/**
+ * A few lines of the lyrics worth showing to the image model: the first chorus (the hook carries the theme), else the first
+ * verse. Section tags, ad-libs in brackets and repeated lines are removed. Empty when there is nothing usable.
+ */
+export function lyricsImagery(lyrics: string): string {
+  const sections: string[][] = [];
+  let current: string[] = [];
+  let currentIsChorus = false;
+  const chorusIdx: number[] = [];
+  const flush = () => {
+    if (current.length > 0) {
+      if (currentIsChorus) chorusIdx.push(sections.length);
+      sections.push(current);
+    }
+    current = [];
+    currentIsChorus = false;
+  };
+  for (const raw of lyrics.split(/\r?\n/)) {
+    const tag = raw.trim().match(/^\[(.+?)\]$/);
+    if (tag) {
+      flush();
+      currentIsChorus = /chorus|refrain|hook|ref\./i.test(tag[1]);
+      continue;
+    }
+    const line = raw
+      .replace(/\[[^\]]*\]|\([^)]*\)|\{[^}]*\}/g, ' ')
+      .replace(LYRIC_PERSON_WORDS, ' ')
+      .replace(/[\s]+/g, ' ')
+      .replace(/^[\s,.;:!?-]+|[\s,;:-]+$/g, '')
+      .trim();
+    if (line) current.push(line);
+  }
+  flush();
+  const section = sections[chorusIdx[0] ?? 0];
+  if (!section) return '';
+  const seen = new Set<string>();
+  const lines = section.filter((l) => {
+    const key = l.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return lines.join(', ');
+}
 
 const withoutVocalWords = (text: string): string =>
   text
@@ -55,16 +117,31 @@ function clip(text: string, max: number): string {
  * 77 tokens and is run without guidance, so a "no text, no logo" clause would not be obeyed — it would only add the words
  * "text" and "logo" to the picture. The server puts "album cover art" and a per-song art style in front of it.
  *
- * What the user typed (the brief) comes first, then the caption cut to its first clause. The title is left out: it would
- * become visible lettering. A prompt tailored to the lyrics (LLM) replaces this one when there is one — see CreatePanel.
+ * Order: what the user typed (the brief), the imagery of the lyrics when the song has some (else nothing), the scenery
+ * clause, then the caption cut to its first clause. The caption describes the SOUND ("solo piano"), so with lyrics it is
+ * short and stripped of instruments. The title is left out: it would become visible lettering. A prompt tailored to the
+ * lyrics by the language model replaces this one when there is one — see CreatePanel.
  */
 export function buildCoverPrompt(input: CoverPromptInput): string {
-  const bits: string[] = [];
+  const imagery = input.instrumental || !input.lyrics ? '' : lyricsImagery(input.lyrics);
+  const fromLyrics = imagery.length >= MIN_LYRICS_CHARS;
   const topic = clip(oneLine(input.topic), MAX_TOPIC);
-  const caption = clip(withoutVocalWords(oneLine(input.caption)), MAX_CAPTION);
+  let caption = withoutVocalWords(oneLine(input.caption));
+  if (fromLyrics) caption = withoutVocalWords(caption.replace(INSTRUMENT_WORDS, ''));
+  caption = clip(caption, fromLyrics ? MAX_CAPTION_WITH_LYRICS : MAX_CAPTION);
+  const scenery = ASKS_FOR_PERSON.test(topic) ? '' : SCENERY;
+
+  const bits: string[] = [];
   if (topic) bits.push(topic);
-  if (caption && caption !== topic) bits.push(caption);
-  if (!ASKS_FOR_PERSON.test(topic)) bits.push(SCENERY);
+  if (fromLyrics) {
+    // The lyrics carry the imagery; the caption (a description of the sound) comes after the scenery clause.
+    bits.push(clip(imagery, MAX_LYRICS));
+    if (scenery) bits.push(scenery);
+    if (caption && caption !== topic) bits.push(caption);
+  } else {
+    if (caption && caption !== topic) bits.push(caption);
+    if (scenery) bits.push(scenery);
+  }
   bits.push('atmospheric, cinematic lighting, highly detailed');
   return bits.join(', ');
 }

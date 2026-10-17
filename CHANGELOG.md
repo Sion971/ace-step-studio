@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-18
+
+### Changed
+- AI covers draw from the lyrics: for a song with lyrics (not an instrumental), the cover prompt now carries the chorus (else the first verse) instead of the description of the sound. Instruments ("solo piano", guitar, chords) are dropped from the caption, which is what turned so many covers into pianos. Section tags, ad-libs, repeated lines and face-drawing words ("baby", "girl"…) are removed from the excerpt. The scenery clause now comes before the caption, so it stays inside the part of the prompt the image model reads. When the language model writes the song, its own cover prompt (made from the lyrics) is still the one used
+- The "regenerate cover" window starts from the same prompt, with the song's lyrics
+
 ## 2026-10-17
 
 ### Fixed
