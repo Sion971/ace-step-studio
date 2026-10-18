@@ -11,6 +11,7 @@ import { zh } from './zh';
 // sentence the user reads is written here, in the user's language, with {{markers}} where a value goes (a number of GB, a model name, a date).
 const KEYS = [
   'loraHubBrowse',
+  'loraHubSmallGpu',
   'loraHubTitle',
   'loraHubClose',
   'loraHubLoading',

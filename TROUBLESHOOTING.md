@@ -1993,6 +1993,8 @@ et le catalogue retrouve le LoRA par son dépôt et son fichier : il reste « In
 **Limites.** Seuls les échecs annoncés par « ❌ » ou « Failed to load » sont reconnus ; une autre formulation passerait encore pour un succès. `unload`, `scale` et `toggle` lisent aussi
 un texte d'état et ne le contrôlent pas. Le renommage corrigé n'a pas été essayé avec le vrai moteur : il repose sur ce que dit son message d'erreur.
 
+**Petite carte (mode flux, §60).** Le DiT y est remplacé par des blocs qui passent un à un dans la carte : un adaptateur ne peut pas s'y appliquer. `GET /api/lora/status` renvoie `small_gpu: true` (`HW_MODE=stream`) ; le panneau le lit à l'ouverture, affiche le texte `loraHubSmallGpu` et grise « Charger » ; `POST /api/lora/load` répond `409` `{ code: 'small_gpu' }` avant d'interroger le moteur (le moteur refuse aussi, avec son propre message). Le catalogue reste ouvert : on peut y parcourir et installer des LoRA (utiles si l'on change de machine). Si `/api/lora/status` ne répond pas, le bouton reste actif : le serveur refuse de toute façon. Les tests de `lora-load.test.ts` fixent `HW_MODE` eux-mêmes, pour ne pas dépendre du profil de la machine qui les lance.
+
 ---
 
 ## 42. Modèles : la liste, la VRAM et le téléchargement

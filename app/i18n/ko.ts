@@ -1218,6 +1218,7 @@ export const ko = {
 
     // Catalogue de LoRA (hub) : installer un LoRA depuis le catalogue ou un lien Hugging Face
     loraHubBrowse: "카탈로그 열기",
+    loraHubSmallGpu: "소형 그래픽 카드에서는 사용할 수 없습니다. 음악 모델이 카드에서 블록 단위로 순차 처리되어 LoRA를 적용할 수 없습니다. LoRA를 쓰려면 메모리가 더 큰 카드나 프로세서 모드를 사용하세요.",
     loraHubTitle: "LoRA 카탈로그",
     loraHubClose: "닫기",
     loraHubLoading: "카탈로그를 불러오는 중…",

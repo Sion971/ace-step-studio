@@ -22,6 +22,7 @@ describe('POST /api/lora/load: what the engine answered', () => {
   let base: string;
 
   beforeEach(async () => {
+    vi.stubEnv('HW_MODE', 'gpu'); // the machine running the tests may itself be a small-card install
     predict.mockReset();
     const app = express();
     app.use(express.json());
@@ -32,6 +33,7 @@ describe('POST /api/lora/load: what the engine answered', () => {
     await fetch(`${base}/unload`, { method: 'POST' }); // start every test from "nothing loaded"
   });
   afterEach(async () => {
+    vi.unstubAllEnvs();
     await new Promise<void>((resolve) => {
       server.closeAllConnections?.();
       server.close(() => resolve());
@@ -44,6 +46,23 @@ describe('POST /api/lora/load: what the engine answered', () => {
     return { status: response.status, body: (await response.json()) as Record<string, unknown> };
   };
   const state = async () => (await (await fetch(`${base}/status`)).json()) as { loaded: boolean; path: string };
+
+  it('refuses to load anything in small-card mode, before asking the engine, and says so in /status', async () => {
+    vi.stubEnv('HW_MODE', 'stream');
+    predict.mockClear();
+    const { status, body } = await load('./lora_output/final', '✅ LoRA loaded from ./lora_output/final');
+    expect(status).toBe(409);
+    expect(body.code).toBe('small_gpu');
+    expect(String(body.error)).toContain('small-card mode');
+    expect(predict).not.toHaveBeenCalled();
+    expect(await state()).toMatchObject({ loaded: false, small_gpu: true });
+  });
+
+  it('says small_gpu is false in the other modes', async () => {
+    expect(await state()).toMatchObject({ small_gpu: false });
+    vi.stubEnv('HW_MODE', 'cpu');
+    expect(await state()).toMatchObject({ small_gpu: false });
+  });
 
   it('records a LoRA as loaded when the engine says it loaded it', async () => {
     const { status, body } = await load('./lora_output/final', '✅ LoRA loaded from ./lora_output/final');

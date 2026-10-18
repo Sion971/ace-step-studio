@@ -1235,6 +1235,7 @@ export const en = {
 
     // Catalogue de LoRA (hub) : installer un LoRA depuis le catalogue ou un lien Hugging Face
     loraHubBrowse: "Browse the catalog",
+    loraHubSmallGpu: "Not available with a small graphics card: the music model passes through it block by block, so a LoRA cannot be applied. Use a card with more memory, or the processor mode, to apply a LoRA.",
     loraHubTitle: "LoRA catalog",
     loraHubClose: "Close",
     loraHubLoading: "Loading the catalog…",

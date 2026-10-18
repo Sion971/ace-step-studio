@@ -47,3 +47,7 @@ export function modelLabel(value: unknown, max = 160): string | null {
   }
   return text;
 }
+
+/** Why a LoRA cannot be loaded in small-card mode (HW_MODE=stream). Shown only when the interface did not already say it. */
+export const SMALL_GPU_LORA_MESSAGE =
+  'LoRA adapters are not supported in small-card mode (the music model is streamed through the card block by block). Use a card with more memory, or the regular processor mode, to apply a LoRA.';

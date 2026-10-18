@@ -670,6 +670,8 @@ export const generateApi = {
     active: boolean;
     scale: number;
     path: string;
+    /** True in small-card mode: no LoRA can be loaded there. */
+    small_gpu?: boolean;
   }> => api('/api/lora/status', { token }),
 
   getAvailableLoras: (token: string): Promise<{

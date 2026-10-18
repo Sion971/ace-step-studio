@@ -1218,6 +1218,7 @@ export const ja = {
 
     // Catalogue de LoRA (hub) : installer un LoRA depuis le catalogue ou un lien Hugging Face
     loraHubBrowse: "カタログを開く",
+    loraHubSmallGpu: "小型のグラフィックスカードでは利用できません。音楽モデルはカード上でブロックごとに順次処理されるため、LoRAを適用できません。LoRAを使うには、メモリの大きいカードかプロセッサモードをご利用ください。",
     loraHubTitle: "LoRA カタログ",
     loraHubClose: "閉じる",
     loraHubLoading: "カタログを読み込み中…",

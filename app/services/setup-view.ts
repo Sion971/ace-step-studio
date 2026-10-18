@@ -32,7 +32,7 @@ export interface HardwareProfileDto {
   gpuName?: string;
   vramGiB?: number;
   tier?: number;
-  mode?: 'gpu' | 'cpu';
+  mode?: 'gpu' | 'cpu' | 'stream';
 }
 
 export interface DownloadDto {

@@ -1229,6 +1229,7 @@ export const ru = {
 
     // Catalogue de LoRA (hub) : installer un LoRA depuis le catalogue ou un lien Hugging Face
     loraHubBrowse: "Открыть каталог",
+    loraHubSmallGpu: "Недоступно на маленькой видеокарте: музыкальная модель проходит через неё блок за блоком, поэтому LoRA применить нельзя. Для LoRA используйте карту с большим объёмом памяти или режим процессора.",
     loraHubTitle: "Каталог LoRA",
     loraHubClose: "Закрыть",
     loraHubLoading: "Загрузка каталога…",

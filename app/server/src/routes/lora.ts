@@ -5,6 +5,8 @@ import { listAvailableLoras } from '../services/lora-available.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { describeLoadFailure } from '../services/lora-engine-status.js';
+import { isStreamMode } from '../services/hardware-mode.js';
+import { SMALL_GPU_LORA_MESSAGE } from '../services/lora-text.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +31,11 @@ router.post('/load', authMiddleware, async (req: AuthenticatedRequest, res: Resp
     const { lora_path } = req.body;
     if (!lora_path || typeof lora_path !== 'string') {
       res.status(400).json({ error: 'lora_path is required' });
+      return;
+    }
+    // Small-card mode: the DiT blocks are streamed through the card, so an adapter cannot be applied. Say so before asking the engine.
+    if (isStreamMode()) {
+      res.status(409).json({ error: SMALL_GPU_LORA_MESSAGE, code: 'small_gpu' });
       return;
     }
 
@@ -174,7 +181,8 @@ router.get('/quantization-status', authMiddleware, async (_req: AuthenticatedReq
 
 // GET /api/lora/status — Get current LoRA state
 router.get('/status', authMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
-  res.json(loraState);
+  // small_gpu: the install runs in small-card mode (HW_MODE=stream), where no LoRA can be loaded; the panel says so before the user tries.
+  res.json({ ...loraState, small_gpu: isStreamMode() });
 });
 
 // GET /api/lora/available — Liste les LoRA valides dans lora_output/, en

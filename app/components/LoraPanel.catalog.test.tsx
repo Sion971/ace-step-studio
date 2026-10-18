@@ -22,17 +22,20 @@ describe('LoraPanel and the catalog', () => {
   let root: Root;
   let installed: unknown[];
   let loras: { name: string; path: string }[];
+  let smallGpu = false;
 
   beforeEach(() => {
     localStorage.clear();
     localStorage.setItem('language', 'en');
     installed = [lofi];
+    smallGpu = false;
     loras = [{ name: 'my-trained-lora', path: './lora_output/final' }, { name: 'lofi', path: './lora_output/lofi' }];
     vi.stubGlobal('fetch', vi.fn(async (input: string) => {
       const path = String(input).split('?')[0];
       const bodies: Record<string, unknown> = {
         '/api/lora/available': { loras },
         '/api/lora/quantization-status': { quantization_enabled: false },
+        '/api/lora/status': { loaded: false, active: false, scale: 1, path: '', small_gpu: smallGpu },
         '/api/lora-hub/installed': { installed },
         '/api/lora-hub/catalog': { entries: [entry], problems: [] },
         '/api/generate/model-status': { state: 'ready', connected: true, activeModel: 'acestep-v15-turbo' },
@@ -68,6 +71,22 @@ describe('LoraPanel and the catalog', () => {
     await click([...document.body.querySelectorAll('button')].find((b) => b.textContent === 'LoRA') ?? null);
     await settle(20);
   }
+
+  it('says a LoRA cannot be loaded in small-card mode, and greys out "Load" (the catalog stays usable)', async () => {
+    smallGpu = true;
+    await mount();
+    expect(q('lora-small-gpu')?.textContent).toContain('Not available with a small graphics card');
+    const load = [...document.body.querySelectorAll('button')].find((b) => b.textContent === 'Load') as HTMLButtonElement;
+    expect(load.disabled).toBe(true);
+    expect(q('lora-open-catalog')).not.toBeNull();
+  });
+
+  it('shows no such note, and keeps "Load" enabled, outside small-card mode', async () => {
+    await mount();
+    expect(q('lora-small-gpu')).toBeNull();
+    const load = [...document.body.querySelectorAll('button')].find((b) => b.textContent === 'Load') as HTMLButtonElement;
+    expect(load.disabled).toBe(false);
+  });
 
   it('offers the catalog from the panel, and opens it', async () => {
     await mount();

@@ -1218,6 +1218,7 @@ export const zh = {
 
     // Catalogue de LoRA (hub) : installer un LoRA depuis le catalogue ou un lien Hugging Face
     loraHubBrowse: "打开目录",
+    loraHubSmallGpu: "小显存显卡上不可用：音乐模型逐块流经显卡，因此无法应用 LoRA。要使用 LoRA，请使用显存更大的显卡或处理器模式。",
     loraHubTitle: "LoRA 目录",
     loraHubClose: "关闭",
     loraHubLoading: "正在加载目录…",
