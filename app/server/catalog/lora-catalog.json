@@ -13,11 +13,202 @@
       "license": null,
       "baseModel": "AceStep v1.5 Turbo (2B)",
       "genre": "lo-fi",
-      "tags": ["lo-fi", "chillhop", "vinyl crackle", "soft drums"],
+      "tags": [
+        "lo-fi",
+        "chillhop",
+        "vinyl crackle",
+        "soft drums"
+      ],
       "triggerWord": "roti-l0f1y",
-      "recommended": { "scale": 1.0, "steps": 8, "guidance": 7.0, "shift": 3.0 },
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
       "sizeBytes": 88130248,
-      "verified": { "date": "2026-10-07", "note": "Installed and checksum verified by the maintainer (Linux, RTX 5060)." }
+      "verified": {
+        "date": "2026-10-07",
+        "note": "Installed and checksum verified by the maintainer (Linux, RTX 5060)."
+      }
+    },
+    {
+      "id": "acestep-refine-redmond",
+      "repo": "artificialguybr/AceStep_Refine_Redmond",
+      "file": "standard/AceStep_Refine_Redmond_standard.safetensors",
+      "revision": "1f7001c22d88ca2c0501657a307eaa48e9be0f95",
+      "sha256": "4091beb6516a3e29ac337545fe94851a0a8812ac6c1644e0ad8307272144b5f1",
+      "name": "Refine Redmond",
+      "description": "Not a genre: a DPO-refined LoRA meant to improve the overall quality of ACE-Step 1.5 Turbo output (the author reports about 70% wins in blind A/B tests). Use the 4B language model for prompting.",
+      "author": "artificialguybr",
+      "license": "mit",
+      "baseModel": "AceStep v1.5 Turbo (2B)",
+      "genre": "quality refinement",
+      "tags": [
+        "refinement",
+        "dpo",
+        "quality"
+      ],
+      "triggerWord": null,
+      "recommended": {
+        "scale": null,
+        "steps": null,
+        "guidance": null,
+        "shift": null
+      },
+      "sizeBytes": 132170688,
+      "verified": {
+        "date": "2026-10-18",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "acoustic-guitar-fingerstyle",
+      "repo": "DisturbingTheField/ACE-Step-v1.5-acoustic-guitar-and-a-merge-LoRA",
+      "file": "adapter_model.safetensors",
+      "revision": "041aa44bbd79a685fa40d652078ecd6c91da18e9",
+      "sha256": "58adb4f3d4fd3f9bd270560bf8446314a424410aafb32870bed3099937bcc77f",
+      "name": "Acoustic guitar (fingerstyle)",
+      "description": "Fingerstyle acoustic guitar, trained on six self-recorded files. The author recommends a low LoRA scale (0.2 to 0.7).",
+      "author": "DisturbingTheField",
+      "license": "mit",
+      "baseModel": "AceStep v1.5 Base (2B)",
+      "genre": "acoustic",
+      "tags": [
+        "acoustic guitar",
+        "fingerstyle"
+      ],
+      "triggerWord": null,
+      "recommended": {
+        "scale": 0.5,
+        "steps": null,
+        "guidance": null,
+        "shift": null
+      },
+      "sizeBytes": 176210656,
+      "verified": {
+        "date": "2026-10-18",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "ambient-dream1",
+      "repo": "DisturbingTheField/ACE-Step-v1.5-ambient_dream1-LoRA",
+      "file": "adapter_model.safetensors",
+      "revision": "9b3544f78237b059a8774a3c50f69a9643edb0b5",
+      "sha256": "e5e53064ab61233f1b3915c36b8977562852d6ebca6bdcbe2e4029a378fc359e",
+      "name": "Ambient Dream",
+      "description": "Ambient sounds, trained on 10 short instrumental pieces. Works best for pure ambient, less for pop or rock. Put the trigger word in the caption.",
+      "author": "DisturbingTheField",
+      "license": null,
+      "baseModel": "AceStep v1.5 Turbo (2B)",
+      "genre": "ambient",
+      "tags": [
+        "ambient",
+        "instrumental"
+      ],
+      "triggerWord": "ambient_dream1",
+      "recommended": {
+        "scale": null,
+        "steps": null,
+        "guidance": null,
+        "shift": null
+      },
+      "sizeBytes": 88130280,
+      "verified": {
+        "date": "2026-10-18",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "raspy-male-vocals",
+      "repo": "DisturbingTheField/ACE-Step-v1.5-raspy-vocal-and-instrumental-5-LoRAs",
+      "file": "male_vocals_adapter_model.safetensors",
+      "revision": "41c0afb54e8a3e51f4bf4af84d644f78a879c455",
+      "sha256": "502e15d117968be30ec87a57ca94cdfa0cd5fc945d7489b3fca4e9e17c32bfac",
+      "name": "Raspy male vocals",
+      "description": "A hoarse male singing voice, trained on seven self-recorded files; it also colours the instruments. The author recommends a low LoRA scale (0.2 to 0.7).",
+      "author": "DisturbingTheField",
+      "license": "mit",
+      "baseModel": "AceStep v1.5 Base (2B)",
+      "genre": "vocal style",
+      "tags": [
+        "raspy vocals",
+        "male vocals"
+      ],
+      "triggerWord": null,
+      "recommended": {
+        "scale": 0.5,
+        "steps": null,
+        "guidance": null,
+        "shift": null
+      },
+      "sizeBytes": 176210656,
+      "verified": {
+        "date": "2026-10-18",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "raspy-instrumental",
+      "repo": "DisturbingTheField/ACE-Step-v1.5-raspy-vocal-and-instrumental-5-LoRAs",
+      "file": "instrumental_adapter_model.safetensors",
+      "revision": "41c0afb54e8a3e51f4bf4af84d644f78a879c455",
+      "sha256": "33bb66ffe4502221f0bac8ba531636755e161b04090fc88a69226c78b9800726",
+      "name": "Rock, acoustic and electronic instrumentals",
+      "description": "Instrumental style trained on 21 self-made tracks (rock, acoustic, ambient, electronic; guitars, bass, drums, piano, synth). The author recommends a low LoRA scale (0.2 to 0.7).",
+      "author": "DisturbingTheField",
+      "license": "mit",
+      "baseModel": "AceStep v1.5 Base (2B)",
+      "genre": "instrumental",
+      "tags": [
+        "instrumental",
+        "rock",
+        "acoustic",
+        "electronic"
+      ],
+      "triggerWord": null,
+      "recommended": {
+        "scale": 0.5,
+        "steps": null,
+        "guidance": null,
+        "shift": null
+      },
+      "sizeBytes": 176210656,
+      "verified": {
+        "date": "2026-10-18",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "chinese-new-year",
+      "repo": "ACE-Step/ACE-Step-v1.5-chinese-new-year-LoRA",
+      "file": "adapter_model.safetensors",
+      "revision": "cb829a12775740c830a6d49795f16913065dc492",
+      "sha256": "78650245c79cbfda7169eae34eb2ccb5f5e639b31a99da0a153a5bbd74194b0d",
+      "name": "Chinese New Year",
+      "description": "Festive Chinese New Year style with a female vocal and folk instruments (bass drum, dizi, erhu), trained on 12 songs. Research and academic use only: commercial use is prohibited. Use the DiT model, not the Think model.",
+      "author": "ACE-Step",
+      "license": "creativeml-openrail-m",
+      "baseModel": "AceStep v1.5 Turbo (2B)",
+      "genre": "festive",
+      "tags": [
+        "chinese new year",
+        "folk",
+        "festive"
+      ],
+      "triggerWord": null,
+      "recommended": {
+        "scale": null,
+        "steps": null,
+        "guidance": null,
+        "shift": null
+      },
+      "sizeBytes": 88130280,
+      "verified": {
+        "date": "2026-10-18",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
     }
   ]
 }
