@@ -762,5 +762,228 @@ class SelfCheckTests(unittest.TestCase):
         dit.check.report.assert_called_once()
 
 
+class ActivationsOnCardTests(unittest.TestCase):
+    """Activations pass from block to block without going back to the processor; shared inputs are sent once per step.
+
+    On the processor the "card" is the processor too, so what is checked here is the format each block hands over, how many
+    conversions are made, and that the result never changes; the transfers themselves are measured on a real card."""
+
+    CPU = torch.device("cpu")
+
+    def _decoders(self, layers=6):
+        decoder, cfg = _tiny_decoder(layers)
+        decoder.float().eval()
+        reference = copy.deepcopy(decoder).eval()
+        reference.to(torch.bfloat16).float()
+        return decoder, reference, cfg
+
+    @staticmethod
+    def _conversions():
+        """Count the tensors that really had to be converted (a tensor already in the right place and format is not)."""
+        counter = {"n": 0}
+        original = sgs._move_tensor
+
+        def counting(obj, device, dtype):
+            out = original(obj, device, dtype)
+            if out is not obj:
+                counter["n"] += 1
+            return out
+
+        return counter, mock.patch.object(sgs, "_move_tensor", counting)
+
+    @torch.no_grad()
+    def test_blocks_hand_over_the_card_format_and_only_the_last_returns_to_the_processor(self):
+        decoder, _reference, cfg = self._decoders(6)
+        pool = sgs.install(decoder, self.CPU, torch.bfloat16, compute_dtype=torch.bfloat16, resident=2)
+        seen = []
+        for layer in decoder.layers:
+            layer.register_forward_hook(lambda _m, _a, out: seen.append(out[0].dtype))
+        decoder(**_inputs(cfg), use_cache=False)
+        self.assertTrue(pool.keep_on_card)
+        self.assertEqual(seen, [torch.bfloat16] * 5 + [torch.float32])
+
+    @torch.no_grad()
+    def test_the_old_round_trip_can_be_brought_back(self):
+        with mock.patch.dict(os.environ, {sgs.ENV_ACTIVATIONS: "cpu"}):
+            self.assertFalse(sgs.activations_on_card_from_env())
+            decoder, _reference, cfg = self._decoders(4)
+            pool = sgs.install(decoder, self.CPU, torch.bfloat16, compute_dtype=torch.bfloat16)
+        self.assertFalse(pool.keep_on_card)
+        seen = []
+        for layer in decoder.layers:
+            layer.register_forward_hook(lambda _m, _a, out: seen.append(out[0].dtype))
+        decoder(**_inputs(cfg), use_cache=False)
+        self.assertEqual(seen, [torch.float32] * 4)
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(sgs.ENV_ACTIVATIONS, None)
+            self.assertTrue(sgs.activations_on_card_from_env())
+
+    @torch.no_grad()
+    def test_the_result_is_exactly_the_one_of_the_round_trip(self):
+        for compute in (torch.float32, torch.bfloat16):
+            for resident in (0, 2, 6):
+                outs = []
+                for keep in (True, False):
+                    decoder, _reference, cfg = self._decoders(6)
+                    sgs.install(decoder, self.CPU, torch.bfloat16, compute_dtype=compute, resident=resident, keep_on_card=keep)
+                    outs.append(decoder(**_inputs(cfg), use_cache=False)[0])
+                self.assertTrue(torch.equal(outs[0], outs[1]), f"compute {compute}, resident {resident}")
+
+    @torch.no_grad()
+    def test_shared_inputs_are_converted_once_per_step_whatever_the_number_of_blocks(self):
+        counts = {}
+        for layers in (4, 8):
+            for keep in (True, False):
+                decoder, _reference, cfg = self._decoders(layers)
+                sgs.install(decoder, self.CPU, torch.bfloat16, compute_dtype=torch.bfloat16, keep_on_card=keep)
+                counter, patch = self._conversions()
+                with patch:
+                    decoder(**_inputs(cfg), use_cache=False)
+                counts[(layers, keep)] = counter["n"]
+        self.assertEqual(counts[(4, True)], counts[(8, True)])      # the number of blocks does not matter any more
+        self.assertGreater(counts[(8, False)], counts[(4, False)])  # it used to
+        self.assertLess(counts[(8, True)], counts[(8, False)])
+
+    @torch.no_grad()
+    def test_a_new_step_never_gets_the_previous_steps_inputs(self):
+        decoder, reference, cfg = self._decoders(6)
+        sgs.install(decoder, self.CPU, torch.bfloat16, resident=2)
+        for seed in range(5):  # new tensors are made for every step, some may reuse the address of a freed one
+            g = torch.Generator().manual_seed(100 + seed)
+            inputs = _inputs(cfg)
+            inputs["hidden_states"] = torch.randn(inputs["hidden_states"].shape, generator=g)
+            inputs["encoder_hidden_states"] = torch.randn(inputs["encoder_hidden_states"].shape, generator=g)
+            inputs["timestep"] = torch.tensor([0.1 + 0.2 * seed])
+            want = reference(**inputs, use_cache=False)[0]
+            got = decoder(**inputs, use_cache=False)[0]
+            self.assertLess((got - want).abs().max().item(), 1e-4, f"step {seed}")
+
+    def test_the_cache_follows_a_tensor_changed_in_place_and_keeps_the_source_alive(self):
+        cache = sgs._ArgCache()
+        calls = []
+
+        def convert(t):
+            calls.append(1)
+            return t.clone()
+
+        t = torch.zeros(3)
+        first = cache.get(t, convert)
+        self.assertIs(cache.get(t, convert), first)
+        self.assertEqual(len(calls), 1)
+        t.add_(1.0)  # changed in place: converted again
+        second = cache.get(t, convert)
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(torch.equal(second, torch.ones(3)))
+        other = torch.zeros(3)
+        cache.get(other, convert)
+        self.assertEqual(len(calls), 3)
+        self.assertIs(cache.items[id(t)][0], t)  # the entry holds its source, so the address cannot be reused meanwhile
+        cache.clear()
+        self.assertEqual(cache.items, {})
+
+    def test_inference_tensors_can_be_cached_and_the_cache_is_bounded(self):
+        cache = sgs._ArgCache()
+        with torch.inference_mode():
+            t = torch.ones(2)
+        self.assertIs(cache.get(t, lambda x: x * 2), cache.get(t, lambda x: x * 3))  # no version to read: the identity decides
+        keep = [torch.zeros(1) for _ in range(sgs._ArgCache.LIMIT + 5)]
+        for x in keep:
+            cache.get(x, lambda y: y)
+        self.assertLessEqual(len(cache.items), sgs._ArgCache.LIMIT)
+
+    @torch.no_grad()
+    def test_the_cache_is_emptied_when_the_card_is_given_back_and_on_memory_trouble(self):
+        decoder, _reference, cfg = self._decoders(4)
+        pool = sgs.install(decoder, self.CPU, torch.bfloat16, resident=2)
+        decoder(**_inputs(cfg), use_cache=False)
+        self.assertGreater(len(pool.args.items), 0)
+        pool.release_gpu()
+        self.assertEqual(pool.args.items, {})
+        decoder(**_inputs(cfg), use_cache=False)
+        pool.shrink_resident()
+        self.assertEqual(pool.args.items, {})
+
+    @torch.no_grad()
+    def test_out_of_memory_retry_works_with_the_activations_on_the_card(self):
+        decoder, reference, cfg = self._decoders(6)
+        pool = sgs.install(decoder, self.CPU, torch.bfloat16, compute_dtype=torch.bfloat16, resident=4)
+        inputs = _inputs(cfg)
+        original = pool.resident[2].forward
+        state = {"failed": 0}
+
+        def failing(*a, **k):
+            if state["failed"] == 0:
+                state["failed"] += 1
+                raise torch.cuda.OutOfMemoryError("simulated")
+            return original(*a, **k)
+
+        pool.resident[2].forward = failing
+        out = decoder(**inputs, use_cache=False)[0]
+        ref = reference(**inputs, use_cache=False)[0]
+        self.assertEqual(state["failed"], 1)
+        self.assertLess(((out - ref).norm() / ref.norm()).item(), 0.05)
+
+    def test_each_stack_of_the_condition_encoder_returns_to_the_processor_at_its_last_block(self):
+        model, _cfg = _tiny_condition_model()
+        sgs.install_encoder(model, self.CPU, torch.bfloat16)
+        holders = [model.encoder.lyric_encoder, model.encoder.timbre_encoder, model.tokenizer.attention_pooler, model.detokenizer]
+        for holder in holders:
+            flags = [layer._s_last for layer in holder.layers]
+            self.assertEqual(flags, [False] * (len(flags) - 1) + [True])
+
+    @torch.no_grad()
+    def test_the_encoder_gives_the_same_result_with_bfloat16_compute_and_either_way_of_passing_activations(self):
+        results = []
+        for keep in (True, False):
+            model, cfg = _tiny_condition_model()
+            model.to(torch.bfloat16).float()
+            pool = sgs.install_encoder(model, self.CPU, torch.bfloat16, compute_dtype=torch.bfloat16)
+            pool.keep_on_card = keep
+            results.append(model.prepare_condition(**_condition_inputs(cfg)))
+        for a, b in zip(*results):
+            self.assertTrue(torch.equal(a, b))
+
+    @torch.no_grad()
+    def test_the_self_check_still_works_when_the_activations_stay_on_the_card(self):
+        decoder, _reference, cfg = self._decoders(5)
+        pool = sgs.install(decoder, self.CPU, torch.bfloat16, compute_dtype=torch.bfloat16, resident=1)
+        pool.check = sgs.SelfCheck("DiT", pool.count, torch.bfloat16)
+        decoder(**_inputs(cfg), use_cache=False)
+        self.assertEqual(sorted(pool.check.errors), list(range(5)))
+        self.assertLess(max(rel for rel, _m in pool.check.errors.values()), pool.check.limit)
+
+
+class LazyStatsTests(unittest.TestCase):
+    """The timings are read once at the report, not after every block (a wait per block would stop the card's queue from filling)."""
+
+    class Ev:
+        def __init__(self, ms):
+            self.ms = ms
+
+        def elapsed_time(self, other):
+            return other.ms - self.ms
+
+    def test_events_are_turned_into_seconds_only_when_the_report_is_made(self):
+        stats = sgs.StreamStats(False, True)
+        stats.add_events((self.Ev(0), self.Ev(300), self.Ev(300), self.Ev(1300)))
+        stats.add_events((self.Ev(2000), self.Ev(2100), self.Ev(2100), self.Ev(2600)))
+        stats.add_events((None, self.Ev(1), self.Ev(2), self.Ev(3)))  # an event that could not be recorded is ignored
+        self.assertEqual((stats.compute, stats.stall), (0.0, 0.0))
+        summary = stats.summary()
+        self.assertAlmostEqual(summary["stall_s"], 0.4)
+        self.assertAlmostEqual(summary["compute_s"], 1.5)
+        self.assertEqual(stats.pending, [])
+        stats.summary()
+        self.assertAlmostEqual(stats.compute, 1.5)  # not counted twice
+
+    def test_the_duration_is_the_time_from_the_first_block_to_the_last_one(self):
+        stats = sgs.StreamStats(False, True)
+        stats.t0, stats.t1 = 10.0, 14.5
+        self.assertAlmostEqual(stats.summary()["wall_s"], 4.5)
+        stats.reset()
+        self.assertEqual(stats.summary()["wall_s"], 0.0)
+        self.assertIsNone(stats.t0)
+
+
 if __name__ == "__main__":
     unittest.main()

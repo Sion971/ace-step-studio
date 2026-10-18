@@ -36,6 +36,11 @@ for the same seed. The noise is therefore drawn on the card in the format the re
 (``ACESTEP_STREAM_NOISE=cpu`` brings the old draw back). ``ACESTEP_STREAM_CHECK=1`` is a diagnostic: during the first
 generation each block computed on the card is compared with the same block computed on the processor in float32, and
 one line says whether the streaming changes the numbers (use a short track: the processor is slow).
+
+Activations stay on the card between blocks: a block hands its result to the next one without going through the
+processor, and the inputs that are the same for every block of a step (masks, positions, conditioning) are sent once
+per step instead of once per block. The results are bit for bit the same (the processor round trip only converted
+bfloat16 to float32 and back); ``ACESTEP_STREAM_ACTIVATIONS=cpu`` brings the round trip back.
 """
 
 from __future__ import annotations
@@ -59,6 +64,7 @@ ENV_RESERVE = "ACESTEP_STREAM_RESERVE_GB"
 ENV_STATS = "ACESTEP_STREAM_STATS"
 ENV_NOISE = "ACESTEP_STREAM_NOISE"
 ENV_CHECK = "ACESTEP_STREAM_CHECK"
+ENV_ACTIVATIONS = "ACESTEP_STREAM_ACTIVATIONS"
 DEFAULT_RESERVE_GB = 2.5
 DEFAULT_VAE_CHUNK = 96
 DEFAULT_VAE_OVERLAP = 16
@@ -171,22 +177,68 @@ def wrap_prepare_noise(model: nn.Module, device: torch.device, dtype: Optional[t
 # ----------------------------------------------------------------------------------------------------------------
 # Moving call arguments between processor and card
 # ----------------------------------------------------------------------------------------------------------------
-def _to_device(obj: Any, device: torch.device, dtype: torch.dtype = torch.float32) -> Any:
+def activations_on_card_from_env() -> bool:
+    """True (default): activations stay on the card between blocks; ``ACESTEP_STREAM_ACTIVATIONS=cpu`` restores the round trip."""
+    return os.environ.get(ENV_ACTIVATIONS, "card").strip().lower() != "cpu"
+
+
+def _move_tensor(obj: torch.Tensor, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
+    if obj.is_floating_point():
+        if dtype != torch.float32 and obj.dtype == torch.float32:
+            # A mask holds -inf or the float32 minimum: both would overflow to -inf (then NaN in a fully masked row)
+            # in a narrower format, so values are clamped to its range first. Ordinary activations are unaffected.
+            info = torch.finfo(dtype)
+            obj = obj.clamp(min=info.min, max=info.max)
+        return obj.to(device=device, dtype=dtype, non_blocking=True)
+    return obj.to(device=device, non_blocking=True)
+
+
+class _ArgCache:
+    """Card copies of the inputs that are the same for every block of a step (masks, positions, conditioning).
+
+    An entry holds the source tensor itself, so its identity cannot be reused by another tensor while the entry lives,
+    and the source's version counter, so a tensor changed in place is converted again. The cache is emptied when a new
+    step starts and when the card is given back.
+    """
+
+    LIMIT = 64  # a caller that makes new tensors for every block would otherwise fill the card
+
+    def __init__(self) -> None:
+        self.items: dict = {}
+
+    def clear(self) -> None:
+        self.items.clear()
+
+    @staticmethod
+    def _version(tensor: torch.Tensor) -> Any:
+        try:
+            return tensor._version
+        except RuntimeError:  # inference tensors do not track versions
+            return None
+
+    def get(self, tensor: torch.Tensor, convert: Any) -> torch.Tensor:
+        entry = self.items.get(id(tensor))
+        version = self._version(tensor)
+        if entry is not None and entry[0] is tensor and entry[1] == version:
+            return entry[2]
+        converted = convert(tensor)
+        if len(self.items) >= self.LIMIT:
+            self.items.clear()
+        self.items[id(tensor)] = (tensor, version, converted)
+        return converted
+
+
+def _to_device(obj: Any, device: torch.device, dtype: torch.dtype = torch.float32, cache: Optional[_ArgCache] = None) -> Any:
     if torch.is_tensor(obj):
-        if obj.is_floating_point():
-            if dtype != torch.float32 and obj.dtype == torch.float32:
-                # A mask holds -inf or the float32 minimum: both would overflow to -inf (then NaN in a fully masked row)
-                # in a narrower format, so values are clamped to its range first. Ordinary activations are unaffected.
-                info = torch.finfo(dtype)
-                obj = obj.clamp(min=info.min, max=info.max)
-            return obj.to(device=device, dtype=dtype, non_blocking=True)
-        return obj.to(device=device, non_blocking=True)
+        if cache is not None:
+            return cache.get(obj, lambda t: _move_tensor(t, device, dtype))
+        return _move_tensor(obj, device, dtype)
     if isinstance(obj, tuple):
-        return tuple(_to_device(o, device, dtype) for o in obj)
+        return tuple(_to_device(o, device, dtype, cache) for o in obj)
     if isinstance(obj, list):
-        return [_to_device(o, device, dtype) for o in obj]
+        return [_to_device(o, device, dtype, cache) for o in obj]
     if isinstance(obj, dict):
-        return {k: _to_device(v, device, dtype) for k, v in obj.items()}
+        return {k: _to_device(v, device, dtype, cache) for k, v in obj.items()}
     return obj  # caches and other objects keep their own tensors (created on the card by the slot)
 
 
@@ -201,6 +253,18 @@ def _to_cpu(obj: Any) -> Any:
     if isinstance(obj, dict):
         return {k: _to_cpu(v) for k, v in obj.items()}
     return obj
+
+
+def _result_of_block(out: Any, keep_on_card: bool) -> Any:
+    """What a block returns: the activations (first element) stay on the card for the next block, the rest goes to the processor."""
+    if not keep_on_card:
+        return _to_cpu(out)
+    if torch.is_tensor(out):
+        return out
+    if isinstance(out, (tuple, list)) and len(out) > 0 and torch.is_tensor(out[0]):
+        rest = [_to_cpu(o) for o in out[1:]]
+        return (out[0], *rest) if isinstance(out, tuple) else [out[0], *rest]
+    return _to_cpu(out)
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -225,7 +289,9 @@ class StreamStats:
 
     def reset(self) -> None:
         self.runs = 0
-        self.wall = 0.0          # host time spent inside the streamed blocks
+        self.t0 = None           # host time when the first block of the generation started
+        self.t1 = 0.0            # host time when the last block ended (the activations come back to the processor there)
+        self.pending: list = []  # (start, ready, run, done) events of the blocks, read when the report is made
         self.copy_bytes = 0      # weights copied to the card by streaming
         self.copy_pairs: list = []  # (start, end) events on the copy stream
         self.copy_wall = 0.0     # host time of the same copies when there is no card (tests)
@@ -246,14 +312,34 @@ class StreamStats:
         except Exception:  # the statistics must never break a generation
             return None
 
+    def add_events(self, events: tuple) -> None:
+        if None not in events and len(self.pending) < 20000:  # emptied after each generation; this only bounds a run that never reports
+            self.pending.append(events)
+
+    def collect(self) -> None:
+        """Turn the recorded events into seconds (one wait for the card, instead of one per block)."""
+        if not self.pending:
+            return
+        try:
+            if self.cuda:
+                torch.cuda.synchronize()
+            for ev_start, ev_ready, ev_run, ev_done in self.pending:
+                self.stall += ev_start.elapsed_time(ev_ready) / 1000.0
+                self.compute += ev_run.elapsed_time(ev_done) / 1000.0
+        except Exception:  # the statistics must never break a generation
+            pass
+        self.pending.clear()
+
     def summary(self) -> dict:
+        self.collect()
+        wall = (self.t1 - self.t0) if self.t0 is not None else 0.0
         copy_s = self.copy_wall
         if self.cuda and self.copy_pairs:
             torch.cuda.synchronize()
             copy_s = sum(a.elapsed_time(b) for a, b in self.copy_pairs) / 1000.0
         gb = self.copy_bytes / 1024**3
         return {
-            "runs": self.runs, "wall_s": self.wall, "copy_gb": gb, "copy_s": copy_s,
+            "runs": self.runs, "wall_s": wall, "copy_gb": gb, "copy_s": copy_s,
             "copy_gbps": (gb / copy_s) if copy_s > 0 else 0.0, "compute_s": self.compute, "stall_s": self.stall,
             "to_card_s": self.to_card, "from_card_s": self.from_card,
             "resident_gb": self.resident_bytes / 1024**3, "resident_s": self.resident_s,
@@ -320,10 +406,11 @@ class SelfCheck:
     def compare(self, index: int, real: nn.Module, args: tuple, kwargs: dict, result: Any) -> None:
         """Run the block again on the processor (float32) and record how far the card's result is."""
         try:
+            # The inputs may be activations the previous block left on the card: the reference gets them as float32.
             reference = copy.deepcopy(real).to(device="cpu", dtype=torch.float32).eval()
             with torch.no_grad():
-                expected = self._first_tensor(reference(*self._without_caches(args), **self._without_caches(kwargs)))
-            got = self._first_tensor(result)
+                expected = self._first_tensor(reference(*self._without_caches(_to_cpu(args)), **self._without_caches(_to_cpu(kwargs))))
+            got = self._first_tensor(_to_cpu(result))
             diff = (got.float() - expected.float()).abs()
             rel = float(torch.linalg.vector_norm(got.float() - expected.float()) / (torch.linalg.vector_norm(expected.float()) + 1e-12))
             self.errors[index] = (rel, float(diff.max()))
@@ -370,6 +457,7 @@ class StreamPool:
         compute_dtype: torch.dtype = torch.float32,
         resident: Any = 0,
         reserve_bytes: int = int(DEFAULT_RESERVE_GB * 1024**3),
+        keep_on_card: Optional[bool] = None,
     ):
         self.dev = device
         self.cuda = device.type == "cuda"
@@ -386,6 +474,9 @@ class StreamPool:
         self.stats = StreamStats(self.cuda, stats_enabled())
         self.pin_error: Optional[str] = None
         self.check: Optional[SelfCheck] = None  # set by the attach functions when ACESTEP_STREAM_CHECK is on
+        self.keep_on_card = activations_on_card_from_env() if keep_on_card is None else bool(keep_on_card)
+        self.args = _ArgCache()  # card copies of the inputs shared by all the blocks of a step
+        self._last_index = -1    # index of the previous block call: a call that does not go up starts a new step
         self._check_layers(real_layers)
 
         # RAM copy of every block's parameters (bfloat16 by default: exact for bfloat16 checkpoints, half the
@@ -535,6 +626,8 @@ class StreamPool:
         self.resident, self.resident_n = [], 0
         self._copy_stream, self._ready, self._free = None, [], []
         self._gpu_ready = False
+        self.args.clear()
+        self._last_index = -1
         gc.collect()
         if self.cuda:
             torch.cuda.empty_cache()
@@ -544,6 +637,7 @@ class StreamPool:
         if not self._gpu_ready or self.resident_n == 0:
             return False
         keep = self.resident_n // 2
+        self.args.clear()
         if self.cuda:
             torch.cuda.synchronize(self.dev)
         # Blocks past `keep` are streamed from now on, which needs the two slots (they do not exist when everything was resident).
@@ -609,6 +703,20 @@ class StreamPool:
         if self.loaded[slot] != target:
             self._load(target, slot)
 
+    def begin_call(self, layer_idx: int) -> None:
+        """A block call whose index does not go up starts a new step: the shared inputs of the previous one are dropped."""
+        if layer_idx <= self._last_index:
+            self.args.clear()
+        self._last_index = layer_idx
+
+    def to_card(self, args: tuple, kwargs: dict) -> tuple:
+        """Inputs of a block on the card. The activations (first argument) are moved as they come, and are already on the
+        card after the first block; the other inputs are the same for every block of a step, so each is converted once."""
+        cache = self.args if self.keep_on_card else None
+        dargs = tuple(_to_device(a, self.dev, self.compute_dtype, None if i == 0 else cache) for i, a in enumerate(args))
+        dkwargs = {k: _to_device(v, self.dev, self.compute_dtype, None if k == "hidden_states" else cache) for k, v in kwargs.items()}
+        return dargs, dkwargs
+
     def acquire(self, layer_idx: int) -> nn.Module:
         self.ensure_gpu()
         if layer_idx < self.resident_n:
@@ -635,11 +743,13 @@ class StreamedLayer(nn.Module):
     ``use_cross_attention``) are forwarded to it.
     """
 
-    def __init__(self, index: int, real: nn.Module, pool: StreamPool):
+    def __init__(self, index: int, real: nn.Module, pool: StreamPool, last: Optional[bool] = None):
         super().__init__()
         object.__setattr__(self, "_s_index", index)
         object.__setattr__(self, "_s_real", real)
         object.__setattr__(self, "_s_pool", pool)
+        # The last block of a stack hands its result back to the processor (the code after the loop runs there).
+        object.__setattr__(self, "_s_last", (index == pool.count - 1) if last is None else bool(last))
 
     def __getattr__(self, name: str):
         try:
@@ -650,10 +760,13 @@ class StreamedLayer(nn.Module):
     def forward(self, *args, **kwargs):
         pool: StreamPool = object.__getattribute__(self, "_s_pool")
         index: int = object.__getattribute__(self, "_s_index")
-        dev = pool.dev
+        last: bool = object.__getattribute__(self, "_s_last")
         stats = pool.stats
         timed = stats.enabled
         began = time.perf_counter() if timed else 0.0
+        if timed and stats.t0 is None:
+            stats.t0 = began
+        pool.begin_call(index)
         while True:
             ev_start = stats.event()
             slot = pool.acquire(index)
@@ -661,8 +774,7 @@ class StreamedLayer(nn.Module):
             ran_out = False
             try:
                 t_up = time.perf_counter() if timed else 0.0
-                dargs = _to_device(args, dev, pool.compute_dtype)
-                dkwargs = _to_device(kwargs, dev, pool.compute_dtype)
+                dargs, dkwargs = pool.to_card(args, kwargs)
                 up = (time.perf_counter() - t_up) if timed else 0.0
                 ev_run = stats.event()
                 out = slot(*dargs, **dkwargs)
@@ -681,22 +793,22 @@ class StreamedLayer(nn.Module):
             )
             raise torch.cuda.OutOfMemoryError(f"out of memory in streamed block {index}")
         pool.release(index)
-        if not timed:
-            result = _to_cpu(out)
-        else:
-            if None not in (ev_start, ev_ready, ev_run, ev_done):
+        keep = pool.keep_on_card and not last
+        if timed:
+            stats.add_events((ev_start, ev_ready, ev_run, ev_done))
+            if not keep and ev_done is not None:
                 try:
-                    ev_done.synchronize()  # the transfer back below would wait for this anyway
-                    stats.stall += ev_start.elapsed_time(ev_ready) / 1000.0
-                    stats.compute += ev_run.elapsed_time(ev_done) / 1000.0
+                    ev_done.synchronize()  # so that "back" below counts the transfer only, not the computation still queued
                 except Exception:  # the statistics must never break a generation
                     pass
             t_down = time.perf_counter()
-            result = _to_cpu(out)
+            result = _result_of_block(out, keep)
             stats.from_card += time.perf_counter() - t_down
             stats.to_card += up
             stats.runs += 1
-            stats.wall += time.perf_counter() - began
+            stats.t1 = time.perf_counter()
+        else:
+            result = _result_of_block(out, keep)
         check = pool.check
         if check is not None and check.wants(index):  # diagnostic only, after the statistics so it is not counted in them
             check.compare(index, object.__getattribute__(self, "_s_real"), args, kwargs, result)
@@ -714,10 +826,12 @@ def install(
     compute_dtype: torch.dtype = torch.float32,
     resident: Any = 0,
     reserve_bytes: int = int(DEFAULT_RESERVE_GB * 1024**3),
+    keep_on_card: Optional[bool] = None,
 ) -> StreamPool:
     """Replace ``decoder.layers`` by streamed proxies and return the pool (no environment checks)."""
     layers = list(decoder.layers)
-    pool = StreamPool(layers, device, cpu_dtype, pin=pin, compute_dtype=compute_dtype, resident=resident, reserve_bytes=reserve_bytes)
+    pool = StreamPool(layers, device, cpu_dtype, pin=pin, compute_dtype=compute_dtype, resident=resident,
+                      reserve_bytes=reserve_bytes, keep_on_card=keep_on_card)
     decoder.layers = nn.ModuleList([StreamedLayer(i, layer, pool) for i, layer in enumerate(layers)])
     return pool
 
@@ -848,8 +962,9 @@ def install_encoder(
     index = 0
     for holder in holders:
         proxies = []
-        for layer in holder.layers:
-            proxies.append(StreamedLayer(index, layer, pool))
+        layers = list(holder.layers)
+        for position, layer in enumerate(layers):
+            proxies.append(StreamedLayer(index, layer, pool, last=(position == len(layers) - 1)))
             index += 1
         holder.layers = nn.ModuleList(proxies)
     return pool
