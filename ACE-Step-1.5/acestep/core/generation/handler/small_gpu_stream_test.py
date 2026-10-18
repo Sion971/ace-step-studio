@@ -746,6 +746,169 @@ class ConditionCacheTests(unittest.TestCase):
         self.assertFalse(sgs._same_value(torch.tensor([float("nan")]), torch.tensor([float("nan")])))
 
 
+class AutoReserveTests(unittest.TestCase):
+    """The reserve for the activations follows what the previous generations measured."""
+
+    GB = 1024**3
+
+    def _pool(self, request="auto", reserve=int(1.5 * 1024**3), resident=0):
+        decoder, _cfg = _tiny_decoder(6)
+        pool = sgs.install(decoder, torch.device("cpu"), torch.bfloat16, reserve_bytes=reserve, resident=resident)
+        pool.resident_request = request
+        pool.cuda = True  # only to let the sizing run: nothing touches a card in these tests
+        pool.mask_free = True
+        pool.reserve_auto = True
+        return decoder, pool
+
+    def _measure(self, pool, tokens, base, peak):
+        pool.act_tokens, pool._act_base, pool._act_ran, pool._act_hurt = tokens, base, True, False
+        with mock.patch.object(pool, "_peak_bytes", return_value=peak):
+            pool._record_activations()
+
+    def test_without_a_measurement_the_configured_reserve_is_used(self):
+        _d, pool = self._pool()
+        self.assertEqual(pool.reserve_for(363), (pool.reserve_bytes, None))
+        self.assertEqual(pool.reserve_for(None), (pool.reserve_bytes, None))
+
+    def test_a_measurement_sets_the_reserve_to_need_plus_a_quarter_and_the_margin(self):
+        _d, pool = self._pool()
+        self._measure(pool, 2000, 5 * self.GB, int(5.8 * self.GB))
+        need = pool.act_needs[2000]
+        self.assertAlmostEqual(need / self.GB, 0.8, places=2)
+        reserve, got = pool.reserve_for(2000)
+        self.assertEqual(got, need)
+        self.assertEqual(reserve, int(need * sgs.ACT_SAFETY) + sgs.ACT_MARGIN_BYTES)
+
+    def test_the_reserve_never_goes_below_the_minimum(self):
+        _d, pool = self._pool()
+        self._measure(pool, 400, 5 * self.GB, 5 * self.GB + 1000)
+        self.assertEqual(pool.reserve_for(400)[0], sgs.ACT_MIN_RESERVE_BYTES)
+
+    def test_a_shorter_round_uses_the_smallest_longer_measurement(self):
+        _d, pool = self._pool()
+        self._measure(pool, 2000, 0, int(0.8 * self.GB))
+        self._measure(pool, 800, 0, int(0.3 * self.GB))
+        self.assertEqual(pool.reserve_for(600)[1], pool.act_needs[800])
+        self.assertEqual(pool.reserve_for(800)[1], pool.act_needs[800])
+        self.assertEqual(pool.reserve_for(801)[1], pool.act_needs[2000])
+        self.assertEqual(pool.reserve_for(2000)[1], pool.act_needs[2000])
+
+    def test_a_longer_round_scales_the_longest_measurement_with_a_safety(self):
+        _d, pool = self._pool()
+        self._measure(pool, 1000, 0, int(0.4 * self.GB))
+        need = pool.act_needs[1000]
+        self.assertEqual(pool.reserve_for(3000)[1], int(need * 3 * sgs.ACT_SAFETY))
+        pool.mask_free = False  # masks make the attention grow with the square of the length
+        self.assertEqual(pool.reserve_for(3000)[1], int(need * 9 * sgs.ACT_SAFETY))
+
+    def test_nothing_is_measured_unless_a_block_ran_cleanly_with_a_known_length(self):
+        _d, pool = self._pool()
+        pool.act_tokens, pool._act_base = 500, 0
+        with mock.patch.object(pool, "_peak_bytes", return_value=100):
+            pool._act_ran, pool._act_hurt = False, False
+            pool._record_activations()
+            pool._act_ran, pool._act_hurt = True, True   # ran out of memory in that round
+            pool._record_activations()
+            pool._act_hurt, pool.act_tokens = False, None
+            pool._record_activations()
+            pool.act_tokens, pool._act_base = 500, None
+            pool._record_activations()
+        self.assertEqual(pool.act_needs, {})
+
+    def test_only_the_automatic_resident_mode_measures_and_it_can_be_switched_off(self):
+        _d, pool = self._pool(request=3)
+        self._measure(pool, 500, 0, 100)
+        self.assertEqual(pool.act_needs, {})
+        _d, pool = self._pool()
+        pool.reserve_auto = False
+        self._measure(pool, 500, 0, 100)
+        self.assertEqual(pool.act_needs, {})
+        with mock.patch.dict(os.environ, {sgs.ENV_RESERVE_AUTO: "off"}):
+            self.assertFalse(sgs.reserve_auto_from_env())
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(sgs.ENV_RESERVE_AUTO, None)
+            self.assertTrue(sgs.reserve_auto_from_env())
+
+    def test_the_latest_larger_measure_wins_and_only_a_few_are_kept(self):
+        _d, pool = self._pool()
+        self._measure(pool, 500, 0, 300)
+        self._measure(pool, 500, 0, 200)   # same length, smaller: the larger need stays
+        self.assertEqual(pool.act_needs[500], 300)
+        for tokens in range(1000, 1000 + 10 * sgs.ACT_MEASURES_KEPT, 10):
+            self._measure(pool, tokens, 0, tokens)
+        self.assertEqual(len(pool.act_needs), sgs.ACT_MEASURES_KEPT)
+        self.assertNotIn(500, pool.act_needs)
+
+    def test_more_blocks_stay_on_the_card_once_the_need_is_known(self):
+        _d, pool = self._pool()
+        block = pool.bytes_on_card
+        pool.reserve_bytes = 20 * block
+        free = pool.reserve_bytes + 4 * block   # two slots and two resident blocks
+        with mock.patch.object(sgs, "ACT_MIN_RESERVE_BYTES", 10), mock.patch.object(sgs, "ACT_MARGIN_BYTES", 10), \
+                mock.patch.object(pool, "_free_bytes", return_value=free):
+            pool.act_tokens = 500
+            before = pool._resident_target()
+            self._measure(pool, 500, 0, block // 4)
+            after = pool._resident_target()
+        self.assertEqual(before, 2)
+        self.assertEqual(after, pool.count)
+
+    def test_the_length_comes_from_the_first_call_of_a_round(self):
+        decoder, pool = self._pool(request=2)
+        pool.cuda = False
+        pool._gpu_ready = False              # the start of a round: the blocks are not on the card yet
+        pool.observe((torch.zeros(2, 7, 4),), {})
+        self.assertEqual(pool.act_tokens, 14)
+        pool.observe((), {"hidden_states": torch.zeros(1, 9, 4)})
+        self.assertEqual(pool.act_tokens, 9)
+        pool.observe((torch.zeros(3),), {})  # not activations: unchanged
+        self.assertEqual(pool.act_tokens, 9)
+        pool._gpu_ready = True               # blocks already placed: this is not the start of a round
+        pool.observe((torch.zeros(1, 50, 4),), {})
+        self.assertEqual(pool.act_tokens, 9)
+
+    @torch.no_grad()
+    def test_a_real_run_records_the_length_and_that_a_block_ran(self):
+        decoder, cfg = _tiny_decoder(4)
+        decoder.float().eval()
+        pool = sgs.install(decoder, torch.device("cpu"), torch.bfloat16, resident=1)
+        pool.release_gpu()  # like attach_if_enabled: the blocks are placed when the first block runs
+        inputs = _inputs(cfg)
+        decoder(**inputs, use_cache=False)
+        self.assertEqual(pool.act_tokens, inputs["hidden_states"].shape[1] // cfg.patch_size)  # the blocks see patches, not frames
+        self.assertTrue(pool._act_ran)
+
+    def test_running_out_of_memory_with_a_measured_reserve_brings_back_the_configured_one(self):
+        _d, pool = self._pool()
+        pool.cuda = False
+        pool._gpu_ready, pool._act_trusted, pool._act_hurt = True, True, True
+        pool.act_needs = {500: 123}
+        pool.resident_cap = 3
+        pool.release_gpu()
+        self.assertFalse(pool.reserve_auto)
+        self.assertEqual(pool.act_needs, {})
+        self.assertEqual(pool.resident_cap, pool.count)
+        self.assertEqual(pool.reserve_for(500), (pool.reserve_bytes, None))
+
+    def test_running_out_of_memory_with_the_configured_reserve_keeps_the_halved_number(self):
+        _d, pool = self._pool()
+        pool.cuda = False
+        pool._gpu_ready, pool._act_trusted, pool._act_hurt = True, False, True
+        pool.resident_cap = 3
+        pool.release_gpu()
+        self.assertTrue(pool.reserve_auto)
+        self.assertEqual(pool.resident_cap, 3)
+
+    def test_shrinking_marks_the_round_as_hurt(self):
+        _d, pool = self._pool(request=4, resident=4)
+        pool.cuda = False
+        self.assertEqual(pool.resident_n, 4)
+        self.assertFalse(pool._act_hurt)
+        with mock.patch.object(sgs, "log_memory"):
+            self.assertTrue(pool.shrink_resident())
+        self.assertTrue(pool._act_hurt)
+
+
 class VaeRoutingTests(unittest.TestCase):
     def test_tiled_decode_goes_through_the_card_when_the_mode_is_active(self):
         from acestep.core.generation.handler.vae_decode import VaeDecodeMixin

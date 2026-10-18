@@ -30,6 +30,10 @@ so that the 2 GB behaviour is unchanged.
   the others cross the bus at every step. ``auto`` keeps as many as the free memory allows, minus
   ``ACESTEP_STREAM_RESERVE_GB`` (default 2.5) for the activations. If the card still runs out of memory in the
   middle of a block, the resident blocks are halved and that block is retried (and the lower number is kept).
+  The first generation after the start uses that reserve; from then on the peak of the activations is measured at the
+  end of every generation and the reserve follows it (the measured need plus a quarter and 0.3 GB, at least 0.5 GB,
+  scaled when the next track is longer), so short tracks keep more blocks on the card. If the card still runs out of
+  memory, the configured reserve comes back. ``ACESTEP_STREAM_RESERVE_AUTO=off`` keeps the fixed reserve.
 
 Same seed, same track as the regular card mode: the engine runs on the processor in this mode, so the starting noise
 would be drawn by the processor's generator (float32), which gives another track than the card's generator (bfloat16)
@@ -71,6 +75,13 @@ ENV_CHECK = "ACESTEP_STREAM_CHECK"
 ENV_ACTIVATIONS = "ACESTEP_STREAM_ACTIVATIONS"
 ENV_MEMORY = "ACESTEP_STREAM_MEMORY"
 ENV_CONDITION_CACHE = "ACESTEP_STREAM_CONDITION_CACHE"
+ENV_RESERVE_AUTO = "ACESTEP_STREAM_RESERVE_AUTO"
+# Reserve for the activations once a generation has been measured (see StreamPool.reserve_for): the measured peak plus
+# a quarter, plus a fixed margin for what the card's other users take in the meantime, never below the minimum.
+ACT_SAFETY = 1.25
+ACT_MARGIN_BYTES = int(0.3 * 1024**3)
+ACT_MIN_RESERVE_BYTES = int(0.5 * 1024**3)
+ACT_MEASURES_KEPT = 4
 DEFAULT_RESERVE_GB = 2.5
 DEFAULT_VAE_CHUNK = 96
 DEFAULT_VAE_OVERLAP = 16
@@ -134,6 +145,20 @@ def reserve_bytes_from_env() -> int:
     except ValueError:
         gb = DEFAULT_RESERVE_GB
     return int(max(0.0, gb) * 1024**3)
+
+
+def reserve_auto_from_env() -> bool:
+    """True (default): with ``ACESTEP_STREAM_RESIDENT=auto`` the reserve for the activations follows what was measured;
+    ``ACESTEP_STREAM_RESERVE_AUTO=off`` keeps the fixed ``ACESTEP_STREAM_RESERVE_GB``."""
+    return os.environ.get(ENV_RESERVE_AUTO, "auto").strip().lower() not in ("off", "0", "no", "false")
+
+
+def tokens_of(args: tuple, kwargs: dict) -> Optional[int]:
+    """Batch x sequence length of a block call (its activations are ``[batch, tokens, channels]``), or None."""
+    first = kwargs.get("hidden_states") if "hidden_states" in kwargs else (args[0] if args else None)
+    if torch.is_tensor(first) and first.dim() == 3:
+        return int(first.shape[0] * first.shape[1])
+    return None
 
 
 def lora_blocked_message() -> Optional[str]:
@@ -563,6 +588,15 @@ class StreamPool:
         self.label = "DiT"     # name used in the memory log
         self.attention_name: Optional[str] = None  # attention function of the card copies (None: the model's own)
         self.mask_free = False   # True when the DiT is given no masks (see small_gpu_stream_attention)
+        # Reserve for the activations that follows what was measured (resident="auto" only): tokens -> extra bytes at the peak.
+        self.reserve_auto = reserve_auto_from_env()
+        self.act_tokens: Optional[int] = None   # batch x sequence length of the round being prepared
+        self.act_needs: dict = {}
+        self._act_base: Optional[int] = None    # bytes allocated on the card when the blocks were placed
+        self._act_ran = False                   # a block has run since the blocks were placed
+        self._act_hurt = False                  # the card ran out of memory in this round
+        self._act_trusted = False               # this round's reserve came from a measurement
+        self._logged_reserve = -1
         self._check_layers(real_layers)
 
         # RAM copy of every block's parameters (bfloat16 by default: exact for bfloat16 checkpoints, half the
@@ -631,13 +665,61 @@ class StreamPool:
         """Memory currently free on the card (overridable: tests run on the processor)."""
         return int(torch.cuda.mem_get_info(self.dev)[0])
 
+    def _allocated_bytes(self) -> int:
+        return int(torch.cuda.memory_allocated(self.dev))
+
+    def _peak_bytes(self) -> int:
+        return int(torch.cuda.max_memory_allocated(self.dev))
+
+    def observe(self, args: tuple, kwargs: dict) -> None:
+        """Note the size of the activations of the first call of a round (before the blocks are placed)."""
+        if not self._gpu_ready:
+            tokens = tokens_of(args, kwargs)
+            if tokens is not None:
+                self.act_tokens = tokens
+
+    def reserve_for(self, tokens: Optional[int]) -> tuple:
+        """(bytes to leave free for the activations, measured need it came from or None) for a round of ``tokens`` tokens.
+
+        Without a measurement (the first generation, or ``ACESTEP_STREAM_RESERVE_AUTO=off``) this is the configured
+        reserve. With measurements, the smallest measured size that is at least as long as this round gives the need
+        (activations grow with the length, so it is an upper bound); a longer round scales the longest measurement
+        (linearly when the attention needs no mask, with the square of the length otherwise) and adds a quarter.
+        """
+        if not (self.reserve_auto and self.act_needs and tokens):
+            return self.reserve_bytes, None
+        longer = [t for t in self.act_needs if t >= tokens]
+        if longer:
+            need = self.act_needs[min(longer)]
+        else:
+            ref = max(self.act_needs)
+            need = int(self.act_needs[ref] * (tokens / ref) ** (1 if self.mask_free else 2) * ACT_SAFETY)
+        return max(ACT_MIN_RESERVE_BYTES, int(need * ACT_SAFETY) + ACT_MARGIN_BYTES), need
+
+    def _record_activations(self) -> None:
+        """At the end of a round: how much more than the weights the card held at the peak (the activations)."""
+        if not (self.cuda and self.resident_request == "auto" and self.reserve_auto):
+            return
+        if not self._act_ran or self._act_hurt or not self.act_tokens or self._act_base is None:
+            return
+        try:
+            need = max(0, self._peak_bytes() - self._act_base)
+        except Exception as exc:  # a measurement must never break a generation
+            logger.debug("[small_gpu_stream] could not measure the activations: {}", exc)
+            return
+        tokens = self.act_tokens
+        self.act_needs[tokens] = max(need, self.act_needs.pop(tokens, 0))  # same length: keep the larger, latest last
+        while len(self.act_needs) > ACT_MEASURES_KEPT:
+            self.act_needs.pop(next(iter(self.act_needs)))
+        logger.info("[small_gpu_stream] {}: the activations peaked at {:.2f} GB for {} tokens.", self.label, need / 1024**3, tokens)
+
     def _resident_target(self) -> int:
         """How many blocks to keep on the card for this round."""
         want = self.resident_request
         if want == "auto":
             if not self.cuda:
                 return 0
-            room = self._free_bytes() - self.reserve_bytes
+            room = self._free_bytes() - self.reserve_for(self.act_tokens)[0]
             if room >= self.count * self.bytes_on_card:
                 n = self.count  # everything fits: no streaming at all
             else:
@@ -669,6 +751,7 @@ class StreamPool:
         log_memory(f"{self.label}: before placing the blocks")
         with torch.inference_mode(False), torch.no_grad():
             self.resident_n = self._resident_target()
+            self._log_reserve()
             started = time.perf_counter()
             self.resident = [self._build_resident(i) for i in range(self.resident_n)]
             if self.resident_n and self.stats.enabled:
@@ -679,6 +762,7 @@ class StreamPool:
             if self.resident_n < self.count:
                 self._make_slots()
         self._gpu_ready = True
+        self._begin_measure()
         log_memory(f"{self.label}: {self.resident_n} resident blocks placed")
         if self.resident_n and self.resident_n != self._logged_resident:
             self._logged_resident = self.resident_n
@@ -687,6 +771,32 @@ class StreamPool:
                 self.resident_n, self.count, self.resident_n * self.bytes_on_card / 1024**3,
                 self.count - self.resident_n, self.n_slots if self.resident_n < self.count else 0,
             )
+
+    def _log_reserve(self) -> None:
+        if self.resident_request != "auto" or not self.cuda:
+            return
+        reserve, need = self.reserve_for(self.act_tokens)
+        self._act_trusted = need is not None
+        if need is not None and reserve != self._logged_reserve:
+            self._logged_reserve = reserve
+            logger.info(
+                "[small_gpu_stream] {}: {:.2f} GB left free for the activations (measured need {:.2f} GB, {} tokens now; "
+                "the configured reserve is {:.2f} GB).",
+                self.label, reserve / 1024**3, need / 1024**3, self.act_tokens, self.reserve_bytes / 1024**3,
+            )
+
+    def _begin_measure(self) -> None:
+        """Start measuring the peak of this round (after the weights are on the card)."""
+        self._act_ran = False
+        self._act_hurt = False
+        self._act_base = None
+        if self.cuda and self.resident_request == "auto" and self.reserve_auto:
+            try:
+                torch.cuda.synchronize(self.dev)
+                self._act_base = self._allocated_bytes()
+                torch.cuda.reset_peak_memory_stats(self.dev)
+            except Exception as exc:
+                logger.debug("[small_gpu_stream] could not start the activation measure: {}", exc)
 
     def _tune(self, module: nn.Module) -> None:
         """Give a card copy its own config naming the pool's attention function (nothing to do when none is set)."""
@@ -723,6 +833,15 @@ class StreamPool:
             return
         if self.cuda:
             torch.cuda.synchronize(self.dev)
+        self._record_activations()
+        if self._act_hurt and self._act_trusted:
+            # The measured reserve was too small for this round: forget it, go back to the configured reserve and to all
+            # the resident blocks the card allows, instead of keeping the halved number for the rest of the session.
+            self.reserve_auto = False
+            self.act_needs.clear()
+            self.resident_cap = self.count
+            self._logged_resident = -1
+            logger.warning("[small_gpu_stream] {}: the measured reserve was too small; the configured reserve is used from now on.", self.label)
         self.slots, self.slot_params, self.loaded = [], [], []
         self.resident, self.resident_n = [], 0
         self._copy_stream, self._ready, self._free = None, [], []
@@ -738,6 +857,7 @@ class StreamPool:
         if not self._gpu_ready or self.resident_n == 0:
             return False
         keep = self.resident_n // 2
+        self._act_hurt = True
         self.args.clear()
         if self.cuda:
             torch.cuda.synchronize(self.dev)
@@ -832,6 +952,7 @@ class StreamPool:
         return self.slots[slot]
 
     def release(self, layer_idx: int) -> None:
+        self._act_ran = True
         if self.cuda and layer_idx >= self.resident_n and self._free:
             self._free[self._slot_of(layer_idx)].record(torch.cuda.current_stream(self.dev))
 
@@ -868,6 +989,7 @@ class StreamedLayer(nn.Module):
         if timed and stats.t0 is None:
             stats.t0 = began
         pool.begin_call(index)
+        pool.observe(args, kwargs)
         while True:
             ev_start = stats.event()
             slot = pool.acquire(index)
