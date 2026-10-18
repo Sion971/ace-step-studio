@@ -12,7 +12,8 @@ and uses the card for the two heavy steps only:
 * Condition encoder: the 12 text/lyric/timbre layers (and the 4 layers of the audio tokenizer/detokenizer) go
   through a second, smaller pool the same way. When the generation is not a cover, the tokenizer/detokenizer
   step is skipped: its result is discarded by the engine in that case, so the output is identical.
-* VAE decode: float32 on the card in small tiles (96 latent frames, overlap 16).
+* VAE decode: float32 on the card in tiles (96 latent frames on a 2 GB card; on a bigger card the size follows the free
+  memory, up to 256 frames, and falls back to smaller tiles instead of the processor if the card runs out of memory).
 
 Measured on a GTX 1050 (2 GB): one DiT step 12.7 s (processor) -> 1.26 s; VAE decode 170 s -> about 10 s;
 streamed output equal to the processor output (relative difference 2e-6).
@@ -68,6 +69,11 @@ ENV_ACTIVATIONS = "ACESTEP_STREAM_ACTIVATIONS"
 DEFAULT_RESERVE_GB = 2.5
 DEFAULT_VAE_CHUNK = 96
 DEFAULT_VAE_OVERLAP = 16
+# Automatic tile size (no ACESTEP_STREAM_VAE_CHUNK): about 11 MB of float32 activations per latent frame (measured at the
+# limit on a 2 GB card with 128 frames), of which VAE_FREE_SHARE of the free memory may be used, up to VAE_CHUNK_MAX.
+VAE_CHUNK_MAX = 256
+VAE_BYTES_PER_FRAME = 11 * 1024 * 1024
+VAE_FREE_SHARE = 0.6
 _SIMPLE_TYPES = (int, float, bool, str, type(None))
 
 # The pool attached to the loaded DiT, if any (one DiT per handler process).
@@ -1055,28 +1061,110 @@ def vae_chunk_size() -> int:
         return DEFAULT_VAE_CHUNK
 
 
+def vae_chunk_explicit() -> Optional[int]:
+    """The tile size asked for with ``ACESTEP_STREAM_VAE_CHUNK``, or ``None`` when it is not set (or not a number)."""
+    raw = os.environ.get(ENV_VAE_CHUNK, "").strip()
+    if not raw:
+        return None
+    try:
+        int(raw)
+    except ValueError:
+        return None
+    return vae_chunk_size()
+
+
+def vae_chunk_ladder(free_bytes: int, explicit: Optional[int] = None) -> List[int]:
+    """Tile sizes to try, biggest first: each one is half the previous, down to ``DEFAULT_VAE_CHUNK``.
+
+    With ``explicit`` the first size is that value. Without it, the first size follows the free memory of the card
+    (``VAE_FREE_SHARE`` of it at ``VAE_BYTES_PER_FRAME`` per latent frame), between ``DEFAULT_VAE_CHUNK`` and
+    ``VAE_CHUNK_MAX``. A size at or below ``DEFAULT_VAE_CHUNK`` gives a ladder of one.
+    """
+    if explicit is not None:
+        start = max(24, int(explicit))
+    else:
+        start = int(max(0, free_bytes) * VAE_FREE_SHARE / VAE_BYTES_PER_FRAME)
+        start = max(DEFAULT_VAE_CHUNK, min(VAE_CHUNK_MAX, start))
+    ladder = [start]
+    while ladder[-1] > DEFAULT_VAE_CHUNK:
+        ladder.append(max(DEFAULT_VAE_CHUNK, ladder[-1] // 2))
+    return ladder
+
+
+def decode_with_ladder(handler: Any, latents: torch.Tensor, ladder: List[int], clear: Any = None):
+    """Decode ``latents`` ([batch, 64, frames], on the card) tile by tile; return ``(audio on the processor, tile size used)``.
+
+    The engine's own ``_tiled_decode_inner`` answers a lack of memory by decoding the whole track on the processor,
+    which is very slow. Here a lack of memory first retries the sample with the next smaller tile size of ``ladder``;
+    only when the last one fails too does the engine's chain (which ends on the processor) take over.
+    ``clear`` is called before each retry (it frees the card's cache).
+    """
+    import math
+
+    pieces = []
+    used = ladder[-1]
+    for b in range(latents.shape[0]):
+        single = latents[b : b + 1]
+        frames = single.shape[-1]
+        done = None
+        for chunk in ladder:
+            overlap = min(DEFAULT_VAE_OVERLAP, max(4, chunk // 4))
+            failed = False
+            try:
+                if frames <= chunk:
+                    done = handler.vae.decode(single).sample.to("cpu")
+                else:
+                    stride = chunk - 2 * overlap
+                    done = handler._tiled_decode_offload_cpu(single, 1, frames, stride, overlap, math.ceil(frames / stride))
+                used = chunk
+                break
+            except torch.cuda.OutOfMemoryError:
+                logger.warning("[small_gpu_stream] VAE decode: out of memory with tiles of {} frames; trying smaller ones", chunk)
+                failed = True
+            if failed and clear is not None:
+                clear()  # outside the except block, so the failed tile's tensors are no longer referenced
+        if done is None:
+            chunk = ladder[-1]
+            logger.warning("[small_gpu_stream] VAE decode: smallest tiles failed; handing over to the engine's fallback")
+            done = handler._tiled_decode_inner(single, chunk, min(DEFAULT_VAE_OVERLAP, max(4, chunk // 4)), True)
+            done = done.to("cpu")
+        pieces.append(done)
+    return (pieces[0] if len(pieces) == 1 else torch.cat(pieces, dim=0)), used
+
+
 def tiled_decode_on_card(handler: Any, latents: torch.Tensor) -> torch.Tensor:
     """Decode ``latents`` ([batch, 64, frames]) with the handler's VAE on the card, in float32 tiles.
 
-    The VAE is moved back to the processor afterwards. If the card runs out of memory the engine's own
-    fallback chain (smaller tiles on the card, then processor) takes over inside ``_tiled_decode_inner``.
+    The tile size follows the card's free memory once the DiT slots are given back (``ACESTEP_STREAM_VAE_CHUNK``
+    fixes it). The VAE is moved back to the processor afterwards. If the card runs out of memory the decode retries with
+    smaller tiles on the card (``decode_with_ladder``) before the engine's fallback to the processor.
     """
     release_gpu()  # the DiT slots are not needed any more; the VAE needs the room
     device = torch.device("cuda")
     vae = handler.vae
-    chunk = vae_chunk_size()
-    overlap = min(DEFAULT_VAE_OVERLAP, max(4, chunk // 4))
-    logger.info("[small_gpu_stream] VAE decode on {} (float32, tiles of {} frames, overlap {})",
-                torch.cuda.get_device_name(device), chunk, overlap)
+
+    def clear() -> None:
+        gc.collect()
+        torch.cuda.empty_cache()
+
     try:
         vae.to(device=device, dtype=torch.float32)
         card_latents = latents.to(device=device, dtype=torch.float32)
-        result = handler._tiled_decode_inner(card_latents, chunk, overlap, True)
-        return result.to("cpu")
+        clear()
+        free_bytes = torch.cuda.mem_get_info(device)[0]
+        ladder = vae_chunk_ladder(free_bytes, vae_chunk_explicit())
+        logger.info("[small_gpu_stream] VAE decode on {} (float32, tiles of {} frames, overlap {}, {:.2f} GB free)",
+                    torch.cuda.get_device_name(device), ladder[0], min(DEFAULT_VAE_OVERLAP, max(4, ladder[0] // 4)),
+                    free_bytes / 1024 ** 3)
+        torch.cuda.reset_peak_memory_stats(device)
+        t0 = time.perf_counter()
+        result, used = decode_with_ladder(handler, card_latents, ladder, clear)
+        logger.info("[small_gpu_stream] VAE decode done in {:.1f} s with tiles of {} frames, peak {:.2f} GB on the card",
+                    time.perf_counter() - t0, used, torch.cuda.max_memory_allocated(device) / 1024 ** 3)
+        return result
     finally:
         try:
             handler.vae = handler.vae.to(device="cpu", dtype=torch.float32)
         except Exception as exc:  # pragma: no cover
             logger.warning("[small_gpu_stream] could not move the VAE back to the processor: {}", exc)
-        gc.collect()
-        torch.cuda.empty_cache()
+        clear()

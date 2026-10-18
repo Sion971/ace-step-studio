@@ -2,6 +2,7 @@
 
 import copy
 import os
+import types
 import unittest
 from unittest import mock
 
@@ -606,6 +607,112 @@ class VaeRoutingTests(unittest.TestCase):
             out = Host().tiled_decode(latents)
         card.assert_called_once()
         self.assertIs(out, sentinel)
+
+
+class _FakeVae:
+    """Pointwise "decoder" (each latent frame becomes 4 samples) that runs out of memory above ``max_frames``."""
+
+    def __init__(self, max_frames=10 ** 9):
+        self.max_frames = max_frames
+        self.calls = []
+
+    def decode(self, x):
+        self.calls.append(x.shape[-1])
+        if x.shape[-1] > self.max_frames:
+            raise torch.cuda.OutOfMemoryError("fake")
+        return types.SimpleNamespace(sample=x[:, :2].repeat_interleave(4, dim=-1))
+
+
+def _vae_host(vae):
+    from acestep.core.generation.handler.vae_decode import VaeDecodeMixin
+    from acestep.core.generation.handler.vae_decode_chunks import VaeDecodeChunksMixin
+
+    class Host(VaeDecodeChunksMixin, VaeDecodeMixin):
+        disable_tqdm = True
+
+        def _empty_cache(self):
+            pass
+
+    host = Host()
+    host.vae = vae
+    return host
+
+
+class VaeTileLadderTests(unittest.TestCase):
+    MB = 1024 * 1024
+
+    def test_a_small_card_keeps_the_small_tiles(self):
+        self.assertEqual(sgs.vae_chunk_ladder(1200 * self.MB), [sgs.DEFAULT_VAE_CHUNK])
+        self.assertEqual(sgs.vae_chunk_ladder(0), [sgs.DEFAULT_VAE_CHUNK])
+
+    def test_a_big_free_memory_gives_the_biggest_tiles_then_halves(self):
+        self.assertEqual(sgs.vae_chunk_ladder(5000 * self.MB), [256, 128, 96])
+
+    def test_the_size_follows_the_free_memory(self):
+        # 2000 MB * 0.6 / 11 MB = 109 frames
+        self.assertEqual(sgs.vae_chunk_ladder(2000 * self.MB), [109, 96])
+
+    def test_an_explicit_size_is_used_as_given(self):
+        self.assertEqual(sgs.vae_chunk_ladder(5000 * self.MB, 64), [64])
+        self.assertEqual(sgs.vae_chunk_ladder(100 * self.MB, 400), [400, 200, 100, 96])
+        self.assertEqual(sgs.vae_chunk_ladder(100 * self.MB, 2), [24])
+
+    def test_explicit_size_from_the_environment(self):
+        with mock.patch.dict(os.environ, {sgs.ENV_VAE_CHUNK: "160"}):
+            self.assertEqual(sgs.vae_chunk_explicit(), 160)
+        with mock.patch.dict(os.environ, {sgs.ENV_VAE_CHUNK: ""}):
+            self.assertIsNone(sgs.vae_chunk_explicit())
+        with mock.patch.dict(os.environ, {sgs.ENV_VAE_CHUNK: "abc"}):
+            self.assertIsNone(sgs.vae_chunk_explicit())
+        env = {k: v for k, v in os.environ.items() if k != sgs.ENV_VAE_CHUNK}
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertIsNone(sgs.vae_chunk_explicit())
+
+
+class VaeDecodeLadderTests(unittest.TestCase):
+    def _latents(self, batch=1, frames=1000):
+        return torch.randn(batch, 64, frames)
+
+    def test_any_tile_size_gives_the_same_audio(self):
+        lat = self._latents()
+        whole = lat[:, :2].repeat_interleave(4, dim=-1)
+        for ladder in ([96], [256, 128, 96], [400], [1000], [2000]):
+            host = _vae_host(_FakeVae())
+            out, used = sgs.decode_with_ladder(host, lat, ladder)
+            self.assertEqual(used, ladder[0])
+            self.assertEqual(out.shape, whole.shape)
+            self.assertTrue(torch.equal(out, whole), ladder)
+
+    def test_a_lack_of_memory_retries_with_smaller_tiles(self):
+        lat = self._latents()
+        vae = _FakeVae(max_frames=200)  # 256 frames + overlap does not fit, 128 + overlap does
+        cleared = []
+        out, used = sgs.decode_with_ladder(_vae_host(vae), lat, [256, 128, 96], clear=lambda: cleared.append(1))
+        self.assertEqual(used, 128)
+        self.assertEqual(len(cleared), 1)
+        self.assertTrue(torch.equal(out, lat[:, :2].repeat_interleave(4, dim=-1)))
+
+    def test_when_every_tile_size_fails_the_engines_fallback_takes_over(self):
+        lat = self._latents(frames=300)
+        host = _vae_host(_FakeVae(max_frames=10))
+        sentinel = torch.ones(1, 2, 8)
+        with mock.patch.object(type(host), "_tiled_decode_inner", return_value=sentinel) as inner:
+            out, used = sgs.decode_with_ladder(host, lat, [128, 96])
+        inner.assert_called_once()
+        self.assertEqual(used, 96)
+        self.assertTrue(torch.equal(out, sentinel))
+
+    def test_a_batch_is_decoded_sample_by_sample(self):
+        lat = self._latents(batch=2, frames=500)
+        out, _used = sgs.decode_with_ladder(_vae_host(_FakeVae()), lat, [256, 128, 96])
+        self.assertEqual(tuple(out.shape), (2, 2, 2000))
+        self.assertTrue(torch.equal(out, lat[:, :2].repeat_interleave(4, dim=-1)))
+
+    def test_a_track_that_fits_one_tile_is_decoded_in_one_go(self):
+        vae = _FakeVae()
+        out, used = sgs.decode_with_ladder(_vae_host(vae), self._latents(frames=200), [256, 128, 96])
+        self.assertEqual(vae.calls, [200])
+        self.assertEqual(used, 256)
 
 
 class NoiseParityTests(unittest.TestCase):
