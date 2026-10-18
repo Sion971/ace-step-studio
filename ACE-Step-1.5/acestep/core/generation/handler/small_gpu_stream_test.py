@@ -408,6 +408,92 @@ class ResidentAndComputeTests(unittest.TestCase):
             self.assertEqual(sgs.resident_from_env(), 0)
 
 
+class StatsTests(unittest.TestCase):
+    """The per-generation timing line (where the time goes). On the processor only the counts and the plumbing can be checked."""
+
+    CPU = torch.device("cpu")
+
+    def _pool(self, layers=6, **options):
+        decoder, cfg = _tiny_decoder(layers)
+        decoder.float().eval()
+        pool = sgs.install(decoder, self.CPU, torch.bfloat16, **options)
+        return decoder, pool, cfg
+
+    @torch.no_grad()
+    def test_every_block_run_is_counted_and_weights_are_counted_only_when_streamed(self):
+        decoder, pool, cfg = self._pool(6, resident=2)
+        for _ in range(3):
+            decoder(**_inputs(cfg), use_cache=False)
+        summary = pool.stats.summary()
+        self.assertEqual(summary["runs"], 6 * 3)
+        self.assertGreater(summary["wall_s"], 0)
+        self.assertGreater(pool.stats.copy_bytes, 0)
+        self.assertEqual(pool.stats.copy_bytes % pool.bytes_per_layer, 0)
+        self.assertEqual(pool.stats.resident_bytes, 2 * pool.bytes_per_layer)  # put on the card once, at the start
+
+        decoder, pool, cfg = self._pool(6, resident=6)  # everything resident: nothing is streamed
+        decoder(**_inputs(cfg), use_cache=False)
+        self.assertEqual(pool.stats.copy_bytes, 0)
+        self.assertEqual(pool.stats.runs, 6)
+
+    @torch.no_grad()
+    def test_statistics_can_be_switched_off_without_changing_the_output(self):
+        decoder, pool, cfg = self._pool(4)
+        inputs = _inputs(cfg)
+        with_stats = decoder(**inputs, use_cache=False)[0]
+        with mock.patch.dict(os.environ, {sgs.ENV_STATS: "0"}):
+            decoder2, pool2, _cfg = self._pool(4)
+        self.assertFalse(pool2.stats.enabled)
+        without = decoder2(**inputs, use_cache=False)[0]
+        self.assertEqual(pool2.stats.runs, 0)
+        self.assertEqual(pool2.stats.copy_bytes, 0)
+        self.assertEqual(pool2.stats.resident_bytes, 0)
+        self.assertTrue(torch.equal(with_stats, without))
+
+    @torch.no_grad()
+    def test_the_report_is_logged_once_per_generation_then_reset(self):
+        decoder, pool, cfg = self._pool(6, resident=2)
+        decoder(**_inputs(cfg), use_cache=False)
+        previous = sgs._ACTIVE_POOL
+        sgs._ACTIVE_POOL = pool
+        try:
+            with mock.patch.object(sgs.logger, "info") as info:
+                sgs.log_stats()
+                sgs.log_stats()  # nothing new since: no second line
+            self.assertEqual(info.call_count, 1)
+            line = info.call_args[0][0]
+            for part in ("6 block runs", "GB streamed", "pinned RAM: unknown", "computing", "waiting for weights",
+                         "activations: to the card", "resident blocks 2/6"):
+                self.assertIn(part, line)
+            self.assertEqual(pool.stats.runs, 0)
+        finally:
+            sgs._ACTIVE_POOL = previous
+
+    def test_format_marks_unpinned_memory(self):
+        summary = StatsSummaryFixture.make()
+        text = sgs.format_stats(summary, "NO (3/10 tensors)", 4, 32)
+        self.assertIn("pinned RAM: NO (3/10 tensors)", text)
+        self.assertIn("resident blocks 4/32", text)
+        self.assertIn("4.1 GB/s", text)
+
+    def test_nothing_is_logged_without_a_pool_or_without_runs(self):
+        previous = sgs._ACTIVE_POOL
+        sgs._ACTIVE_POOL = None
+        try:
+            with mock.patch.object(sgs.logger, "info") as info:
+                sgs.log_stats()
+            info.assert_not_called()
+        finally:
+            sgs._ACTIVE_POOL = previous
+
+
+class StatsSummaryFixture:
+    @staticmethod
+    def make():
+        return {"runs": 256, "wall_s": 7.1, "copy_gb": 3.9, "copy_s": 0.95, "copy_gbps": 4.1, "compute_s": 2.3, "stall_s": 3.1,
+                "to_card_s": 0.4, "from_card_s": 0.5, "resident_gb": 3.8, "resident_s": 0.8}
+
+
 class ConditionEncoderTests(unittest.TestCase):
     @staticmethod
     def _count_calls(model):

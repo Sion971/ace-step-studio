@@ -36,6 +36,7 @@ from __future__ import annotations
 import copy
 import gc
 import os
+import time
 from typing import Any, List, Optional
 
 import torch
@@ -48,6 +49,7 @@ ENV_CPU_DTYPE = "ACESTEP_STREAM_CPU_DTYPE"
 ENV_COMPUTE = "ACESTEP_STREAM_COMPUTE"
 ENV_RESIDENT = "ACESTEP_STREAM_RESIDENT"
 ENV_RESERVE = "ACESTEP_STREAM_RESERVE_GB"
+ENV_STATS = "ACESTEP_STREAM_STATS"
 DEFAULT_RESERVE_GB = 2.5
 DEFAULT_VAE_CHUNK = 96
 DEFAULT_VAE_OVERLAP = 16
@@ -156,6 +158,73 @@ def _to_cpu(obj: Any) -> Any:
 # ----------------------------------------------------------------------------------------------------------------
 # Block pool
 # ----------------------------------------------------------------------------------------------------------------
+def stats_enabled() -> bool:
+    """One line of timing figures is logged per generation unless ACESTEP_STREAM_STATS=0."""
+    return os.environ.get(ENV_STATS, "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+class StreamStats:
+    """Where the time of a generation goes: weight copies, computation, waiting for weights, activation transfers.
+
+    GPU times come from CUDA events (read after the work is done); the activation transfers are host wall times.
+    Nothing here changes what runs: with the statistics off the pool behaves exactly as without this class.
+    """
+
+    def __init__(self, cuda: bool, enabled: bool):
+        self.cuda = cuda
+        self.enabled = enabled
+        self.reset()
+
+    def reset(self) -> None:
+        self.runs = 0
+        self.wall = 0.0          # host time spent inside the streamed blocks
+        self.copy_bytes = 0      # weights copied to the card by streaming
+        self.copy_pairs: list = []  # (start, end) events on the copy stream
+        self.copy_wall = 0.0     # host time of the same copies when there is no card (tests)
+        self.compute = 0.0       # GPU time of the block computations
+        self.stall = 0.0         # GPU time spent waiting for a block's weights to arrive
+        self.to_card = 0.0       # activations sent to the card (host time)
+        self.from_card = 0.0     # activations brought back (host time, after the block is done)
+        self.resident_bytes = 0  # resident blocks put on the card at the start of the generation
+        self.resident_s = 0.0
+
+    def event(self):
+        if not (self.enabled and self.cuda):
+            return None
+        try:
+            ev = torch.cuda.Event(enable_timing=True)
+            ev.record(torch.cuda.current_stream())
+            return ev
+        except Exception:  # the statistics must never break a generation
+            return None
+
+    def summary(self) -> dict:
+        copy_s = self.copy_wall
+        if self.cuda and self.copy_pairs:
+            torch.cuda.synchronize()
+            copy_s = sum(a.elapsed_time(b) for a, b in self.copy_pairs) / 1000.0
+        gb = self.copy_bytes / 1024**3
+        return {
+            "runs": self.runs, "wall_s": self.wall, "copy_gb": gb, "copy_s": copy_s,
+            "copy_gbps": (gb / copy_s) if copy_s > 0 else 0.0, "compute_s": self.compute, "stall_s": self.stall,
+            "to_card_s": self.to_card, "from_card_s": self.from_card,
+            "resident_gb": self.resident_bytes / 1024**3, "resident_s": self.resident_s,
+        }
+
+
+def format_stats(summary: dict, pinned: Optional[str], resident: int, count: int) -> str:
+    """The one-line report logged after each generation (see StreamStats)."""
+    return (
+        "[small_gpu_stream] DiT {runs} block runs in {wall:.1f} s | weights: {gb:.2f} GB streamed in {cs:.2f} s of copying "
+        "({gbps:.1f} GB/s, pinned RAM: {pinned}) | on the card: computing {comp:.1f} s, waiting for weights {stall:.1f} s | "
+        "activations: to the card {up:.1f} s, back {down:.1f} s | resident blocks {res}/{n}: {rgb:.2f} GB loaded in {rs:.1f} s"
+    ).format(
+        runs=summary["runs"], wall=summary["wall_s"], gb=summary["copy_gb"], cs=summary["copy_s"], gbps=summary["copy_gbps"],
+        pinned=pinned or "unknown", comp=summary["compute_s"], stall=summary["stall_s"], up=summary["to_card_s"],
+        down=summary["from_card_s"], res=resident, n=count, rgb=summary["resident_gb"], rs=summary["resident_s"],
+    )
+
+
 class StreamPool:
     """All block weights in RAM; some blocks may stay on the card, the others pass through two slots.
 
@@ -186,6 +255,8 @@ class StreamPool:
         self.resident_n = 0
         self.resident: List[nn.Module] = []
         self._logged_resident = -1
+        self.stats = StreamStats(self.cuda, stats_enabled())
+        self.pin_error: Optional[str] = None
         self._check_layers(real_layers)
 
         # RAM copy of every block's parameters (bfloat16 by default: exact for bfloat16 checkpoints, half the
@@ -198,12 +269,22 @@ class StreamPool:
                 if pin and self.cuda:
                     try:
                         data = data.pin_memory()
-                    except Exception:  # not enough lockable RAM: keep pageable memory
+                    except Exception as exc:  # not enough lockable RAM: keep pageable memory
                         pin = False
+                        self.pin_error = f"{type(exc).__name__}: {exc}"
                 p.data = data  # drops the original (float32) storage
                 tensors.append(data)
             self.cpu_params.append(tensors)
         self.attrs = [self._snapshot(layer) for layer in real_layers]
+        total = sum(len(t) for t in self.cpu_params)
+        self.pinned_count = sum(1 for tensors in self.cpu_params for t in tensors if self.cuda and t.is_pinned())
+        self.pinned_total = total
+        if self.cuda and self.pinned_count < total:
+            logger.warning(
+                "[small_gpu_stream] only {} of {} weight tensors are in pinned RAM ({}): copies to the card will be slower. "
+                "Check the locked-memory limit (ulimit -l) and the free RAM.",
+                self.pinned_count, total, self.pin_error or "not enough lockable memory",
+            )
         self.bytes_per_layer = sum(t.numel() * t.element_size() for t in self.cpu_params[0])
         cpu_item = self.cpu_params[0][0].element_size()
         self.bytes_on_card = self.bytes_per_layer // cpu_item * torch.empty((), dtype=compute_dtype).element_size()
@@ -280,7 +361,13 @@ class StreamPool:
         # from outside inference mode, and the slots are refilled on every block.
         with torch.inference_mode(False), torch.no_grad():
             self.resident_n = self._resident_target()
+            started = time.perf_counter()
             self.resident = [self._build_resident(i) for i in range(self.resident_n)]
+            if self.resident_n and self.stats.enabled:
+                if self.cuda:
+                    torch.cuda.synchronize(self.dev)
+                self.stats.resident_s += time.perf_counter() - started
+                self.stats.resident_bytes += self.resident_n * self.bytes_per_layer
             if self.resident_n < self.count:
                 self._make_slots()
         self._gpu_ready = True
@@ -351,15 +438,32 @@ class StreamPool:
 
     @torch.no_grad()
     def _load(self, layer_idx: int, slot_idx: int) -> None:
+        timed = self.stats.enabled
         if self.cuda:
             with torch.cuda.stream(self._copy_stream):
                 self._copy_stream.wait_event(self._free[slot_idx])  # the previous computation in this slot is over
+                begin = None
+                if timed:
+                    try:
+                        begin = torch.cuda.Event(enable_timing=True)
+                        begin.record(self._copy_stream)
+                    except Exception:
+                        begin = None
                 for dst, src in zip(self.slot_params[slot_idx], self.cpu_params[layer_idx]):
                     dst.copy_(src.to(self.dev, non_blocking=True))  # bf16 over the bus, converted on the card if needed
                 self._ready[slot_idx].record(self._copy_stream)
+                if timed and begin is not None:
+                    end = torch.cuda.Event(enable_timing=True)
+                    end.record(self._copy_stream)
+                    if len(self.stats.copy_pairs) < 20000:  # the list is emptied after each generation; this only bounds a run that never reports
+                        self.stats.copy_pairs.append((begin, end))
         else:
+            started = time.perf_counter()
             for dst, src in zip(self.slot_params[slot_idx], self.cpu_params[layer_idx]):
                 dst.copy_(src)
+            self.stats.copy_wall += time.perf_counter() - started
+        if timed:
+            self.stats.copy_bytes += self.bytes_per_layer
         for module, attrs in zip(self.slots[slot_idx].modules(), self.attrs[layer_idx]):
             module.__dict__.update(attrs)  # attention type, layer index... differ from block to block
         self.loaded[slot_idx] = layer_idx
@@ -418,17 +522,28 @@ class StreamedLayer(nn.Module):
         pool: StreamPool = object.__getattribute__(self, "_s_pool")
         index: int = object.__getattribute__(self, "_s_index")
         dev = pool.dev
+        stats = pool.stats
+        timed = stats.enabled
+        began = time.perf_counter() if timed else 0.0
         while True:
+            ev_start = stats.event()
             slot = pool.acquire(index)
+            ev_ready = stats.event()  # recorded after the wait for this block's weights: ready - start = time spent waiting
             ran_out = False
             try:
-                out = slot(*_to_device(args, dev, pool.compute_dtype), **_to_device(kwargs, dev, pool.compute_dtype))
+                t_up = time.perf_counter() if timed else 0.0
+                dargs = _to_device(args, dev, pool.compute_dtype)
+                dkwargs = _to_device(kwargs, dev, pool.compute_dtype)
+                up = (time.perf_counter() - t_up) if timed else 0.0
+                ev_run = stats.event()
+                out = slot(*dargs, **dkwargs)
+                ev_done = stats.event()
             except torch.cuda.OutOfMemoryError:
                 ran_out = True
             if not ran_out:
                 break
             # Outside the except block: while it is open the failed call's tensors are still referenced.
-            slot = None
+            slot = dargs = dkwargs = None
             if pool.shrink_resident():
                 continue
             logger.error(
@@ -437,7 +552,22 @@ class StreamedLayer(nn.Module):
             )
             raise torch.cuda.OutOfMemoryError(f"out of memory in streamed block {index}")
         pool.release(index)
-        return _to_cpu(out)
+        if not timed:
+            return _to_cpu(out)
+        if None not in (ev_start, ev_ready, ev_run, ev_done):
+            try:
+                ev_done.synchronize()  # the transfer back below would wait for this anyway
+                stats.stall += ev_start.elapsed_time(ev_ready) / 1000.0
+                stats.compute += ev_run.elapsed_time(ev_done) / 1000.0
+            except Exception:  # the statistics must never break a generation
+                pass
+        t_down = time.perf_counter()
+        result = _to_cpu(out)
+        stats.from_card += time.perf_counter() - t_down
+        stats.to_card += up
+        stats.runs += 1
+        stats.wall += time.perf_counter() - began
+        return result
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -491,10 +621,12 @@ def attach_if_enabled(model: nn.Module, quantized: bool = False) -> bool:
         gc.collect()
         logger.info(
             "[small_gpu_stream] DiT streamed through {}: {} blocks, {:.0f} MB per block in {} RAM, "
-            "computed in {} on the card, resident blocks: {} ({:.2f} GB free before).",
+            "computed in {} on the card, resident blocks: {}, pinned RAM: {} ({:.2f} GB free before).",
             torch.cuda.get_device_name(device), len(layers), pool.bytes_per_layer / 1024**2,
             "bfloat16" if cpu_dtype == torch.bfloat16 else "float32",
-            "bfloat16" if compute_dtype == torch.bfloat16 else "float32", resident, free_before,
+            "bfloat16" if compute_dtype == torch.bfloat16 else "float32", resident,
+            "yes" if pool.pinned_count == pool.pinned_total else f"NO ({pool.pinned_count}/{pool.pinned_total} tensors)",
+            free_before,
         )
         return True
     except Exception as exc:
@@ -503,8 +635,25 @@ def attach_if_enabled(model: nn.Module, quantized: bool = False) -> bool:
         return False
 
 
+def log_stats() -> None:
+    """Log (and reset) the timing figures of the DiT pool for the generation that just ended."""
+    pool = _ACTIVE_POOL
+    if pool is None or not pool.stats.enabled or pool.stats.runs == 0:
+        return
+    try:
+        pinned = None
+        if pool.cuda:
+            pinned = "yes" if pool.pinned_count == pool.pinned_total else f"NO ({pool.pinned_count}/{pool.pinned_total} tensors)"
+        logger.info(format_stats(pool.stats.summary(), pinned, pool.resident_n, pool.count))
+    except Exception as exc:  # statistics must never break a generation
+        logger.debug("[small_gpu_stream] could not report the statistics: {}", exc)
+    finally:
+        pool.stats.reset()
+
+
 def release_gpu() -> None:
     """Free the card's slots (DiT and condition encoder); they are recreated on the next use."""
+    log_stats()
     if _ACTIVE_POOL is not None:
         _ACTIVE_POOL.release_gpu()
     if _ENCODER_POOL is not None:
