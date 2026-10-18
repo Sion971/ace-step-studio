@@ -56,6 +56,8 @@ import torch
 from loguru import logger
 from torch import nn
 
+from . import small_gpu_stream_attention
+
 ENV_FLAG = "ACESTEP_SMALL_GPU_STREAM"
 ENV_VAE_CHUNK = "ACESTEP_STREAM_VAE_CHUNK"
 ENV_CPU_DTYPE = "ACESTEP_STREAM_CPU_DTYPE"
@@ -409,9 +411,26 @@ class SelfCheck:
     def _first_tensor(out: Any) -> torch.Tensor:
         return out[0] if isinstance(out, (tuple, list)) else out
 
-    def compare(self, index: int, real: nn.Module, args: tuple, kwargs: dict, result: Any) -> None:
+    @staticmethod
+    def _with_reference_masks(real: nn.Module, args: tuple, kwargs: dict) -> tuple:
+        """A mask-free DiT hands no mask to the sliding layers (the card applies the window itself): the processor's
+        reference needs the band mask the regular path would have built."""
+        import inspect
+
+        window = getattr(getattr(real, "self_attn", None), "sliding_window", None)
+        if getattr(real, "attention_type", None) != "sliding_attention" or window is None:
+            return args, kwargs
+        bound = inspect.signature(real.forward).bind_partial(*args, **kwargs)
+        if bound.arguments.get("attention_mask") is not None:
+            return args, kwargs
+        bound.arguments["attention_mask"] = small_gpu_stream_attention.reference_mask(int(bound.arguments["hidden_states"].shape[1]), int(window))
+        return bound.args, bound.kwargs
+
+    def compare(self, index: int, real: nn.Module, args: tuple, kwargs: dict, result: Any, mask_free: bool = False) -> None:
         """Run the block again on the processor (float32) and record how far the card's result is."""
         try:
+            if mask_free:
+                args, kwargs = self._with_reference_masks(real, args, kwargs)
             # The inputs may be activations the previous block left on the card: the reference gets them as float32.
             reference = copy.deepcopy(real).to(device="cpu", dtype=torch.float32).eval()
             with torch.no_grad():
@@ -483,6 +502,8 @@ class StreamPool:
         self.keep_on_card = activations_on_card_from_env() if keep_on_card is None else bool(keep_on_card)
         self.args = _ArgCache()  # card copies of the inputs shared by all the blocks of a step
         self._last_index = -1    # index of the previous block call: a call that does not go up starts a new step
+        self.attention_name: Optional[str] = None  # attention function of the card copies (None: the model's own)
+        self.mask_free = False   # True when the DiT is given no masks (see small_gpu_stream_attention)
         self._check_layers(real_layers)
 
         # RAM copy of every block's parameters (bfloat16 by default: exact for bfloat16 checkpoints, half the
@@ -577,6 +598,7 @@ class StreamPool:
             dst.copy_(src.to(self.dev, non_blocking=self.cuda))
         for sub, attrs in zip(module.modules(), self.attrs[index]):
             sub.__dict__.update(attrs)
+        self._tune(module)
         return module
 
     def ensure_gpu(self) -> None:
@@ -605,10 +627,22 @@ class StreamPool:
                 self.count - self.resident_n, self.n_slots if self.resident_n < self.count else 0,
             )
 
+    def _tune(self, module: nn.Module) -> None:
+        """Give a card copy its own config naming the pool's attention function (nothing to do when none is set)."""
+        if self.attention_name:
+            small_gpu_stream_attention.private_config(module, self.attention_name)
+
+    def set_attention(self, name: str) -> None:
+        """Use attention function ``name`` in the card copies, existing ones included. The processor-side blocks keep theirs."""
+        self.attention_name = name
+        for module in list(self.slots) + list(self.resident):
+            self._tune(module)
+
     def _make_slots(self) -> None:
         """The two slots blocks pass through, and the stream and events that overlap their copies with the computation."""
         for _ in range(self.n_slots):
             slot = copy.deepcopy(self._template).to(device=self.dev, dtype=self.compute_dtype).eval()
+            self._tune(slot)
             params = list(slot.parameters())
             for p in params:
                 p.requires_grad_(False)
@@ -817,7 +851,7 @@ class StreamedLayer(nn.Module):
             result = _result_of_block(out, keep)
         check = pool.check
         if check is not None and check.wants(index):  # diagnostic only, after the statistics so it is not counted in them
-            check.compare(index, object.__getattribute__(self, "_s_real"), args, kwargs, result)
+            check.compare(index, object.__getattribute__(self, "_s_real"), args, kwargs, result, mask_free=pool.mask_free)
         return result
 
 
@@ -868,6 +902,7 @@ def attach_if_enabled(model: nn.Module, quantized: bool = False) -> bool:
         pool = install(decoder, device, cpu_dtype, compute_dtype=compute_dtype, resident=resident,
                        reserve_bytes=reserve_bytes_from_env())
         _ACTIVE_POOL = pool
+        small_gpu_stream_attention.enable(decoder, pool, device)  # never raises: on any doubt the regular masks stay
         if _truthy(os.environ.get(ENV_CHECK)):
             pool.check = SelfCheck("DiT", pool.count, compute_dtype)
         attach_encoder(model, device, cpu_dtype, compute_dtype)
