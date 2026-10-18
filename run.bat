@@ -209,6 +209,9 @@ if defined HW_GPU_NAME (
     if /i "!HW_MODE!"=="cpu" (
         echo Profil materiel : mode processeur, palier ACE-Step !HW_ACE_TIER!
         echo Delai de generation : !ACESTEP_GENERATION_TIMEOUT! s
+    ) else if /i "!HW_MODE!"=="stream" (
+        echo Profil materiel : !HW_GPU_NAME!, petite carte ^(!HW_VRAM_CLASS_GB! Go^) : mode flux, DiT bloc par bloc et audio decode par la carte
+        echo Delai de generation : !ACESTEP_GENERATION_TIMEOUT! s
     ) else (
         echo Profil materiel : !HW_GPU_NAME!, !HW_VRAM_CLASS_GB! Go, palier ACE-Step !HW_ACE_TIER!
     )

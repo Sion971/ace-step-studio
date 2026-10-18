@@ -6,6 +6,7 @@ import torch
 from loguru import logger
 
 from acestep import gpu_config
+from . import small_gpu_stream
 
 
 class InitServiceSetupMixin:
@@ -14,6 +15,10 @@ class InitServiceSetupMixin:
     def _resolve_initialize_device(self, requested_device: str) -> str:
         """Resolve a concrete runtime device, applying backend fallback rules."""
         device = requested_device
+        if small_gpu_stream.enabled():
+            # Small-GPU mode: the engine stays on the processor; the card only runs DiT blocks and the VAE.
+            logger.info("[initialize_service] Small-GPU stream mode: engine device is cpu (card used for DiT blocks and VAE).")
+            return "cpu"
         if device == "auto":
             if gpu_config.is_cuda_available():
                 return "cuda"
@@ -66,6 +71,13 @@ class InitServiceSetupMixin:
         mlx_compile_requested = False
         normalized_compile = compile_model
         normalized_quantization = quantization
+
+        if small_gpu_stream.enabled():
+            # Streamed blocks are plain parameter tensors; int8 weights and torch.compile cannot be streamed.
+            if normalized_quantization is not None:
+                logger.info("[initialize_service] Small-GPU stream mode: quantization disabled.")
+            normalized_quantization = None
+            normalized_compile = False
 
         if device == "mps":
             if normalized_compile:

@@ -4,7 +4,7 @@ import path from 'path';
 import { config } from '../config/index.js';
 import { DownloadTracker, StdoutRouter, type DownloadEvent, type DownloadSnapshot } from './download-tracker.js';
 import { dropGpuDiagnostic } from './cpu-log-filter.js';
-import { isCpuMode } from './hardware-mode.js';
+import { isCpuMode, isStreamMode } from './hardware-mode.js';
 
 export type PipelineState =
   | 'stopped'
@@ -188,6 +188,8 @@ class PipelineManager {
         ACESTEP_OFFLOAD_TO_CPU: '1',  // LM unloads from GPU when DiT runs (persists across model switches)
         ACESTEP_STUDIO_EVENTS: '1',  // the engine prints download events on stdout (acestep/download_events.py)
         ACESTEP_LM_OFFLOAD_TO_CPU: '1',
+        // Small card (HW_MODE=stream): the engine stays on the processor and streams the DiT blocks through the card.
+        ...(isStreamMode() ? { ACESTEP_SMALL_GPU_STREAM: '1' } : {}),
       },
     });
 

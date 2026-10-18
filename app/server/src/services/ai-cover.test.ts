@@ -66,6 +66,12 @@ describe('AiCoverEngine', () => {
     await expect(engine.generate({ prompt: 'x', seed: 1 })).rejects.toMatchObject({ code: 'cpu-mode' });
   });
 
+  it('is unavailable on a small card in stream mode, without starting anything', async () => {
+    make({ isSmallGpu: () => true });
+    expect(engine.status()).toEqual({ available: false, reason: 'small-gpu' });
+    await expect(engine.generate({ prompt: 'x', seed: 1 })).rejects.toMatchObject({ code: 'small-gpu' });
+  });
+
   it('can be switched off with COVER_AI=off', () => {
     make();
     process.env.COVER_AI = 'off';

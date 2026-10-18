@@ -1009,6 +1009,7 @@ export const fr = {
     'aiCover.useToggle': 'Pochette générée par IA (locale)',
     'aiCover.useToggleHint': 'Dessine la pochette sur votre carte graphique une fois l’audio terminé (SDXL Turbo). Le premier usage télécharge environ 7 Go. Sans cela, le morceau garde son dégradé par défaut.',
     'aiCover.unavailableCpu': 'Indisponible en mode processeur (pas de GPU). Le morceau garde son dégradé par défaut.',
+    'aiCover.unavailableSmallGpu': 'Indisponible avec une petite carte graphique : elle est réservée au modèle de musique. Le morceau garde son dégradé par défaut.',
     'aiCover.unavailable': 'Indisponible : le modèle d’image local n’a pas pu démarrer (un GPU est nécessaire). Voir la console du serveur. Le morceau garde son dégradé par défaut.',
 
     // Cover regeneration modal
@@ -1089,6 +1090,7 @@ export const fr = {
     'setup.hw.mode': "Mode",
     'setup.mode.gpu': "GPU",
     'setup.mode.cpu': "Processeur seul (plus lent)",
+    'setup.mode.stream': 'Petite carte graphique (mode flux)',
     'setup.models': "Modèles",
     'setup.component.main': "Fichiers de base (décodeur audio et encodeur de texte)",
     'setup.component.dit': "Modèle musical",

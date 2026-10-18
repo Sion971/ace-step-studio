@@ -800,9 +800,19 @@ HW_PROFILE_CLASS=$(hw_vram_class "$HW_PROFILE_VRAM_MIB")
 # de l'audio (mesure : 29 s en 6 min 41 s sur un Ryzen de portable ; une premiere tentative anormalement
 # lente a depasse 9 min 30 s de diffusion). La limite de 600 s d'ACE-Step est faite pour des GPU :
 # on la releve a une heure. Valeur generale ; pour de longues durees, la relever davantage.
+# Petite carte (3 Gio ou moins, mesure de PyTorch) : le DiT ne tient pas dans la carte et le mode « GPU » d'ACE-Step
+# (int8 + deport CPU) ne fonctionne pas a 2 Gio. Mode « stream » : le moteur reste sur le processeur, la carte fait passer les
+# blocs du DiT un par un et decode l'audio (acestep/core/generation/handler/small_gpu_stream.py). Mesure sur une GTX 1050
+# de 2 Go : DiT x10, decodage audio x17 par rapport au processeur. STUDIO_SMALL_GPU=off le desactive.
+HW_STREAM_MAX_MIB=3072
+HW_STREAM_REF_MIB="${HW_PROFILE_TORCH_MIB:-$HW_PROFILE_VRAM_MIB}"
 if [ "$CUDA_VERSION" = "cpu" ]; then
     HW_PROFILE_MODE="cpu"
     HW_PROFILE_TIMEOUT=3600
+elif [ "${STUDIO_SMALL_GPU:-auto}" != "off" ] && [ "${HW_STREAM_REF_MIB:-0}" -gt 0 ] 2>/dev/null \
+     && [ "${HW_STREAM_REF_MIB:-0}" -le "$HW_STREAM_MAX_MIB" ]; then
+    HW_PROFILE_MODE="stream"
+    HW_PROFILE_TIMEOUT=1800
 else
     HW_PROFILE_MODE="gpu"
     HW_PROFILE_TIMEOUT=""
@@ -827,6 +837,10 @@ EOF
 echo "Profil matériel : palier ACE-Step $HW_PROFILE_TIER — modèle par défaut : $(hw_default_model "$HW_PROFILE_CLASS")"
 if [ "$HW_PROFILE_MODE" = "cpu" ]; then
     echo "  Mode processeur : délai de génération porté à ${HW_PROFILE_TIMEOUT} s (ACESTEP_GENERATION_TIMEOUT)."
+fi
+if [ "$HW_PROFILE_MODE" = "stream" ]; then
+    echo "  Petite carte (${HW_STREAM_REF_MIB} Mio) : mode flux — le DiT passe bloc par bloc dans la carte, l'audio est décodé par la carte."
+    echo "  Les LoRA ne sont pas pris en charge dans ce mode. STUDIO_SMALL_GPU=off pour le désactiver (puis relancer install.sh)."
 fi
 
 echo ""

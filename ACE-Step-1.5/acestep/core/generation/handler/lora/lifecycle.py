@@ -8,6 +8,7 @@ from loguru import logger
 
 from acestep.constants import DEBUG_MODEL_LOADING
 from acestep.debug_utils import debug_log
+from acestep.core.generation.handler import small_gpu_stream
 from acestep.training.configs import LoKRConfig
 
 LOKR_WEIGHTS_FILENAME = "lokr_weights.safetensors"
@@ -196,6 +197,10 @@ def add_lora(self, lora_path: str, adapter_name: str | None = None) -> str:
     """
     if self.model is None:
         return "❌ Model not initialized. Please initialize service first."
+
+    stream_block = small_gpu_stream.lora_blocked_message()
+    if stream_block is not None:
+        return stream_block
 
     if self.quantization is not None:
         return (

@@ -921,6 +921,7 @@ export const ko = {
     'aiCover.useToggle': 'AI 커버(로컬)',
     'aiCover.useToggleHint': '오디오가 끝난 뒤 그래픽 카드에서 커버를 그립니다(SDXL Turbo). 처음 사용할 때 약 7GB를 내려받습니다. 끄면 곡은 기본 그라데이션 커버를 유지합니다.',
     'aiCover.unavailableCpu': '프로세서 모드(GPU 없음)에서는 사용할 수 없습니다. 곡은 기본 그라데이션 커버를 유지합니다.',
+    'aiCover.unavailableSmallGpu': '소형 그래픽 카드에서는 사용할 수 없습니다. 카드는 음악 모델이 사용합니다. 곡은 기본 그라데이션 커버를 유지합니다.',
     'aiCover.unavailable': '사용할 수 없음: 로컬 이미지 모델을 시작하지 못했습니다(GPU 필요). 서버 콘솔을 확인하세요. 곡은 기본 그라데이션 커버를 유지합니다.',
 
     // Cover regeneration modal
@@ -984,6 +985,7 @@ export const ko = {
     'setup.hw.mode': "모드",
     'setup.mode.gpu': "GPU",
     'setup.mode.cpu': "CPU 전용(느림)",
+    'setup.mode.stream': '소형 그래픽 카드(스트림 모드)',
     'setup.models': "모델",
     'setup.component.main': "기본 파일(오디오 디코더 및 텍스트 인코더)",
     'setup.component.dit': "음악 모델",

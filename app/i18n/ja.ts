@@ -921,6 +921,7 @@ export const ja = {
     'aiCover.useToggle': 'AI カバー（ローカル）',
     'aiCover.useToggleHint': '音声の生成が終わったあと、グラフィックカードでカバーを描きます（SDXL Turbo）。初回は約 7 GB をダウンロードします。オフの場合、曲は既定のグラデーションのままです。',
     'aiCover.unavailableCpu': 'プロセッサモード（GPU なし）では利用できません。曲は既定のグラデーションのままです。',
+    'aiCover.unavailableSmallGpu': '小型のグラフィックスカードでは利用できません。カードは音楽モデルに使われます。曲は既定のグラデーションのままです。',
     'aiCover.unavailable': '利用できません：ローカルの画像モデルを起動できませんでした（GPU が必要です）。サーバーのコンソールを確認してください。曲は既定のグラデーションのままです。',
 
     // Cover regeneration modal
@@ -984,6 +985,7 @@ export const ja = {
     'setup.hw.mode': "モード",
     'setup.mode.gpu': "GPU",
     'setup.mode.cpu': "CPUのみ（低速）",
+    'setup.mode.stream': '小型グラフィックスカード（ストリームモード）',
     'setup.models': "モデル",
     'setup.component.main': "基本ファイル（音声デコーダーとテキストエンコーダー）",
     'setup.component.dit': "音楽モデル",

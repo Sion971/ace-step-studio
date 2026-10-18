@@ -5,6 +5,8 @@ from typing import Optional
 import torch
 from loguru import logger
 
+from . import small_gpu_stream
+
 
 class VaeDecodeMixin:
     """High-level VAE decode entrypoints and fallback policies."""
@@ -46,6 +48,10 @@ class VaeDecodeMixin:
                     f"[tiled_decode] MLX VAE decode failed ({type(exc).__name__}: {exc}), "
                     f"falling back to PyTorch VAE..."
                 )
+
+        # ---- Small-GPU stream mode: decode on the card in float32 tiles ----
+        if small_gpu_stream.vae_decode_enabled():
+            return small_gpu_stream.tiled_decode_on_card(self, latents)
 
         # ---- PyTorch path (CUDA / MPS / CPU) ----
         if chunk_size is None:

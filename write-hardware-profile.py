@@ -9,7 +9,9 @@ Memes regles que install.sh :
   - palier ACE-Step : seuils exacts de acestep/gpu_config.py::get_gpu_tier ;
   - modele : XL Turbo BF16 si la VRAM NOMINALE (arrondie, d'apres nvidia-smi) est >= 8 Go,
     sinon le DiT 2B turbo ; aucun modele de langage aux paliers 1 et 2 ;
-  - mode processeur : delai de generation porte a 3600 s.
+  - mode processeur : delai de generation porte a 3600 s ;
+  - petite carte (3 Gio ou moins) : mode « stream » (voir small_gpu_stream.py), delai porte a 1800 s ;
+    STUDIO_SMALL_GPU=off le desactive.
 """
 import os
 import re
@@ -21,6 +23,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 # Sous Windows le Studio utilise le depot complet ; le prefixe fait partie du nom (voir run.bat).
 XL_MODEL = "marcorez8/acestep-v15-xl-turbo-bf16"
 SMALL_MODEL = "acestep-v15-turbo"
+STREAM_MAX_MIB = 3072  # memes seuil que install.sh
 
 
 def smi(fields):
@@ -113,13 +116,18 @@ def main():
     cls = vram_class(vram_mib)
     model = XL_MODEL if cls >= 8 else SMALL_MODEL
     init_llm = "false" if tier in ("1", "2") else "true"
+    stream_ref = torch_mib if torch_mib else vram_mib
+    stream_mode = (not cpu_mode and os.environ.get("STUDIO_SMALL_GPU", "auto").lower() != "off"
+                   and 0 < stream_ref <= STREAM_MAX_MIB)
+    mode = "cpu" if cpu_mode else ("stream" if stream_mode else "gpu")
+    timeout = "3600" if cpu_mode else ("1800" if stream_mode else "")
 
     lines = [
         "# Profil materiel - genere par install.bat ou run.bat. Ne pas editer : relancer install.bat.",
         "# Pour imposer un autre modele : definir DEFAULT_MODEL dans l'environnement ou dans ACE-Step-1.5\\.env.",
         "HW_GPU_NAME=" + (name or "aucun GPU NVIDIA"),
-        "HW_MODE=" + ("cpu" if cpu_mode else "gpu"),
-        "HW_GENERATION_TIMEOUT=" + ("3600" if cpu_mode else ""),
+        "HW_MODE=" + mode,
+        "HW_GENERATION_TIMEOUT=" + timeout,
         "HW_VRAM_MIB=" + str(vram_mib),
         "HW_VRAM_TORCH_MIB=" + (str(torch_mib) if torch_mib else ""),
         "HW_VRAM_CLASS_GB=" + str(cls),
@@ -137,6 +145,9 @@ def main():
 
     if cpu_mode:
         print("  Profil materiel : mode processeur, palier ACE-Step %s." % tier)
+    elif stream_mode:
+        print("  Profil materiel : %s, petite carte (%d Mio) : mode flux (DiT bloc par bloc, audio decode par la carte)." % (name or "GPU", stream_ref))
+        print("  Les LoRA ne sont pas pris en charge dans ce mode. STUDIO_SMALL_GPU=off pour le desactiver.")
     else:
         print("  Profil materiel : %s, %d Go de VRAM, palier ACE-Step %s." % (name or "GPU", cls, tier))
     print("  Modele par defaut : %s, modele de langage : %s." % (model, "active" if init_llm == "true" else "desactive"))

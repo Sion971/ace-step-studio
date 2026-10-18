@@ -188,6 +188,12 @@ describe('readHardwareProfile', () => {
     });
   });
 
+  it('reads the small-card stream mode', () => {
+    const file = path.join(dir, 'hardware_profile.env');
+    writeFileSync(file, 'HW_GPU_NAME="NVIDIA GeForce GTX 1050"\nHW_MODE="stream"\nHW_VRAM_TORCH_MIB="1996"\nHW_GENERATION_TIMEOUT="1800"\n');
+    expect(readHardwareProfile(file)).toMatchObject({ mode: 'stream', vramGiB: 1.95, generationTimeoutSec: 1800 });
+  });
+
   it('reads the CPU mode and its time limit', () => {
     const file = path.join(dir, 'hardware_profile.env');
     writeFileSync(file, 'HW_MODE="cpu"\nHW_VRAM_MIB="0"\nHW_GENERATION_TIMEOUT="3600"\nHW_INIT_LLM="true"\n');

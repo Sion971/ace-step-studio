@@ -175,7 +175,7 @@ export interface HardwareProfileSummary {
   gpuName?: string;
   vramGiB?: number;
   tier?: number;
-  mode?: 'gpu' | 'cpu';
+  mode?: 'gpu' | 'cpu' | 'stream';
   defaultModel?: string;
   initLlm?: boolean;
   computeCapability?: string;
@@ -205,7 +205,7 @@ export function readHardwareProfile(file: string): HardwareProfileSummary | unde
     gpuName: values.HW_GPU_NAME || undefined,
     vramGiB: mib && mib > 0 ? Math.round((mib / 1024) * 100) / 100 : undefined,
     tier: number('HW_ACE_TIER'),
-    mode: values.HW_MODE === 'cpu' ? 'cpu' : values.HW_MODE === 'gpu' ? 'gpu' : undefined,
+    mode: values.HW_MODE === 'cpu' ? 'cpu' : values.HW_MODE === 'stream' ? 'stream' : values.HW_MODE === 'gpu' ? 'gpu' : undefined,
     defaultModel: values.HW_DEFAULT_MODEL || undefined,
     initLlm: values.HW_INIT_LLM === undefined ? undefined : values.HW_INIT_LLM === 'true',
     computeCapability: values.HW_COMPUTE_CAP || undefined,

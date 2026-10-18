@@ -198,7 +198,7 @@ export interface HardwareFact {
   labelKey: HardwareLabelKey;
   /** Either a literal value (card name, memory) or the key of a translated value. */
   value?: string;
-  valueKey?: 'setup.mode.gpu' | 'setup.mode.cpu';
+  valueKey?: 'setup.mode.gpu' | 'setup.mode.cpu' | 'setup.mode.stream';
 }
 
 export function hardwareFacts(profile: HardwareProfileDto | undefined, language: Language): HardwareFact[] {
@@ -206,7 +206,7 @@ export function hardwareFacts(profile: HardwareProfileDto | undefined, language:
   const facts: HardwareFact[] = [];
   if (profile.gpuName) facts.push({ labelKey: 'setup.hw.gpu', value: profile.gpuName });
   if (profile.vramGiB && profile.vramGiB > 0) facts.push({ labelKey: 'setup.hw.memory', value: `${number(profile.vramGiB, language, 2)} ${GIB_UNIT[language]}` });
-  if (profile.mode) facts.push({ labelKey: 'setup.hw.mode', valueKey: profile.mode === 'cpu' ? 'setup.mode.cpu' : 'setup.mode.gpu' });
+  if (profile.mode) facts.push({ labelKey: 'setup.hw.mode', valueKey: profile.mode === 'cpu' ? 'setup.mode.cpu' : profile.mode === 'stream' ? 'setup.mode.stream' : 'setup.mode.gpu' });
   return facts;
 }
 
@@ -228,7 +228,7 @@ export function diskView(disk: DownloadDto['disk'], language: Language): DiskVie
 export const SETUP_KEYS = [
   'setup.title.downloading', 'setup.subtitle.downloading', 'setup.title.loading', 'setup.subtitle.loading',
   'setup.title.ready', 'setup.subtitle.ready', 'setup.title.error', 'setup.subtitle.error',
-  'setup.hardware', 'setup.hw.gpu', 'setup.hw.memory', 'setup.hw.mode', 'setup.mode.gpu', 'setup.mode.cpu',
+  'setup.hardware', 'setup.hw.gpu', 'setup.hw.memory', 'setup.hw.mode', 'setup.mode.gpu', 'setup.mode.cpu', 'setup.mode.stream',
   'setup.models', 'setup.component.main', 'setup.component.dit', 'setup.component.lm', 'setup.component.other',
   'setup.state.pending', 'setup.state.downloading', 'setup.state.done', 'setup.state.failed',
   'setup.elapsed', 'setup.eta', 'setup.eta.unknown', 'setup.burstNote',

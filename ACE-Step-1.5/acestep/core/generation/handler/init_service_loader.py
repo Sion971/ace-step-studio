@@ -8,6 +8,7 @@ import torch
 from loguru import logger
 
 from acestep import gpu_config
+from . import small_gpu_stream
 from .init_service_loader_components import InitServiceLoaderComponentsMixin
 
 try:
@@ -222,6 +223,7 @@ class InitServiceLoaderMixin(InitServiceLoaderComponentsMixin):
         elif compile_model:
             logger.info("[initialize_service] Skipping torch.compile (incompatible with DiT CPU offload)")
         self._apply_dit_quantization(quantization)
+        small_gpu_stream.attach_if_enabled(self.model, quantized=quantization is not None)
 
         silence_latent_path = os.path.join(model_checkpoint_path, "silence_latent.pt")
         if not os.path.exists(silence_latent_path):

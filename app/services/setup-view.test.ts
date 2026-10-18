@@ -179,6 +179,14 @@ describe('hardware and disk', () => {
     ]);
   });
 
+  it('describes the small-card stream mode', () => {
+    expect(hardwareFacts({ mode: 'stream', gpuName: 'NVIDIA GeForce GTX 1050', vramGiB: 1.95 }, 'en')).toEqual([
+      { labelKey: 'setup.hw.gpu', value: 'NVIDIA GeForce GTX 1050' },
+      { labelKey: 'setup.hw.memory', value: '1.95 GiB' },
+      { labelKey: 'setup.hw.mode', valueKey: 'setup.mode.stream' },
+    ]);
+  });
+
   it('shows nothing without a profile', () => {
     expect(hardwareFacts(undefined, 'en')).toEqual([]);
     expect(hardwareFacts({}, 'en')).toEqual([]);

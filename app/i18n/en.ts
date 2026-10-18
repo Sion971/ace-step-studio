@@ -931,6 +931,7 @@ export const en = {
     'aiCover.useToggle': 'AI cover (local)',
     'aiCover.useToggleHint': 'Draws the cover on your graphics card once the audio is done (SDXL Turbo). The first use downloads about 7 GB. Without it, the song keeps its default gradient.',
     'aiCover.unavailableCpu': 'Not available in processor mode (no GPU). The song keeps its default gradient.',
+    'aiCover.unavailableSmallGpu': 'Not available with a small graphics card: it is kept for the music model. The song keeps its default gradient.',
     'aiCover.unavailable': 'Not available: the local image model could not start (a GPU is needed). See the server console. The song keeps its default gradient.',
 
     // Cover regeneration modal
@@ -1003,6 +1004,7 @@ export const en = {
     'setup.hw.mode': "Mode",
     'setup.mode.gpu': "GPU",
     'setup.mode.cpu': "CPU only (slower)",
+    'setup.mode.stream': 'Small graphics card (streamed mode)',
     'setup.models': "Models",
     'setup.component.main': "Base files (audio decoder and text encoder)",
     'setup.component.dit': "Music model",

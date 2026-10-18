@@ -10,6 +10,8 @@ from loguru import logger
 
 from acestep.gpu_config import get_effective_free_vram_gb
 
+from . import small_gpu_stream
+
 
 class GenerateMusicDecodeMixin:
     """Validate generated latents and decode them into waveform tensors."""
@@ -168,7 +170,7 @@ class GenerateMusicDecodeMixin:
                         pred_latents_for_decode = pred_latents_for_decode.cpu()
                         self._empty_cache()
                 try:
-                    if use_tiled_decode:
+                    if use_tiled_decode or small_gpu_stream.vae_decode_enabled():
                         logger.info("[generate_music] Using tiled VAE decode to reduce VRAM usage...")
                         pred_wavs = self.tiled_decode(pred_latents_for_decode)
                     elif using_mlx_vae:

@@ -14,11 +14,11 @@ import path from 'path';
 import { createInterface } from 'readline';
 import { fileURLToPath } from 'url';
 import { config } from '../config/index.js';
-import { isCpuMode } from './hardware-mode.js';
+import { isCpuMode, isStreamMode } from './hardware-mode.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export type AiCoverUnavailable = 'disabled' | 'cpu-mode' | 'unavailable' | 'failed';
+export type AiCoverUnavailable = 'disabled' | 'cpu-mode' | 'small-gpu' | 'unavailable' | 'failed';
 
 export class AiCoverError extends Error {
   constructor(public readonly code: AiCoverUnavailable, message: string) {
@@ -54,6 +54,8 @@ export interface AiCoverOptions {
   /** How to start the worker, or null when it cannot be (no Python, no script). */
   command: () => WorkerCommand | null;
   isCpuMode: () => boolean;
+  /** Small card (stream mode): the card is busy with the music model and too small for the image model. */
+  isSmallGpu?: () => boolean;
   /** Stop the worker after this long without a request (frees VRAM). */
   idleMs?: number;
   /** Budget for a request that has to load the model (first use includes a ~7 GB download). */
@@ -93,6 +95,7 @@ export class AiCoverEngine {
   status(): AiCoverStatus {
     if (process.env.COVER_AI === 'off') return { available: false, reason: 'disabled' };
     if (this.opts.isCpuMode()) return { available: false, reason: 'cpu-mode' };
+    if (this.opts.isSmallGpu?.()) return { available: false, reason: 'small-gpu' };
     if (!this.opts.command()) return { available: false, reason: 'unavailable', detail: 'Python or cover_worker.py not found' };
     if (this.failure && Date.now() - this.failure.at < this.retryAfterMs) {
       return { available: false, reason: 'unavailable', detail: this.failure.detail };
@@ -215,4 +218,4 @@ function defaultCommand(): WorkerCommand | null {
   return { command: python, args: [script] };
 }
 
-export const aiCover = new AiCoverEngine({ command: defaultCommand, isCpuMode });
+export const aiCover = new AiCoverEngine({ command: defaultCommand, isCpuMode, isSmallGpu: isStreamMode });

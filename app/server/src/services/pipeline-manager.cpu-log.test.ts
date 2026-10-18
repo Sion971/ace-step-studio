@@ -13,7 +13,7 @@ describe('pipelineManager engine log in processor mode', () => {
   let written: string[];
   const savedEnv = { ...process.env };
 
-  const start = async (mode: 'cpu' | 'gpu') => {
+  const start = async (mode: 'cpu' | 'gpu' | 'stream') => {
     root = mkdtempSync(path.join(tmpdir(), 'pm-cpu-'));
     mkdirSync(path.join(root, 'ACE-Step-1.5', 'checkpoints'), { recursive: true });
     writeFileSync(path.join(root, 'hardware_profile.env'), `HW_GPU_NAME="x"\nHW_MODE="${mode}"\nHW_ACE_TIER="1"\n`);

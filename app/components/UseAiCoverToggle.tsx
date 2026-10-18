@@ -31,7 +31,9 @@ export const UseAiCoverToggle: React.FC<Props> = ({ value, onChange, token }) =>
   const blocked = status !== null && !status.available;
   const on = value && !blocked;
   const note = blocked
-    ? (status?.reason === 'cpu-mode' ? t('aiCover.unavailableCpu') : t('aiCover.unavailable'))
+    ? (status?.reason === 'cpu-mode' ? t('aiCover.unavailableCpu')
+      : status?.reason === 'small-gpu' ? t('aiCover.unavailableSmallGpu')
+      : t('aiCover.unavailable'))
     : t('aiCover.useToggleHint');
 
   return (

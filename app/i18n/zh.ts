@@ -921,6 +921,7 @@ export const zh = {
     'aiCover.useToggle': 'AI 封面（本地）',
     'aiCover.useToggleHint': '音频完成后，在你的显卡上绘制封面（SDXL Turbo）。首次使用会下载约 7 GB。不开启时，歌曲保留默认渐变封面。',
     'aiCover.unavailableCpu': '处理器模式下不可用（没有 GPU）。歌曲保留默认渐变封面。',
+    'aiCover.unavailableSmallGpu': '小显存显卡上不可用：显卡留给音乐模型使用。歌曲保留默认渐变封面。',
     'aiCover.unavailable': '不可用：本地图像模型无法启动（需要 GPU）。请查看服务器控制台。歌曲保留默认渐变封面。',
 
     // Cover regeneration modal
@@ -984,6 +985,7 @@ export const zh = {
     'setup.hw.mode': "模式",
     'setup.mode.gpu': "GPU",
     'setup.mode.cpu': "仅 CPU（较慢）",
+    'setup.mode.stream': '小显存显卡（流式模式）',
     'setup.models': "模型",
     'setup.component.main': "基础文件（音频解码器和文本编码器）",
     'setup.component.dit': "音乐模型",

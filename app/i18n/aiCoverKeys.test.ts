@@ -10,7 +10,7 @@ import { zh } from './zh';
 // t() returns the key itself when it is missing: a forgotten translation would show "aiCover.useToggle" on screen.
 const languages: Record<string, Record<string, string>> = { en, fr, ja, ko, ru, zh };
 const KEYS = [
-  'aiCover.sectionTitle', 'aiCover.useToggle', 'aiCover.useToggleHint', 'aiCover.unavailableCpu', 'aiCover.unavailable',
+  'aiCover.sectionTitle', 'aiCover.useToggle', 'aiCover.useToggleHint', 'aiCover.unavailableCpu', 'aiCover.unavailableSmallGpu', 'aiCover.unavailable',
   'coverRegen.errUnavailable', 'coverRegen.errFailed', 'coverRegen.localHint',
 ];
 const GONE_WITH_POLLINATIONS = [
