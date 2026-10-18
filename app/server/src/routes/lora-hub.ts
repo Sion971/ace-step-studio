@@ -15,6 +15,11 @@ const hub = new LoraHub({
   token: process.env.HF_TOKEN || process.env.HUGGING_FACE_HUB_TOKEN,
 });
 
+/** True while a LoRA is being installed from the Hub (the stop-on-close mechanism waits for it). */
+export function loraInstallRunning(): boolean {
+  return hub.hasRunningJob();
+}
+
 // app/server/src/routes/lora-hub.ts -> app/server/catalog/lora-catalog.json. Read at each request: editing the file needs no restart.
 const CATALOG_FILE = path.join(here, '../../catalog/lora-catalog.json');
 

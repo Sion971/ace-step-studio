@@ -499,6 +499,12 @@ export class LoraHub {
     return job ? { ...job } : null;
   }
 
+  /** True while an install is still downloading, verifying or installing (used to not stop the Studio under it). */
+  hasRunningJob(): boolean {
+    for (const job of this.jobs.values()) if (job.finishedAt === undefined && job.state !== 'done' && job.state !== 'failed') return true;
+    return false;
+  }
+
   private pruneJobs(): void {
     const limit = this.now() - JOB_TTL_MS;
     for (const [id, job] of this.jobs) if (job.finishedAt !== undefined && job.finishedAt < limit) this.jobs.delete(id);

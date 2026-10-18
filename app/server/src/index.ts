@@ -26,6 +26,9 @@ import contactRoutes from './routes/contact.js';
 import referenceTrackRoutes from './routes/referenceTrack.js';
 import loraRoutes from './routes/lora.js';
 import loraHubRoutes from './routes/lora-hub.js';
+import { createPresenceRouter } from './routes/presence.js';
+import { Presence } from './services/presence.js';
+import { studioIsBusy } from './services/studio-busy.js';
 import trainingRoutes from './routes/training.js';
 import settingsRoutes from './routes/settings.js';
 import pipelineRoutes from './routes/pipeline.js';
@@ -548,6 +551,17 @@ app.use('/api/lora-hub', loraHubRoutes);
 app.use('/api/training', trainingRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/pipeline', pipelineRoutes);
+
+// Stop-on-close (run.sh --quit-on-close): every open page holds one connection here; when the last one goes the Studio stops.
+// `shutdownStudio` is set by startServer() below. Without the flag, pages are counted but nothing is ever stopped.
+let shutdownStudio: () => Promise<void> = async () => {};
+const presence = new Presence({
+  enabled: process.env.STUDIO_QUIT_ON_CLOSE === 'true',
+  graceMs: Number(process.env.STUDIO_QUIT_GRACE_MS) > 0 ? Number(process.env.STUDIO_QUIT_GRACE_MS) : undefined,
+  isBusy: studioIsBusy,
+  onQuit: () => void shutdownStudio(),
+});
+app.use('/api/presence', createPresenceRouter(presence));
 app.use('/api/render-video', express.json({ limit: '500mb' }), renderVideoRoutes);
 app.use('/api/tools', toolsRoutes);
 app.use('/api/midi', midiRoutes);
@@ -656,6 +670,7 @@ async function startServer() {
     }
     process.exit(0);
   };
+  shutdownStudio = shutdown;
 
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);

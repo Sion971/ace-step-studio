@@ -17,6 +17,12 @@
 #
 #    --no-browser    N'ouvre pas automatiquement le navigateur.
 #
+#    --quit-on-close Arrête le Studio (serveur et moteur) quand la dernière page
+#                    est fermée, sans attendre un Ctrl+C. Utile quand le Studio
+#                    est lancé depuis un raccourci sans fenêtre de terminal.
+#                    Il attend la fin d'une génération, d'un entraînement ou
+#                    d'un téléchargement en cours avant de s'arrêter.
+#
 #    --port <n>      Port du serveur web (défaut : 3001).
 #
 #    --help          Affiche cette aide.
@@ -28,10 +34,11 @@ set -e
 NO_LM=false
 GRADIO_ONLY=false
 NO_BROWSER=false
+QUIT_ON_CLOSE=false
 WEB_PORT=3001
 
 show_help() {
-    sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
+    sed -n '2,29p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
     exit 0
 }
 
@@ -40,6 +47,7 @@ while [[ $# -gt 0 ]]; do
         --no-lm)       NO_LM=true; shift ;;
         --gradio-only) GRADIO_ONLY=true; shift ;;
         --no-browser)  NO_BROWSER=true; shift ;;
+        --quit-on-close) QUIT_ON_CLOSE=true; shift ;;
         --port)        WEB_PORT="$2"; shift 2 ;;
         --help|-h)     show_help ;;
         *)
@@ -195,6 +203,7 @@ if $NO_LM; then
 fi
 
 $NO_BROWSER && export NO_AUTO_BROWSER="true"
+$QUIT_ON_CLOSE && export STUDIO_QUIT_ON_CLOSE="true"
 
 if [ -f "cuda_version.txt" ]; then
     echo "Configuration GPU/CUDA : $(cat cuda_version.txt)"

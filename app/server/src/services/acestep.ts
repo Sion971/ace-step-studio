@@ -1003,6 +1003,12 @@ export function cancelAllJobs(): number {
   return cancelled;
 }
 
+/** True while a generation is queued or running (the stop-on-close mechanism waits for it). */
+export function hasUnfinishedGeneration(): boolean {
+  for (const job of activeJobs.values()) if (job.status === 'queued' || job.status === 'running') return true;
+  return false;
+}
+
 export function cleanupJob(jobId: string): void {
   activeJobs.delete(jobId);
 }

@@ -28,8 +28,14 @@
 STUDIO_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 export STUDIO_DIR
 
+# --quit-on-close : fermer la page web arrete le serveur et le moteur (sans cela, depuis un raccourci sans terminal, rien ne
+# permettait de les arreter). La pause finale ne sert que s'il y a eu une erreur : un arret normal ferme la fenetre.
 exec bash -i -c '
-"$STUDIO_DIR/run.sh"
-echo ""
-read -p "Appuyez sur Entree pour fermer..."
+"$STUDIO_DIR/run.sh" --quit-on-close
+status=$?
+if [ "$status" -ne 0 ]; then
+    echo ""
+    read -p "Appuyez sur Entree pour fermer..."
+fi
+exit "$status"
 '

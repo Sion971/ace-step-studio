@@ -67,6 +67,11 @@ class GenerationQueue {
     return { position: this.getQueuePosition(job.id) };
   }
 
+  /** Jobs waiting for a worker plus jobs being worked on. */
+  pendingCount(): number {
+    return this.queue.length + this.activeJobs.size;
+  }
+
   getQueuePosition(jobId: string): number {
     const index = this.queue.findIndex((job) => job.id === jobId);
     return index === -1 ? 0 : index + 1;

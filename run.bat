@@ -27,6 +27,10 @@ REM                      preparation - labeling and saving only work in Gradio.
 REM
 REM     --no-browser    Do not automatically open a browser tab.
 REM
+REM     --quit-on-close Stop the Studio (server and engine) when the last page is
+REM                     closed. It first waits for a running generation, training
+REM                     or download to finish.
+REM
 REM     --port <n>      Web server port (default: 3001).
 REM
 REM     --help          Show this help.
@@ -39,6 +43,7 @@ REM === Argument parsing =======================================================
 set "NO_LM=false"
 set "GRADIO_ONLY=false"
 set "NO_BROWSER=false"
+set "QUIT_ON_CLOSE=false"
 set "WEB_PORT=3001"
 
 :parse_args
@@ -55,6 +60,11 @@ if /i "%~1"=="--gradio-only" (
 )
 if /i "%~1"=="--no-browser" (
     set "NO_BROWSER=true"
+    shift
+    goto :parse_args
+)
+if /i "%~1"=="--quit-on-close" (
+    set "QUIT_ON_CLOSE=true"
     shift
     goto :parse_args
 )
@@ -75,6 +85,7 @@ exit /b 1
 echo   --no-lm         Start without the local language model (5Hz LM 0.6B).
 echo   --gradio-only   Launch only the ACE-Step engine (Gradio UI, port 8001).
 echo   --no-browser    Do not automatically open a browser tab.
+echo   --quit-on-close Stop the Studio when the last page is closed.
 echo   --port ^<n^>      Web server port (default: 3001).
 echo   --help          Show this help.
 exit /b 0
@@ -200,6 +211,7 @@ if "%NO_LM%"=="true" (
     set "ACESTEP_INIT_LLM=false"
 )
 if "%NO_BROWSER%"=="true" set "NO_AUTO_BROWSER=true"
+if "%QUIT_ON_CLOSE%"=="true" set "STUDIO_QUIT_ON_CLOSE=true"
 
 if exist "cuda_version.txt" (
     set /p CUDA_VERSION=<cuda_version.txt
@@ -352,4 +364,5 @@ if errorlevel 1 (
 )
 
 :end
+if "%QUIT_ON_CLOSE%"=="true" exit /b 0
 pause

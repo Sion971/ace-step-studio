@@ -264,6 +264,15 @@ describe('LoraHub', () => {
       expect((await hub.inspect('user/good')).alreadyInstalled).toBe('good');
     });
 
+    it('says whether an install is still running (the Studio does not stop under it)', async () => {
+      fake.repos.set('user/good', goodRepo());
+      expect(hub.hasRunningJob()).toBe(false);
+      const started = await hub.startInstall('user/good');
+      expect(hub.hasRunningJob()).toBe(true);
+      await finished(hub, started.id);
+      expect(hub.hasRunningJob()).toBe(false);
+    });
+
     it('refuses a weights file above the size limit', async () => {
       fake.repos.set('user/big', goodRepo());
       expect(await codeOf(makeHub({ maxWeightsBytes: 1000 }).inspect('user/big'))).toBe('too_large');
