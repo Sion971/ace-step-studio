@@ -9,6 +9,9 @@ and uses the card for the two heavy steps only:
   copy overlaps the current computation). Peak VRAM is the size of two blocks plus the activations
   (about 0.8 GB for 30 s of audio). Everything else (text encoder, condition encoder, sampler, DCW)
   keeps running on the processor, so the rest of the engine is unaware of the card.
+* Condition encoder: the 12 text/lyric/timbre layers (and the 4 layers of the audio tokenizer/detokenizer) go
+  through a second, smaller pool the same way. When the generation is not a cover, the tokenizer/detokenizer
+  step is skipped: its result is discarded by the engine in that case, so the output is identical.
 * VAE decode: float32 on the card in small tiles (96 latent frames, overlap 16).
 
 Measured on a GTX 1050 (2 GB): one DiT step 12.7 s (processor) -> 1.26 s; VAE decode 170 s -> about 10 s;
@@ -38,6 +41,8 @@ _SIMPLE_TYPES = (int, float, bool, str, type(None))
 
 # The pool attached to the loaded DiT, if any (one DiT per handler process).
 _ACTIVE_POOL: Optional["StreamPool"] = None
+# The pool of the condition encoder (lyric + timbre + tokenizer + detokenizer layers), if any.
+_ENCODER_POOL: Optional["StreamPool"] = None
 
 
 def _truthy(value: Optional[str]) -> bool:
@@ -304,6 +309,7 @@ def attach_if_enabled(model: nn.Module, quantized: bool = False) -> bool:
         free_before = torch.cuda.mem_get_info(device)[0] / 1024**3
         pool = install(decoder, device, cpu_dtype)
         _ACTIVE_POOL = pool
+        attach_encoder(model, device, cpu_dtype)
         gc.collect()
         logger.info(
             "[small_gpu_stream] DiT streamed through {}: {} blocks, {:.0f} MB per block in {} RAM, "
@@ -319,9 +325,120 @@ def attach_if_enabled(model: nn.Module, quantized: bool = False) -> bool:
 
 
 def release_gpu() -> None:
-    """Free the card's DiT slots (they are recreated on the next diffusion)."""
+    """Free the card's slots (DiT and condition encoder); they are recreated on the next use."""
     if _ACTIVE_POOL is not None:
         _ACTIVE_POOL.release_gpu()
+    if _ENCODER_POOL is not None:
+        _ENCODER_POOL.release_gpu()
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# Condition encoder
+# ----------------------------------------------------------------------------------------------------------------
+def _encoder_holders(model: nn.Module) -> List[nn.Module]:
+    """The sub-modules owning a ``layers`` list of encoder blocks, in execution order (missing ones are skipped)."""
+    paths = (
+        ("encoder", "lyric_encoder"),
+        ("encoder", "timbre_encoder"),
+        ("tokenizer", "attention_pooler"),
+        ("detokenizer",),
+    )
+    holders = []
+    for path in paths:
+        obj: Any = model
+        for name in path:
+            obj = getattr(obj, name, None)
+            if obj is None:
+                break
+        if obj is not None and len(getattr(obj, "layers", [])) > 0:
+            holders.append(obj)
+    return holders
+
+
+def install_encoder(model: nn.Module, device: torch.device, cpu_dtype: torch.dtype = torch.bfloat16, pin: bool = True) -> StreamPool:
+    """Stream the condition-encoder blocks of ``model`` through one pool (no environment checks)."""
+    holders = _encoder_holders(model)
+    if not holders:
+        raise RuntimeError("no condition-encoder layers found")
+    flat = [layer for holder in holders for layer in holder.layers]
+    pool = StreamPool(flat, device, cpu_dtype, pin=pin)
+    index = 0
+    for holder in holders:
+        proxies = []
+        for layer in holder.layers:
+            proxies.append(StreamedLayer(index, layer, pool))
+            index += 1
+        holder.layers = nn.ModuleList(proxies)
+    return pool
+
+
+def _is_plain_generation(is_covers: Any, precomputed_lm_hints_25Hz: Any, audio_codes: Any) -> bool:
+    """True when ``prepare_condition`` would throw away the tokenizer/detokenizer result (not a cover)."""
+    if precomputed_lm_hints_25Hz is not None or audio_codes is not None:
+        return False
+    if is_covers is None:
+        return False
+    return not bool((is_covers > 0).any())
+
+
+def wrap_prepare_condition(model: nn.Module) -> None:
+    """Make ``model.prepare_condition`` skip the audio tokenizer/detokenizer when the generation is not a cover.
+
+    The engine computes ``torch.where(is_covers > 0, lm_hints, src_latents)``; with no cover in the batch the
+    result is ``src_latents`` whatever ``lm_hints`` is, so the tokenizer and detokenizer are replaced by stubs
+    returning a tensor of the right shape for the duration of the call. The condition-encoder slots are given
+    back to the card as soon as the call is over.
+    """
+    original = model.prepare_condition
+
+    def prepare_condition(*args, **kwargs):
+        try:
+            call = inspect_bind(original, args, kwargs)
+            plain = _is_plain_generation(call.get("is_covers"), call.get("precomputed_lm_hints_25Hz"), call.get("audio_codes"))
+        except Exception:
+            plain = False
+        stubbed = False
+        if plain:
+            model.tokenize = lambda x, silence_latent, attention_mask: (x, None, attention_mask)
+            model.detokenize = lambda quantized: quantized
+            stubbed = True
+        try:
+            return original(*args, **kwargs)
+        finally:
+            if stubbed:
+                # remove the instance attributes: the class methods are visible again
+                model.__dict__.pop("tokenize", None)
+                model.__dict__.pop("detokenize", None)
+            if _ENCODER_POOL is not None:
+                _ENCODER_POOL.release_gpu()
+
+    model.prepare_condition = prepare_condition
+
+
+def inspect_bind(func: Any, args: tuple, kwargs: dict) -> dict:
+    import inspect
+
+    bound = inspect.signature(func).bind_partial(*args, **kwargs)
+    return dict(bound.arguments)
+
+
+def attach_encoder(model: nn.Module, device: torch.device, cpu_dtype: torch.dtype) -> bool:
+    """Stream the condition encoder and skip the useless cover step. Never raises (the encoder then stays on the processor)."""
+    global _ENCODER_POOL
+    try:
+        pool = install_encoder(model, device, cpu_dtype)
+        wrap_prepare_condition(model)
+        _ENCODER_POOL = pool
+        pool.release_gpu()  # the slots are created again when the encoder runs, then released before the DiT
+        logger.info(
+            "[small_gpu_stream] condition encoder streamed: {} blocks, {:.0f} MB per block, tokenizer/detokenizer skipped unless cover.",
+            pool.count, pool.bytes_per_layer / 1024**2,
+        )
+        return True
+    except Exception as exc:
+        logger.warning("[small_gpu_stream] could not stream the condition encoder ({}: {}): it stays on the processor.", type(exc).__name__, exc)
+        _ENCODER_POOL = None
+        return False
 
 
 # ----------------------------------------------------------------------------------------------------------------

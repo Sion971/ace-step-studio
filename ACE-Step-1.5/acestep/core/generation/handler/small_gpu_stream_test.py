@@ -52,6 +52,44 @@ def _inputs(cfg, frames=20, cond=12):
     )
 
 
+def _tiny_condition_model():
+    """A small randomly initialised condition-generation model built from the real turbo modeling code."""
+    import sys
+
+    _tiny_decoder()  # loads the modeling module under a private name
+    modeling = sys.modules["_sgs_test_modeling_turbo"]
+    from acestep.models.common.configuration_acestep_v15 import AceStepConfig
+
+    cfg = AceStepConfig(
+        hidden_size=64, intermediate_size=128, num_hidden_layers=4, num_attention_heads=4, num_key_value_heads=2,
+        head_dim=16, num_lyric_encoder_hidden_layers=3, num_timbre_encoder_hidden_layers=2,
+        num_attention_pooler_hidden_layers=2, text_hidden_dim=32, fsq_dim=64,
+    )
+    cfg._attn_implementation = "sdpa"
+    torch.manual_seed(1)
+    return modeling.AceStepConditionGenerationModel(cfg).float().eval(), cfg
+
+
+def _condition_inputs(cfg, cover=False):
+    g = torch.Generator().manual_seed(5)
+    frames = 20
+    latents = torch.randn(1, frames, cfg.audio_acoustic_hidden_dim, generator=g)
+    return dict(
+        text_hidden_states=torch.randn(1, 6, cfg.text_hidden_dim, generator=g),
+        text_attention_mask=torch.ones(1, 6, dtype=torch.long),
+        lyric_hidden_states=torch.randn(1, 9, cfg.text_hidden_dim, generator=g),
+        lyric_attention_mask=torch.ones(1, 9, dtype=torch.long),
+        refer_audio_acoustic_hidden_states_packed=torch.randn(2, 10, cfg.timbre_hidden_dim, generator=g),
+        refer_audio_order_mask=torch.zeros(2, dtype=torch.long),
+        hidden_states=latents,
+        attention_mask=torch.ones(1, frames),
+        silence_latent=torch.randn(1, 30, cfg.audio_acoustic_hidden_dim, generator=g),
+        src_latents=latents.clone(),
+        chunk_masks=torch.ones(1, frames, cfg.audio_acoustic_hidden_dim),
+        is_covers=torch.tensor([1 if cover else 0]),
+    )
+
+
 class EnvironmentTests(unittest.TestCase):
     def test_disabled_by_default(self):
         with mock.patch.dict(os.environ, {}, clear=False):
@@ -186,6 +224,102 @@ class StreamingEquivalenceTests(unittest.TestCase):
         decoder.layers[1].mlp.gate_proj = nn.Linear(64, 130, bias=False)
         with self.assertRaises(RuntimeError):
             sgs.install(decoder, torch.device("cpu"))
+
+
+class ConditionEncoderTests(unittest.TestCase):
+    @staticmethod
+    def _count_calls(model):
+        calls = {"tokenizer": 0, "detokenizer": 0}
+
+        def bump(name):
+            def hook(_m, _a, _o):
+                calls[name] += 1
+            return hook
+
+        model.tokenizer.register_forward_hook(bump("tokenizer"))
+        model.detokenizer.register_forward_hook(bump("detokenizer"))
+        return calls
+
+    @torch.no_grad()
+    def test_skipping_tokenizer_gives_the_same_result_when_not_a_cover(self):
+        model, cfg = _tiny_condition_model()
+        reference = copy.deepcopy(model)
+        sgs.wrap_prepare_condition(model)
+        calls = self._count_calls(model)
+        inputs = _condition_inputs(cfg, cover=False)
+        want = reference.prepare_condition(**inputs)
+        got = model.prepare_condition(**inputs)
+        for a, b in zip(want, got):
+            self.assertTrue(torch.equal(a, b))
+        self.assertEqual(calls, {"tokenizer": 0, "detokenizer": 0})
+        # the real methods are visible again afterwards
+        self.assertNotIn("tokenize", model.__dict__)
+        self.assertNotIn("detokenize", model.__dict__)
+
+    @torch.no_grad()
+    def test_cover_still_goes_through_tokenizer_and_detokenizer(self):
+        model, cfg = _tiny_condition_model()
+        reference = copy.deepcopy(model)
+        sgs.wrap_prepare_condition(model)
+        calls = self._count_calls(model)
+        inputs = _condition_inputs(cfg, cover=True)
+        want = reference.prepare_condition(**inputs)
+        got = model.prepare_condition(**inputs)
+        for a, b in zip(want, got):
+            self.assertTrue(torch.equal(a, b))
+        self.assertEqual(calls, {"tokenizer": 1, "detokenizer": 1})
+
+    @torch.no_grad()
+    def test_precomputed_hints_and_audio_codes_are_never_skipped(self):
+        self.assertFalse(sgs._is_plain_generation(torch.tensor([0]), torch.zeros(1), None))
+        self.assertFalse(sgs._is_plain_generation(torch.tensor([0]), None, torch.zeros(1)))
+        self.assertFalse(sgs._is_plain_generation(torch.tensor([0, 1]), None, None))
+        self.assertFalse(sgs._is_plain_generation(None, None, None))
+        self.assertTrue(sgs._is_plain_generation(torch.tensor([0, 0]), None, None))
+
+    @torch.no_grad()
+    def test_streamed_encoder_matches_the_plain_encoder(self):
+        model, cfg = _tiny_condition_model()
+        model.to(torch.bfloat16).float()  # bfloat16-exact weights everywhere, like a bfloat16 checkpoint
+        reference = copy.deepcopy(model)
+        pool = sgs.install_encoder(model, torch.device("cpu"), torch.bfloat16)
+        self.assertEqual(pool.count, 3 + 2 + 2 + 2)
+        for cover in (False, True):
+            inputs = _condition_inputs(cfg, cover=cover)
+            want = reference.prepare_condition(**inputs)
+            got = model.prepare_condition(**inputs)
+            for a, b in zip(want, got):
+                self.assertLess((a.float() - b.float()).abs().max().item(), 1e-4)
+
+    def test_encoder_proxies_have_global_indices_and_no_weights(self):
+        model, _cfg = _tiny_condition_model()
+        sgs.install_encoder(model, torch.device("cpu"), torch.bfloat16)
+        holders = [model.encoder.lyric_encoder, model.encoder.timbre_encoder, model.tokenizer.attention_pooler, model.detokenizer]
+        indices = [layer._s_index for holder in holders for layer in holder.layers]
+        self.assertEqual(indices, list(range(9)))
+        self.assertEqual(sum(1 for holder in holders for _ in holder.layers.parameters()), 0)
+
+    @torch.no_grad()
+    def test_encoder_slots_are_given_back_after_prepare_condition(self):
+        model, cfg = _tiny_condition_model()
+        pool = sgs.install_encoder(model, torch.device("cpu"), torch.bfloat16)
+        sgs.wrap_prepare_condition(model)
+        with mock.patch.object(sgs, "_ENCODER_POOL", pool):
+            model.prepare_condition(**_condition_inputs(cfg))
+            self.assertEqual(pool.slots, [])
+            model.prepare_condition(**_condition_inputs(cfg))  # recreated on demand
+            self.assertEqual(pool.slots, [])
+
+    def test_missing_encoder_parts_do_not_break_the_attachment(self):
+        self.assertFalse(sgs.attach_encoder(nn.Linear(1, 1), torch.device("cpu"), torch.bfloat16))
+        self.assertIsNone(sgs._ENCODER_POOL)
+
+    def test_release_gpu_frees_both_pools(self):
+        dit, enc = mock.Mock(), mock.Mock()
+        with mock.patch.object(sgs, "_ACTIVE_POOL", dit), mock.patch.object(sgs, "_ENCODER_POOL", enc):
+            sgs.release_gpu()
+        dit.release_gpu.assert_called_once()
+        enc.release_gpu.assert_called_once()
 
 
 class VaeRoutingTests(unittest.TestCase):
