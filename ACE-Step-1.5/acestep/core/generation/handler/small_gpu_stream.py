@@ -49,6 +49,7 @@ from __future__ import annotations
 import copy
 import gc
 import os
+import subprocess
 import time
 from typing import Any, List, Optional
 
@@ -68,6 +69,7 @@ ENV_STATS = "ACESTEP_STREAM_STATS"
 ENV_NOISE = "ACESTEP_STREAM_NOISE"
 ENV_CHECK = "ACESTEP_STREAM_CHECK"
 ENV_ACTIVATIONS = "ACESTEP_STREAM_ACTIVATIONS"
+ENV_MEMORY = "ACESTEP_STREAM_MEMORY"
 DEFAULT_RESERVE_GB = 2.5
 DEFAULT_VAE_CHUNK = 96
 DEFAULT_VAE_OVERLAP = 16
@@ -199,6 +201,61 @@ def _move_tensor(obj: torch.Tensor, device: torch.device, dtype: torch.dtype) ->
             obj = obj.clamp(min=info.min, max=info.max)
         return obj.to(device=device, dtype=dtype, non_blocking=True)
     return obj.to(device=device, non_blocking=True)
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# Diagnostic: where the card's memory goes (ACESTEP_STREAM_MEMORY=1)
+# ----------------------------------------------------------------------------------------------------------------
+def memory_log_enabled() -> bool:
+    """True when ``ACESTEP_STREAM_MEMORY=1``: the card's memory is logged at the main points of a generation."""
+    return _truthy(os.environ.get(ENV_MEMORY))
+
+
+def parse_compute_apps(text: str, pid: int) -> Optional[float]:
+    """GB used by process ``pid`` in the output of ``nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader,nounits``."""
+    for line in (text or "").splitlines():
+        parts = [part.strip() for part in line.split(",")]
+        if len(parts) == 2 and parts[0] == str(pid):
+            try:
+                return float(parts[1]) / 1024.0  # MiB
+            except ValueError:
+                return None
+    return None
+
+
+def _process_used_gb() -> Optional[float]:
+    """Memory the driver attributes to this program (torch's memory and the CUDA context), or None when nvidia-smi cannot say."""
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-compute-apps=pid,used_memory", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=3,
+        ).stdout
+    except Exception:
+        return None
+    return parse_compute_apps(out, os.getpid())
+
+
+def log_memory(tag: str) -> None:
+    """One line on the card's memory: what is free, what torch holds (in use and idle cache), what the driver attributes to this
+    program and what is left for the other programs on the card. Off unless ``ACESTEP_STREAM_MEMORY=1``; never raises."""
+    if not memory_log_enabled():
+        return
+    try:
+        if not torch.cuda.is_available():
+            return
+        gb = 1024 ** 3
+        free, total = torch.cuda.mem_get_info()
+        used = total - free
+        allocated = torch.cuda.memory_allocated()
+        reserved = torch.cuda.memory_reserved()
+        ours = _process_used_gb()
+        tail = f" | this program {ours:.2f} GB (torch + CUDA context), other programs {used / gb - ours:.2f} GB" if ours is not None else ""
+        logger.info(
+            "[small_gpu_stream] card memory ({}): free {:.2f} of {:.2f} GB | torch in use {:.2f}, idle cache {:.2f}{}",
+            tag, free / gb, total / gb, allocated / gb, max(0, reserved - allocated) / gb, tail,
+        )
+    except Exception as exc:  # a diagnostic must never break a generation
+        logger.debug("[small_gpu_stream] could not log the card memory: {}", exc)
 
 
 class _ArgCache:
@@ -502,6 +559,7 @@ class StreamPool:
         self.keep_on_card = activations_on_card_from_env() if keep_on_card is None else bool(keep_on_card)
         self.args = _ArgCache()  # card copies of the inputs shared by all the blocks of a step
         self._last_index = -1    # index of the previous block call: a call that does not go up starts a new step
+        self.label = "DiT"     # name used in the memory log
         self.attention_name: Optional[str] = None  # attention function of the card copies (None: the model's own)
         self.mask_free = False   # True when the DiT is given no masks (see small_gpu_stream_attention)
         self._check_layers(real_layers)
@@ -607,6 +665,7 @@ class StreamPool:
             return
         # Normal tensors even when called inside torch.inference_mode(): inference tensors cannot be updated in place
         # from outside inference mode, and the slots are refilled on every block.
+        log_memory(f"{self.label}: before placing the blocks")
         with torch.inference_mode(False), torch.no_grad():
             self.resident_n = self._resident_target()
             started = time.perf_counter()
@@ -619,6 +678,7 @@ class StreamPool:
             if self.resident_n < self.count:
                 self._make_slots()
         self._gpu_ready = True
+        log_memory(f"{self.label}: {self.resident_n} resident blocks placed")
         if self.resident_n and self.resident_n != self._logged_resident:
             self._logged_resident = self.resident_n
             logger.info(
@@ -962,6 +1022,7 @@ def release_gpu() -> None:
         _ACTIVE_POOL.release_gpu()
     if _ENCODER_POOL is not None:
         _ENCODER_POOL.release_gpu()
+    log_memory("after giving the card back")
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -1000,6 +1061,7 @@ def install_encoder(
         raise RuntimeError("no condition-encoder layers found")
     flat = [layer for holder in holders for layer in holder.layers]
     pool = StreamPool(flat, device, cpu_dtype, pin=pin, compute_dtype=compute_dtype)
+    pool.label = "condition encoder"
     index = 0
     for holder in holders:
         proxies = []
@@ -1031,6 +1093,7 @@ def wrap_prepare_condition(model: nn.Module) -> None:
     original = model.prepare_condition
 
     def prepare_condition(*args, **kwargs):
+        log_memory("start of a generation")
         try:
             call = inspect_bind(original, args, kwargs)
             plain = _is_plain_generation(call.get("is_covers"), call.get("precomputed_lm_hints_25Hz"), call.get("audio_codes"))
@@ -1050,6 +1113,7 @@ def wrap_prepare_condition(model: nn.Module) -> None:
                 model.__dict__.pop("detokenize", None)
             if _ENCODER_POOL is not None:
                 _ENCODER_POOL.release_gpu()
+                log_memory("after the condition encoder")
 
     model.prepare_condition = prepare_condition
 
@@ -1203,3 +1267,4 @@ def tiled_decode_on_card(handler: Any, latents: torch.Tensor) -> torch.Tensor:
         except Exception as exc:  # pragma: no cover
             logger.warning("[small_gpu_stream] could not move the VAE back to the processor: {}", exc)
         clear()
+        log_memory("after the audio decoding")

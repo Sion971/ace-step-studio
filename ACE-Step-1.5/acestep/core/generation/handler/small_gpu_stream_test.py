@@ -1119,6 +1119,125 @@ class ActivationsOnCardTests(unittest.TestCase):
         self.assertLess(max(rel for rel, _m in pool.check.errors.values()), pool.check.limit)
 
 
+class MemoryLogTests(unittest.TestCase):
+    """ACESTEP_STREAM_MEMORY=1: where the card's memory goes, one line at the main points of a generation."""
+
+    GB = 1024 ** 3
+
+    def _cuda(self, free=6.0, total=8.0, allocated=1.0, reserved=1.5):
+        gb = self.GB
+        return (
+            mock.patch.object(sgs.torch.cuda, "is_available", return_value=True),
+            mock.patch.object(sgs.torch.cuda, "mem_get_info", return_value=(int(free * gb), int(total * gb))),
+            mock.patch.object(sgs.torch.cuda, "memory_allocated", return_value=int(allocated * gb)),
+            mock.patch.object(sgs.torch.cuda, "memory_reserved", return_value=int(reserved * gb)),
+        )
+
+    def _log(self, tag="tag", smi=None, **kw):
+        patches = list(self._cuda(**kw)) + [mock.patch.object(sgs, "_process_used_gb", return_value=smi)]
+        with mock.patch.dict(os.environ, {sgs.ENV_MEMORY: "1"}), mock.patch.object(sgs.logger, "info") as info:
+            for p in patches:
+                p.start()
+            try:
+                sgs.log_memory(tag)
+            finally:
+                mock.patch.stopall()
+        return info
+
+    def test_off_by_default_and_touches_nothing(self):
+        env = {k: v for k, v in os.environ.items() if k != sgs.ENV_MEMORY}
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(sgs.torch.cuda, "is_available", return_value=True), \
+                mock.patch.object(sgs.torch.cuda, "mem_get_info") as probe, mock.patch.object(sgs.logger, "info") as info:
+            sgs.log_memory("tag")
+        probe.assert_not_called()
+        info.assert_not_called()
+
+    def test_one_line_with_free_memory_and_torch_figures(self):
+        info = self._log("after the audio decoding", free=6.0, total=8.0, allocated=1.0, reserved=1.5)
+        info.assert_called_once()
+        template, *values = info.call_args[0]
+        line = template.format(*values)
+        self.assertIn("after the audio decoding", line)
+        self.assertIn("free 6.00 of 8.00 GB", line)
+        self.assertIn("torch in use 1.00, idle cache 0.50", line)
+        self.assertNotIn("other programs", line)  # nvidia-smi could not say
+
+    def test_the_driver_figure_separates_this_program_from_the_others(self):
+        info = self._log(free=5.0, total=8.0, smi=2.5)  # 3 GB used on the card, 2.5 of them by this program
+        template, *values = info.call_args[0]
+        line = template.format(*values)
+        self.assertIn("this program 2.50 GB", line)
+        self.assertIn("other programs 0.50 GB", line)
+
+    def test_a_failing_probe_never_breaks_a_generation(self):
+        with mock.patch.dict(os.environ, {sgs.ENV_MEMORY: "1"}), mock.patch.object(sgs.torch.cuda, "is_available", return_value=True), \
+                mock.patch.object(sgs.torch.cuda, "mem_get_info", side_effect=RuntimeError("driver")):
+            sgs.log_memory("tag")  # must not raise
+
+    def test_no_card_no_line(self):
+        with mock.patch.dict(os.environ, {sgs.ENV_MEMORY: "1"}), mock.patch.object(sgs.torch.cuda, "is_available", return_value=False), \
+                mock.patch.object(sgs.logger, "info") as info:
+            sgs.log_memory("tag")
+        info.assert_not_called()
+
+    def test_nvidia_smi_output_is_read_for_this_process_only(self):
+        text = "1234, 2048\n4321, 512\n"
+        self.assertAlmostEqual(sgs.parse_compute_apps(text, 1234), 2.0)
+        self.assertAlmostEqual(sgs.parse_compute_apps(text, 4321), 0.5)
+        self.assertIsNone(sgs.parse_compute_apps(text, 99))
+        self.assertIsNone(sgs.parse_compute_apps("", 1))
+        self.assertIsNone(sgs.parse_compute_apps("1234, [N/A]\n", 1234))
+        with mock.patch.object(sgs.subprocess, "run", side_effect=FileNotFoundError("no nvidia-smi")):
+            self.assertIsNone(sgs._process_used_gb())
+
+    @torch.no_grad()
+    def test_the_pools_log_before_and_after_placing_their_blocks(self):
+        decoder, cfg = _tiny_decoder(4)
+        decoder.float().eval()
+        pool = sgs.install(decoder, torch.device("cpu"), torch.bfloat16, resident=2)
+        pool.release_gpu()
+        with mock.patch.object(sgs, "log_memory") as log:
+            pool.ensure_gpu()
+        tags = [call.args[0] for call in log.call_args_list]
+        self.assertEqual(tags, ["DiT: before placing the blocks", "DiT: 2 resident blocks placed"])
+
+    def test_the_condition_encoder_pool_has_its_own_name(self):
+        model, cfg = _tiny_condition_model()
+        pool = sgs.install_encoder(model, torch.device("cpu"), torch.bfloat16)
+        self.assertEqual(pool.label, "condition encoder")
+
+    def test_the_memory_is_logged_around_the_condition_encoder(self):
+        model = types.SimpleNamespace(prepare_condition=mock.Mock(return_value="done"))
+        tags = []
+        with mock.patch.object(sgs, "log_memory", side_effect=tags.append), mock.patch.object(sgs, "_ENCODER_POOL", mock.Mock()):
+            sgs.wrap_prepare_condition(model)
+            self.assertEqual(model.prepare_condition(), "done")
+        self.assertEqual(tags, ["start of a generation", "after the condition encoder"])
+
+    def test_the_memory_is_logged_after_the_audio_decoding_even_when_it_fails(self):
+        handler = types.SimpleNamespace(vae=mock.Mock())
+        handler.vae.to.return_value = handler.vae
+        tags = []
+        cuda = [
+            mock.patch.object(sgs.torch.cuda, "empty_cache"),
+            mock.patch.object(sgs.torch.cuda, "mem_get_info", return_value=(6 * self.GB, 8 * self.GB)),
+            mock.patch.object(sgs.torch.cuda, "get_device_name", return_value="fake"),
+            mock.patch.object(sgs.torch.cuda, "reset_peak_memory_stats"),
+        ]
+        latents = mock.Mock()
+        latents.to.return_value = latents
+        for p in cuda:
+            p.start()
+        try:
+            with mock.patch.object(sgs, "release_gpu"), mock.patch.object(sgs, "log_memory", side_effect=tags.append), \
+                    mock.patch.object(sgs, "decode_with_ladder", side_effect=RuntimeError("boom")):
+                with self.assertRaises(RuntimeError):
+                    sgs.tiled_decode_on_card(handler, latents)
+        finally:
+            mock.patch.stopall()
+        self.assertEqual(tags, ["after the audio decoding"])
+
+
 class LazyStatsTests(unittest.TestCase):
     """The timings are read once at the report, not after every block (a wait per block would stop the card's queue from filling)."""
 
