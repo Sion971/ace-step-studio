@@ -715,6 +715,65 @@ class VaeDecodeLadderTests(unittest.TestCase):
         self.assertEqual(used, 256)
 
 
+class OffloadContextInStreamModeTests(unittest.TestCase):
+    """In stream mode the engine's model contexts move nothing, so their memory trims are skipped (one is kept)."""
+
+    def _host(self):
+        from acestep.core.generation.handler.init_service_offload_context import InitServiceOffloadContextMixin
+
+        class Host(InitServiceOffloadContextMixin):
+            offload_to_cpu = True
+            offload_dit_to_cpu = True
+            device = "cpu"
+            dtype = torch.float32
+            current_offload_cost = 0.0
+
+            def __init__(self):
+                self.model, self.vae, self.text_encoder = nn.Linear(2, 2), nn.Linear(2, 2), nn.Linear(2, 2)
+                self.trims = 0
+                self.moves = 0
+
+            def _get_rss_mb(self):
+                return 1.0
+
+            def _get_vae_dtype(self, device=None):
+                return torch.float32
+
+            def _recursive_to_device(self, *args, **kwargs):
+                self.moves += 1
+
+            def _release_system_memory(self):
+                self.trims += 1
+
+        return Host()
+
+    def test_regular_mode_still_trims_after_every_move(self):
+        host = self._host()
+        with mock.patch.object(sgs, "_ACTIVE_POOL", None):
+            for name in ("vae", "text_encoder", "model", "vae"):
+                with host._load_model_context(name):
+                    pass
+        self.assertEqual(host.trims, 8)
+        self.assertEqual(host.moves, 8)
+
+    def test_stream_mode_moves_nothing_and_trims_once_after_the_dit(self):
+        host = self._host()
+        with mock.patch.object(sgs, "_ACTIVE_POOL", mock.Mock()):
+            for name in ("vae", "text_encoder", "model", "vae"):
+                with host._load_model_context(name):
+                    pass
+        self.assertEqual(host.moves, 0)
+        self.assertEqual(host.trims, 1)
+
+    def test_stream_mode_still_trims_when_the_dit_fails(self):
+        host = self._host()
+        with mock.patch.object(sgs, "_ACTIVE_POOL", mock.Mock()):
+            with self.assertRaises(RuntimeError):
+                with host._load_model_context("model"):
+                    raise RuntimeError("boom")
+        self.assertEqual(host.trims, 1)
+
+
 class NoiseParityTests(unittest.TestCase):
     """The starting noise is drawn the way the regular card mode draws it, so a seed gives the same track in both modes."""
 

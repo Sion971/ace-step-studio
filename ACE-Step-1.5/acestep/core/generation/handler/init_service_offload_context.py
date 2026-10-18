@@ -5,6 +5,8 @@ from contextlib import contextmanager
 
 from loguru import logger
 
+from . import small_gpu_stream
+
 try:
     from acestep.models.common.memory_utils import (
         pin_module_memory, unpin_module_memory, PINNED_MEMORY_ENABLED,
@@ -25,6 +27,19 @@ class InitServiceOffloadContextMixin:
         """Load a model to device for the context and offload back to CPU on exit."""
         if not self.offload_to_cpu:
             yield
+            return
+
+        if small_gpu_stream.active():
+            # Small-card stream mode: the engine runs on the processor, so "loading" and "offloading" move nothing
+            # (the logs show a memory change of 0 MB). The card is used by the stream pools, which give it back
+            # themselves. The memory trims done around every move (garbage collection and malloc_trim on a heap of
+            # about 20 GB) reclaimed nothing here but cost about 0.35 s each, ten times per generation. One trim is
+            # kept per generation, when the DiT context ends (the biggest transient memory of a generation).
+            try:
+                yield
+            finally:
+                if model_name == "model":
+                    self._release_system_memory()
             return
 
         if model_name == "model" and not self.offload_dit_to_cpu:
