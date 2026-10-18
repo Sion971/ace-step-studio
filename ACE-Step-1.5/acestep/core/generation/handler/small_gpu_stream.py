@@ -1231,6 +1231,24 @@ def decode_with_ladder(handler: Any, latents: torch.Tensor, ladder: List[int], c
     return (pieces[0] if len(pieces) == 1 else torch.cat(pieces, dim=0)), used
 
 
+def drop_card_leftovers(module: nn.Module, on_card: Any = None) -> int:
+    """Bring back to the processor the plain tensors a module keeps on the card after ``module.to("cpu")``; returns the bytes moved.
+
+    ``Module.to`` moves parameters and buffers only. The audio decoder's convolutions use the (deprecated, hook based)
+    ``weight_norm``, which stores the weight it computes for each forward as an ordinary attribute: after a decode on the card
+    those copies stay there, about 0.3 GB for the VAE, for as long as the Studio runs. ``on_card`` tells whether a tensor is on the
+    card (default: ``tensor.is_cuda``). The next forward recomputes these attributes, so only their place changes.
+    """
+    check = on_card if on_card is not None else (lambda tensor: tensor.is_cuda)
+    moved = 0
+    for sub in module.modules():
+        for name, value in list(sub.__dict__.items()):
+            if torch.is_tensor(value) and check(value):
+                moved += value.numel() * value.element_size()
+                sub.__dict__[name] = value.detach().to("cpu")
+    return moved
+
+
 def tiled_decode_on_card(handler: Any, latents: torch.Tensor) -> torch.Tensor:
     """Decode ``latents`` ([batch, 64, frames]) with the handler's VAE on the card, in float32 tiles.
 
@@ -1266,5 +1284,11 @@ def tiled_decode_on_card(handler: Any, latents: torch.Tensor) -> torch.Tensor:
             handler.vae = handler.vae.to(device="cpu", dtype=torch.float32)
         except Exception as exc:  # pragma: no cover
             logger.warning("[small_gpu_stream] could not move the VAE back to the processor: {}", exc)
+        try:
+            left = drop_card_leftovers(handler.vae)
+            if left:
+                logger.debug("[small_gpu_stream] {:.0f} MB of VAE weights left on the card by the decoder moved back to the processor.", left / 1024 ** 2)
+        except Exception as exc:  # pragma: no cover - freeing memory must never break a generation
+            logger.debug("[small_gpu_stream] could not free the VAE leftovers: {}", exc)
         clear()
         log_memory("after the audio decoding")

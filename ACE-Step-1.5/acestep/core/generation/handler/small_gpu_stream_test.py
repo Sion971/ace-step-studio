@@ -1238,6 +1238,95 @@ class MemoryLogTests(unittest.TestCase):
         self.assertEqual(tags, ["after the audio decoding"])
 
 
+class VaeLeftoversTests(unittest.TestCase):
+    """The decoder's weight_norm keeps its computed weights as plain attributes: Module.to leaves them on the card."""
+
+    def _vae(self):
+        from diffusers import AutoencoderOobleck
+
+        torch.manual_seed(0)
+        vae = AutoencoderOobleck(encoder_hidden_size=16, downsampling_ratios=[2, 2], channel_multiples=[1, 2],
+                                 decoder_channels=16, decoder_input_channels=8, audio_channels=2, sampling_rate=48000).eval()
+        with torch.no_grad():
+            vae.decode(torch.randn(1, 8, 20))
+        return vae
+
+    @staticmethod
+    def _stale(vae):
+        # float64 stands for "the processor": .to(float64) moves parameters and buffers, like .to("cpu") after the card
+        return [(n, k) for n, mod in vae.named_modules() for k, v in mod.__dict__.items() if torch.is_tensor(v) and v.dtype != torch.float64]
+
+    def test_the_real_decoder_leaves_tensors_behind_after_to(self):
+        vae = self._vae()
+        vae.to(torch.float64)
+        self.assertGreater(len(self._stale(vae)), 0)  # the reason for the fix
+
+    def test_they_are_moved_and_counted(self):
+        vae = self._vae()
+        vae.to(torch.float64)
+        modules = dict(vae.named_modules())
+        before = {(n, k): v for n, mod in modules.items() for k, v in mod.__dict__.items() if torch.is_tensor(v) and v.dtype != torch.float64}
+        expected = sum(v.numel() * v.element_size() for v in before.values())
+        moved = sgs.drop_card_leftovers(vae, on_card=lambda t: t.dtype != torch.float64)
+        self.assertEqual(moved, expected)
+        self.assertGreater(moved, 0)
+        for (n, k), old in before.items():
+            self.assertIsNot(modules[n].__dict__[k], old)  # every one of them was replaced by its processor copy
+            self.assertTrue(torch.equal(modules[n].__dict__[k], old))
+        self.assertEqual(sgs.drop_card_leftovers(vae, on_card=lambda t: False), 0)
+
+    def test_parameters_and_the_decode_are_untouched(self):
+        vae = self._vae()
+        params = [p.clone() for p in vae.parameters()]
+        latents = torch.randn(1, 8, 20)
+        with torch.no_grad():
+            before = vae.decode(latents).sample
+        sgs.drop_card_leftovers(vae, on_card=lambda t: True)
+        for a, b in zip(params, vae.parameters()):
+            self.assertTrue(torch.equal(a, b))
+        with torch.no_grad():
+            after = vae.decode(latents).sample
+        self.assertTrue(torch.equal(before, after))  # the next forward recomputes the attributes
+
+    def test_nothing_on_the_card_means_nothing_to_do(self):
+        vae = self._vae()
+        weights = {(n, k): v for n, mod in vae.named_modules() for k, v in mod.__dict__.items() if torch.is_tensor(v)}
+        self.assertEqual(sgs.drop_card_leftovers(vae), 0)  # default test: tensor.is_cuda, false on the processor
+        for (n, k), v in weights.items():
+            self.assertIs(dict(vae.named_modules())[n].__dict__[k], v)
+
+    def test_a_graph_attached_copy_is_cut(self):
+        mod = nn.Linear(2, 2)
+        mod.cached = torch.ones(2, requires_grad=True) * 2  # a result with a graph, like a weight computed with gradients on
+        self.assertIsNotNone(mod.cached.grad_fn)
+        sgs.drop_card_leftovers(mod, on_card=lambda t: True)
+        self.assertIsNone(mod.cached.grad_fn)
+
+    def test_the_audio_decoding_frees_them_even_when_it_fails(self):
+        handler = types.SimpleNamespace(vae=mock.Mock())
+        handler.vae.to.return_value = handler.vae
+        latents = mock.Mock()
+        latents.to.return_value = latents
+        order = []
+        cuda = [
+            mock.patch.object(sgs.torch.cuda, "empty_cache"),
+            mock.patch.object(sgs.torch.cuda, "mem_get_info", return_value=(6 * 1024 ** 3, 8 * 1024 ** 3)),
+            mock.patch.object(sgs.torch.cuda, "get_device_name", return_value="fake"),
+            mock.patch.object(sgs.torch.cuda, "reset_peak_memory_stats"),
+        ]
+        for p in cuda:
+            p.start()
+        try:
+            with mock.patch.object(sgs, "release_gpu"), mock.patch.object(sgs, "log_memory", side_effect=lambda tag: order.append(tag)), \
+                    mock.patch.object(sgs, "drop_card_leftovers", side_effect=lambda vae: order.append("leftovers") or 0), \
+                    mock.patch.object(sgs, "decode_with_ladder", side_effect=RuntimeError("boom")):
+                with self.assertRaises(RuntimeError):
+                    sgs.tiled_decode_on_card(handler, latents)
+        finally:
+            mock.patch.stopall()
+        self.assertEqual(order, ["leftovers", "after the audio decoding"])  # freed before the memory is measured
+
+
 class LazyStatsTests(unittest.TestCase):
     """The timings are read once at the report, not after every block (a wait per block would stop the card's queue from filling)."""
 
