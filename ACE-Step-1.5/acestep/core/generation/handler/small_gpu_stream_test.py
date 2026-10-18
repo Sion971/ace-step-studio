@@ -226,6 +226,188 @@ class StreamingEquivalenceTests(unittest.TestCase):
             sgs.install(decoder, torch.device("cpu"))
 
 
+class ResidentAndComputeTests(unittest.TestCase):
+    """The options for cards that are not tiny: blocks kept on the card, and computing in bfloat16."""
+
+    CPU = torch.device("cpu")
+
+    def _decoders(self, layers=6):
+        decoder, cfg = _tiny_decoder(layers)
+        decoder.float().eval()
+        reference = copy.deepcopy(decoder).eval()
+        reference.to(torch.bfloat16).float()  # the streamed copy holds bfloat16-exact weights
+        return decoder, reference, cfg
+
+    @torch.no_grad()
+    def _run(self, layers=6, **options):
+        decoder, reference, cfg = self._decoders(layers)
+        pool = sgs.install(decoder, self.CPU, torch.bfloat16, **options)
+        inputs = _inputs(cfg)
+        return decoder, pool, reference(**inputs, use_cache=False)[0], decoder(**inputs, use_cache=False)[0], inputs
+
+    def test_resident_blocks_give_the_same_output_whatever_their_number(self):
+        for layers in (5, 6):  # odd and even numbers of streamed blocks
+            for resident in range(0, layers + 1):
+                with self.subTest(layers=layers, resident=resident):
+                    _d, pool, ref, out, _i = self._run(layers, resident=resident)
+                    self.assertEqual(pool.resident_n, resident)
+                    self.assertLess((out - ref).abs().max().item(), 1e-4)
+
+    def test_resident_blocks_stay_correct_over_several_steps(self):
+        decoder, reference, cfg = self._decoders()
+        pool = sgs.install(decoder, self.CPU, torch.bfloat16, resident=2)
+        inputs = _inputs(cfg)
+        with torch.no_grad():
+            for step in range(4):
+                kw = dict(inputs, timestep=torch.tensor([1.0 - 0.2 * step]))
+                ref = reference(**kw, use_cache=False)[0]
+                out = decoder(**kw, use_cache=False)[0]
+                self.assertLess((out - ref).abs().max().item(), 1e-4, f"step {step}")
+        self.assertEqual(len(pool.resident), 2)
+
+    def test_when_everything_is_resident_there_are_no_slots(self):
+        _d, pool, _ref, _out, _i = self._run(6, resident=6)
+        self.assertEqual(pool.slots, [])
+        self.assertEqual(len(pool.resident), 6)
+
+    def test_resident_blocks_hold_their_own_weights_and_attributes(self):
+        _d, pool, _ref, _out, _i = self._run(6, resident=3)
+        kinds = {m.__dict__.get("attention_type") for m in pool.resident}
+        self.assertTrue(kinds <= {"sliding_attention", "full_attention"})
+        for index, module in enumerate(pool.resident):
+            for dst, src in zip(module.parameters(), pool.cpu_params[index]):
+                self.assertTrue(torch.equal(dst.detach().to(torch.bfloat16), src))
+                self.assertFalse(dst.requires_grad)
+
+    @torch.no_grad()
+    def test_releasing_and_rebuilding_keeps_the_output(self):
+        decoder, pool, _ref, before, inputs = self._run(6, resident=3)
+        pool.release_gpu()
+        self.assertEqual((pool.resident, pool.slots), ([], []))
+        after = decoder(**inputs, use_cache=False)[0]
+        self.assertEqual(len(pool.resident), 3)
+        self.assertTrue(torch.equal(before, after))
+
+    def test_bfloat16_compute_stays_close_and_comes_back_in_float32(self):
+        decoder, reference, cfg = self._decoders()
+        pool = sgs.install(decoder, self.CPU, torch.bfloat16, compute_dtype=torch.bfloat16, resident=2)
+        inputs = _inputs(cfg)
+        with torch.no_grad():
+            ref = reference(**inputs, use_cache=False)[0]
+            out = decoder(**inputs, use_cache=False)[0]
+        self.assertEqual(out.dtype, torch.float32)  # the engine on the processor keeps working in float32
+        self.assertTrue(all(p.dtype == torch.bfloat16 for p in pool.slot_params[0]))
+        self.assertTrue(all(p.dtype == torch.bfloat16 for p in pool.resident[0].parameters()))
+        self.assertTrue(torch.isfinite(out).all())
+        rel = ((out - ref).norm() / ref.norm()).item()
+        self.assertLess(rel, 0.05)
+
+    def test_narrow_formats_never_turn_a_mask_into_infinity(self):
+        mask = torch.tensor([[0.0, float("-inf"), torch.finfo(torch.float32).min]])
+        out = sgs._to_device(mask, self.CPU, torch.bfloat16)
+        self.assertEqual(out.dtype, torch.bfloat16)
+        self.assertTrue(torch.isfinite(out).all())
+        wide = sgs._to_device(mask, self.CPU)  # float32: untouched, as before
+        self.assertTrue(torch.isinf(wide).any())
+        self.assertEqual(sgs._to_cpu(out).dtype, torch.float32)
+        ints = torch.tensor([1, 2])
+        self.assertEqual(sgs._to_cpu(sgs._to_device(ints, self.CPU, torch.bfloat16)).dtype, torch.int64)
+
+    def test_auto_fills_the_free_memory_minus_the_reserve(self):
+        decoder, _cfg = _tiny_decoder(6)
+        pool = sgs.install(decoder, self.CPU, torch.bfloat16)
+        pool.resident_request = "auto"
+        pool.cuda = True  # only to let the sizing run: nothing touches a card in this test
+        block, reserve = pool.bytes_on_card, 1000
+        pool.reserve_bytes = reserve
+        cases = [
+            (reserve + 6 * block, 6),             # everything fits: nothing to stream
+            (reserve + 5 * block, 3),             # two slots are kept for the others: (5 - 2) blocks
+            (reserve + 2 * block, 0),
+            (10, 0),                              # less than the reserve
+        ]
+        for free, expected in cases:
+            with self.subTest(free=free):
+                pool._free_bytes = lambda free=free: free
+                self.assertEqual(pool._resident_target(), expected)
+        pool.resident_cap = 2  # lowered by an earlier out-of-memory error
+        pool._free_bytes = lambda: reserve + 6 * block
+        self.assertEqual(pool._resident_target(), 2)
+        pool.cuda = False
+        self.assertEqual(pool._resident_target(), 0)  # on the processor, "auto" has nothing to fit
+
+    @staticmethod
+    def _fail_once(module):
+        original = module.forward
+        state = {"failed": 0}
+
+        def forward(*args, **kwargs):
+            if state["failed"] == 0:
+                state["failed"] = 1
+                raise torch.cuda.OutOfMemoryError("CUDA out of memory (simulated)")
+            return original(*args, **kwargs)
+
+        module.forward = forward
+        return state
+
+    @torch.no_grad()
+    def test_out_of_memory_halves_the_resident_blocks_and_retries(self):
+        decoder, reference, cfg = self._decoders(6)
+        pool = sgs.install(decoder, self.CPU, torch.bfloat16, resident=4)
+        inputs = _inputs(cfg)
+        state = self._fail_once(pool.resident[1])
+        out = decoder(**inputs, use_cache=False)[0]
+        ref = reference(**inputs, use_cache=False)[0]
+        self.assertEqual(state["failed"], 1)
+        self.assertEqual((pool.resident_n, pool.resident_cap, len(pool.resident)), (2, 2, 2))
+        self.assertLess((out - ref).abs().max().item(), 1e-4)
+        # the lower number is kept for the next generations, even after the card was given back
+        pool.release_gpu()
+        again = decoder(**inputs, use_cache=False)[0]
+        self.assertEqual(pool.resident_n, 2)
+        self.assertLess((again - ref).abs().max().item(), 1e-4)
+
+    @torch.no_grad()
+    def test_out_of_memory_with_everything_resident_creates_the_slots(self):
+        decoder, reference, cfg = self._decoders(6)
+        pool = sgs.install(decoder, self.CPU, torch.bfloat16, resident=6)
+        self.assertEqual(pool.slots, [])
+        inputs = _inputs(cfg)
+        self._fail_once(pool.resident[0])
+        out = decoder(**inputs, use_cache=False)[0]
+        self.assertEqual(pool.resident_n, 3)
+        self.assertEqual(len(pool.slots), 2)
+        self.assertLess((out - reference(**inputs, use_cache=False)[0]).abs().max().item(), 1e-4)
+
+    @torch.no_grad()
+    def test_out_of_memory_without_resident_blocks_is_reported(self):
+        decoder, cfg = _tiny_decoder(4)
+        decoder.float().eval()
+        pool = sgs.install(decoder, self.CPU, torch.bfloat16)
+        self._fail_once(pool.slots[0])
+        with self.assertRaises(torch.cuda.OutOfMemoryError):
+            decoder(**_inputs(cfg), use_cache=False)
+
+    def test_options_are_read_from_the_environment(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(sgs.compute_dtype_from_env(), torch.float32)
+            self.assertEqual(sgs.resident_from_env(), 0)
+            self.assertEqual(sgs.reserve_bytes_from_env(), int(2.5 * 1024**3))
+        env = {sgs.ENV_COMPUTE: "BF16", sgs.ENV_RESIDENT: " Auto ", sgs.ENV_RESERVE: "1.5"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertEqual(sgs.compute_dtype_from_env(), torch.bfloat16)
+            self.assertEqual(sgs.resident_from_env(), "auto")
+            self.assertEqual(sgs.reserve_bytes_from_env(), int(1.5 * 1024**3))
+        with mock.patch.dict(os.environ, {sgs.ENV_RESIDENT: "7", sgs.ENV_COMPUTE: "nonsense"}, clear=True):
+            self.assertEqual(sgs.resident_from_env(), 7)
+            self.assertEqual(sgs.compute_dtype_from_env(), torch.float32)
+        with mock.patch.dict(os.environ, {sgs.ENV_RESIDENT: "-3", sgs.ENV_RESERVE: "x"}, clear=True):
+            self.assertEqual(sgs.resident_from_env(), 0)
+            self.assertEqual(sgs.reserve_bytes_from_env(), int(2.5 * 1024**3))
+        with mock.patch.dict(os.environ, {sgs.ENV_RESIDENT: "many"}, clear=True):
+            self.assertEqual(sgs.resident_from_env(), 0)
+
+
 class ConditionEncoderTests(unittest.TestCase):
     @staticmethod
     def _count_calls(model):

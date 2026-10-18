@@ -19,6 +19,16 @@ streamed output equal to the processor output (relative difference 2e-6).
 
 Opt-in: ``ACESTEP_SMALL_GPU_STREAM=1`` (written by the Studio launcher for cards of 3 GB or less).
 Not supported in this mode: LoRA adapters (the blocks are replaced by streamed proxies).
+
+Larger cards (6 to 8 GB, a DiT that does not fit): two options make the same mechanism faster, both off by default
+so that the 2 GB behaviour is unchanged.
+
+* ``ACESTEP_STREAM_COMPUTE=bfloat16``: the card computes in bfloat16 (the format the checkpoints are shipped in)
+  instead of float32. A card from the Turing generation on does this natively; the 2 GB card above (Pascal) does not.
+* ``ACESTEP_STREAM_RESIDENT=auto`` (or a number of blocks): the first blocks stay on the card for good, so only
+  the others cross the bus at every step. ``auto`` keeps as many as the free memory allows, minus
+  ``ACESTEP_STREAM_RESERVE_GB`` (default 2.5) for the activations. If the card still runs out of memory in the
+  middle of a block, the resident blocks are halved and that block is retried (and the lower number is kept).
 """
 
 from __future__ import annotations
@@ -35,6 +45,10 @@ from torch import nn
 ENV_FLAG = "ACESTEP_SMALL_GPU_STREAM"
 ENV_VAE_CHUNK = "ACESTEP_STREAM_VAE_CHUNK"
 ENV_CPU_DTYPE = "ACESTEP_STREAM_CPU_DTYPE"
+ENV_COMPUTE = "ACESTEP_STREAM_COMPUTE"
+ENV_RESIDENT = "ACESTEP_STREAM_RESIDENT"
+ENV_RESERVE = "ACESTEP_STREAM_RESERVE_GB"
+DEFAULT_RESERVE_GB = 2.5
 DEFAULT_VAE_CHUNK = 96
 DEFAULT_VAE_OVERLAP = 16
 _SIMPLE_TYPES = (int, float, bool, str, type(None))
@@ -69,6 +83,31 @@ def active() -> bool:
     return _ACTIVE_POOL is not None
 
 
+def compute_dtype_from_env() -> torch.dtype:
+    """Dtype the card computes in: float32 (default, works on every card) or bfloat16."""
+    name = os.environ.get(ENV_COMPUTE, "float32").strip().lower()
+    return torch.bfloat16 if name in ("bfloat16", "bf16") else torch.float32
+
+
+def resident_from_env() -> Any:
+    """Blocks kept on the card: 0 (default), a number, or the string "auto"."""
+    value = os.environ.get(ENV_RESIDENT, "0").strip().lower()
+    if value == "auto":
+        return "auto"
+    try:
+        return max(0, int(value))
+    except ValueError:
+        return 0
+
+
+def reserve_bytes_from_env() -> int:
+    try:
+        gb = float(os.environ.get(ENV_RESERVE, DEFAULT_RESERVE_GB))
+    except ValueError:
+        gb = DEFAULT_RESERVE_GB
+    return int(max(0.0, gb) * 1024**3)
+
+
 def lora_blocked_message() -> Optional[str]:
     """Message to show when a LoRA is requested while the DiT is streamed, else None."""
     if not active():
@@ -82,23 +121,29 @@ def lora_blocked_message() -> Optional[str]:
 # ----------------------------------------------------------------------------------------------------------------
 # Moving call arguments between processor and card
 # ----------------------------------------------------------------------------------------------------------------
-def _to_device(obj: Any, device: torch.device) -> Any:
+def _to_device(obj: Any, device: torch.device, dtype: torch.dtype = torch.float32) -> Any:
     if torch.is_tensor(obj):
         if obj.is_floating_point():
-            return obj.to(device=device, dtype=torch.float32, non_blocking=True)
+            if dtype != torch.float32 and obj.dtype == torch.float32:
+                # A mask holds -inf or the float32 minimum: both would overflow to -inf (then NaN in a fully masked row)
+                # in a narrower format, so values are clamped to its range first. Ordinary activations are unaffected.
+                info = torch.finfo(dtype)
+                obj = obj.clamp(min=info.min, max=info.max)
+            return obj.to(device=device, dtype=dtype, non_blocking=True)
         return obj.to(device=device, non_blocking=True)
     if isinstance(obj, tuple):
-        return tuple(_to_device(o, device) for o in obj)
+        return tuple(_to_device(o, device, dtype) for o in obj)
     if isinstance(obj, list):
-        return [_to_device(o, device) for o in obj]
+        return [_to_device(o, device, dtype) for o in obj]
     if isinstance(obj, dict):
-        return {k: _to_device(v, device) for k, v in obj.items()}
+        return {k: _to_device(v, device, dtype) for k, v in obj.items()}
     return obj  # caches and other objects keep their own tensors (created on the card by the slot)
 
 
 def _to_cpu(obj: Any) -> Any:
     if torch.is_tensor(obj):
-        return obj.to("cpu")
+        # The rest of the engine runs in float32 on the processor, whatever the card computed in.
+        return obj.to("cpu", dtype=torch.float32) if obj.is_floating_point() else obj.to("cpu")
     if isinstance(obj, tuple):
         return tuple(_to_cpu(o) for o in obj)
     if isinstance(obj, list):
@@ -112,14 +157,35 @@ def _to_cpu(obj: Any) -> Any:
 # Block pool
 # ----------------------------------------------------------------------------------------------------------------
 class StreamPool:
-    """All block weights in RAM; two float32 slots on the card that blocks pass through."""
+    """All block weights in RAM; some blocks may stay on the card, the others pass through two slots.
 
-    def __init__(self, real_layers: List[nn.Module], device: torch.device, cpu_dtype: torch.dtype, pin: bool = True):
+    ``resident`` is the number of blocks (the first ones) kept on the card, or ``"auto"`` to fit as many as the
+    free memory allows (minus ``reserve_bytes`` for the activations). ``compute_dtype`` is the format of the card's
+    copies. With the defaults (no resident block, float32) this is the original behaviour.
+    """
+
+    def __init__(
+        self,
+        real_layers: List[nn.Module],
+        device: torch.device,
+        cpu_dtype: torch.dtype,
+        pin: bool = True,
+        compute_dtype: torch.dtype = torch.float32,
+        resident: Any = 0,
+        reserve_bytes: int = int(DEFAULT_RESERVE_GB * 1024**3),
+    ):
         self.dev = device
         self.cuda = device.type == "cuda"
         self.n_slots = 2
         self.count = len(real_layers)
         self.real = real_layers
+        self.compute_dtype = compute_dtype
+        self.resident_request = resident
+        self.reserve_bytes = reserve_bytes
+        self.resident_cap = self.count  # lowered when the card runs out of memory with resident blocks
+        self.resident_n = 0
+        self.resident: List[nn.Module] = []
+        self._logged_resident = -1
         self._check_layers(real_layers)
 
         # RAM copy of every block's parameters (bfloat16 by default: exact for bfloat16 checkpoints, half the
@@ -139,10 +205,14 @@ class StreamPool:
             self.cpu_params.append(tensors)
         self.attrs = [self._snapshot(layer) for layer in real_layers]
         self.bytes_per_layer = sum(t.numel() * t.element_size() for t in self.cpu_params[0])
+        cpu_item = self.cpu_params[0][0].element_size()
+        self.bytes_on_card = self.bytes_per_layer // cpu_item * torch.empty((), dtype=compute_dtype).element_size()
         self._template = real_layers[0]
+        self._skeleton: Optional[nn.Module] = None  # parameter-less copy of a block, to build resident blocks cheaply
         self.slots: List[nn.Module] = []
         self.slot_params: List[List[torch.Tensor]] = []
         self.loaded: List[int] = []
+        self._gpu_ready = False
         self._copy_stream = None
         self._ready: List[Any] = []
         self._free: List[Any] = []
@@ -170,48 +240,122 @@ class StreamPool:
         ]
 
     # -- card memory ---------------------------------------------------------------------------------------------
+    def _free_bytes(self) -> int:
+        """Memory currently free on the card (overridable: tests run on the processor)."""
+        return int(torch.cuda.mem_get_info(self.dev)[0])
+
+    def _resident_target(self) -> int:
+        """How many blocks to keep on the card for this round."""
+        want = self.resident_request
+        if want == "auto":
+            if not self.cuda:
+                return 0
+            room = self._free_bytes() - self.reserve_bytes
+            if room >= self.count * self.bytes_on_card:
+                n = self.count  # everything fits: no streaming at all
+            else:
+                n = int((room - self.n_slots * self.bytes_on_card) // self.bytes_on_card)
+        else:
+            n = int(want)
+        return max(0, min(n, self.count, self.resident_cap))
+
+    def _build_resident(self, index: int) -> nn.Module:
+        if self._skeleton is None:
+            self._skeleton = copy.deepcopy(self._template).to("meta")
+        module = copy.deepcopy(self._skeleton).to_empty(device=self.dev).to(dtype=self.compute_dtype).eval()
+        params = list(module.parameters())
+        for p in params:
+            p.requires_grad_(False)
+        for dst, src in zip(params, self.cpu_params[index]):
+            dst.copy_(src.to(self.dev, non_blocking=self.cuda))
+        for sub, attrs in zip(module.modules(), self.attrs[index]):
+            sub.__dict__.update(attrs)
+        return module
+
     def ensure_gpu(self) -> None:
-        """Create the two float32 slots on the card if they do not exist (first use, or after release_gpu)."""
-        if self.slots:
+        """Put the resident blocks and the two slots on the card if they are not there (first use, or after release_gpu)."""
+        if self._gpu_ready:
             return
         # Normal tensors even when called inside torch.inference_mode(): inference tensors cannot be updated in place
         # from outside inference mode, and the slots are refilled on every block.
-        with torch.inference_mode(False):
-            for _ in range(self.n_slots):
-                slot = copy.deepcopy(self._template).to(device=self.dev, dtype=torch.float32).eval()
-                params = list(slot.parameters())
-                for p in params:
-                    p.requires_grad_(False)
-                self.slots.append(slot)
-                self.slot_params.append(params)
-        self.loaded = [-1] * self.n_slots
+        with torch.inference_mode(False), torch.no_grad():
+            self.resident_n = self._resident_target()
+            self.resident = [self._build_resident(i) for i in range(self.resident_n)]
+            if self.resident_n < self.count:
+                self._make_slots()
+        self._gpu_ready = True
+        if self.resident_n and self.resident_n != self._logged_resident:
+            self._logged_resident = self.resident_n
+            logger.info(
+                "[small_gpu_stream] {} of {} blocks stay on the card ({:.2f} GB); the other {} pass through {} slots.",
+                self.resident_n, self.count, self.resident_n * self.bytes_on_card / 1024**3,
+                self.count - self.resident_n, self.n_slots if self.resident_n < self.count else 0,
+            )
+
+    def _make_slots(self) -> None:
+        """The two slots blocks pass through, and the stream and events that overlap their copies with the computation."""
+        for _ in range(self.n_slots):
+            slot = copy.deepcopy(self._template).to(device=self.dev, dtype=self.compute_dtype).eval()
+            params = list(slot.parameters())
+            for p in params:
+                p.requires_grad_(False)
+            self.slots.append(slot)
+            self.slot_params.append(params)
+        self.loaded = [-1] * len(self.slots)
         if self.cuda:
             self._copy_stream = torch.cuda.Stream(self.dev)
-            self._ready = [torch.cuda.Event() for _ in range(self.n_slots)]
-            self._free = [torch.cuda.Event() for _ in range(self.n_slots)]
+            self._ready = [torch.cuda.Event() for _ in self.slots]
+            self._free = [torch.cuda.Event() for _ in self.slots]
             for ev in self._free:
                 ev.record(torch.cuda.current_stream(self.dev))
 
     def release_gpu(self) -> None:
         """Give the card back (before the VAE decode needs it)."""
-        if not self.slots:
+        if not self._gpu_ready:
             return
         if self.cuda:
             torch.cuda.synchronize(self.dev)
         self.slots, self.slot_params, self.loaded = [], [], []
+        self.resident, self.resident_n = [], 0
         self._copy_stream, self._ready, self._free = None, [], []
+        self._gpu_ready = False
         gc.collect()
         if self.cuda:
             torch.cuda.empty_cache()
 
+    def shrink_resident(self) -> bool:
+        """The card ran out of memory: keep half as many resident blocks from now on. False when there is none left."""
+        if not self._gpu_ready or self.resident_n == 0:
+            return False
+        keep = self.resident_n // 2
+        if self.cuda:
+            torch.cuda.synchronize(self.dev)
+        # Blocks past `keep` are streamed from now on, which needs the two slots (they do not exist when everything was resident).
+        self.resident = self.resident[:keep]
+        self.resident_cap = keep
+        self.resident_n = keep
+        self.loaded = [-1] * len(self.slots)
+        gc.collect()
+        if self.cuda:
+            torch.cuda.empty_cache()
+        logger.warning("[small_gpu_stream] the card ran out of memory: {} block(s) stay resident from now on.", keep)
+        if not self.slots:  # everything was resident: the slots did not exist
+            with torch.inference_mode(False), torch.no_grad():
+                self._make_slots()
+        self._logged_resident = keep
+        return True
+
     # -- streaming -----------------------------------------------------------------------------------------------
+    def _slot_of(self, layer_idx: int) -> int:
+        return (layer_idx - self.resident_n) % self.n_slots
+
     @torch.no_grad()
     def _load(self, layer_idx: int, slot_idx: int) -> None:
         if self.cuda:
             with torch.cuda.stream(self._copy_stream):
                 self._copy_stream.wait_event(self._free[slot_idx])  # the previous computation in this slot is over
                 for dst, src in zip(self.slot_params[slot_idx], self.cpu_params[layer_idx]):
-                    dst.copy_(src.to(self.dev, non_blocking=True))  # bf16 over the bus, float32 on the card
+                    dst.copy_(src.to(self.dev, non_blocking=True))  # bf16 over the bus, converted on the card if needed
                 self._ready[slot_idx].record(self._copy_stream)
         else:
             for dst, src in zip(self.slot_params[slot_idx], self.cpu_params[layer_idx]):
@@ -220,22 +364,34 @@ class StreamPool:
             module.__dict__.update(attrs)  # attention type, layer index... differ from block to block
         self.loaded[slot_idx] = layer_idx
 
+    def _prefetch_after(self, layer_idx: int) -> None:
+        """Start copying the next streamed block while ``layer_idx`` computes."""
+        if self.resident_n >= self.count:
+            return
+        nxt = (layer_idx + 1) % self.count
+        target = nxt if nxt >= self.resident_n else self.resident_n  # resident blocks need no copy: skip to the first streamed one
+        slot = self._slot_of(target)
+        if layer_idx >= self.resident_n and slot == self._slot_of(layer_idx):
+            return  # would overwrite the block being computed
+        if self.loaded[slot] != target:
+            self._load(target, slot)
+
     def acquire(self, layer_idx: int) -> nn.Module:
         self.ensure_gpu()
-        slot = layer_idx % self.n_slots
+        if layer_idx < self.resident_n:
+            self._prefetch_after(layer_idx)
+            return self.resident[layer_idx]
+        slot = self._slot_of(layer_idx)
         if self.loaded[slot] != layer_idx:
             self._load(layer_idx, slot)
         if self.cuda:
             torch.cuda.current_stream(self.dev).wait_event(self._ready[slot])
-        nxt = (layer_idx + 1) % self.count
-        nxt_slot = nxt % self.n_slots
-        if nxt_slot != slot and self.loaded[nxt_slot] != nxt:
-            self._load(nxt, nxt_slot)  # copy of the next block overlaps the computation of this one
+        self._prefetch_after(layer_idx)
         return self.slots[slot]
 
     def release(self, layer_idx: int) -> None:
-        if self.cuda:
-            self._free[layer_idx % self.n_slots].record(torch.cuda.current_stream(self.dev))
+        if self.cuda and layer_idx >= self.resident_n and self._free:
+            self._free[self._slot_of(layer_idx)].record(torch.cuda.current_stream(self.dev))
 
 
 class StreamedLayer(nn.Module):
@@ -261,16 +417,25 @@ class StreamedLayer(nn.Module):
     def forward(self, *args, **kwargs):
         pool: StreamPool = object.__getattribute__(self, "_s_pool")
         index: int = object.__getattribute__(self, "_s_index")
-        slot = pool.acquire(index)
         dev = pool.dev
-        try:
-            out = slot(*_to_device(args, dev), **_to_device(kwargs, dev))
-        except torch.cuda.OutOfMemoryError:
+        while True:
+            slot = pool.acquire(index)
+            ran_out = False
+            try:
+                out = slot(*_to_device(args, dev, pool.compute_dtype), **_to_device(kwargs, dev, pool.compute_dtype))
+            except torch.cuda.OutOfMemoryError:
+                ran_out = True
+            if not ran_out:
+                break
+            # Outside the except block: while it is open the failed call's tensors are still referenced.
+            slot = None
+            if pool.shrink_resident():
+                continue
             logger.error(
                 "[small_gpu_stream] the card ran out of memory in block {}: the track is too long for this card. "
                 "Try a shorter duration (the whole DiT needs about 0.8 GB of VRAM for 30 s of audio).", index,
             )
-            raise
+            raise torch.cuda.OutOfMemoryError(f"out of memory in streamed block {index}")
         pool.release(index)
         return _to_cpu(out)
 
@@ -278,10 +443,18 @@ class StreamedLayer(nn.Module):
 # ----------------------------------------------------------------------------------------------------------------
 # Attaching to the loaded model
 # ----------------------------------------------------------------------------------------------------------------
-def install(decoder: nn.Module, device: torch.device, cpu_dtype: torch.dtype = torch.bfloat16, pin: bool = True) -> StreamPool:
+def install(
+    decoder: nn.Module,
+    device: torch.device,
+    cpu_dtype: torch.dtype = torch.bfloat16,
+    pin: bool = True,
+    compute_dtype: torch.dtype = torch.float32,
+    resident: Any = 0,
+    reserve_bytes: int = int(DEFAULT_RESERVE_GB * 1024**3),
+) -> StreamPool:
     """Replace ``decoder.layers`` by streamed proxies and return the pool (no environment checks)."""
     layers = list(decoder.layers)
-    pool = StreamPool(layers, device, cpu_dtype, pin=pin)
+    pool = StreamPool(layers, device, cpu_dtype, pin=pin, compute_dtype=compute_dtype, resident=resident, reserve_bytes=reserve_bytes)
     decoder.layers = nn.ModuleList([StreamedLayer(i, layer, pool) for i, layer in enumerate(layers)])
     return pool
 
@@ -307,15 +480,21 @@ def attach_if_enabled(model: nn.Module, quantized: bool = False) -> bool:
         cpu_dtype = torch.float32 if dtype_name in ("float32", "fp32") else torch.bfloat16
         device = torch.device("cuda")
         free_before = torch.cuda.mem_get_info(device)[0] / 1024**3
-        pool = install(decoder, device, cpu_dtype)
+        compute_dtype = compute_dtype_from_env()
+        resident = resident_from_env()
+        pool = install(decoder, device, cpu_dtype, compute_dtype=compute_dtype, resident=resident,
+                       reserve_bytes=reserve_bytes_from_env())
         _ACTIVE_POOL = pool
-        attach_encoder(model, device, cpu_dtype)
+        attach_encoder(model, device, cpu_dtype, compute_dtype)
+        if resident:
+            pool.release_gpu()  # the resident blocks are put on the card when the DiT runs, after the condition encoder has finished
         gc.collect()
         logger.info(
             "[small_gpu_stream] DiT streamed through {}: {} blocks, {:.0f} MB per block in {} RAM, "
-            "2 float32 slots on the card ({:.2f} GB free before).",
+            "computed in {} on the card, resident blocks: {} ({:.2f} GB free before).",
             torch.cuda.get_device_name(device), len(layers), pool.bytes_per_layer / 1024**2,
-            "bfloat16" if cpu_dtype == torch.bfloat16 else "float32", free_before,
+            "bfloat16" if cpu_dtype == torch.bfloat16 else "float32",
+            "bfloat16" if compute_dtype == torch.bfloat16 else "float32", resident, free_before,
         )
         return True
     except Exception as exc:
@@ -355,13 +534,19 @@ def _encoder_holders(model: nn.Module) -> List[nn.Module]:
     return holders
 
 
-def install_encoder(model: nn.Module, device: torch.device, cpu_dtype: torch.dtype = torch.bfloat16, pin: bool = True) -> StreamPool:
+def install_encoder(
+    model: nn.Module,
+    device: torch.device,
+    cpu_dtype: torch.dtype = torch.bfloat16,
+    pin: bool = True,
+    compute_dtype: torch.dtype = torch.float32,
+) -> StreamPool:
     """Stream the condition-encoder blocks of ``model`` through one pool (no environment checks)."""
     holders = _encoder_holders(model)
     if not holders:
         raise RuntimeError("no condition-encoder layers found")
     flat = [layer for holder in holders for layer in holder.layers]
-    pool = StreamPool(flat, device, cpu_dtype, pin=pin)
+    pool = StreamPool(flat, device, cpu_dtype, pin=pin, compute_dtype=compute_dtype)
     index = 0
     for holder in holders:
         proxies = []
@@ -422,11 +607,11 @@ def inspect_bind(func: Any, args: tuple, kwargs: dict) -> dict:
     return dict(bound.arguments)
 
 
-def attach_encoder(model: nn.Module, device: torch.device, cpu_dtype: torch.dtype) -> bool:
+def attach_encoder(model: nn.Module, device: torch.device, cpu_dtype: torch.dtype, compute_dtype: torch.dtype = torch.float32) -> bool:
     """Stream the condition encoder and skip the useless cover step. Never raises (the encoder then stays on the processor)."""
     global _ENCODER_POOL
     try:
-        pool = install_encoder(model, device, cpu_dtype)
+        pool = install_encoder(model, device, cpu_dtype, compute_dtype=compute_dtype)
         wrap_prepare_condition(model)
         _ENCODER_POOL = pool
         pool.release_gpu()  # the slots are created again when the encoder runs, then released before the DiT
