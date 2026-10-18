@@ -1883,6 +1883,12 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     const finalLyrics = instrumental ? '[Instrumental]' : effLyrics;
     const finalStyle = instrumental ? effStyle : styleWithGender;
 
+    // Reset bulk count as soon as the batch is decided (the loop below reads the `bulkCount` of this
+    // render, and it now waits for each submission, so a second click must not see the old value).
+    if (bulkCount > 1) {
+      setBulkCount(1);
+    }
+
     // Bulk generation: loop bulkCount times
     for (let i = 0; i < bulkCount; i++) {
       // Seed handling: first job uses user's seed, rest get random seeds
@@ -1898,7 +1904,12 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       // Pass the pre-created placeholder tempId so App.tsx promotes it instead
       // of creating a duplicate card.
       const tempIdForThisJob = tempIds[i];
-      Promise.resolve(onGenerate({
+      // Un envoi à la fois, dans l'ordre : chaque appel attend que le serveur ait accepté la demande
+      // (il ne l'attend PAS jusqu'à la fin de la génération). Lancés tous ensemble, les envois se
+      // doublaient (limite de connexions du navigateur, requêtes en parallèle côté serveur) et le moteur
+      // recevait « (1), (2), (10), (9), (3)… » : les morceaux sortaient dans le désordre.
+      try {
+        await onGenerate({
         _tempId: tempIdForThisJob,
         customMode: true,
         prompt: finalLyrics,
@@ -2020,8 +2031,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         repaintStrength: taskType === 'repaint' ? repaintStrength : undefined,
         loraLoaded,
 
-      })).catch((e: unknown) => {
-        // onGenerate (App.tsx:handleGenerate) est async mais appelee ici
+      });
+      } catch (e: unknown) {
+        // onGenerate (App.tsx:handleGenerate) est async. Avant, elle etait appelee ici
         // sans await ni .catch — toute exception, meme dans son tout premier
         // bloc synchrone (avant son propre try/catch interne), devenait une
         // rejection de promesse JAMAIS interceptee : ni ici (pas d'await),
@@ -2038,16 +2050,11 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         console.error('[CreatePanel] onGenerate a echoue silencieusement :', e);
         decrementPendingClicks?.(1);
         if (removeTempSongForClick) removeTempSongForClick(tempIdForThisJob);
-      });
+      }
     }
 
     // Don't reset BPM/Key/Duration — user's manual values should persist.
     // Auto (0/'') means the model picks, manual values stay as set.
-
-    // Reset bulk count after generation
-    if (bulkCount > 1) {
-      setBulkCount(1);
-    }
     } catch (e) {
       // Hard failure inside handleGenerate (rare — pre-flight already has its
       // own catch). Release every slot we claimed so the badge doesn't stick.
