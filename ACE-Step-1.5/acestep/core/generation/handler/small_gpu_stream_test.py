@@ -591,6 +591,161 @@ class ConditionEncoderTests(unittest.TestCase):
         enc.release_gpu.assert_called_once()
 
 
+class ConditionCacheTests(unittest.TestCase):
+    """Identical passes of the condition encoder inside one generation are computed once."""
+
+    def setUp(self):
+        sgs.clear_condition_cache()
+        self.addCleanup(sgs.clear_condition_cache)
+
+    def _model(self):
+        model, cfg = _tiny_condition_model()
+        reference = copy.deepcopy(model)
+        runs = {"n": 0}
+
+        def count(_m, _a, _o):
+            runs["n"] += 1
+
+        model.encoder.register_forward_hook(count)
+        sgs.wrap_prepare_condition(model)
+        return model, reference, cfg, runs
+
+    @torch.no_grad()
+    def test_a_second_identical_call_is_not_computed_again(self):
+        model, reference, cfg, runs = self._model()
+        inputs = _condition_inputs(cfg)
+        want = reference.prepare_condition(**inputs)
+        first = model.prepare_condition(**inputs)
+        second = model.prepare_condition(**inputs)
+        self.assertEqual(runs["n"], 1)
+        for a, b, c in zip(want, first, second):
+            self.assertTrue(torch.equal(a, b))
+            self.assertTrue(torch.equal(a, c))
+
+    @torch.no_grad()
+    def test_none_passed_explicitly_or_left_out_is_the_same_call(self):
+        model, _reference, cfg, runs = self._model()
+        inputs = _condition_inputs(cfg)
+        model.prepare_condition(**inputs)  # like the engine's first pass: optional arguments left out
+        model.prepare_condition(**inputs, precomputed_lm_hints_25Hz=None, audio_codes=None)  # like generate_audio
+        self.assertEqual(runs["n"], 1)
+
+    @torch.no_grad()
+    def test_the_reused_result_is_a_copy(self):
+        model, reference, cfg, runs = self._model()
+        inputs = _condition_inputs(cfg)
+        want = reference.prepare_condition(**inputs)
+        first = model.prepare_condition(**inputs)
+        second = model.prepare_condition(**inputs)
+        for tensor in list(second) + list(first):
+            tensor.zero_()  # a consumer changing its tensors in place must not reach the saved result
+        third = model.prepare_condition(**inputs)
+        self.assertEqual(runs["n"], 1)
+        for a, b in zip(want, third):
+            self.assertTrue(torch.equal(a, b))
+
+    @torch.no_grad()
+    def test_changing_the_inputs_afterwards_does_not_reach_the_saved_call(self):
+        model, reference, cfg, runs = self._model()
+        inputs = _condition_inputs(cfg)
+        want = reference.prepare_condition(**inputs)
+        model.prepare_condition(**inputs)
+        inputs["lyric_hidden_states"].add_(1.0)  # the caller reuses and changes its tensor
+        got = model.prepare_condition(**inputs)
+        self.assertEqual(runs["n"], 2)
+        changed = reference.prepare_condition(**inputs)
+        self.assertFalse(torch.equal(want[0], changed[0]))
+        for a, b in zip(changed, got):
+            self.assertTrue(torch.equal(a, b))
+
+    @torch.no_grad()
+    def test_a_single_different_value_is_a_new_computation(self):
+        model, reference, cfg, runs = self._model()
+        inputs = _condition_inputs(cfg)
+        model.prepare_condition(**inputs)
+        other = dict(inputs, text_hidden_states=inputs["text_hidden_states"].clone())
+        other["text_hidden_states"][0, 0, 0] += 1e-3
+        got = model.prepare_condition(**other)
+        self.assertEqual(runs["n"], 2)
+        for a, b in zip(reference.prepare_condition(**other), got):
+            self.assertTrue(torch.equal(a, b))
+
+    @torch.no_grad()
+    def test_another_dtype_or_a_cover_flag_is_a_new_computation(self):
+        model, _reference, cfg, runs = self._model()
+        inputs = _condition_inputs(cfg)
+        model.prepare_condition(**inputs)
+        model.prepare_condition(**dict(inputs, is_covers=torch.tensor([1])))
+        self.assertEqual(runs["n"], 2)
+        different = dict(inputs, text_attention_mask=inputs["text_attention_mask"].to(torch.int32))
+        model.prepare_condition(**different)
+        self.assertEqual(runs["n"], 3)
+
+    @torch.no_grad()
+    def test_the_end_of_a_generation_clears_the_saved_results(self):
+        model, _reference, cfg, runs = self._model()
+        inputs = _condition_inputs(cfg)
+        model.prepare_condition(**inputs)
+        with mock.patch.object(sgs, "_ACTIVE_POOL", None), mock.patch.object(sgs, "_ENCODER_POOL", None):
+            sgs.release_gpu()
+        model.prepare_condition(**inputs)
+        self.assertEqual(runs["n"], 2)
+
+    @torch.no_grad()
+    def test_it_can_be_switched_off(self):
+        model, _reference, cfg, runs = self._model()
+        inputs = _condition_inputs(cfg)
+        with mock.patch.dict(os.environ, {sgs.ENV_CONDITION_CACHE: "off"}):
+            model.prepare_condition(**inputs)
+            model.prepare_condition(**inputs)
+        self.assertEqual(runs["n"], 2)
+        self.assertEqual(sgs._CONDITION_CACHE, [])
+
+    @torch.no_grad()
+    def test_only_the_last_few_distinct_calls_are_kept(self):
+        model, _reference, cfg, runs = self._model()
+        base = _condition_inputs(cfg)
+        variants = [dict(base, chunk_masks=base["chunk_masks"] * (i + 2)) for i in range(sgs._CONDITION_CACHE_LIMIT + 1)]
+        for v in variants:
+            model.prepare_condition(**v)
+        self.assertEqual(len(sgs._CONDITION_CACHE), sgs._CONDITION_CACHE_LIMIT)
+        model.prepare_condition(**variants[-1])  # still saved
+        self.assertEqual(runs["n"], len(variants))
+        model.prepare_condition(**variants[0])  # dropped: computed again
+        self.assertEqual(runs["n"], len(variants) + 1)
+
+    @torch.no_grad()
+    def test_a_failing_call_saves_nothing(self):
+        model, _reference, cfg, runs = self._model()
+        inputs = _condition_inputs(cfg)
+        bad = dict(inputs, text_hidden_states=torch.zeros(1, 6, cfg.text_hidden_dim + 1))
+        with self.assertRaises(Exception):
+            model.prepare_condition(**bad)
+        self.assertEqual(sgs._CONDITION_CACHE, [])
+        model.prepare_condition(**inputs)
+        self.assertEqual(len(sgs._CONDITION_CACHE), 1)
+
+    def test_calls_without_any_tensor_are_not_saved(self):
+        model = types.SimpleNamespace(prepare_condition=mock.Mock(return_value="done"))
+        sgs.wrap_prepare_condition(model)
+        self.assertEqual(model.prepare_condition(), "done")
+        self.assertEqual(model.prepare_condition(), "done")
+        self.assertEqual(sgs._CONDITION_CACHE, [])
+
+    def test_same_value_rules(self):
+        t = torch.ones(2)
+        self.assertTrue(sgs._same_value(t, t.clone()))
+        self.assertFalse(sgs._same_value(t, t.double()))
+        self.assertFalse(sgs._same_value(t, torch.ones(3)))
+        self.assertFalse(sgs._same_value(t, None))
+        self.assertTrue(sgs._same_value(None, None))
+        self.assertFalse(sgs._same_value(1, 1.0))
+        self.assertFalse(sgs._same_value(True, 1))
+        self.assertTrue(sgs._same_value([t, 2], (t.clone(), 2)) is False)  # list vs tuple differ
+        self.assertTrue(sgs._same_value([t, 2], [t.clone(), 2]))
+        self.assertFalse(sgs._same_value(torch.tensor([float("nan")]), torch.tensor([float("nan")])))
+
+
 class VaeRoutingTests(unittest.TestCase):
     def test_tiled_decode_goes_through_the_card_when_the_mode_is_active(self):
         from acestep.core.generation.handler.vae_decode import VaeDecodeMixin

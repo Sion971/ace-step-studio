@@ -70,6 +70,7 @@ ENV_NOISE = "ACESTEP_STREAM_NOISE"
 ENV_CHECK = "ACESTEP_STREAM_CHECK"
 ENV_ACTIVATIONS = "ACESTEP_STREAM_ACTIVATIONS"
 ENV_MEMORY = "ACESTEP_STREAM_MEMORY"
+ENV_CONDITION_CACHE = "ACESTEP_STREAM_CONDITION_CACHE"
 DEFAULT_RESERVE_GB = 2.5
 DEFAULT_VAE_CHUNK = 96
 DEFAULT_VAE_OVERLAP = 16
@@ -1018,6 +1019,7 @@ def release_gpu() -> None:
     """Free the card's slots (DiT and condition encoder); they are recreated on the next use."""
     log_stats()
     report_checks()
+    clear_condition_cache()
     if _ACTIVE_POOL is not None:
         _ACTIVE_POOL.release_gpu()
     if _ENCODER_POOL is not None:
@@ -1082,21 +1084,98 @@ def _is_plain_generation(is_covers: Any, precomputed_lm_hints_25Hz: Any, audio_c
     return not bool((is_covers > 0).any())
 
 
+# The engine runs ``prepare_condition`` more than once per generation with inputs that are often identical: once in
+# ``_execute_service_generate_diffusion`` and again inside ``generate_audio`` (and a third time there for the
+# "non-cover" condition when the cover strength is below 1, which the Studio sends by default). Each pass streams the
+# condition encoder through the card (about 0.6 s at 30 s). The result is a pure function of the inputs, so an
+# identical call can return the earlier result: a few small tensors are compared, never a different answer.
+_CONDITION_CACHE: list = []
+_CONDITION_CACHE_LIMIT = 3
+
+
+def condition_cache_enabled() -> bool:
+    """``ACESTEP_STREAM_CONDITION_CACHE=off`` (or 0 / no / false) runs every pass of the condition encoder."""
+    return os.environ.get(ENV_CONDITION_CACHE, "auto").strip().lower() not in ("off", "0", "no", "false")
+
+
+def clear_condition_cache() -> None:
+    """Forget the saved condition results (end of a generation: the next one starts from its own inputs)."""
+    _CONDITION_CACHE.clear()
+
+
+def _same_value(a: Any, b: Any) -> bool:
+    """Exact equality of two call arguments (tensors by shape, dtype, device and every element)."""
+    if torch.is_tensor(a) or torch.is_tensor(b):
+        return (torch.is_tensor(a) and torch.is_tensor(b) and a.shape == b.shape and a.dtype == b.dtype
+                and a.device == b.device and bool(torch.equal(a, b)))
+    if isinstance(a, (list, tuple)) or isinstance(b, (list, tuple)):
+        return (type(a) is type(b) and len(a) == len(b) and all(_same_value(x, y) for x, y in zip(a, b)))
+    try:
+        return type(a) is type(b) and bool(a == b)
+    except Exception:
+        return False
+
+
+def _snapshot(value: Any) -> Any:
+    """Copy of a call argument or result that later in-place changes of the original cannot reach."""
+    if torch.is_tensor(value):
+        return value.detach().clone()
+    if isinstance(value, (list, tuple)):
+        return type(value)(_snapshot(item) for item in value)
+    return value
+
+
+def _has_tensor(value: Any) -> bool:
+    if torch.is_tensor(value):
+        return True
+    if isinstance(value, (list, tuple)):
+        return any(_has_tensor(item) for item in value)
+    return False
+
+
+def condition_cache_lookup(call: dict) -> Any:
+    """The saved result of an earlier call with exactly these arguments (a fresh copy), or None."""
+    for entry in _CONDITION_CACHE:
+        saved = entry["call"]
+        if saved.keys() == call.keys() and all(_same_value(saved[name], call[name]) for name in call):
+            return _snapshot(entry["result"])
+    return None
+
+
+def condition_cache_store(call: dict, result: Any) -> None:
+    """Remember ``result`` for ``call`` (the last few distinct calls of this generation)."""
+    if not _has_tensor(list(call.values())) or not _has_tensor(result):
+        return
+    _CONDITION_CACHE.append({"call": {name: _snapshot(value) for name, value in call.items()}, "result": _snapshot(result)})
+    del _CONDITION_CACHE[:-_CONDITION_CACHE_LIMIT]
+
+
 def wrap_prepare_condition(model: nn.Module) -> None:
     """Make ``model.prepare_condition`` skip the audio tokenizer/detokenizer when the generation is not a cover.
 
     The engine computes ``torch.where(is_covers > 0, lm_hints, src_latents)``; with no cover in the batch the
     result is ``src_latents`` whatever ``lm_hints`` is, so the tokenizer and detokenizer are replaced by stubs
     returning a tensor of the right shape for the duration of the call. The condition-encoder slots are given
-    back to the card as soon as the call is over.
+    back to the card as soon as the call is over. A call whose arguments equal an earlier call of the same
+    generation returns that call's result instead of streaming the encoder again.
     """
     original = model.prepare_condition
 
     def prepare_condition(*args, **kwargs):
         log_memory("start of a generation")
+        call = None
+        if condition_cache_enabled():
+            try:
+                call = inspect_bind(original, args, kwargs, defaults=True)
+                saved = condition_cache_lookup(call)
+            except Exception:
+                call, saved = None, None
+            if saved is not None:
+                logger.info("[small_gpu_stream] condition encoder: same inputs as an earlier pass of this generation, result reused.")
+                return saved
         try:
-            call = inspect_bind(original, args, kwargs)
-            plain = _is_plain_generation(call.get("is_covers"), call.get("precomputed_lm_hints_25Hz"), call.get("audio_codes"))
+            bound = inspect_bind(original, args, kwargs)
+            plain = _is_plain_generation(bound.get("is_covers"), bound.get("precomputed_lm_hints_25Hz"), bound.get("audio_codes"))
         except Exception:
             plain = False
         stubbed = False
@@ -1105,7 +1184,7 @@ def wrap_prepare_condition(model: nn.Module) -> None:
             model.detokenize = lambda quantized: quantized
             stubbed = True
         try:
-            return original(*args, **kwargs)
+            result = original(*args, **kwargs)
         finally:
             if stubbed:
                 # remove the instance attributes: the class methods are visible again
@@ -1114,14 +1193,23 @@ def wrap_prepare_condition(model: nn.Module) -> None:
             if _ENCODER_POOL is not None:
                 _ENCODER_POOL.release_gpu()
                 log_memory("after the condition encoder")
+        if call is not None:
+            try:
+                condition_cache_store(call, result)
+            except Exception as exc:  # a cache failure must never break a generation
+                logger.debug("[small_gpu_stream] could not save the condition result: {}", exc)
+        return result
 
     model.prepare_condition = prepare_condition
 
 
-def inspect_bind(func: Any, args: tuple, kwargs: dict) -> dict:
+def inspect_bind(func: Any, args: tuple, kwargs: dict, defaults: bool = False) -> dict:
+    """The arguments of a call by name; ``defaults=True`` also fills in the ones the caller left out (None passed or omitted look alike)."""
     import inspect
 
     bound = inspect.signature(func).bind_partial(*args, **kwargs)
+    if defaults:
+        bound.apply_defaults()
     return dict(bound.arguments)
 
 
