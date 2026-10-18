@@ -608,5 +608,159 @@ class VaeRoutingTests(unittest.TestCase):
         self.assertIs(out, sentinel)
 
 
+class NoiseParityTests(unittest.TestCase):
+    """The starting noise is drawn the way the regular card mode draws it, so a seed gives the same track in both modes."""
+
+    CTX_SHAPE = (2, 20, 128)
+
+    def _model(self):
+        model, _cfg = _tiny_condition_model()
+        return model
+
+    def test_the_draw_is_made_in_the_card_format_then_converted(self):
+        model = self._model()
+        context = torch.zeros(self.CTX_SHAPE)
+        plain = model.prepare_noise(context, 123)  # what the processor-side engine drew until now
+        expected = model.prepare_noise(torch.empty(self.CTX_SHAPE, dtype=torch.bfloat16), 123).to(torch.float32)
+        self.assertTrue(sgs.wrap_prepare_noise(model, torch.device("cpu"), torch.bfloat16))
+        noise = model.prepare_noise(context, 123)
+        self.assertEqual(noise.dtype, torch.float32)
+        self.assertEqual(noise.device.type, "cpu")
+        self.assertEqual(tuple(noise.shape), (2, 20, 64))
+        self.assertTrue(torch.equal(noise, expected))
+        self.assertFalse(torch.equal(noise, plain))
+
+    def test_seeds_lists_and_no_seed_keep_their_meaning(self):
+        model = self._model()
+        sgs.wrap_prepare_noise(model, torch.device("cpu"), torch.bfloat16)
+        context = torch.zeros(self.CTX_SHAPE)
+        self.assertTrue(torch.equal(model.prepare_noise(context, 7), model.prepare_noise(context, 7)))
+        self.assertFalse(torch.equal(model.prepare_noise(context, 7), model.prepare_noise(context, 8)))
+        listed = model.prepare_noise(context, [7, 8])
+        self.assertTrue(torch.equal(listed[0], model.prepare_noise(torch.zeros(1, 20, 128), 7)[0]))
+        self.assertFalse(torch.equal(listed[0], listed[1]))
+        self.assertEqual(tuple(model.prepare_noise(context, None).shape), (2, 20, 64))
+
+    def test_it_is_wrapped_only_once_and_a_model_without_the_function_is_left_alone(self):
+        model = self._model()
+        self.assertTrue(sgs.wrap_prepare_noise(model, torch.device("cpu"), torch.bfloat16))
+        self.assertFalse(sgs.wrap_prepare_noise(model, torch.device("cpu"), torch.bfloat16))
+        self.assertFalse(sgs.wrap_prepare_noise(nn.Linear(1, 1), torch.device("cpu")))
+
+    def test_the_old_draw_can_be_brought_back_and_the_format_follows_the_card(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(sgs.ENV_NOISE, None)
+            self.assertTrue(sgs.noise_on_card_from_env())
+        with mock.patch.dict(os.environ, {sgs.ENV_NOISE: "cpu"}):
+            self.assertFalse(sgs.noise_on_card_from_env())
+        with mock.patch("acestep.gpu_config.cuda_supports_bfloat16", return_value=False):
+            self.assertEqual(sgs.regular_card_dtype(), torch.float16)
+        with mock.patch("acestep.gpu_config.cuda_supports_bfloat16", return_value=True):
+            self.assertEqual(sgs.regular_card_dtype(), torch.bfloat16)
+
+
+class SelfCheckTests(unittest.TestCase):
+    """ACESTEP_STREAM_CHECK: each block run on the card is compared with the same block run on the processor."""
+
+    CPU = torch.device("cpu")
+
+    def _pool(self, layers=6, compute=torch.float32, **options):
+        decoder, cfg = _tiny_decoder(layers)
+        decoder.float().eval()
+        pool = sgs.install(decoder, self.CPU, torch.bfloat16, compute_dtype=compute, **options)
+        pool.check = sgs.SelfCheck("DiT", pool.count, compute)
+        return decoder, pool, cfg
+
+    @torch.no_grad()
+    def test_a_correct_streaming_matches_the_processor_in_float32(self):
+        decoder, pool, cfg = self._pool(6, resident=2)
+        decoder(**_inputs(cfg), use_cache=False)
+        self.assertEqual(sorted(pool.check.errors), list(range(6)))
+        self.assertLess(max(rel for rel, _m in pool.check.errors.values()), 1e-5)
+        with mock.patch.object(sgs.logger, "info") as info, mock.patch.object(sgs.logger, "warning") as warn:
+            pool.check.report()
+        warn.assert_not_called()
+        self.assertIn("-> OK", info.call_args_list[0][0][0])
+        self.assertIn("6 of 6 blocks", info.call_args_list[0][0][0])
+
+    @torch.no_grad()
+    def test_the_check_works_with_the_cross_attention_cache_of_the_real_pipeline(self):
+        from transformers.cache_utils import DynamicCache, EncoderDecoderCache
+
+        decoder, pool, cfg = self._pool(4)
+        out = decoder(**_inputs(cfg), use_cache=True, past_key_values=EncoderDecoderCache(DynamicCache(), DynamicCache()))
+        self.assertTrue(torch.isfinite(out[0]).all())
+        self.assertEqual(len(pool.check.errors), 4)
+        self.assertLess(max(rel for rel, _m in pool.check.errors.values()), 1e-5)
+
+    @torch.no_grad()
+    def test_bfloat16_compute_stays_inside_its_limit(self):
+        decoder, pool, cfg = self._pool(6, compute=torch.bfloat16, resident=3)
+        decoder(**_inputs(cfg), use_cache=False)
+        worst = max(rel for rel, _m in pool.check.errors.values())
+        self.assertGreater(worst, 1e-5)  # the format's rounding is really measured
+        self.assertLess(worst, pool.check.limit)
+
+    @torch.no_grad()
+    def test_a_block_corrupted_on_the_card_is_reported_as_suspect(self):
+        decoder, pool, cfg = self._pool(6, resident=1)
+        original = sgs.StreamPool._load
+
+        def corrupting(self_, layer_idx, slot_idx):
+            original(self_, layer_idx, slot_idx)
+            if layer_idx == 3:
+                self_.slot_params[slot_idx][0].add_(2.0)  # the weights that arrive on the card are wrong
+
+        with mock.patch.object(sgs.StreamPool, "_load", corrupting):
+            decoder(**_inputs(cfg), use_cache=False)
+        rels = {i: rel for i, (rel, _m) in pool.check.errors.items()}
+        self.assertGreater(rels[3], pool.check.limit)
+        with mock.patch.object(sgs.logger, "info"), mock.patch.object(sgs.logger, "warning") as warn:
+            pool.check.report()
+        self.assertIn("SUSPECT", warn.call_args[0][0])
+        self.assertIn("block 3", warn.call_args[0][0])
+
+    @torch.no_grad()
+    def test_each_block_is_checked_once_and_the_report_is_given_once(self):
+        decoder, pool, cfg = self._pool(4)
+        decoder(**_inputs(cfg), use_cache=False)
+        first = dict(pool.check.errors)
+        decoder(**_inputs(cfg), use_cache=False)
+        self.assertEqual(first, pool.check.errors)
+        with mock.patch.object(sgs.logger, "info") as info:
+            pool.check.report()
+            pool.check.report()
+        self.assertEqual(info.call_count, 2)  # the summary and the per-block figures, once
+        self.assertFalse(pool.check.wants(0))
+
+    @torch.no_grad()
+    def test_a_failing_reference_never_breaks_the_generation(self):
+        decoder, pool, cfg = self._pool(4)
+        plain = decoder(**_inputs(cfg), use_cache=False)[0]
+        pool.check = sgs.SelfCheck("DiT", pool.count, torch.float32)
+        with mock.patch.object(sgs.copy, "deepcopy", side_effect=RuntimeError("no memory")), \
+                mock.patch.object(sgs.logger, "warning") as warn:
+            out = decoder(**_inputs(cfg), use_cache=False)[0]
+        self.assertTrue(torch.equal(out, plain))
+        self.assertTrue(pool.check.done)
+        self.assertEqual(warn.call_count, 1)
+
+    @torch.no_grad()
+    def test_the_check_is_off_unless_asked_and_does_not_change_the_output(self):
+        decoder, pool, cfg = self._pool(4)
+        with_check = decoder(**_inputs(cfg), use_cache=False)[0]
+        pool.check = None
+        without = decoder(**_inputs(cfg), use_cache=False)[0]
+        self.assertTrue(torch.equal(with_check, without))
+        self.assertIsNone(pool.check)
+
+    def test_the_module_level_report_covers_both_pools(self):
+        dit, enc = mock.Mock(), mock.Mock()
+        with mock.patch.object(sgs, "_ACTIVE_POOL", dit), mock.patch.object(sgs, "_ENCODER_POOL", enc):
+            sgs.report_checks()
+        enc.check.report.assert_called_once()
+        dit.check.report.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -29,6 +29,13 @@ so that the 2 GB behaviour is unchanged.
   the others cross the bus at every step. ``auto`` keeps as many as the free memory allows, minus
   ``ACESTEP_STREAM_RESERVE_GB`` (default 2.5) for the activations. If the card still runs out of memory in the
   middle of a block, the resident blocks are halved and that block is retried (and the lower number is kept).
+
+Same seed, same track as the regular card mode: the engine runs on the processor in this mode, so the starting noise
+would be drawn by the processor's generator (float32), which gives another track than the card's generator (bfloat16)
+for the same seed. The noise is therefore drawn on the card in the format the regular mode uses
+(``ACESTEP_STREAM_NOISE=cpu`` brings the old draw back). ``ACESTEP_STREAM_CHECK=1`` is a diagnostic: during the first
+generation each block computed on the card is compared with the same block computed on the processor in float32, and
+one line says whether the streaming changes the numbers (use a short track: the processor is slow).
 """
 
 from __future__ import annotations
@@ -50,6 +57,8 @@ ENV_COMPUTE = "ACESTEP_STREAM_COMPUTE"
 ENV_RESIDENT = "ACESTEP_STREAM_RESIDENT"
 ENV_RESERVE = "ACESTEP_STREAM_RESERVE_GB"
 ENV_STATS = "ACESTEP_STREAM_STATS"
+ENV_NOISE = "ACESTEP_STREAM_NOISE"
+ENV_CHECK = "ACESTEP_STREAM_CHECK"
 DEFAULT_RESERVE_GB = 2.5
 DEFAULT_VAE_CHUNK = 96
 DEFAULT_VAE_OVERLAP = 16
@@ -118,6 +127,45 @@ def lora_blocked_message() -> Optional[str]:
         "❌ LoRA adapters are not supported in small-GPU mode (the DiT is streamed block by block). "
         "Use a card with more memory or the regular processor mode to apply a LoRA."
     )
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# Starting noise: the same draw as the regular card mode
+# ----------------------------------------------------------------------------------------------------------------
+def noise_on_card_from_env() -> bool:
+    """True (default) when the starting noise is drawn on the card; ``ACESTEP_STREAM_NOISE=cpu`` keeps the processor's draw."""
+    return os.environ.get(ENV_NOISE, "card").strip().lower() != "cpu"
+
+
+def regular_card_dtype() -> torch.dtype:
+    """The format the engine's regular card mode computes in (and therefore draws its noise in)."""
+    try:
+        from acestep.gpu_config import cuda_supports_bfloat16
+
+        return torch.bfloat16 if cuda_supports_bfloat16() else torch.float16
+    except Exception:  # pragma: no cover - the helper is always there in the Studio
+        return torch.bfloat16
+
+
+def wrap_prepare_noise(model: nn.Module, device: torch.device, dtype: Optional[torch.dtype] = None) -> bool:
+    """Make ``model.prepare_noise`` draw its noise on ``device`` in ``dtype``, like the regular card mode, then bring it back.
+
+    The model's own function does the drawing (seeds, lists of seeds, no seed), on a tensor that only carries the shape,
+    the device and the format; the result is converted to the device and format the processor-side engine works in.
+    """
+    original = getattr(model, "prepare_noise", None)
+    if original is None or getattr(original, "_small_gpu_stream_noise", False):
+        return False
+    noise_dtype = dtype if dtype is not None else regular_card_dtype()
+
+    def prepare_noise(context_latents, seed=None):
+        carrier = torch.empty(context_latents.shape, device=device, dtype=noise_dtype)
+        noise = original(carrier, seed)
+        return noise.to(device=context_latents.device, dtype=context_latents.dtype)
+
+    prepare_noise._small_gpu_stream_noise = True
+    model.prepare_noise = prepare_noise
+    return True
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -225,6 +273,86 @@ def format_stats(summary: dict, pinned: Optional[str], resident: int, count: int
     )
 
 
+class SelfCheck:
+    """Diagnostic (``ACESTEP_STREAM_CHECK=1``): compare each streamed block with the same block computed on the processor.
+
+    The first time each block runs, it is run again on the processor in float32 with the same inputs and the two
+    outputs are compared. In float32 the card must match to rounding noise; in bfloat16 it differs by the format's
+    rounding (about one percent per block). A larger gap means the streaming itself changes the numbers.
+    """
+
+    LIMIT_FLOAT32 = 1e-3
+    LIMIT_BFLOAT16 = 5e-2
+
+    def __init__(self, name: str, count: int, compute_dtype: torch.dtype):
+        self.name = name
+        self.count = count
+        self.compute_dtype = compute_dtype
+        self.errors: dict = {}  # block index -> (relative difference, largest absolute difference)
+        self.done = False       # reported, or the processor could not run the reference
+
+    @property
+    def limit(self) -> float:
+        return self.LIMIT_BFLOAT16 if self.compute_dtype != torch.float32 else self.LIMIT_FLOAT32
+
+    def wants(self, index: int) -> bool:
+        return not self.done and index not in self.errors
+
+    @staticmethod
+    def _without_caches(obj: Any) -> Any:
+        """Cache objects hold tensors that live on the card: the reference computes without them."""
+        if torch.is_tensor(obj):
+            return obj
+        if type(obj).__name__.endswith("Cache"):
+            return None
+        if isinstance(obj, tuple):
+            return tuple(SelfCheck._without_caches(o) for o in obj)
+        if isinstance(obj, list):
+            return [SelfCheck._without_caches(o) for o in obj]
+        if isinstance(obj, dict):
+            return {k: SelfCheck._without_caches(v) for k, v in obj.items()}
+        return obj
+
+    @staticmethod
+    def _first_tensor(out: Any) -> torch.Tensor:
+        return out[0] if isinstance(out, (tuple, list)) else out
+
+    def compare(self, index: int, real: nn.Module, args: tuple, kwargs: dict, result: Any) -> None:
+        """Run the block again on the processor (float32) and record how far the card's result is."""
+        try:
+            reference = copy.deepcopy(real).to(device="cpu", dtype=torch.float32).eval()
+            with torch.no_grad():
+                expected = self._first_tensor(reference(*self._without_caches(args), **self._without_caches(kwargs)))
+            got = self._first_tensor(result)
+            diff = (got.float() - expected.float()).abs()
+            rel = float(torch.linalg.vector_norm(got.float() - expected.float()) / (torch.linalg.vector_norm(expected.float()) + 1e-12))
+            self.errors[index] = (rel, float(diff.max()))
+        except Exception as exc:  # a diagnostic must never break a generation
+            logger.warning("[small_gpu_stream] self-check {}: could not compute block {} on the processor ({}: {}); check stopped.",
+                           self.name, index, type(exc).__name__, exc)
+            self.done = True
+
+    def report(self) -> None:
+        """One line (and the per-block figures) for the blocks compared so far, then the check stops."""
+        if self.done or not self.errors:
+            return
+        self.done = True
+        ordered = sorted(self.errors.items())
+        rels = sorted(rel for _i, (rel, _m) in ordered)
+        median = rels[len(rels) // 2]
+        worst_index, (worst, worst_abs) = max(ordered, key=lambda item: item[1][0])
+        ok = worst <= self.limit
+        fmt = "bfloat16" if self.compute_dtype != torch.float32 else "float32"
+        message = (
+            f"[small_gpu_stream] self-check {self.name}: {len(ordered)} of {self.count} blocks compared with the processor (float32): "
+            f"worst relative difference {worst * 100:.3f} % (block {worst_index}, largest absolute gap {worst_abs:.3g}), "
+            f"median {median * 100:.3f} % -> {'OK' if ok else 'SUSPECT'} (limit {self.limit * 100:g} % for {fmt} compute)"
+        )
+        (logger.info if ok else logger.warning)(message)
+        logger.info("[small_gpu_stream] self-check {} per block (%): {}", self.name,
+                    " ".join(f"{i}:{rel * 100:.2f}" for i, (rel, _m) in ordered))
+
+
 class StreamPool:
     """All block weights in RAM; some blocks may stay on the card, the others pass through two slots.
 
@@ -257,6 +385,7 @@ class StreamPool:
         self._logged_resident = -1
         self.stats = StreamStats(self.cuda, stats_enabled())
         self.pin_error: Optional[str] = None
+        self.check: Optional[SelfCheck] = None  # set by the attach functions when ACESTEP_STREAM_CHECK is on
         self._check_layers(real_layers)
 
         # RAM copy of every block's parameters (bfloat16 by default: exact for bfloat16 checkpoints, half the
@@ -553,20 +682,24 @@ class StreamedLayer(nn.Module):
             raise torch.cuda.OutOfMemoryError(f"out of memory in streamed block {index}")
         pool.release(index)
         if not timed:
-            return _to_cpu(out)
-        if None not in (ev_start, ev_ready, ev_run, ev_done):
-            try:
-                ev_done.synchronize()  # the transfer back below would wait for this anyway
-                stats.stall += ev_start.elapsed_time(ev_ready) / 1000.0
-                stats.compute += ev_run.elapsed_time(ev_done) / 1000.0
-            except Exception:  # the statistics must never break a generation
-                pass
-        t_down = time.perf_counter()
-        result = _to_cpu(out)
-        stats.from_card += time.perf_counter() - t_down
-        stats.to_card += up
-        stats.runs += 1
-        stats.wall += time.perf_counter() - began
+            result = _to_cpu(out)
+        else:
+            if None not in (ev_start, ev_ready, ev_run, ev_done):
+                try:
+                    ev_done.synchronize()  # the transfer back below would wait for this anyway
+                    stats.stall += ev_start.elapsed_time(ev_ready) / 1000.0
+                    stats.compute += ev_run.elapsed_time(ev_done) / 1000.0
+                except Exception:  # the statistics must never break a generation
+                    pass
+            t_down = time.perf_counter()
+            result = _to_cpu(out)
+            stats.from_card += time.perf_counter() - t_down
+            stats.to_card += up
+            stats.runs += 1
+            stats.wall += time.perf_counter() - began
+        check = pool.check
+        if check is not None and check.wants(index):  # diagnostic only, after the statistics so it is not counted in them
+            check.compare(index, object.__getattribute__(self, "_s_real"), args, kwargs, result)
         return result
 
 
@@ -615,7 +748,12 @@ def attach_if_enabled(model: nn.Module, quantized: bool = False) -> bool:
         pool = install(decoder, device, cpu_dtype, compute_dtype=compute_dtype, resident=resident,
                        reserve_bytes=reserve_bytes_from_env())
         _ACTIVE_POOL = pool
+        if _truthy(os.environ.get(ENV_CHECK)):
+            pool.check = SelfCheck("DiT", pool.count, compute_dtype)
         attach_encoder(model, device, cpu_dtype, compute_dtype)
+        if noise_on_card_from_env() and wrap_prepare_noise(model, device):
+            logger.info("[small_gpu_stream] starting noise drawn on the card in {} (same seed, same track as the regular card mode).",
+                        str(regular_card_dtype()).replace("torch.", ""))
         if resident:
             pool.release_gpu()  # the resident blocks are put on the card when the DiT runs, after the condition encoder has finished
         gc.collect()
@@ -651,9 +789,20 @@ def log_stats() -> None:
         pool.stats.reset()
 
 
+def report_checks() -> None:
+    """Log the result of the self-check (``ACESTEP_STREAM_CHECK=1``) for both pools, once."""
+    for pool in (_ENCODER_POOL, _ACTIVE_POOL):
+        if pool is not None and pool.check is not None:
+            try:
+                pool.check.report()
+            except Exception as exc:  # a diagnostic must never break a generation
+                logger.debug("[small_gpu_stream] could not report the self-check: {}", exc)
+
+
 def release_gpu() -> None:
     """Free the card's slots (DiT and condition encoder); they are recreated on the next use."""
     log_stats()
+    report_checks()
     if _ACTIVE_POOL is not None:
         _ACTIVE_POOL.release_gpu()
     if _ENCODER_POOL is not None:
@@ -761,6 +910,8 @@ def attach_encoder(model: nn.Module, device: torch.device, cpu_dtype: torch.dtyp
     global _ENCODER_POOL
     try:
         pool = install_encoder(model, device, cpu_dtype, compute_dtype=compute_dtype)
+        if _truthy(os.environ.get(ENV_CHECK)):
+            pool.check = SelfCheck("condition encoder", pool.count, compute_dtype)
         wrap_prepare_condition(model)
         _ENCODER_POOL = pool
         pool.release_gpu()  # the slots are created again when the encoder runs, then released before the DiT
