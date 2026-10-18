@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { describeLoadFailure } from '../services/lora-engine-status.js';
 import { isStreamMode } from '../services/hardware-mode.js';
-import { SMALL_GPU_LORA_MESSAGE } from '../services/lora-text.js';
+import { SMALL_GPU_LORA_MESSAGE, SMALL_GPU_QUANTIZATION_MESSAGE } from '../services/lora-text.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -123,6 +123,11 @@ router.post('/toggle', authMiddleware, async (req: AuthenticatedRequest, res: Re
 // documente en amont) sans editer .env + relancer run.sh/run.bat.
 router.post('/toggle-quantization', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    // Small-card mode: the engine keeps the DiT unquantized whatever this switch says; re-initialising it for nothing would only cost a minute.
+    if (isStreamMode()) {
+      res.status(409).json({ error: SMALL_GPU_QUANTIZATION_MESSAGE, code: 'small_gpu' });
+      return;
+    }
     const { enabled } = req.body;
     if (typeof enabled !== 'boolean') {
       res.status(400).json({ error: 'enabled (boolean) is required' });
@@ -170,6 +175,11 @@ router.post('/toggle-quantization', authMiddleware, async (req: AuthenticatedReq
 // n'afficher le bouton de desactivation que quand c'est reellement utile.
 router.get('/quantization-status', authMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
   try {
+    // Small-card mode: the engine turns quantization off itself, whatever its start-up form still says. Report what it really does.
+    if (isStreamMode()) {
+      res.json({ quantization_enabled: false, small_gpu: true });
+      return;
+    }
     const currentValues = await fetchCurrentInitServiceValues();
     const quantizationEnabled = Boolean(currentValues.get(QUANTIZATION_COMPONENT_ID));
     res.json({ quantization_enabled: quantizationEnabled });

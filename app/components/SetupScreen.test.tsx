@@ -72,12 +72,33 @@ describe('SetupScreen', () => {
   const text = () => container.textContent ?? '';
   const rowText = (state: string) => Array.from(container.querySelectorAll(`[data-state="${state}"]`)).map((n) => n.textContent ?? '');
 
-  it('stays hidden, and stops asking, when the models are already on disk', async () => {
-    current = downloadingStatus({ phase: 'loading', components: [comp({ state: 'done' })] });
+  it('stays hidden, and stops asking, when the page is opened on an engine that is already ready', async () => {
+    current = { state: 'ready', download: downloadingStatus({ phase: 'ready', components: [comp({ state: 'done' })] }).download };
     await mount();
     expect(screen()).toBeNull();
     await advance(20_000);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the waiting window on an ordinary start, models on disk but the engine still loading, until it is ready', async () => {
+    current = downloadingStatus({ phase: 'loading', components: [comp({ state: 'done' })] });
+    await mount();
+    expect(screen()).not.toBeNull();
+    expect(text()).toContain('Starting the engine');
+    expect(container.querySelector('.animate-pulse')).not.toBeNull();
+    current = { state: 'ready', download: downloadingStatus({ phase: 'ready', components: [comp({ state: 'done' })] }).download };
+    await advance(2_000);
+    expect(text()).toContain('Ready');
+    await advance(READY_HOLD_MS + 100);
+    expect(screen()).toBeNull();
+  });
+
+  it('does not wake up for a restart that happens while the page is open', async () => {
+    current = { state: 'ready', download: downloadingStatus({ phase: 'ready', components: [comp({ state: 'done' })] }).download };
+    await mount();
+    current = { state: 'restarting', download: downloadingStatus({ phase: 'loading', components: [comp({ state: 'done' })] }).download };
+    await advance(20_000);
+    expect(screen()).toBeNull();
   });
 
   it('stays hidden, and stops asking, for an engine the Studio does not run', async () => {

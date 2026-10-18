@@ -16,6 +16,7 @@ vi.mock('../services/gradio-client.js', () => ({
 vi.mock('../middleware/auth.js', () => ({ authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next() }));
 
 const { default: router } = await import('./lora.js');
+const gradioClient = await import('../services/gradio-client.js');
 
 describe('POST /api/lora/load: what the engine answered', () => {
   let server: Server;
@@ -56,6 +57,19 @@ describe('POST /api/lora/load: what the engine answered', () => {
     expect(String(body.error)).toContain('small-card mode');
     expect(predict).not.toHaveBeenCalled();
     expect(await state()).toMatchObject({ loaded: false, small_gpu: true });
+  });
+
+  it('reports quantization as off in small-card mode, without asking the engine, and refuses to switch it', async () => {
+    vi.stubEnv('HW_MODE', 'stream');
+    vi.mocked(gradioClient.fetchCurrentInitServiceValues).mockClear();
+    vi.mocked(gradioClient.callInitServiceWrapper).mockClear();
+    const status = await (await fetch(`${base}/quantization-status`)).json();
+    expect(status).toEqual({ quantization_enabled: false, small_gpu: true });
+    const toggle = await fetch(`${base}/toggle-quantization`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: true }) });
+    expect(toggle.status).toBe(409);
+    expect(((await toggle.json()) as { code: string }).code).toBe('small_gpu');
+    expect(gradioClient.fetchCurrentInitServiceValues).not.toHaveBeenCalled();
+    expect(gradioClient.callInitServiceWrapper).not.toHaveBeenCalled();
   });
 
   it('says small_gpu is false in the other modes', async () => {

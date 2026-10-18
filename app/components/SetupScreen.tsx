@@ -46,9 +46,10 @@ function HeaderIcon({ mode }: { mode: ScreenMode }) {
 }
 
 /**
- * First-launch screen. It appears only when the engine, started by the Studio, has to download models (or failed
- * while some were missing), stays until the engine is ready, and can be set aside with "Continue without waiting".
- * An ordinary start, with the models already on disk, never shows it: the sidebar light is enough there.
+ * Waiting screen. It appears when the engine, started by the Studio, has to download models (or failed while some were
+ * missing), and also when the page is opened while the engine is still loading its models (an ordinary start, a minute or
+ * two). It stays until the engine is ready, and can be set aside with "Continue without waiting". Opened on an engine that
+ * is already ready, or on one the Studio does not run, it never shows.
  */
 export function SetupScreen() {
   const { t, language } = useI18n();
@@ -61,6 +62,8 @@ export function SetupScreen() {
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    // The first answer the page gets decides whether to wait for an engine that is still loading (see nextGate).
+    let firstLook = true;
 
     const tick = async () => {
       // A poll planned before the screen was set aside or finished must not fire once more.
@@ -73,7 +76,8 @@ export function SetupScreen() {
         const next = (await response.json()) as PipelineStatusDto;
         if (cancelled) return;
         setStatus(next);
-        const updated = nextGate(gateRef.current, next);
+        const updated = nextGate(gateRef.current, next, firstLook);
+        firstLook = false;
         if (updated !== gateRef.current) {
           gateRef.current = updated;
           setGate(updated);
@@ -138,7 +142,7 @@ export function SetupScreen() {
           </div>
         </div>
 
-        {mode === 'downloading' && <div className="mt-4 h-1 animate-pulse rounded bg-pink-500/60" aria-hidden="true" />}
+        {(mode === 'downloading' || mode === 'loading') && <div className="mt-4 h-1 animate-pulse rounded bg-pink-500/60" aria-hidden="true" />}
 
         {facts.length > 0 && (
           <section className="mt-6" data-testid="setup-hardware">

@@ -376,7 +376,7 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
                 {loraError}
               </div>
             )}
-            {quantizationEnabled !== null && (
+            {quantizationEnabled !== null && !smallGpu && (
               <div className="flex items-center justify-between py-1">
                 <span
                   className="text-xs font-medium text-amber-700 dark:text-amber-400"
@@ -397,7 +397,7 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
                 </button>
               </div>
             )}
-            {quantizationEnabled === true && (
+            {quantizationEnabled === true && !smallGpu && (
               <div className="text-[11px] text-amber-600 dark:text-amber-500">
                 {t('quantizationBlocksLora') || 'Quantification active — desactivez-la pour charger un LoRA.'}
               </div>

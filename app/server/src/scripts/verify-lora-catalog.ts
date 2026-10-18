@@ -44,7 +44,14 @@ async function main(): Promise<void> {
   const parsed = loadCatalogFile(source);
   parsed.problems.forEach((p) => console.log(`! ${p}`));
   const entries = parsed.entries.filter((e) => !only || only.has(e.id));
-  if (entries.length === 0) throw new Error(`No entry to check in ${source}.`);
+  if (entries.length === 0) {
+    const listed = parsed.entries.length;
+    throw new Error(
+      listed === 0
+        ? `No entry in ${source}.${flag('--shipped') ? '' : ' If a previous run used --promote, the candidates that passed were moved into catalog/lora-catalog.json: look at `git status` and commit that file.'}`
+        : `None of the ${listed} entries of ${source} matches --only.`,
+    );
+  }
 
   const loraDir = mkdtempSync(path.join(tmpdir(), 'lora-verify-'));
   const hub = new LoraHub({ loraDir, token: process.env.HF_TOKEN, endpoint: process.env.HF_ENDPOINT });
@@ -129,6 +136,7 @@ async function main(): Promise<void> {
       left.entries = left.entries.filter((e) => !passed.some((p) => p.entry.id === e.id));
       writeFileSync(CANDIDATES, JSON.stringify(left, null, 2) + '\n');
       console.log(`\nPromoted ${added.length} entr${added.length === 1 ? 'y' : 'ies'} into catalog/lora-catalog.json (pinned, "verified" dated today, "not listened to"). Listen to them in the Studio, then edit the note.`);
+      console.log('Then commit BOTH files:  git add app/server/catalog && git commit -m "Catalogue LoRA : LoRA verifies"');
     }
   } else if (passed.length > 0 && !flag('--shipped')) {
     console.log('\nRun again with --promote to pin these into the shipped catalog.');

@@ -23,8 +23,13 @@
 #    un message d'erreur eventuel s'affiche et disparait trop vite pour
 #    etre lu.
 
+# Le dossier du Studio est celui de CE script (le raccourci peut pointer vers un lien symbolique : readlink -f le suit), pas un
+# chemin ecrit en dur : le depot marche ou qu'il soit clone, pour n'importe quel utilisateur.
+STUDIO_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+export STUDIO_DIR
+
 exec bash -i -c '
-/home/studio/ACE-Step-Studio-master/run.sh
+"$STUDIO_DIR/run.sh"
 echo ""
 read -p "Appuyez sur Entree pour fermer..."
 '

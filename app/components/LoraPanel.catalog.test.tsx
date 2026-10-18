@@ -23,18 +23,20 @@ describe('LoraPanel and the catalog', () => {
   let installed: unknown[];
   let loras: { name: string; path: string }[];
   let smallGpu = false;
+  let quantizationOn = false;
 
   beforeEach(() => {
     localStorage.clear();
     localStorage.setItem('language', 'en');
     installed = [lofi];
     smallGpu = false;
+    quantizationOn = false;
     loras = [{ name: 'my-trained-lora', path: './lora_output/final' }, { name: 'lofi', path: './lora_output/lofi' }];
     vi.stubGlobal('fetch', vi.fn(async (input: string) => {
       const path = String(input).split('?')[0];
       const bodies: Record<string, unknown> = {
         '/api/lora/available': { loras },
-        '/api/lora/quantization-status': { quantization_enabled: false },
+        '/api/lora/quantization-status': { quantization_enabled: quantizationOn },
         '/api/lora/status': { loaded: false, active: false, scale: 1, path: '', small_gpu: smallGpu },
         '/api/lora-hub/installed': { installed },
         '/api/lora-hub/catalog': { entries: [entry], problems: [] },
@@ -79,6 +81,23 @@ describe('LoraPanel and the catalog', () => {
     const load = [...document.body.querySelectorAll('button')].find((b) => b.textContent === 'Load') as HTMLButtonElement;
     expect(load.disabled).toBe(true);
     expect(q('lora-open-catalog')).not.toBeNull();
+  });
+
+  it('does not show the quantization switch, nor "turn it off", in small-card mode: the engine does not quantize there', async () => {
+    smallGpu = true;
+    quantizationOn = true; // what the engine's start-up form may still say
+    await mount();
+    expect(q('lora-small-gpu')).not.toBeNull();
+    expect(document.body.textContent).not.toContain('Quantization is on');
+    expect(document.body.querySelector('button[aria-label="INT8 quantization"]')).toBeNull();
+    expect(document.body.textContent).not.toContain('INT8');
+  });
+
+  it('still shows the quantization switch and its warning outside small-card mode', async () => {
+    quantizationOn = true;
+    await mount();
+    expect(document.body.textContent).toContain('Quantization is on');
+    expect(document.body.textContent).toContain('INT8');
   });
 
   it('shows no such note, and keeps "Load" enabled, outside small-card mode', async () => {

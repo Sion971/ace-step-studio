@@ -72,15 +72,18 @@ const ENGINE_RUNNING = new Set(['starting', 'loading_model', 'restarting', 'erro
 /**
  * Starts showing the screen when the engine, started by the Studio, is downloading — or when it failed while models are
  * still missing (a crash before or during the first download: without this the user would see nothing but a light).
- * An ordinary restart (models already on disk) never latches: the sidebar light is enough there, and so is a crash of an
- * engine whose models are all present.
+ * It also starts when the page is OPENED while the engine is still loading its models (`firstLook`, the first answer the
+ * page gets): the browser opens as soon as the server listens, and the engine then needs a minute or two before the Studio
+ * can generate. Later changes of state (an engine restart while the page is open) never latch: the sidebar light is enough
+ * there, and so is a crash of an engine whose models are all present.
  */
-export function nextGate(gate: ScreenGate, status: PipelineStatusDto | null): ScreenGate {
+export function nextGate(gate: ScreenGate, status: PipelineStatusDto | null, firstLook = false): ScreenGate {
   if (gate.latched || !status?.download || !ENGINE_RUNNING.has(status.state)) return gate;
   const { phase, components } = status.download;
   const downloading = phase === 'downloading';
   const failedWhileMissing = phase === 'error' && components.some((c) => c.state !== 'done');
-  return downloading || failedWhileMissing ? { ...gate, latched: true } : gate;
+  const loadingAtOpen = firstLook && phase === 'loading' && (status.state === 'starting' || status.state === 'loading_model');
+  return downloading || failedWhileMissing || loadingAtOpen ? { ...gate, latched: true } : gate;
 }
 
 /**

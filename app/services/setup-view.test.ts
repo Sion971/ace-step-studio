@@ -39,6 +39,18 @@ describe('when the screen starts showing (nextGate)', () => {
     expect(nextGate(INITIAL_GATE, status('ready', 'ready', [component({ state: 'done' })]))).toBe(INITIAL_GATE);
   });
 
+  it('latches on an ordinary start when the page is opened while the engine is still loading its models', () => {
+    const loading = (state: string) => status(state, 'loading', [component({ state: 'done' })]);
+    expect(nextGate(INITIAL_GATE, loading('starting'), true).latched).toBe(true);
+    expect(nextGate(INITIAL_GATE, loading('loading_model'), true).latched).toBe(true);
+  });
+
+  it('does not latch when the page is opened on an engine that is ready, restarting, or failed with its models present', () => {
+    expect(nextGate(INITIAL_GATE, status('ready', 'ready', [component({ state: 'done' })]), true)).toBe(INITIAL_GATE);
+    expect(nextGate(INITIAL_GATE, status('restarting', 'loading', [component({ state: 'done' })]), true)).toBe(INITIAL_GATE);
+    expect(nextGate(INITIAL_GATE, status('error', 'error', [component({ state: 'done' })]), true)).toBe(INITIAL_GATE);
+  });
+
   it('never latches for an engine the Studio does not run (state stopped)', () => {
     expect(nextGate(INITIAL_GATE, status('stopped', 'downloading'))).toBe(INITIAL_GATE);
   });
