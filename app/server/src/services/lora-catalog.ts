@@ -10,6 +10,7 @@
 
 import { readFileSync } from 'node:fs';
 import { parseRepoRef, sanitizeName, safeRepoPath, type LoraCard } from './lora-hub.js';
+import { describeModel, requiredBase } from './lora-compat.js';
 import { boundedInteger, boundedNumber, normalizeSha, plain, plainList } from './lora-text.js';
 
 export const CATALOG_SCHEMA = 1;
@@ -198,5 +199,45 @@ export function catalogEntryFromCard(card: LoraCard): CatalogEntry | null {
     },
     sizeBytes: card.selected.size,
     verified: null,
+  };
+}
+
+const FAMILY_NAMES: Record<string, string> = { turbo: 'Turbo', base: 'Base', sft: 'SFT' };
+
+/**
+ * A candidate (an entry nobody has installed yet) pinned to what was just seen and installed: the commit and the checksum of the weights, the file that
+ * was chosen, the size, and "verified" with the day. This is how an entry gets from "candidates" to the shipped catalog, which promises a pin for everything it lists.
+ *
+ * The checksum is the one the Hub published, or else the one measured on the downloaded file (`installedSha256`). The base model is kept as the maintainer wrote
+ * it when the compatibility check can read size and family from it; otherwise it is read from what the repository and the adapter config say.
+ * Gives the single reason it cannot be pinned when something the shipped catalog needs is missing.
+ */
+export function pinEntry(entry: CatalogEntry, card: LoraCard, installedSha256: string | null, date: string, note: string): { entry: CatalogEntry } | { problem: string } {
+  if (!card.selected) return { problem: 'several weights files and none chosen: set "file" in the candidate' };
+  if (!COMMIT.test(card.revision)) return { problem: `the Hub gave no commit (got "${card.revision}")` };
+  const sha256 = normalizeSha(installedSha256) ?? card.selected.sha256;
+  if (!sha256) return { problem: 'no checksum, published or measured' };
+  if (!DAY.test(date)) return { problem: 'the date must be YYYY-MM-DD' };
+
+  let baseModel = entry.baseModel;
+  const own = describeModel(baseModel);
+  if (!baseModel || !own.family || !own.size) {
+    const required = requiredBase(card);
+    if (!required || !required.size || !required.family || !FAMILY_NAMES[required.family]) {
+      return { problem: 'the base model (family and size) can be read neither from the candidate nor from the repository: write it in "baseModel"' };
+    }
+    baseModel = `AceStep v1.5 ${FAMILY_NAMES[required.family]} (${required.size})`;
+  }
+  return {
+    entry: {
+      ...entry,
+      file: card.selected.name,
+      revision: card.revision,
+      sha256,
+      license: entry.license ?? card.license,
+      baseModel,
+      sizeBytes: card.selected.size ?? entry.sizeBytes,
+      verified: { date, note },
+    },
   };
 }

@@ -7,7 +7,7 @@ import { LoraHub } from './lora-hub.js';
 import { GOOD_ADAPTER_CONFIG, fakeWeights, sha256, startFakeHub, type FakeHub } from './lora-hub.fake.js';
 import { exampleSidecar } from './lora-sidecar.fixtures.js';
 import { describeModel, requiredBase } from './lora-compat.js';
-import { CATALOG_SCHEMA, MAX_ENTRIES, catalogEntryFromCard, loadCatalogFile, parseCatalog, type CatalogEntry } from './lora-catalog.js';
+import { CATALOG_SCHEMA, MAX_ENTRIES, catalogEntryFromCard, loadCatalogFile, parseCatalog, pinEntry, type CatalogEntry } from './lora-catalog.js';
 
 const SHA = 'cd'.repeat(32);
 const COMMIT = '497b97b7e8548d916366ee534551413d32d0fbd0';
@@ -198,5 +198,89 @@ describe('the catalog that ships with the Studio', () => {
 
   it('has no entry that claims to have been checked without saying when', () => {
     for (const e of shipped.entries) if (e.verified) expect(e.verified.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe('pinEntry: from a candidate to a pinned entry', () => {
+  let fake: FakeHub;
+  let dir: string;
+  beforeEach(async () => {
+    fake = await startFakeHub();
+    dir = mkdtempSync(path.join(tmpdir(), 'lora-pin-'));
+  });
+  afterEach(async () => {
+    await fake.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+  const WEIGHTS = fakeWeights(20_000, 6);
+  const candidate = (over: Record<string, unknown> = {}) => parseCatalog(catalog([entry({ repo: 'user/cand', ...over })])).entries[0];
+  const inspect = (file?: string) => new LoraHub({ loraDir: dir, endpoint: fake.endpoint }).inspect('user/cand', { file });
+
+  it('pins the commit, the checksum, the size and the file that the Hub reported, and dates the check', async () => {
+    fake.repos.set('user/cand', { files: { 'sub/adapter_model.safetensors': WEIGHTS, 'sub/adapter_config.json': GOOD_ADAPTER_CONFIG }, cardData: { license: 'mit' } });
+    const card = await inspect('sub/adapter_model.safetensors');
+    const pinned = pinEntry(candidate({ file: 'sub/adapter_model.safetensors', baseModel: 'AceStep v1.5 Turbo (2B)' }), card, null, '2026-10-18', 'checked');
+    expect('entry' in pinned && pinned.entry).toMatchObject({
+      file: 'sub/adapter_model.safetensors', revision: card.revision, sha256: sha256(WEIGHTS), sizeBytes: WEIGHTS.length, license: 'mit', baseModel: 'AceStep v1.5 Turbo (2B)',
+      verified: { date: '2026-10-18', note: 'checked' },
+    });
+    // what comes out is accepted by the catalog as it is, and by the rules of the shipped one
+    const out = (pinned as { entry: CatalogEntry }).entry;
+    expect(parseCatalog(JSON.stringify({ schema: 1, entries: [out] })).entries).toEqual([out]);
+  });
+
+  it('keeps the license the maintainer wrote over the one the repository says, and chooses the only weights file when the candidate did not', async () => {
+    fake.repos.set('user/cand', { files: { 'adapter_model.safetensors': WEIGHTS, 'adapter_config.json': GOOD_ADAPTER_CONFIG }, cardData: { license: 'mit' } });
+    const pinned = pinEntry(candidate({ license: 'cc-by-4.0', baseModel: 'AceStep v1.5 Turbo (2B)' }), await inspect(), null, '2026-10-18', 'n') as { entry: CatalogEntry };
+    expect(pinned.entry).toMatchObject({ file: 'adapter_model.safetensors', license: 'cc-by-4.0' });
+  });
+
+  it('uses the checksum measured on the download when the Hub published none', async () => {
+    fake.repos.set('user/cand', { files: { 'adapter_model.safetensors': WEIGHTS, 'adapter_config.json': GOOD_ADAPTER_CONFIG }, noLfs: true });
+    const card = await inspect();
+    expect(pinEntry(candidate({ baseModel: 'AceStep v1.5 Turbo (2B)' }), card, null, '2026-10-18', 'n')).toEqual({ problem: 'no checksum, published or measured' });
+    const pinned = pinEntry(candidate({ baseModel: 'AceStep v1.5 Turbo (2B)' }), card, sha256(WEIGHTS), '2026-10-18', 'n') as { entry: CatalogEntry };
+    expect(pinned.entry.sha256).toBe(sha256(WEIGHTS));
+  });
+
+  it('reads the base model from the repository when the candidate does not say it clearly, and refuses when nothing says it', async () => {
+    fake.repos.set('user/cand', { files: { 'adapter_model.safetensors': WEIGHTS, 'adapter_config.json': GOOD_ADAPTER_CONFIG }, cardData: { base_model: ['ACE-Step/acestep-v15-xl-base'] } });
+    const fromRepo = pinEntry(candidate({ baseModel: 'AceStep v1.5 (2B)' }), await inspect(), null, '2026-10-18', 'n') as { entry: CatalogEntry };
+    expect(fromRepo.entry.baseModel).toBe('AceStep v1.5 Base (XL)');
+
+    fake.repos.set('user/cand', { files: { 'adapter_model.safetensors': WEIGHTS, 'adapter_config.json': JSON.stringify({ peft_type: 'LORA', r: 8, lora_alpha: 16, target_modules: ['q_proj'] }) }, cardData: {} });
+    const nothing = pinEntry(candidate({ baseModel: 'ACE-Step/Ace-Step1.5' }), await inspect(), null, '2026-10-18', 'n');
+    expect('problem' in nothing && nothing.problem).toContain('base model');
+  });
+
+  it('says why when several weights files are left to choose', async () => {
+    fake.repos.set('user/cand', { files: { 'a.safetensors': WEIGHTS, 'b.safetensors': fakeWeights(9000, 2), 'adapter_config.json': GOOD_ADAPTER_CONFIG } });
+    expect(pinEntry(candidate(), await inspect(), null, '2026-10-18', 'n')).toEqual({ problem: 'several weights files and none chosen: set "file" in the candidate' });
+  });
+});
+
+describe('the candidates that ship with the Studio', () => {
+  const candidates = loadCatalogFile(path.resolve(__dirname, '../../catalog/lora-catalog.candidates.json'));
+  const shipped = loadCatalogFile(path.resolve(__dirname, '../../catalog/lora-catalog.json'));
+
+  it('are valid, and are not pinned: pinning is what verification adds', () => {
+    expect(candidates.problems).toEqual([]);
+    for (const c of candidates.entries) {
+      expect(c.verified, `${c.id}: verified`).toBeNull();
+      expect(c.sha256, `${c.id}: sha256`).toBeNull();
+    }
+  });
+
+  it('are not already in the shipped catalog', () => {
+    const shippedIds = new Set(shipped.entries.map((e) => e.id));
+    const shippedWeights = new Set(shipped.entries.map((e) => `${e.repo}#${e.file}`));
+    for (const c of candidates.entries) {
+      expect(shippedIds.has(c.id), `${c.id}: id`).toBe(false);
+      expect(shippedWeights.has(`${c.repo}#${c.file}`), `${c.id}: weights`).toBe(false);
+    }
+  });
+
+  it('say, for each, which base model they need', () => {
+    for (const c of candidates.entries) expect(describeModel(c.baseModel).size, `${c.id}`).not.toBeNull();
   });
 });

@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "entries": [
+    {
+      "id": "acestep-refine-redmond",
+      "repo": "artificialguybr/AceStep_Refine_Redmond",
+      "file": "standard/AceStep_Refine_Redmond_standard.safetensors",
+      "name": "Refine Redmond",
+      "description": "Not a genre: a DPO-refined LoRA meant to improve the overall quality of ACE-Step 1.5 Turbo output (the author reports about 70% wins in blind A/B tests). Use the 4B language model for prompting.",
+      "author": "artificialguybr",
+      "license": "mit",
+      "baseModel": "AceStep v1.5 Turbo (2B)",
+      "genre": "quality refinement",
+      "tags": ["refinement", "dpo", "quality"],
+      "sizeBytes": 132170688
+    },
+    {
+      "id": "acoustic-guitar-fingerstyle",
+      "repo": "DisturbingTheField/ACE-Step-v1.5-acoustic-guitar-and-a-merge-LoRA",
+      "file": "adapter_model.safetensors",
+      "name": "Acoustic guitar (fingerstyle)",
+      "description": "Fingerstyle acoustic guitar, trained on six self-recorded files. The author recommends a low LoRA scale (0.2 to 0.7).",
+      "author": "DisturbingTheField",
+      "license": "mit",
+      "baseModel": "AceStep v1.5 Base (2B)",
+      "genre": "acoustic",
+      "tags": ["acoustic guitar", "fingerstyle"],
+      "recommended": { "scale": 0.5 }
+    },
+    {
+      "id": "ambient-dream1",
+      "repo": "DisturbingTheField/ACE-Step-v1.5-ambient_dream1-LoRA",
+      "name": "Ambient Dream",
+      "description": "Ambient sounds, trained on 10 short instrumental pieces. Works best for pure ambient, less for pop or rock. Put the trigger word in the caption.",
+      "author": "DisturbingTheField",
+      "baseModel": "AceStep v1.5 Turbo (2B)",
+      "genre": "ambient",
+      "tags": ["ambient", "instrumental"],
+      "triggerWord": "ambient_dream1"
+    },
+    {
+      "id": "raspy-male-vocals",
+      "repo": "DisturbingTheField/ACE-Step-v1.5-raspy-vocal-and-instrumental-5-LoRAs",
+      "file": "male_vocals_adapter_model.safetensors",
+      "name": "Raspy male vocals",
+      "description": "A hoarse male singing voice, trained on seven self-recorded files; it also colours the instruments. The author recommends a low LoRA scale (0.2 to 0.7).",
+      "author": "DisturbingTheField",
+      "license": "mit",
+      "baseModel": "AceStep v1.5 Base (2B)",
+      "genre": "vocal style",
+      "tags": ["raspy vocals", "male vocals"],
+      "recommended": { "scale": 0.5 }
+    },
+    {
+      "id": "raspy-instrumental",
+      "repo": "DisturbingTheField/ACE-Step-v1.5-raspy-vocal-and-instrumental-5-LoRAs",
+      "file": "instrumental_adapter_model.safetensors",
+      "name": "Rock, acoustic and electronic instrumentals",
+      "description": "Instrumental style trained on 21 self-made tracks (rock, acoustic, ambient, electronic; guitars, bass, drums, piano, synth). The author recommends a low LoRA scale (0.2 to 0.7).",
+      "author": "DisturbingTheField",
+      "license": "mit",
+      "baseModel": "AceStep v1.5 Base (2B)",
+      "genre": "instrumental",
+      "tags": ["instrumental", "rock", "acoustic", "electronic"],
+      "recommended": { "scale": 0.5 }
+    },
+    {
+      "id": "chinese-new-year",
+      "repo": "ACE-Step/ACE-Step-v1.5-chinese-new-year-LoRA",
+      "name": "Chinese New Year",
+      "description": "Festive Chinese New Year style with a female vocal and folk instruments (bass drum, dizi, erhu), trained on 12 songs. Research and academic use only: commercial use is prohibited. Use the DiT model, not the Think model.",
+      "author": "ACE-Step",
+      "license": "creativeml-openrail-m",
+      "baseModel": "AceStep v1.5 Turbo (2B)",
+      "genre": "festive",
+      "tags": ["chinese new year", "folk", "festive"]
+    }
+  ]
+}
