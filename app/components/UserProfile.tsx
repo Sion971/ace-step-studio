@@ -27,7 +27,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
     // chinois — un utilisateur francophone ou sinophone selon l'endroit
     // voyait des dates dans une langue qu'il n'avait pas choisie.
     const dateLocale = language === 'zh' ? 'zh-CN' : language === 'fr' ? 'fr-FR' : 'en-US';
-    const { user: currentUser, token } = useAuth();
+    const { user: currentUser, token, refreshUser } = useAuth();
     const [profileUser, setProfileUser] = useState<UserProfileType | null>(null);
     const [publicSongs, setPublicSongs] = useState<Song[]>([]);
     const [publicPlaylists, setPublicPlaylists] = useState<Playlist[]>([]);
@@ -92,8 +92,10 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
         loadUserProfile();
     }, [username]);
 
-    const loadUserProfile = async () => {
-        setLoading(true);
+    // `silent` : recharge sans l'ecran de chargement plein page (apres un
+    // enregistrement, pour ne pas faire clignoter tout le profil).
+    const loadUserProfile = async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const [profileRes, songsRes, playlistsRes] = await Promise.all([
                 usersApi.getProfile(username, token),
@@ -159,6 +161,9 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
                 setUploadingAvatar(true);
                 const avatarRes = await usersApi.uploadAvatar(avatarFile, token);
                 setEditAvatarUrl(avatarRes.url);
+                // Affichage immediat, sans attendre le rechargement du profil.
+                setProfileUser(prev => prev ? { ...prev, avatar_url: avatarRes.url } : prev);
+                setAvatarFailed(false);
                 setUploadingAvatar(false);
             }
 
@@ -167,6 +172,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
                 setUploadingBanner(true);
                 const bannerRes = await usersApi.uploadBanner(bannerFile, token);
                 setEditBannerUrl(bannerRes.url);
+                setProfileUser(prev => prev ? { ...prev, banner_url: bannerRes.url } : prev);
                 setUploadingBanner(false);
             }
 
@@ -189,8 +195,12 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
             setAvatarPreview(null);
             setBannerPreview(null);
 
-            // Reload to get fresh data
-            loadUserProfile();
+            // Recharge le profil affiche ET l'utilisateur global (AuthContext),
+            // sinon l'avatar de la barre laterale reste l'ancien jusqu'au
+            // rafraichissement de la page.
+            setAvatarFailed(false);
+            await refreshUser();
+            await loadUserProfile(true);
         } catch (error) {
             console.error('Failed to update profile:', error);
             alert(t('profileUpdateFailed'));

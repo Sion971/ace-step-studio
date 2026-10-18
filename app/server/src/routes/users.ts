@@ -175,7 +175,10 @@ router.post('/me/avatar', authMiddleware, upload.single('avatar'), async (req: A
 
         const storage = getStorageProvider();
         await storage.upload(key, req.file.buffer, req.file.mimetype);
-        const url = storage.getPublicUrl(key);
+        // Le fichier est toujours ecrase sous le meme nom : sans parametre de
+        // version, l'URL ne change jamais et le navigateur continue d'afficher
+        // l'ancienne image en cache jusqu'au rechargement de la page.
+        const url = `${storage.getPublicUrl(key)}?v=${Date.now()}`;
 
         // Update user record
         const result = await pool.query(
@@ -205,7 +208,10 @@ router.post('/me/banner', authMiddleware, upload.single('banner'), async (req: A
 
         const storage = getStorageProvider();
         await storage.upload(key, req.file.buffer, req.file.mimetype);
-        const url = storage.getPublicUrl(key);
+        // Le fichier est toujours ecrase sous le meme nom : sans parametre de
+        // version, l'URL ne change jamais et le navigateur continue d'afficher
+        // l'ancienne image en cache jusqu'au rechargement de la page.
+        const url = `${storage.getPublicUrl(key)}?v=${Date.now()}`;
 
         // Update user record
         const result = await pool.query(
