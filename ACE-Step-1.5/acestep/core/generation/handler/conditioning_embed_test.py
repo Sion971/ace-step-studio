@@ -112,5 +112,49 @@ class ConditioningEmbedMixinTests(unittest.TestCase):
         self.assertEqual(result[3].shape, (2, 128, 6))
 
 
+    def _batch(self, text_ids, non_cover_ids):
+        return {
+            "keys": ["k1"],
+            "target_latents": torch.zeros(1, 128, 6, dtype=torch.float32),
+            "src_latents": torch.zeros(1, 128, 6, dtype=torch.float32),
+            "latent_masks": torch.ones(1, 128, dtype=torch.long),
+            "refer_audioss": [[torch.zeros(2, 96000)]],
+            "chunk_masks": torch.ones(1, 128, dtype=torch.bool),
+            "spans": [("full", 0, 128)],
+            "text_token_idss": text_ids,
+            "text_attention_masks": torch.ones_like(text_ids),
+            "lyric_token_idss": torch.ones(1, 10, dtype=torch.long),
+            "lyric_attention_masks": torch.ones(1, 10, dtype=torch.long),
+            "text_inputs": ["a"],
+            "is_covers": torch.zeros(1, dtype=torch.bool),
+            "precomputed_lm_hints_25Hz": None,
+            "non_cover_text_input_ids": non_cover_ids,
+            "non_cover_text_attention_masks": None if non_cover_ids is None else torch.ones_like(non_cover_ids),
+        }
+
+    def test_identical_non_cover_text_reuses_the_prompt_embeddings(self):
+        """The non-cover prompt equal to the prompt is not encoded a second time, and its result is a separate tensor."""
+        host = _Host()
+        calls = []
+        original = host.infer_text_embeddings
+        host.infer_text_embeddings = lambda ids: (calls.append(ids.shape), original(ids))[1]
+        ids = torch.arange(8).unsqueeze(0)
+        result = host.preprocess_batch(self._batch(ids, ids.clone()))
+        self.assertEqual(len(calls), 1)
+        prompt, non_cover = result[4], result[17]
+        self.assertEqual(prompt.shape, non_cover.shape)
+        self.assertNotEqual(prompt.data_ptr(), non_cover.data_ptr())
+
+    def test_different_non_cover_text_is_still_encoded(self):
+        """A different non-cover prompt (or another length) still goes through the text encoder."""
+        for other in (torch.arange(8).unsqueeze(0) + 1, torch.arange(9).unsqueeze(0)):
+            host = _Host()
+            calls = []
+            original = host.infer_text_embeddings
+            host.infer_text_embeddings = lambda ids, calls=calls, original=original: (calls.append(1), original(ids))[1]
+            host.preprocess_batch(self._batch(torch.arange(8).unsqueeze(0), other))
+            self.assertEqual(len(calls), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -119,8 +119,19 @@ class ConditioningEmbedMixin:
             non_cover_text_attention_masks = batch.get("non_cover_text_attention_masks", None)
             non_cover_text_hidden_states = None
             if non_cover_text_input_ids is not None:
-                logger.info("[preprocess_batch] Inferring non-cover text embeddings...")
-                non_cover_text_hidden_states = self.infer_text_embeddings(non_cover_text_input_ids)
+                if (
+                    torch.is_tensor(non_cover_text_input_ids)
+                    and torch.is_tensor(text_token_idss)
+                    and non_cover_text_input_ids.shape == text_token_idss.shape
+                    and non_cover_text_input_ids.device == text_token_idss.device
+                    and bool(torch.equal(non_cover_text_input_ids, text_token_idss))
+                ):
+                    # Same tokens, same encoder: the same embeddings (text to music: the "non-cover" prompt is the prompt itself).
+                    logger.info("[preprocess_batch] Non-cover text identical to the prompt: its embeddings are reused.")
+                    non_cover_text_hidden_states = text_hidden_states.clone()
+                else:
+                    logger.info("[preprocess_batch] Inferring non-cover text embeddings...")
+                    non_cover_text_hidden_states = self.infer_text_embeddings(non_cover_text_input_ids)
 
         repaint_mask = batch.get("repaint_mask", None)
 

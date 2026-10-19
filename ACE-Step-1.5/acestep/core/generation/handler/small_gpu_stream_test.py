@@ -1556,6 +1556,62 @@ class MemoryLogTests(unittest.TestCase):
         self.assertEqual(tags, ["after the audio decoding"])
 
 
+    def _decode_with_mocked_card(self, decode, release_times=None):
+        handler = types.SimpleNamespace(vae=mock.Mock())
+        handler.vae.to.return_value = handler.vae
+        latents = mock.Mock()
+        latents.to.return_value = latents
+        collected = []
+        patches = [
+            mock.patch.object(sgs.torch.cuda, "empty_cache"),
+            mock.patch.object(sgs.torch.cuda, "mem_get_info", return_value=(6 * self.GB, 8 * self.GB)),
+            mock.patch.object(sgs.torch.cuda, "get_device_name", return_value="fake"),
+            mock.patch.object(sgs.torch.cuda, "reset_peak_memory_stats"),
+            mock.patch.object(sgs.torch.cuda, "max_memory_allocated", return_value=self.GB),
+            mock.patch.object(sgs.gc, "collect", side_effect=lambda *a: collected.append(1) or 0),
+            mock.patch.object(sgs, "release_gpu"),
+            mock.patch.object(sgs, "log_memory"),
+            mock.patch.object(sgs, "decode_with_ladder", side_effect=decode),
+            mock.patch.object(sgs, "stats_enabled", return_value=True),
+        ]
+        for p in patches:
+            p.start()
+        pool = types.SimpleNamespace(release_times=release_times)
+        lines = []
+        try:
+            with mock.patch.object(sgs, "_ACTIVE_POOL", pool), \
+                    mock.patch.object(sgs.logger, "info", side_effect=lambda msg, *a: lines.append(msg.format(*a))):
+                try:
+                    sgs.tiled_decode_on_card(handler, latents)
+                except RuntimeError:
+                    pass
+        finally:
+            mock.patch.stopall()
+        return lines, collected
+
+    def test_the_audio_decoding_reports_where_its_time_went(self):
+        lines, _ = self._decode_with_mocked_card(lambda *a: ("audio", 256), release_times=(0.12, 0.34))
+        step = [l for l in lines if "audio decoding steps" in l]
+        self.assertEqual(len(step), 1)
+        for name in ("card given back", "weights to the card", "input and cache", "decode", "weights back", "cleanup"):
+            self.assertIn(name, step[0])
+        self.assertIn("collected 0.12 s", step[0])
+        self.assertIn("cache emptied 0.34 s", step[0])
+
+    def test_the_decoding_steps_line_follows_the_stats_switch(self):
+        with mock.patch.object(sgs, "stats_enabled", return_value=False), mock.patch.object(sgs.logger, "info") as info:
+            sgs.log_decode_steps(sgs.PhaseClock())
+        info.assert_not_called()
+
+    def test_a_normal_decoding_skips_the_garbage_collector_but_a_failure_runs_it(self):
+        _, ok = self._decode_with_mocked_card(lambda *a: ("audio", 256))
+        self.assertEqual(ok, [])
+        def boom(*a):
+            raise RuntimeError("boom")
+        _, failed = self._decode_with_mocked_card(boom)
+        self.assertEqual(len(failed), 1)
+
+
 class VaeLeftoversTests(unittest.TestCase):
     """The decoder's weight_norm keeps its computed weights as plain attributes: Module.to leaves them on the card."""
 

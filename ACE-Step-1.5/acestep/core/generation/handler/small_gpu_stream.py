@@ -54,6 +54,7 @@ import copy
 import gc
 import os
 import subprocess
+import sys
 import time
 from typing import Any, List, Optional
 
@@ -588,6 +589,7 @@ class StreamPool:
         self.label = "DiT"     # name used in the memory log
         self.attention_name: Optional[str] = None  # attention function of the card copies (None: the model's own)
         self.mask_free = False   # True when the DiT is given no masks (see small_gpu_stream_attention)
+        self.release_times: Optional[tuple] = None  # seconds spent in the last release_gpu: (collecting garbage, emptying the cache)
         # Reserve for the activations that follows what was measured (resident="auto" only): tokens -> extra bytes at the peak.
         self.reserve_auto = reserve_auto_from_env()
         self.act_tokens: Optional[int] = None   # batch x sequence length of the round being prepared
@@ -851,6 +853,7 @@ class StreamPool:
             self.resident_cap = self.count
             self._logged_resident = -1
             logger.warning("[small_gpu_stream] {}: the measured reserve was too small; the configured reserve is used from now on.", self.label)
+        started = time.perf_counter()
         self.slots, self.slot_params, self.loaded = [], [], []
         self.resident, self.resident_n = [], 0
         self._copy_stream, self._ready, self._free = None, [], []
@@ -858,8 +861,11 @@ class StreamPool:
         self.args.clear()
         self._last_index = -1
         gc.collect()
+        collected = time.perf_counter()
         if self.cuda:
             torch.cuda.empty_cache()
+        done = time.perf_counter()
+        self.release_times = (collected - started, done - collected)  # (dropping + garbage collection, cache emptying)
 
     def shrink_resident(self) -> bool:
         """The card ran out of memory: keep half as many resident blocks from now on. False when there is none left."""
@@ -1498,6 +1504,40 @@ def drop_card_leftovers(module: nn.Module, on_card: Any = None) -> int:
     return moved
 
 
+def log_decode_steps(clock: "PhaseClock") -> None:
+    """One line on where the time of the audio decoding went (with ``ACESTEP_STREAM_STATS=0`` it is not written). Never raises."""
+    try:
+        if not stats_enabled():
+            return
+        pool = _ACTIVE_POOL
+        freed = getattr(pool, "release_times", None) if pool is not None else None
+        detail = f" (DiT blocks dropped and collected {freed[0]:.2f} s, cache emptied {freed[1]:.2f} s)" if freed else ""
+        logger.info("[small_gpu_stream] audio decoding steps: {}{}", clock.text(), detail)
+    except Exception as exc:
+        logger.debug("[small_gpu_stream] could not report the decoding steps: {}", exc)
+
+
+class PhaseClock:
+    """Seconds spent in each step of a sequence (the card is synchronised at each lap so that queued work is counted where it ran)."""
+
+    def __init__(self) -> None:
+        self.laps: List[tuple] = []
+        self._t = time.perf_counter()
+
+    def lap(self, name: str) -> None:
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+        except Exception:  # a measurement must never break a generation
+            pass
+        now = time.perf_counter()
+        self.laps.append((name, now - self._t))
+        self._t = now
+
+    def text(self) -> str:
+        return " | ".join(f"{name} {seconds:.2f} s" for name, seconds in self.laps)
+
+
 def tiled_decode_on_card(handler: Any, latents: torch.Tensor) -> torch.Tensor:
     """Decode ``latents`` ([batch, 64, frames]) with the handler's VAE on the card, in float32 tiles.
 
@@ -1505,18 +1545,25 @@ def tiled_decode_on_card(handler: Any, latents: torch.Tensor) -> torch.Tensor:
     fixes it). The VAE is moved back to the processor afterwards. If the card runs out of memory the decode retries with
     smaller tiles on the card (``decode_with_ladder``) before the engine's fallback to the processor.
     """
+    clock = PhaseClock()
     release_gpu()  # the DiT slots are not needed any more; the VAE needs the room
+    clock.lap("card given back")
     device = torch.device("cuda")
     vae = handler.vae
 
-    def clear() -> None:
-        gc.collect()
+    def clear(full: bool = True) -> None:
+        # ``full`` also runs the garbage collector: needed after a failure (a failed tile's tensors may sit in reference
+        # cycles), pointless after a normal step, where everything the decode held is released by reference counting.
+        if full:
+            gc.collect()
         torch.cuda.empty_cache()
 
     try:
         vae.to(device=device, dtype=torch.float32)
+        clock.lap("weights to the card")
         card_latents = latents.to(device=device, dtype=torch.float32)
-        clear()
+        clear(full=False)
+        clock.lap("input and cache")
         free_bytes = torch.cuda.mem_get_info(device)[0]
         ladder = vae_chunk_ladder(free_bytes, vae_chunk_explicit())
         logger.info("[small_gpu_stream] VAE decode on {} (float32, tiles of {} frames, overlap {}, {:.2f} GB free)",
@@ -1527,17 +1574,22 @@ def tiled_decode_on_card(handler: Any, latents: torch.Tensor) -> torch.Tensor:
         result, used = decode_with_ladder(handler, card_latents, ladder, clear)
         logger.info("[small_gpu_stream] VAE decode done in {:.1f} s with tiles of {} frames, peak {:.2f} GB on the card",
                     time.perf_counter() - t0, used, torch.cuda.max_memory_allocated(device) / 1024 ** 3)
+        clock.lap("decode")
         return result
     finally:
+        failed = sys.exc_info()[0] is not None
         try:
             handler.vae = handler.vae.to(device="cpu", dtype=torch.float32)
         except Exception as exc:  # pragma: no cover
             logger.warning("[small_gpu_stream] could not move the VAE back to the processor: {}", exc)
+        clock.lap("weights back")
         try:
             left = drop_card_leftovers(handler.vae)
             if left:
                 logger.debug("[small_gpu_stream] {:.0f} MB of VAE weights left on the card by the decoder moved back to the processor.", left / 1024 ** 2)
         except Exception as exc:  # pragma: no cover - freeing memory must never break a generation
             logger.debug("[small_gpu_stream] could not free the VAE leftovers: {}", exc)
-        clear()
+        clear(full=failed)
+        clock.lap("cleanup")
+        log_decode_steps(clock)
         log_memory("after the audio decoding")

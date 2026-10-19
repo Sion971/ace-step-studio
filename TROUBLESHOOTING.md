@@ -2348,6 +2348,8 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 
 **Les phases du LM prennent du temps à "décharger" (ajout du 2026-10-18).** Les lignes `Offloaded LLM to CPU in 2.2s` (deux fois par génération avec le mode « réflexion » du LM) étaient la recopie du LM de la carte vers la RAM. Le LM reprend maintenant ses poids RAM d'origine : la ligne doit afficher quelques centièmes de seconde, et la RAM ne fait plus d'aller-retour de 3,6 Go avec le 1,7B.
 
+**Où part le temps après la diffusion (ajout du 2026-10-18).** Le journal contient maintenant `audio decoding steps: …` avec la durée de chaque étape du décodage audio (carte rendue, poids du VAE vers la carte, décodage, poids de retour, nettoyage). Si une étape domine (par exemple « weights back »), joindre cette ligne au rapport : elle décide s'il faut garder le VAE sur la carte ou le laisser sur le processeur. `ACESTEP_STREAM_STATS=0` supprime la ligne. Quand le texte « non-cover » est identique au prompt, le journal indique `Non-cover text identical to the prompt: its embeddings are reused.`
+
 **Si le flux ne peut pas démarrer** (pas de carte visible, bloc incompatible, mémoire verrouillable insuffisante), le moteur écrit `[small_gpu_stream] could not stream the DiT …` et continue en mode processeur normal.
 
 **Non vérifié ici.** Le chemin réel sur carte (copies asynchrones, caches d'attention créés sur la carte, VAE sur la carte à l'intérieur du moteur complet) n'a été exécuté que par les scripts de mesure sur la GTX 1050, pas à l'intérieur du moteur : les tests du dépôt (`small_gpu_stream_test.py`) vérifient la logique sur le processeur (équivalence avec le DiT normal, cache d'attention sur plusieurs étapes, libération de la carte, routage du décodage).
