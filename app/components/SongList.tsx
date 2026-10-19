@@ -10,6 +10,7 @@ import { ShareModal } from './ShareModal';
 import { AlbumCover } from './AlbumCover';
 import { songsApi } from '../services/api';
 
+import { parseServerDate } from '../utils/serverDate';
 interface SongListProps {
     songs: Song[];
     currentSong: Song | null;
@@ -237,7 +238,7 @@ export const SongList: React.FC<SongListProps> = ({
         const uploadItems = filteredUploads.map(track => ({
             type: 'upload' as const,
             id: track.id,
-            createdAt: new Date(track.created_at || Date.now()),
+            createdAt: parseServerDate(track.created_at || Date.now()),
             track
         }));
         // Defensif : createdAt manquant/invalide ne doit plus jamais faire

@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, Play, Pause, Heart, Eye, Users, Music as MusicIcon, ChevronRight, Share2, MoreHorizontal, Edit3, X, Camera, Image as ImageIcon, Upload, Loader2, Move } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
 
+import { parseServerDate } from '../utils/serverDate';
 interface UserProfileProps {
     username: string;
     onBack: () => void;
@@ -115,7 +116,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
                 style: s.style,
                 coverUrl: (s as any).cover_url || (s as any).coverUrl || getCoverUrl(s.id),
                 duration: s.duration ? `${Math.floor(s.duration / 60)}:${String(Math.floor(s.duration % 60)).padStart(2, '0')}` : '0:00',
-                createdAt: new Date(s.created_at),
+                createdAt: parseServerDate(s.created_at),
                 tags: s.tags || [],
                 audioUrl: getAudioUrl(s.audio_url, s.id),
                 isPublic: true,
@@ -496,7 +497,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, onBack, onPl
                                     )}
 
                                     <p className="text-zinc-500 text-xs md:text-sm mb-4">
-                                        {t('joined')} {new Date(profileUser.created_at).toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' })}
+                                        {t('joined')} {parseServerDate(profileUser.created_at).toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' })}
                                     </p>
                                 </div>
 

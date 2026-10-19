@@ -31,6 +31,7 @@ from acestep.gpu_config import get_lm_gpu_memory_ratio, get_gpu_memory_gb, get_l
 # vLLM's KV cache allocator adapts to available memory, so we only need a
 # basic sanity check — not a hard total-VRAM gate.
 VRAM_SAFE_FREE_GB = 2.0
+OFFLOAD_LEFTOVER_BYTES = 256 * 1024 ** 2  # below this on the card after an LM phase, no garbage collection is needed
 
 
 def _warn_if_prerelease_python():
@@ -4160,14 +4161,19 @@ class LLMHandler:
                 else:
                     model.to("cpu")
             masters = buffer_masters = None
-            # Clear accelerator cache after offloading
-            gc.collect()
+            # Clear accelerator cache after offloading. The card's tensors were released one by one above: on CUDA the
+            # garbage collector (0.35 s on every LM phase) is only needed when something is still held there.
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            elif hasattr(torch, 'xpu') and torch.xpu.is_available():
-                torch.xpu.empty_cache()
-            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available() and hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
-                torch.mps.empty_cache()
+                if torch.cuda.memory_allocated() > OFFLOAD_LEFTOVER_BYTES:
+                    gc.collect()
+                    torch.cuda.empty_cache()
+            else:
+                gc.collect()
+                if hasattr(torch, 'xpu') and torch.xpu.is_available():
+                    torch.xpu.empty_cache()
+                elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available() and hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
+                    torch.mps.empty_cache()
             offload_time = time.time() - start_time
             logger.info(f"Offloaded LLM to CPU in {offload_time:.4f}s")
 

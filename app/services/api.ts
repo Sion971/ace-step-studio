@@ -1,4 +1,6 @@
 // Use relative URLs so Vite proxy handles them (enables LAN access)
+import { parseServerDate } from '../utils/serverDate';
+
 const API_BASE = '';
 
 // Resolve audio URL based on storage type
@@ -287,7 +289,7 @@ export const songsApi = {
         cover_url: s.cover_url,
         coverUrl: s.cover_url || s.coverUrl || getCoverUrl(s.id),
         duration: s.duration && s.duration > 0 ? `${Math.floor(s.duration / 60)}:${String(Math.floor(s.duration % 60)).padStart(2, '0')}` : '0:00',
-        createdAt: new Date(s.created_at || s.createdAt),
+        createdAt: parseServerDate(s.created_at || s.createdAt),
         created_at: s.created_at,
         tags: s.tags || [],
         audioUrl: resolvedUrl,

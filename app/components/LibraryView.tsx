@@ -7,6 +7,7 @@ import { ShareModal } from './ShareModal';
 import { AlbumCover } from './AlbumCover';
 import { useI18n } from '../context/I18nContext';
 
+import { parseServerDate } from '../utils/serverDate';
 interface LibraryViewProps {
   allSongs: Song[];
   likedSongs: Song[];
@@ -341,7 +342,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                                 <div className="flex-1 min-w-0">
                                     <div className="text-sm font-medium text-zinc-900 dark:text-white truncate">{track.filename}</div>
                                     <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                                        {formatBytes(track.file_size_bytes)} • {new Date(track.created_at).toLocaleDateString()}
+                                        {formatBytes(track.file_size_bytes)} • {parseServerDate(track.created_at).toLocaleDateString()}
                                     </div>
                                 </div>
                                 <button

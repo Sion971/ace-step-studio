@@ -11,6 +11,7 @@
 import type { Song } from '../types';
 import { getAudioUrl, getCoverUrl } from './api';
 
+import { parseServerDate } from '../utils/serverDate';
 /**
  * A song of a playlist: the app's Song, plus what only a playlist knows. `addedAt` is the date it was added;
  * `durationSeconds` is the length in seconds, kept for the playlist's own total because the app's `duration` is a formatted string.
@@ -43,7 +44,7 @@ export function mapPlaylistSong(s: any): PlaylistSong {
     likeCount: s.like_count || 0,
     viewCount: s.view_count || 0,
     creator: s.creator,
-    createdAt: new Date(s.created_at),
+    createdAt: parseServerDate(s.created_at),
     addedAt: s.added_at,
   };
 }

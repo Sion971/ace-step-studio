@@ -7,6 +7,7 @@ import { ArrowLeft, Play, Pause, Heart, Share2, MoreHorizontal, ThumbsDown, Musi
 import { ShareModal } from './ShareModal';
 import { SongDropdownMenu } from './SongDropdownMenu';
 
+import { parseServerDate } from '../utils/serverDate';
 interface SongProfileProps {
     songId: string;
     onBack: () => void;
@@ -119,7 +120,7 @@ export const SongProfile: React.FC<SongProfileProps> = ({ songId, onBack, onPlay
                 duration: response.song.duration
                     ? `${Math.floor(response.song.duration / 60)}:${String(Math.floor(response.song.duration % 60)).padStart(2, '0')}`
                     : '0:00',
-                createdAt: new Date(response.song.created_at),
+                createdAt: parseServerDate(response.song.created_at),
                 tags: response.song.tags || [],
                 audioUrl: getAudioUrl(response.song.audio_url, response.song.id),
                 isPublic: response.song.is_public,

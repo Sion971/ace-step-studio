@@ -1,6 +1,7 @@
 """The 5Hz LM goes back to the processor without being copied again: its processor weights are kept while it runs elsewhere."""
 
 import unittest
+from unittest import mock
 
 import torch
 from torch import nn
@@ -70,3 +71,30 @@ class OffloadWithoutCopyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipIf(LLMHandler is None, f"llm_inference import failed: {_IMPORT_ERROR}")
+class OffloadCollectionTests(unittest.TestCase):
+    """The garbage collector (0.35 s) only runs after an LM phase when the card still holds something."""
+
+    def _run(self, allocated):
+        handler = LLMHandler()
+        handler.llm = _Tiny()
+        handler.llm_backend = "pt"
+        handler.offload_to_cpu = True
+        handler.device = "meta"
+        handler.dtype = torch.float32
+        collected = []
+        with mock.patch("acestep.llm_inference.torch.cuda.is_available", return_value=True), \
+                mock.patch("acestep.llm_inference.torch.cuda.empty_cache"), \
+                mock.patch("acestep.llm_inference.torch.cuda.memory_allocated", return_value=allocated), \
+                mock.patch("acestep.llm_inference.gc.collect", side_effect=lambda *a: collected.append(1) or 0):
+            with handler._load_model_context():
+                pass
+        return collected
+
+    def test_no_collection_when_the_card_is_empty(self):
+        self.assertEqual(self._run(10 * 1024 ** 2), [])
+
+    def test_collection_when_something_stays_on_the_card(self):
+        self.assertEqual(len(self._run(600 * 1024 ** 2)), 1)

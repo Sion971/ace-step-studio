@@ -74,6 +74,7 @@ import { NewsPage } from './components/NewsPage';
 import { ConfirmDialog } from './components/ConfirmDialog';
 
 
+import { parseServerDate } from './utils/serverDate';
 function AppContent() {
   // i18n
   const { t } = useI18n();
@@ -530,7 +531,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
           // chansons sans cover_url (voir getCoverUrl dans services/api.ts).
           coverUrl: s.cover_url || s.coverUrl || getCoverUrl(s.id),
           duration: s.duration && s.duration > 0 ? `${Math.floor(s.duration / 60)}:${String(Math.floor(s.duration % 60)).padStart(2, '0')}` : '0:00',
-          createdAt: new Date(s.created_at || s.createdAt),
+          createdAt: parseServerDate(s.created_at || s.createdAt),
           tags: s.tags || [],
           audioUrl: getAudioUrl(s.audio_url, s.id),
           isPublic: s.is_public,
@@ -1062,7 +1063,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         // Prefer the real cover saved by the local AI cover job.
         coverUrl: (s as any).cover_url || (s as any).coverUrl || getCoverUrl(s.id),
         duration: s.duration && s.duration > 0 ? `${Math.floor(s.duration / 60)}:${String(Math.floor(s.duration % 60)).padStart(2, '0')}` : '0:00',
-        createdAt: new Date(s.created_at),
+        createdAt: parseServerDate(s.created_at),
         tags: s.tags || [],
         audioUrl: getAudioUrl(s.audio_url, s.id),
         isPublic: s.is_public,
@@ -1211,7 +1212,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     style: params.style || params.songDescription || '',
     coverUrl: getCoverUrl(tempId),
     duration: '--:--',
-    createdAt: createdAt ? new Date(createdAt) : new Date(),
+    createdAt: createdAt ? parseServerDate(createdAt) : new Date(),
     isGenerating: true,
     tags: params.customMode ? ['custom'] : ['simple'],
     isPublic: true,
@@ -2105,7 +2106,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
                     duration: song.duration && song.duration > 0
                       ? `${Math.floor(song.duration / 60)}:${String(Math.floor(song.duration % 60)).padStart(2, '0')}`
                       : '0:00',
-                    createdAt: new Date(song.created_at || song.createdAt),
+                    createdAt: parseServerDate(song.created_at || song.createdAt),
                     tags: song.tags || [],
                     audioUrl: getAudioUrl(song.audio_url, song.id),
                     isPublic: song.is_public,

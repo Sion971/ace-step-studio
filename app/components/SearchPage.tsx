@@ -6,6 +6,7 @@ import { useI18n } from '../context/I18nContext';
 import { GENRE_KEYS } from '../data/genres';
 import type { TranslationKey } from '../i18n/translations';
 
+import { parseServerDate } from '../utils/serverDate';
 interface SearchPageProps {
   onPlaySong?: (song: Song, list?: Song[]) => void;
   currentSong?: Song | null;
@@ -61,7 +62,7 @@ export const SearchPage: React.FC<SearchPageProps> = ({
     style: s.style || s.caption || '',
     coverUrl: s.cover_url || s.coverUrl || getCoverUrl(s.id),
     duration: s.duration ? (typeof s.duration === 'string' ? s.duration : `${Math.floor(s.duration / 60)}:${String(Math.floor(s.duration % 60)).padStart(2, '0')}`) : '0:00',
-    createdAt: new Date(s.created_at || s.createdAt),
+    createdAt: parseServerDate(s.created_at || s.createdAt),
     tags: s.tags || [],
     audioUrl: getAudioUrl(s.audio_url || s.audioUrl, s.id),
     isPublic: s.is_public ?? s.isPublic,
