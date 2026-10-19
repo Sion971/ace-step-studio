@@ -68,7 +68,7 @@ def generate_with_batch_management(
 ):
     """Wrap ``generate_with_progress`` with batch queue management state."""
     _ = generation_params_state  # reserved for API compatibility with wiring/state outputs
-    gc_utils.collect_if_card_holds()
+    gc_utils.collect_if_card_holds("start of the batch")
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     if (hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache")
@@ -112,7 +112,7 @@ def generate_with_batch_management(
     # Release the generator frame and run GC to reclaim any accelerator memory
     # that was not yet freed at the end of the inner generator.
     del generator
-    gc_utils.collect_if_card_holds()
+    gc_utils.collect_if_card_holds("end of the batch")
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     if (hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache")

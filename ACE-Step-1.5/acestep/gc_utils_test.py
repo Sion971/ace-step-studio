@@ -29,6 +29,25 @@ class CollectIfCardHoldsTests(unittest.TestCase):
     def test_without_a_card_collects_as_before(self):
         self.assertTrue(self._run(False))
 
+    def test_a_collection_on_a_card_says_what_it_freed(self):
+        readings = iter([600 * 1024 ** 2, 100 * 1024 ** 2])
+        with mock.patch.object(gc_utils.torch.cuda, "is_available", return_value=True), \
+                mock.patch.object(gc_utils.torch.cuda, "memory_allocated", side_effect=lambda: next(readings)), \
+                mock.patch.object(gc_utils.gc, "collect"), \
+                mock.patch.object(gc_utils, "logger") as logger:
+            self.assertTrue(gc_utils.collect_if_card_holds("somewhere"))
+        args = logger.info.call_args[0]
+        self.assertEqual(args[1], "somewhere")
+        self.assertAlmostEqual(args[2], 600.0)
+        self.assertAlmostEqual(args[4], 500.0)
+
+    def test_a_skipped_collection_is_silent(self):
+        with mock.patch.object(gc_utils.torch.cuda, "is_available", return_value=True), \
+                mock.patch.object(gc_utils.torch.cuda, "memory_allocated", return_value=1), \
+                mock.patch.object(gc_utils, "logger") as logger:
+            self.assertFalse(gc_utils.collect_if_card_holds("somewhere"))
+        logger.info.assert_not_called()
+
     def test_unreadable_card_collects(self):
         self.assertTrue(self._run(True, error=RuntimeError("no device")))
 

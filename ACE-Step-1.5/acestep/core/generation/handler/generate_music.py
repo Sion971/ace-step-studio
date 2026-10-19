@@ -494,7 +494,7 @@ class GenerateMusicMixin:
             for _k in _gpu_keys:
                 outputs.pop(_k, None)
             del outputs, pred_wavs, pred_latents_cpu
-            gc_utils.collect_if_card_holds()
+            gc_utils.collect_if_card_holds("end of generate_music")
             self._empty_cache()
             return result
         except Exception as exc:

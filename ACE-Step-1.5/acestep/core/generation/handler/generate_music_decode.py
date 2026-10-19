@@ -204,7 +204,7 @@ class GenerateMusicDecodeMixin:
                 if torch.any(peak > 1.0):
                     pred_wavs = pred_wavs / peak.clamp(min=1.0)
                 self._empty_cache()
-        gc_utils.collect_if_card_holds()
+        gc_utils.collect_if_card_holds("after the VAE")
         self._empty_cache()
         end_time = time.time()
         time_costs["vae_decode_time_cost"] = end_time - start_time
