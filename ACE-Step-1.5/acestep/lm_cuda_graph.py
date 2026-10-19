@@ -67,6 +67,23 @@ def _card_mb() -> Optional[float]:
         return None
 
 
+_side_streams = {}
+
+
+def _side_stream() -> "torch.cuda.Stream":
+    """The stream the warm-up steps of every capture run on: one per card, created once.
+
+    cuBLAS keeps a workspace (32 MB on recent cards) for each stream a matrix product runs on, and PyTorch never gives it
+    back. A new stream per capture took 5 to 6 streams, so 130 to 190 MB, from the card at every generation, until the 32
+    streams of PyTorch's pool had all been used (about 1 GB), which the card could not afford.
+    """
+    key = torch.cuda.current_device()
+    stream = _side_streams.get(key)
+    if stream is None:
+        stream = _side_streams[key] = torch.cuda.Stream()
+    return stream
+
+
 class _Captured:
     def __init__(self, graph, logits):
         self.graph = graph
@@ -170,7 +187,7 @@ class GraphDecoder:
         start = time.perf_counter()
         first = self.position.clone()
         opened = self.mask.clone()
-        side = torch.cuda.Stream()
+        side = _side_stream()
         side.wait_stream(torch.cuda.current_stream())
         try:
             with torch.cuda.stream(side):

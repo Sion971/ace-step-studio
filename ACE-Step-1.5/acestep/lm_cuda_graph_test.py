@@ -337,5 +337,26 @@ class LoopTests(unittest.TestCase):
         self.assertEqual(set(states), {"ready"})
 
 
+class SideStreamTests(unittest.TestCase):
+    def test_every_capture_reuses_one_stream_per_card(self):
+        made = []
+        with patch.object(lm_cuda_graph, "_side_streams", {}), \
+                patch.object(lm_cuda_graph.torch.cuda, "current_device", return_value=0), \
+                patch.object(lm_cuda_graph.torch.cuda, "Stream", side_effect=lambda: made.append(1) or object()):
+            first = lm_cuda_graph._side_stream()
+            for _ in range(5):
+                self.assertIs(lm_cuda_graph._side_stream(), first)
+        self.assertEqual(len(made), 1)
+
+    def test_another_card_gets_its_own_stream(self):
+        with patch.object(lm_cuda_graph, "_side_streams", {}), \
+                patch.object(lm_cuda_graph.torch.cuda, "Stream", side_effect=lambda: object()):
+            with patch.object(lm_cuda_graph.torch.cuda, "current_device", return_value=0):
+                a = lm_cuda_graph._side_stream()
+            with patch.object(lm_cuda_graph.torch.cuda, "current_device", return_value=1):
+                b = lm_cuda_graph._side_stream()
+        self.assertIsNot(a, b)
+
+
 if __name__ == "__main__":
     unittest.main()
