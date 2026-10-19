@@ -1,6 +1,5 @@
 """Decode/validation helpers for ``generate_music`` orchestration."""
 
-import gc
 import os
 import time
 from typing import Any, Dict, Optional, Tuple
@@ -8,6 +7,7 @@ from typing import Any, Dict, Optional, Tuple
 import torch
 from loguru import logger
 
+from acestep import gc_utils
 from acestep.gpu_config import get_effective_free_vram_gb
 
 from . import small_gpu_stream
@@ -204,7 +204,7 @@ class GenerateMusicDecodeMixin:
                 if torch.any(peak > 1.0):
                     pred_wavs = pred_wavs / peak.clamp(min=1.0)
                 self._empty_cache()
-        gc.collect()
+        gc_utils.collect_if_card_holds()
         self._empty_cache()
         end_time = time.time()
         time_costs["vae_decode_time_cost"] = end_time - start_time

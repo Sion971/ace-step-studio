@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 from loguru import logger
 
+from acestep import gc_utils
 from acestep.constants import DEFAULT_DIT_INSTRUCTION
 from acestep.core.generation.handler.repaint_waveform_splice import (
     apply_repaint_waveform_splice,
@@ -493,7 +494,7 @@ class GenerateMusicMixin:
             for _k in _gpu_keys:
                 outputs.pop(_k, None)
             del outputs, pred_wavs, pred_latents_cpu
-            gc.collect()
+            gc_utils.collect_if_card_holds()
             self._empty_cache()
             return result
         except Exception as exc:

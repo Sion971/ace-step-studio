@@ -1,12 +1,12 @@
 """Foreground batch generation wrapper for UI streaming updates."""
 
-import gc
 import time as time_module
 
 import gradio as gr
 import torch
 from loguru import logger
 
+from acestep import gc_utils
 from acestep.ui.gradio.events.results.batch_management_helpers import (
     _build_saved_params,
     _extract_scores,
@@ -68,7 +68,7 @@ def generate_with_batch_management(
 ):
     """Wrap ``generate_with_progress`` with batch queue management state."""
     _ = generation_params_state  # reserved for API compatibility with wiring/state outputs
-    gc.collect()
+    gc_utils.collect_if_card_holds()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     if (hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache")
@@ -112,7 +112,7 @@ def generate_with_batch_management(
     # Release the generator frame and run GC to reclaim any accelerator memory
     # that was not yet freed at the end of the inner generator.
     del generator
-    gc.collect()
+    gc_utils.collect_if_card_holds()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     if (hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache")

@@ -23,7 +23,7 @@ from transformers.generation.logits_process import (
     RepetitionPenaltyLogitsProcessor,
 )
 from acestep.llm_backend_compat import get_vllm_preflight_warning
-from acestep import lm_cuda_graph
+from acestep import lm_cuda_graph, lm_warmup
 from acestep.lm_step_profile import StepProfile
 from acestep.constrained_logits_processor import MetadataConstrainedLogitsProcessor
 from acestep.constants import DEFAULT_LM_INSTRUCTION, DEFAULT_LM_UNDERSTAND_INSTRUCTION, DEFAULT_LM_INSPIRED_INSTRUCTION, DEFAULT_LM_REWRITE_INSTRUCTION, DURATION_MIN, DURATION_MAX
@@ -425,10 +425,22 @@ class LLMHandler:
             self.llm_backend = "pt"
             self.llm_initialized = True
             logger.info(f"5Hz LM initialized successfully using PyTorch backend on {device}")
+            self._warm_up_pt_model(device)
             status_msg = f"✅ 5Hz LM initialized successfully\nModel: {model_path}\nBackend: PyTorch\nDevice: {device}"
             return True, status_msg
         except Exception as e:
             return False, f"❌ Error initializing 5Hz LM: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
+
+    def _warm_up_pt_model(self, device) -> None:
+        """Let the card load its kernels now, not during the first generation. Never raises."""
+        if not lm_warmup.requested(device):
+            return
+        try:
+            with self._load_model_context():
+                seconds = lm_warmup.run(self.llm, device)
+            logger.info(f"[lm_warmup] 5Hz LM warmed up in {seconds:.2f} s")
+        except Exception as exc:
+            logger.warning(f"[lm_warmup] skipped: {type(exc).__name__}: {exc}")
 
     def _apply_top_k_filter(self, logits: torch.Tensor, top_k: Optional[int]) -> torch.Tensor:
         """Apply top-k filtering to logits"""
