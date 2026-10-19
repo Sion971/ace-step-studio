@@ -2518,6 +2518,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             formatDisplay={(val) => val === -1 ? t('auto') : `${val}${t('seconds')}`}
             title={''}
             autoLabel={t('auto')}
+            helpText={`${t('auto')} - ${Math.round(activeMaxDuration / 60)} ${t('min')}`}
           />
 
           <EditableSlider
@@ -2567,6 +2568,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             max={4}
             step={1}
             onChange={setBatchSize}
+            helpText={t('numberOfVariations')}
+            title={tf('hintBatchVariations', 'Creates multiple variations in a single run. More variations = longer total time.')}
           />
         </div>
 
@@ -2604,31 +2607,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                 className="hidden"
               />
             </label>
-
-            {/* Duration */}
-            <EditableSlider
-              label={t('duration')}
-              value={duration}
-              min={-1}
-              max={activeMaxDuration}
-              step={5}
-              onChange={setDuration}
-              formatDisplay={(val) => val === -1 ? t('auto') : `${val}${t('seconds')}`}
-              autoLabel={t('auto')}
-              helpText={`${t('auto')} - ${Math.round(activeMaxDuration / 60)} ${t('min')}`}
-            />
-
-            {/* Batch Size */}
-            <EditableSlider
-              label={t('batchSize')}
-              value={batchSize}
-              min={1}
-              max={4}
-              step={1}
-              onChange={setBatchSize}
-              helpText={t('numberOfVariations')}
-              title={tf('hintBatchVariations', 'Creates multiple variations in a single run. More variations = longer total time.')}
-            />
 
             {/* Bulk Generate */}
             <div className="space-y-2">
