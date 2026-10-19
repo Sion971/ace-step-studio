@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-19
+
+### Added
+- 5Hz LM (PyTorch backend, NVIDIA cards): the one-token decoding steps now run through CUDA graphs. A step was limited by Python launching hundreds of small kernels (about 28 ms per token, the same for the 0.6B and the 1.7B model); a graph replays them with one call. The key/value pairs of the prompt are copied into a fixed buffer, one graph is captured per window of 256+ positions as the generation grows, and the second step is run both ways and compared before the graph is trusted. If anything differs or fails, the usual decoding goes on. Measured on an RTX 5060 8 GB, 895 audio codes: 0.6B 25.8 s to 14.5 s, 1.7B 28.1 s to about 20.5 s. On by default with CUDA; `ACESTEP_LM_CUDA_GRAPH=0` turns it off, `=1` forces it elsewhere (ROCm). The sampled tokens may differ from the usual loop's on a close call (the rounding changes); the result is as valid, not identical
+- 5Hz LM: it is warmed up with a few made-up passes when it is loaded, so the first generation after the start (phase 1 went from 10.7 s to 2.4 s with the 0.6B) is no longer slower than the next ones. `ACESTEP_LM_WARMUP=0` turns it off
+- `ACESTEP_LM_PROFILE=1`: one line of time per token and per part of the step in the 5Hz LM loops (measurement only, leave it off otherwise)
+- `ACESTEP_MEM_DEBUG=1`: after each garbage collection on a card, `[mem]` lines say how much memory the card holds, how much of it Python can see (weights or other tensors), and what holds the largest tensors. About a second per line: for measurements only
+- `[lm_graph]` and `[gc]` log lines: what the graphs cost to capture, what the card held before, at the end and after each generation, and what a garbage collection freed
+
+### Fixed
+- 5Hz LM graphs: the card kept 130 to 190 MB more after every generation (257 MB after the first, 1089 MB after the sixth, up to about 1 GB). Python could not see it: cuBLAS keeps a 32 MB workspace for every CUDA stream it runs on and never gives it back, and each graph capture created a new stream for its warm-up steps. The captures now share one stream per card. The card's memory stays flat from one generation to the next (3730 MB with the 1.7B model, 1394 MB with the 0.6B, over three long generations), and "Offloaded LLM to CPU" takes 0.01 s instead of 0.36 s
+
+### Changed
+- End of a generation: `gc.collect()` (0.35 s each, four times per generation, and it freed 0 MB every time in the measurements) now only runs when the card still holds more than 256 MB. Measured on short and long tracks: post-processing 2.3 s to 0.9 s
+- 5Hz LM: the graphs, their buffers and the static cache are released explicitly at the end of each generation
+
 ## 2026-10-18
 
 ### Added
