@@ -23,6 +23,7 @@ from transformers.generation.logits_process import (
     RepetitionPenaltyLogitsProcessor,
 )
 from acestep.llm_backend_compat import get_vllm_preflight_warning
+from acestep import lm_cuda_graph
 from acestep.lm_step_profile import StepProfile
 from acestep.constrained_logits_processor import MetadataConstrainedLogitsProcessor
 from acestep.constants import DEFAULT_LM_INSTRUCTION, DEFAULT_LM_UNDERSTAND_INSTRUCTION, DEFAULT_LM_INSPIRED_INSTRUCTION, DEFAULT_LM_REWRITE_INSTRUCTION, DURATION_MIN, DURATION_MAX
@@ -2567,12 +2568,18 @@ class LLMHandler:
         # Build logits processor for repetition penalty
         logits_processor = self._build_logits_processor(repetition_penalty)
 
+        lm_graph = lm_cuda_graph.create(model, device, max_new_tokens) if use_cache else None  # off unless asked for
         profile = StepProfile("constrained decoding", device)
         profile.begin()
         with torch.inference_mode():
             for step in tqdm(range(max_new_tokens), desc="LLM Constrained Decoding", unit="token", disable=self.disable_tqdm):
                 # Forward pass
-                outputs = self._forward_pass(model, generated_ids, model_kwargs, past_key_values, use_cache)
+                if lm_graph is not None and lm_graph.ready:
+                    outputs = lm_graph.step(generated_ids)
+                else:
+                    outputs = self._forward_pass(model, generated_ids, model_kwargs, past_key_values, use_cache)
+                    if lm_graph is not None:
+                        lm_graph.check(outputs, generated_ids)
                 profile.lap("model")
 
                 # Get logits for the last position
@@ -2615,6 +2622,10 @@ class LLMHandler:
                 # Update KV cache
                 if use_cache and hasattr(outputs, 'past_key_values'):
                     past_key_values = outputs.past_key_values
+                if lm_graph is not None:
+                    lm_graph.end_step(outputs, attn_mask, generated_ids)
+                    if lm_graph.ready:
+                        past_key_values = None  # the graph keeps its own cache
 
                 # Update streamer
                 if streamer is not None:
@@ -2624,6 +2635,8 @@ class LLMHandler:
 
                 if should_stop:
                     break
+        if lm_graph is not None:
+            lm_graph.close()
         profile.report()
 
         if streamer is not None:
@@ -2696,12 +2709,18 @@ class LLMHandler:
         seq_finished = [False] * batch_size
         valid_cache = None  # (mask tensor, indices of its allowed tokens): the mask does not change during a phase
 
+        lm_graph = lm_cuda_graph.create(model, device, max_new_tokens) if use_cache else None  # off unless asked for
         profile = StepProfile("CFG decoding", device)
         profile.begin()
         with torch.inference_mode():
             for step in tqdm(range(max_new_tokens), desc="LLM CFG Generation", unit="token", disable=self.disable_tqdm):
                 # Forward pass for the entire batch (conditional + unconditional)
-                outputs = self._forward_pass(model, generated_ids, model_kwargs, past_key_values, use_cache)
+                if lm_graph is not None and lm_graph.ready:
+                    outputs = lm_graph.step(generated_ids)
+                else:
+                    outputs = self._forward_pass(model, generated_ids, model_kwargs, past_key_values, use_cache)
+                    if lm_graph is not None:
+                        lm_graph.check(outputs, generated_ids)
                 profile.lap("model")
 
                 # Get logits for the last position
@@ -2803,6 +2822,10 @@ class LLMHandler:
                 # Update past_key_values for next iteration
                 if use_cache and hasattr(outputs, 'past_key_values'):
                     past_key_values = outputs.past_key_values
+                if lm_graph is not None:
+                    lm_graph.end_step(outputs, attention_mask, generated_ids)
+                    if lm_graph.ready:
+                        past_key_values = None  # the graph keeps its own cache
 
                 # Update streamer
                 if streamer is not None:
@@ -2814,6 +2837,8 @@ class LLMHandler:
                 # Stop generation only when ALL sequences have finished
                 if all(seq_finished):
                     break
+        if lm_graph is not None:
+            lm_graph.close()
         profile.report()
 
         if streamer is not None:
