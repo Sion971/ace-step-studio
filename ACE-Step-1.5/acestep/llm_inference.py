@@ -4130,6 +4130,12 @@ class LLMHandler:
             yield
             return
 
+        # The weights are not modified while the model runs: keep the processor copies and put them back afterwards instead of
+        # copying the whole model off the card (2.2 s and a second 3.4 GB copy in RAM for the 1.7B, twice per generation).
+        modules = list(model.modules()) if hasattr(model, "modules") else []
+        masters = [(module, name, param, param.data) for module in modules for name, param in module._parameters.items() if param is not None]
+        buffer_masters = [(module, name, buf) for module in modules for name, buf in module._buffers.items() if buf is not None]
+
         # Load to GPU
         logger.info(f"Loading LLM to {self.device}")
         start_time = time.time()
@@ -4145,7 +4151,15 @@ class LLMHandler:
             logger.info(f"Offloading LLM to CPU")
             start_time = time.time()
             if hasattr(model, "to"):
-                model.to("cpu")
+                if masters and all(master.device.type == "cpu" for _m, _n, _p, master in masters):
+                    for module, name, param, master in masters:  # ``to`` may have replaced the Parameter objects: put the old ones back
+                        param.data = master
+                        module._parameters[name] = param
+                    for module, name, buf in buffer_masters:  # ``to`` replaces buffers by new tensors instead of changing them
+                        module._buffers[name] = buf
+                else:
+                    model.to("cpu")
+            masters = buffer_masters = None
             # Clear accelerator cache after offloading
             gc.collect()
             if torch.cuda.is_available():
