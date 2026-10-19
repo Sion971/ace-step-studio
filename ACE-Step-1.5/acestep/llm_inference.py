@@ -408,7 +408,12 @@ class LLMHandler:
     def _load_pytorch_model(self, model_path: str, device: str) -> Tuple[bool, str]:
         """Load PyTorch model from path and return (success, status_message)"""
         try:
-            self.llm = AutoModelForCausalLM.from_pretrained(model_path, trust_remote_code=True)
+            # Read the weights straight in the target dtype: without ``torch_dtype`` transformers (<4.58) builds the model in
+            # float32 first, which needs 2x the RAM of the bfloat16 model (+ a second copy during ``.to``): about 12 GB of
+            # RAM for the 1.7B, enough to push a 32 GB machine into swap.
+            self.llm = AutoModelForCausalLM.from_pretrained(
+                model_path, trust_remote_code=True, torch_dtype=self.dtype, low_cpu_mem_usage=True
+            )
             if not self.offload_to_cpu:
                 self.llm = self.llm.to(device).to(self.dtype)
             else:
