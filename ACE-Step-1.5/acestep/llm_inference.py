@@ -23,6 +23,7 @@ from transformers.generation.logits_process import (
     RepetitionPenaltyLogitsProcessor,
 )
 from acestep.llm_backend_compat import get_vllm_preflight_warning
+from acestep.lm_step_profile import StepProfile
 from acestep.constrained_logits_processor import MetadataConstrainedLogitsProcessor
 from acestep.constants import DEFAULT_LM_INSTRUCTION, DEFAULT_LM_UNDERSTAND_INSTRUCTION, DEFAULT_LM_INSPIRED_INSTRUCTION, DEFAULT_LM_REWRITE_INSTRUCTION, DURATION_MIN, DURATION_MAX
 from acestep.gpu_config import get_lm_gpu_memory_ratio, get_gpu_memory_gb, get_lm_model_size, get_global_gpu_config
@@ -432,7 +433,7 @@ class LLMHandler:
         """Apply top-k filtering to logits"""
         if top_k is not None and top_k > 0:
             indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
-            logits[indices_to_remove] = float('-inf')
+            logits.masked_fill_(indices_to_remove, float('-inf'))  # same result as logits[mask] = -inf, without waiting for the card
         return logits
 
     def _apply_top_p_filter(self, logits: torch.Tensor, top_p: Optional[float]) -> torch.Tensor:
@@ -445,7 +446,7 @@ class LLMHandler:
             sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
             sorted_indices_to_remove[..., 0] = 0
             indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
-            logits[indices_to_remove] = float('-inf')
+            logits.masked_fill_(indices_to_remove, float('-inf'))
         return logits
 
     def _sample_tokens(self, logits: torch.Tensor, temperature: float) -> torch.Tensor:
@@ -474,8 +475,9 @@ class LLMHandler:
     def _update_constrained_processor_state(self, constrained_processor: Optional[MetadataConstrainedLogitsProcessor], tokens: torch.Tensor):
         """Update constrained processor state with generated tokens"""
         if constrained_processor is not None:
-            for b in range(tokens.shape[0]):
-                constrained_processor.update_state(tokens[b].item())
+            ids = tokens.tolist() if isinstance(tokens, torch.Tensor) else tokens  # one transfer, not one wait per sequence
+            for token_id in ids:
+                constrained_processor.update_state(token_id)
 
     def _forward_pass(
         self,
@@ -2565,10 +2567,13 @@ class LLMHandler:
         # Build logits processor for repetition penalty
         logits_processor = self._build_logits_processor(repetition_penalty)
 
+        profile = StepProfile("constrained decoding", device)
+        profile.begin()
         with torch.inference_mode():
             for step in tqdm(range(max_new_tokens), desc="LLM Constrained Decoding", unit="token", disable=self.disable_tqdm):
                 # Forward pass
                 outputs = self._forward_pass(model, generated_ids, model_kwargs, past_key_values, use_cache)
+                profile.lap("model")
 
                 # Get logits for the last position
                 next_token_logits = outputs.logits[:, -1, :]  # [batch_size, vocab_size]
@@ -2576,6 +2581,7 @@ class LLMHandler:
                 # Apply constrained processor FIRST (modifies logits based on FSM state)
                 if constrained_processor is not None:
                     next_token_logits = constrained_processor(generated_ids, next_token_logits)
+                profile.lap("constrained processor")
 
                 # Apply other logits processors (repetition penalty)
                 for processor in logits_processor:
@@ -2584,15 +2590,21 @@ class LLMHandler:
                 # Apply top-k and top-p filtering
                 next_token_logits = self._apply_top_k_filter(next_token_logits, top_k)
                 next_token_logits = self._apply_top_p_filter(next_token_logits, top_p)
+                profile.lap("penalty and filters")
 
                 # Apply temperature and sample
                 next_tokens = self._sample_tokens(next_token_logits, temperature)
+                profile.lap("sampling")
 
-                # Update constrained processor state
-                self._update_constrained_processor_state(constrained_processor, next_tokens)
+                # The sampled tokens go to the processor and the stop test in one transfer
+                token_ids = next_tokens.tolist()
+                self._update_constrained_processor_state(constrained_processor, token_ids)
 
                 # Check for EOS token
-                should_stop = self._check_eos_token(next_tokens, eos_token_id, pad_token_id)
+                should_stop = any(
+                    t == eos_token_id or (pad_token_id is not None and pad_token_id != eos_token_id and t == pad_token_id)
+                    for t in token_ids
+                )
 
                 # Append token to sequence
                 next_tokens_unsqueezed = next_tokens.unsqueeze(1)
@@ -2607,9 +2619,12 @@ class LLMHandler:
                 # Update streamer
                 if streamer is not None:
                     streamer.put(next_tokens_unsqueezed)
+                profile.lap("bookkeeping")
+                profile.step()
 
                 if should_stop:
                     break
+        profile.report()
 
         if streamer is not None:
             streamer.end()
@@ -2676,13 +2691,18 @@ class LLMHandler:
         # Build logits processor for non-CFG operations (repetition penalty, top_k, top_p)
         logits_processor = self._build_logits_processor(repetition_penalty)
 
-        # Per-sequence finished tracking (Fix 4: batch compaction - stop when ALL done)
-        seq_finished = torch.zeros(batch_size, dtype=torch.bool, device=device)
+        # Per-sequence finished tracking (Fix 4: batch compaction - stop when ALL done). Kept on the processor side:
+        # the sampled tokens are read once per step anyway, and a tensor here made every test wait for the card.
+        seq_finished = [False] * batch_size
+        valid_cache = None  # (mask tensor, indices of its allowed tokens): the mask does not change during a phase
 
+        profile = StepProfile("CFG decoding", device)
+        profile.begin()
         with torch.inference_mode():
             for step in tqdm(range(max_new_tokens), desc="LLM CFG Generation", unit="token", disable=self.disable_tqdm):
                 # Forward pass for the entire batch (conditional + unconditional)
                 outputs = self._forward_pass(model, generated_ids, model_kwargs, past_key_values, use_cache)
+                profile.lap("model")
 
                 # Get logits for the last position
                 next_token_logits = outputs.logits[:, -1, :]  # [batch_size*2, vocab_size]
@@ -2705,9 +2725,11 @@ class LLMHandler:
                     non_audio_mask = constrained_processor.non_audio_code_mask
                     if non_audio_mask.device != device or non_audio_mask.dtype != torch.float32:
                         non_audio_mask = non_audio_mask.to(device=device, dtype=torch.float32)
-                    # valid_mask is True where tokens are allowed (mask value == 0)
-                    valid_mask = (non_audio_mask[0] == 0)  # [vocab_size]
-                    valid_indices = valid_mask.nonzero(as_tuple=False).squeeze(1)  # [num_valid]
+                    # valid_mask is True where tokens are allowed (mask value == 0): worked out once, not at every token
+                    if valid_cache is None or valid_cache[0] is not non_audio_mask:
+                        valid_mask = (non_audio_mask[0] == 0)  # [vocab_size]
+                        valid_cache = (non_audio_mask, valid_mask.nonzero(as_tuple=False).squeeze(1))  # [num_valid]
+                    valid_indices = valid_cache[1]
 
                     # CFG on valid tokens only; all others get -inf
                     cond_valid = cond_logits[:, valid_indices].float()
@@ -2731,10 +2753,13 @@ class LLMHandler:
                     # tokens are simply excluded from sampling.
                     cfg_logits = torch.nan_to_num(cfg_logits, nan=float('-inf'))
 
+                profile.lap("CFG")
+
                 # Apply constrained processor (modifies logits based on FSM state, e.g. duration constraint)
                 if constrained_processor is not None:
                     current_input_ids = generated_ids[cond_start_idx:cond_start_idx+batch_size]
                     cfg_logits = constrained_processor(current_input_ids, cfg_logits)
+                profile.lap("constrained processor")
 
                 # Apply logits processors (repetition penalty, top-k, top-p)
                 # Get current input_ids for repetition penalty (only conditional part)
@@ -2747,23 +2772,27 @@ class LLMHandler:
                 cfg_logits = self._apply_top_p_filter(cfg_logits, top_p)
 
                 # Force EOS for already-finished sequences so they don't alter constrained state
-                if seq_finished.any():
+                if any(seq_finished):
                     for b in range(batch_size):
                         if seq_finished[b]:
                             cfg_logits[b, :] = float('-inf')
                             cfg_logits[b, eos_token_id] = 0.0
+                profile.lap("penalty and filters")
 
                 # Apply temperature and sample
                 next_tokens = self._sample_tokens(cfg_logits, temperature)
+                profile.lap("sampling")
+
+                # One transfer of the sampled tokens serves the processor state and the EOS tracking
+                token_ids = next_tokens.tolist()
 
                 # Update constrained processor state AFTER sampling
-                self._update_constrained_processor_state(constrained_processor, next_tokens)
+                self._update_constrained_processor_state(constrained_processor, token_ids)
 
                 # Per-sequence EOS tracking (Fix 4: stop when ALL sequences are done)
-                is_eos = next_tokens == eos_token_id
-                if pad_token_id is not None and pad_token_id != eos_token_id:
-                    is_eos = is_eos | (next_tokens == pad_token_id)
-                seq_finished = seq_finished | is_eos
+                for b, token_id in enumerate(token_ids):
+                    if token_id == eos_token_id or (pad_token_id is not None and pad_token_id != eos_token_id and token_id == pad_token_id):
+                        seq_finished[b] = True
 
                 # Apply the same sampled tokens to both conditional and unconditional sequences
                 next_tokens_unsqueezed = next_tokens.unsqueeze(1)
@@ -2779,9 +2808,13 @@ class LLMHandler:
                 if streamer is not None:
                     streamer.put(next_tokens_unsqueezed)  # Stream conditional tokens
 
+                profile.lap("bookkeeping")
+                profile.step()
+
                 # Stop generation only when ALL sequences have finished
-                if seq_finished.all():
+                if all(seq_finished):
                     break
+        profile.report()
 
         if streamer is not None:
             streamer.end()
