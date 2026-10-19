@@ -10,6 +10,7 @@
 - `[lm_graph]` and `[gc]` log lines: what the graphs cost to capture, what the card held before, at the end and after each generation, and what a garbage collection freed
 
 ### Fixed
+- AI cover: the cover appeared in the song list once made, but the detail panel (and the player) kept the song with the default gradient until the song was clicked again. When the list is reloaded after the cover is saved, the selected song and the playing song now take its cover
 - 5Hz LM graphs: the card kept 130 to 190 MB more after every generation (257 MB after the first, 1089 MB after the sixth, up to about 1 GB). Python could not see it: cuBLAS keeps a 32 MB workspace for every CUDA stream it runs on and never gives it back, and each graph capture created a new stream for its warm-up steps. The captures now share one stream per card. The card's memory stays flat from one generation to the next (3730 MB with the 1.7B model, 1394 MB with the 0.6B, over three long generations), and "Offloaded LLM to CPU" takes 0.01 s instead of 0.36 s
 
 ### Changed

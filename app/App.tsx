@@ -75,6 +75,7 @@ import { ConfirmDialog } from './components/ConfirmDialog';
 
 
 import { parseServerDate } from './utils/serverDate';
+import { withFreshCover } from './utils/freshCover';
 function AppContent() {
   // i18n
   const { t } = useI18n();
@@ -1106,6 +1107,10 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         };
         return mergedSongs.sort((a, b) => time(b) - time(a));
       });
+
+      // The detail panel and the player hold their own copy of the song: give them the cover that has just arrived.
+      setSelectedSong(prev => withFreshCover(prev, loadedSongs));
+      setCurrentSong(prev => withFreshCover(prev, loadedSongs));
 
       // If the current selection was a temp/generating song, replace it with newest real song
       const current = selectedSongRef.current;
