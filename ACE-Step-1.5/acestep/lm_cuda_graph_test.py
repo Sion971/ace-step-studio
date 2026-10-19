@@ -45,6 +45,12 @@ def _prompt(rows, length=7):
 @unittest.skipIf(_IMPORT_ERROR is not None, f"dependencies missing: {_IMPORT_ERROR}")
 class StaticStepTests(unittest.TestCase):
     def test_static_cache_step_gives_the_logits_of_the_usual_step(self):
+        self._compare(window_step=None)
+
+    def test_windows_of_a_few_positions_give_the_same_logits(self):
+        self._compare(window_step=4)  # the 8 steps cross three windows
+
+    def _compare(self, window_step):
         model = _tiny_model()
         ids, mask = _prompt(3)
         with torch.inference_mode():
@@ -53,7 +59,8 @@ class StaticStepTests(unittest.TestCase):
             token = out.logits[:, -1, :].argmax(-1, keepdim=True)
             generated = torch.cat([ids, token], dim=1)
             mask = torch.cat([mask, torch.ones((3, 1), dtype=mask.dtype)], dim=1)
-            decoder = lm_cuda_graph.GraphDecoder.build(model, cache, mask, token, max_new_tokens=9, capture=False)
+            decoder = lm_cuda_graph.GraphDecoder.build(
+                model, cache, mask, token, max_new_tokens=9, capture=False, window_step=window_step)
             for _ in range(8):
                 usual = model(input_ids=generated[:, -1:], attention_mask=mask, past_key_values=cache, use_cache=True)
                 cache = usual.past_key_values
@@ -65,6 +72,8 @@ class StaticStepTests(unittest.TestCase):
                 token = usual.logits[:, -1, :].argmax(-1, keepdim=True)
                 generated = torch.cat([generated, token], dim=1)
                 mask = torch.cat([mask, torch.ones((3, 1), dtype=mask.dtype)], dim=1)
+            if window_step:
+                self.assertGreaterEqual(len(decoder.views), 2)
 
     def test_build_refuses_a_cache_that_does_not_match_the_mask(self):
         model = _tiny_model()
@@ -73,6 +82,57 @@ class StaticStepTests(unittest.TestCase):
             cache = model(input_ids=ids, attention_mask=mask, use_cache=True).past_key_values
             with self.assertRaises(RuntimeError):
                 lm_cuda_graph.GraphDecoder.build(model, cache, mask, ids[:, -1:], 5, capture=False)  # mask too narrow
+
+
+@unittest.skipIf(_IMPORT_ERROR is not None, f"dependencies missing: {_IMPORT_ERROR}")
+class WindowFallbackTests(unittest.TestCase):
+    def _decoder(self):
+        model = _tiny_model()
+        ids, mask = _prompt(2)
+        with torch.inference_mode():
+            out = model(input_ids=ids, attention_mask=mask, use_cache=True)
+            token = out.logits[:, -1, :].argmax(-1, keepdim=True)
+            generated = torch.cat([ids, token], dim=1)
+            mask = torch.cat([mask, torch.ones((2, 1), dtype=mask.dtype)], dim=1)
+            decoder = lm_cuda_graph.GraphDecoder.build(
+                model, out.past_key_values, mask, token, max_new_tokens=9, capture=True, window_step=4)
+        return model, decoder, generated, mask, out.past_key_values
+
+    def test_a_failing_later_capture_leaves_the_steps_running_without_the_graph(self):
+        model, decoder, generated, mask, cache = self._decoder()
+        calls = []
+
+        def capture(window):
+            calls.append(window)
+            if len(calls) > 1:
+                raise RuntimeError("no more graphs")
+
+            class Graph:
+                def replay(inner):
+                    entry.logits.copy_(decoder._forward(window))
+
+            entry = lm_cuda_graph._Captured(Graph(), torch.zeros(2, model.config.vocab_size))
+            return entry
+
+        decoder._capture = capture
+        with torch.inference_mode():
+            for _ in range(8):
+                usual = model(input_ids=generated[:, -1:], attention_mask=mask, past_key_values=cache, use_cache=True)
+                cache = usual.past_key_values
+                result = decoder.step(generated)
+                self.assertTrue(torch.allclose(usual.logits, result.logits, atol=1e-4))
+                token = usual.logits[:, -1, :].argmax(-1, keepdim=True)
+                generated = torch.cat([generated, token], dim=1)
+                mask = torch.cat([mask, torch.ones((2, 1), dtype=mask.dtype)], dim=1)
+        self.assertTrue(decoder.eager_only)
+        self.assertGreater(decoder.eager_steps, 0)
+        self.assertEqual(len(decoder.captured), 1)
+
+    def test_a_failing_first_capture_is_raised_for_the_check_to_fall_back(self):
+        model, decoder, generated, mask, cache = self._decoder()
+        decoder._capture = MagicMock(side_effect=RuntimeError("cannot capture"))
+        with torch.inference_mode(), self.assertRaises(RuntimeError):
+            decoder.step(generated)
 
 
 @unittest.skipIf(_IMPORT_ERROR is not None, f"dependencies missing: {_IMPORT_ERROR}")
@@ -90,11 +150,17 @@ class CheckTests(unittest.TestCase):
 
 @unittest.skipIf(_IMPORT_ERROR is not None, f"dependencies missing: {_IMPORT_ERROR}")
 class CreateTests(unittest.TestCase):
-    def test_off_by_default_and_on_the_processor(self):
+    def test_switches_and_conditions(self):
+        import os
         model = _tiny_model()
         with patch.dict("os.environ", {}, clear=False):
-            import os
             os.environ.pop(lm_cuda_graph.ENV_GRAPH, None)
+            with patch("torch.cuda.is_available", return_value=True):
+                with patch.object(torch.version, "cuda", "13.0"):
+                    self.assertIsNotNone(lm_cuda_graph.create(model, "cuda", 500))  # on for NVIDIA when unset
+                with patch.object(torch.version, "cuda", None):
+                    self.assertIsNone(lm_cuda_graph.create(model, "cuda", 500))  # off elsewhere (ROCm...)
+        with patch.dict("os.environ", {lm_cuda_graph.ENV_GRAPH: "0"}), patch("torch.cuda.is_available", return_value=True):
             self.assertIsNone(lm_cuda_graph.create(model, "cuda", 500))
         with patch.dict("os.environ", {lm_cuda_graph.ENV_GRAPH: "1"}):
             self.assertIsNone(lm_cuda_graph.create(model, "cpu", 500))  # no card: nothing to capture
@@ -172,7 +238,7 @@ class LoopTests(unittest.TestCase):
         def create(model, device, max_new_tokens):
             if not with_graph:
                 return None
-            graph = lm_cuda_graph.LmGraph(model, max_new_tokens, capture=False)
+            graph = lm_cuda_graph.LmGraph(model, max_new_tokens, capture=False, window_step=4)
             made.append(graph)
             return graph
 

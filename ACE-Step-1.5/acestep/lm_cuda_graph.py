@@ -11,8 +11,11 @@ How it works (the prompt pass and the first token stay exactly as they were):
    position, and a boolean attention mask that is opened one column per step *inside* the graph.
 2. The second step is run twice, the usual way and through the graph, and the logits are compared. If they differ more
    than bf16 rounding allows (or contain NaN), or if anything fails, the graph is dropped and the loop goes on as before.
-3. The following steps replay the graph. The graph points at the current GPU weights, which are moved off the card when
-   the LM is offloaded, so it is built for one generation and thrown away at its end.
+3. The following steps replay the graph. The attention only reads the start of the buffers that holds tokens: one graph
+   is captured per window of ``window_step`` positions (a view of the same buffers), when the generation reaches it.
+   If a later capture fails, the remaining steps run the same forward without the graph.
+4. The graph points at the current GPU weights, which are moved off the card when the LM is offloaded, so everything is
+   built for one generation and thrown away at its end.
 
 The sampled tokens may differ from the usual loop's on a close call: the attention runs over a longer, masked buffer,
 which changes the rounding. The result is as valid, not identical.
@@ -26,15 +29,22 @@ from typing import Any, Optional
 import torch
 from loguru import logger
 
-ENV_GRAPH = "ACESTEP_LM_CUDA_GRAPH"
+ENV_GRAPH = "ACESTEP_LM_CUDA_GRAPH"  # 0 turns it off; 1 turns it on where it is not on by default (ROCm)
 MIN_STEPS = 48  # a generation shorter than this does not pay back the capture
 CHECK_ABS = 0.25  # logits of the graph and of the usual step may differ by this much plus
 CHECK_REL = 0.03  # this share of the largest logit (bf16 keeps about 3 significant digits)
 WARMUP_STEPS = 3
+WINDOW_MIN = 256  # positions read by the attention grow by this much (or more, to keep the graphs below WINDOW_MAX_COUNT)
+WINDOW_MAX_COUNT = 8
 
 
 def requested() -> bool:
-    return os.environ.get(ENV_GRAPH, "").strip().lower() in ("1", "true", "yes", "on")
+    value = os.environ.get(ENV_GRAPH, "").strip().lower()
+    if value in ("0", "false", "no", "off"):
+        return False
+    if value in ("1", "true", "yes", "on"):
+        return True
+    return torch.version.cuda is not None  # unset: on for NVIDIA, off elsewhere
 
 
 def logits_match(reference: torch.Tensor, candidate: torch.Tensor):
@@ -47,23 +57,34 @@ def logits_match(reference: torch.Tensor, candidate: torch.Tensor):
     return diff <= CHECK_ABS + CHECK_REL * float(ref.abs().max()), diff
 
 
-class GraphDecoder:
-    """Static buffers plus the one-token forward of the model, captured in a CUDA graph (or run as it is)."""
+class _Captured:
+    def __init__(self, graph, logits):
+        self.graph = graph
+        self.logits = logits
 
-    def __init__(self, model, cache, mask, ids, position, capture: bool):
+
+class GraphDecoder:
+    """Static buffers plus the one-token forward of the model, captured in CUDA graphs (or run as it is)."""
+
+    def __init__(self, model, cache, mask, ids, position, next_position: int, capture: bool, window_step: int):
         self.model = model
         self.cache = cache
         self.mask = mask
         self.ids = ids
-        self.position = position
-        self.graph = None
-        self.logits = None
-        self._capture = capture
+        self.position = position  # the position of the next token, on the card
+        self.next_position = next_position  # the same, for the host
+        self.max_len = mask.shape[3]
+        self.window_step = max(1, int(window_step))
+        self.eager_only = not capture
+        self.captured = {}
+        self.views = {}
+        self.capture_seconds = 0.0
+        self.eager_steps = 0
 
     @classmethod
     def build(cls, model, dynamic_cache, attention_mask: torch.Tensor, last_token: torch.Tensor,
-              max_new_tokens: int, capture: bool = True) -> "GraphDecoder":
-        """Copy the prompt cache into static buffers and capture the next step. Raises when the model is unsuitable.
+              max_new_tokens: int, capture: bool = True, window_step: Optional[int] = None) -> "GraphDecoder":
+        """Copy the prompt cache into static buffers. Raises when the model is unsuitable.
 
         ``attention_mask`` is [batch, prompt + 1] (the token just sampled included); ``last_token`` is [batch, 1].
         """
@@ -90,70 +111,116 @@ class GraphDecoder:
 
         mask = torch.zeros((batch, 1, 1, max_len), dtype=torch.bool, device=device)
         mask[:, 0, 0, :width] = attention_mask.bool()
-        decoder = cls(
+        if window_step is None:
+            window_step = max(WINDOW_MIN, -(-max_len // WINDOW_MAX_COUNT // 64) * 64)
+        return cls(
             model, cache, mask,
             last_token.clone().to(device=device, dtype=torch.long),
             torch.full((1,), width - 1, dtype=torch.long, device=device),
-            capture,
+            width - 1, capture, window_step,
         )
-        decoder._prepare(width)
-        return decoder
 
-    def _forward(self) -> torch.Tensor:
+    def _window(self) -> int:
+        """Positions the attention reads at this step: the next multiple of ``window_step`` that holds the token."""
+        need = self.next_position + 1
+        return min(-(-need // self.window_step) * self.window_step, self.max_len)
+
+    def _view(self, window: int):
+        """A cache over the first ``window`` positions of the buffers (the same memory, a shorter attention)."""
+        if window >= self.max_len:
+            return self.cache
+        view = self.views.get(window)
+        if view is None:
+            from transformers import StaticCache
+
+            view = StaticCache(config=self.model.config, max_cache_len=window)
+            for part, whole in zip(view.layers, self.cache.layers):
+                part.keys = whole.keys[:, :, :window]
+                part.values = whole.values[:, :, :window]
+                part.max_batch_size, part.num_heads, _, part.head_dim = part.keys.shape
+                part.dtype, part.device = part.keys.dtype, part.keys.device
+                part.is_initialized = True
+            self.views[window] = view
+        return view
+
+    def _forward(self, window: int) -> torch.Tensor:
         """One token: open the mask column of this position, run the model, move to the next position."""
         self.mask.index_fill_(3, self.position, True)
         out = self.model(
             input_ids=self.ids,
-            attention_mask=self.mask,
-            past_key_values=self.cache,
+            attention_mask=self.mask[:, :, :, :window],
+            past_key_values=self._view(window),
             cache_position=self.position,
             use_cache=True,
         )
         self.position.add_(1)
         return out.logits[:, -1, :]
 
-    def _prepare(self, width: int) -> None:
-        if not self._capture:
-            return
+    def _capture(self, window: int) -> "_Captured":
         start = time.perf_counter()
         first = self.position.clone()
         opened = self.mask.clone()
         side = torch.cuda.Stream()
         side.wait_stream(torch.cuda.current_stream())
-        with torch.cuda.stream(side):
-            for _ in range(WARMUP_STEPS):
-                self._forward()
-        torch.cuda.current_stream().wait_stream(side)
-        torch.cuda.synchronize()
-        # The warm-up wrote key/values of the real token at a few positions: they are rewritten, in order, before
-        # any step reads them. The position and the mask go back to where the first real step expects them.
-        self.position.copy_(first)
-        self.mask.copy_(opened)
+        try:
+            with torch.cuda.stream(side):
+                for _ in range(WARMUP_STEPS if not self.captured else 2):
+                    self._forward(window)
+            torch.cuda.current_stream().wait_stream(side)
+            torch.cuda.synchronize()
+        finally:
+            # The warm-up wrote key/values of the real token at a few positions: they are rewritten, in order, before
+            # any step reads them. The position and the mask go back to where this step expects them.
+            self.position.copy_(first)
+            self.mask.copy_(opened)
         graph = torch.cuda.CUDAGraph()
         with torch.cuda.graph(graph):
-            self.logits = self._forward()
+            logits = self._forward(window)
         torch.cuda.synchronize()
-        self.graph = graph
-        self.capture_seconds = time.perf_counter() - start
+        self.capture_seconds += time.perf_counter() - start
+        return _Captured(graph, logits)
 
     def step(self, generated_ids: torch.Tensor) -> Any:
         """Logits of the next token, shaped like the output of the usual forward ([batch, 1, vocab])."""
         self.ids.copy_(generated_ids[:, -1:])
-        if self.graph is not None:
-            self.graph.replay()
-            logits = self.logits
+        window = self._window()
+        entry = None
+        if not self.eager_only:
+            entry = self.captured.get(window)
+            if entry is None:
+                try:
+                    entry = self._capture(window)
+                except Exception as exc:
+                    if not self.captured:
+                        raise  # the very first capture: the caller still has the usual cache and falls back to it
+                    logger.warning("[lm_graph] capture of the window {} failed, the rest of the generation runs "
+                                   "without the graph: {}: {}", window, type(exc).__name__, exc)
+                    self.eager_only = True
+                    entry = None
+                else:
+                    self.captured[window] = entry
+        if entry is not None:
+            entry.graph.replay()
+            logits = entry.logits
         else:
-            logits = self._forward()
+            logits = self._forward(window)
+            self.eager_steps += 1
+        self.next_position += 1
         return SimpleNamespace(logits=logits.clone().unsqueeze(1))
+
+    def summary(self) -> str:
+        return (f"{len(self.captured)} graph(s), capture {self.capture_seconds:.2f} s in all, "
+                f"{self.eager_steps} step(s) without graph")
 
 
 class LmGraph:
     """State machine used by the decoding loops: usual steps, then a checked step, then graph steps (or back)."""
 
-    def __init__(self, model, max_new_tokens: int, capture: bool = True):
+    def __init__(self, model, max_new_tokens: int, capture: bool = True, window_step: Optional[int] = None):
         self.model = model
         self.max_new_tokens = int(max_new_tokens)
         self.capture = capture
+        self.window_step = window_step
         self.decoder: Optional[GraphDecoder] = None
         self.state = "new"  # new -> checking -> ready, or off at any moment
 
@@ -182,7 +249,7 @@ class LmGraph:
         try:
             self.decoder = GraphDecoder.build(
                 self.model, outputs.past_key_values, attention_mask, generated_ids[:, -1:],
-                self.max_new_tokens, capture=self.capture,
+                self.max_new_tokens, capture=self.capture, window_step=self.window_step,
             )
             self.state = "checking"
         except Exception as exc:
@@ -202,14 +269,15 @@ class LmGraph:
             self._give_up(f"the logits of the graph differ from the usual ones (largest difference {diff:.3f})")
             return
         self.state = "ready"
-        seconds = getattr(self.decoder, "capture_seconds", 0.0)
-        logger.info("[lm_graph] CUDA graph active: capture {:.2f} s, largest logit difference on the check step {:.3f}",
-                    seconds, diff)
+        logger.info("[lm_graph] CUDA graph active: first capture {:.2f} s, largest logit difference on the check step "
+                    "{:.3f}", self.decoder.capture_seconds, diff)
 
     def step(self, generated_ids: torch.Tensor) -> Any:
         return self.decoder.step(generated_ids)
 
     def close(self) -> None:
+        if self.state == "ready" and self.decoder is not None:
+            logger.info("[lm_graph] generation done: {}", self.decoder.summary())
         self.decoder = None
         self.state = "off"
 
