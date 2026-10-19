@@ -144,6 +144,8 @@ class InitServiceLoaderMixin(InitServiceLoaderComponentsMixin):
                 self.model = None
             gc.collect()
             torch.cuda.empty_cache()
+            # The pinned blocks of the old DiT are cached by torch, not freed: hand them back before the new load.
+            small_gpu_stream.release_pinned_cache()
             try:
                 torch.cuda.synchronize()
             except RuntimeError as exc:

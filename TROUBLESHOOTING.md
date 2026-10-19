@@ -2350,6 +2350,8 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 
 **Où part le temps après la diffusion (ajout du 2026-10-18).** Le journal contient maintenant `audio decoding steps: …` avec la durée de chaque étape du décodage audio (carte rendue, poids du VAE vers la carte, décodage, poids de retour, nettoyage). Si une étape domine (par exemple « weights back »), joindre cette ligne au rapport : elle décide s'il faut garder le VAE sur la carte ou le laisser sur le processeur. `ACESTEP_STREAM_STATS=0` supprime la ligne. Quand le texte « non-cover » est identique au prompt, le journal indique `Non-cover text identical to the prompt: its embeddings are reused.`
 
+**Le rechargement du modèle est lent et le swap monte (ajout du 2026-10-18).** Changer de LM réinitialise tout le service. Le cache de mémoire épinglée de torch est maintenant rendu au système avant la relecture du DiT : `Shmem` retombe avant le chargement et le swap ne devrait plus dépasser quelques Go. Le pic d'`AnonPages` (≈ 20 Go) reste, car le DiT est lu en float32 avant d'être recopié en bfloat16 dans la mémoire épinglée.
+
 **Si le flux ne peut pas démarrer** (pas de carte visible, bloc incompatible, mémoire verrouillable insuffisante), le moteur écrit `[small_gpu_stream] could not stream the DiT …` et continue en mode processeur normal.
 
 **Non vérifié ici.** Le chemin réel sur carte (copies asynchrones, caches d'attention créés sur la carte, VAE sur la carte à l'intérieur du moteur complet) n'a été exécuté que par les scripts de mesure sur la GTX 1050, pas à l'intérieur du moteur : les tests du dépôt (`small_gpu_stream_test.py`) vérifient la logique sur le processeur (équivalence avec le DiT normal, cache d'attention sur plusieurs étapes, libération de la carte, routage du décodage).

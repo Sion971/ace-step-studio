@@ -1766,6 +1766,157 @@ class DetachTests(unittest.TestCase):
         sgs.detach()
 
 
+class CpuCopyKeptTests(unittest.TestCase):
+    """The VAE comes back to the processor with the very tensors it left with, and the DiT release skips a useless collection."""
+
+    def _tiny(self):
+        return torch.nn.Sequential(torch.nn.Linear(4, 3), torch.nn.LayerNorm(3))
+
+    def test_the_processor_tensors_come_back_not_copies(self):
+        module = self._tiny()
+        pointers = {n: p.data_ptr() for n, p in module.named_parameters()}
+        saved = sgs.snapshot_cpu_weights(module)
+        self.assertIsNotNone(saved)
+        module.to("meta")  # stands in for the card: the weights really leave the processor
+        sgs.restore_cpu_weights(saved)
+        for name, p in module.named_parameters():
+            self.assertEqual(p.device.type, "cpu")
+            self.assertEqual(p.data_ptr(), pointers[name])
+
+    def test_a_module_that_is_not_float32_on_the_processor_is_left_to_the_regular_path(self):
+        self.assertIsNone(sgs.snapshot_cpu_weights(self._tiny().to(torch.bfloat16)))
+        self.assertIsNone(sgs.snapshot_cpu_weights(self._tiny().to("meta")))
+        self.assertIsNone(sgs.snapshot_cpu_weights(mock.Mock()))
+        self.assertIsNone(sgs.snapshot_cpu_weights(torch.nn.Sequential()))
+
+    def test_the_decoding_gives_the_vae_back_without_copying_it(self):
+        calls = []
+
+        class Card(torch.nn.Linear):
+            def to(self, *args, **kwargs):
+                device = kwargs.get("device", args[0] if args else None)
+                if str(device).startswith("cuda"):
+                    return super().to("meta")
+                calls.append(device)
+                return super().to(device)  # from "meta" this raises: the regular path cannot work here
+
+        vae = Card(4, 3)
+        weight_ptr = vae.weight.data_ptr()
+        handler = types.SimpleNamespace(vae=vae)
+        latents = mock.Mock()
+        latents.to.return_value = latents
+        patches = [
+            mock.patch.object(sgs.torch.cuda, "empty_cache"),
+            mock.patch.object(sgs.torch.cuda, "mem_get_info", return_value=(6 * 1024 ** 3, 8 * 1024 ** 3)),
+            mock.patch.object(sgs.torch.cuda, "get_device_name", return_value="fake"),
+            mock.patch.object(sgs.torch.cuda, "reset_peak_memory_stats"),
+            mock.patch.object(sgs.torch.cuda, "max_memory_allocated", return_value=1024 ** 3),
+            mock.patch.object(sgs, "release_gpu"),
+            mock.patch.object(sgs, "log_memory"),
+            mock.patch.object(sgs, "decode_with_ladder", return_value=("audio", 256)),
+        ]
+        for p in patches:
+            p.start()
+        try:
+            self.assertEqual(sgs.tiled_decode_on_card(handler, latents), "audio")
+        finally:
+            mock.patch.stopall()
+        self.assertEqual(calls, [])
+        self.assertEqual(handler.vae.weight.device.type, "cpu")
+        self.assertEqual(handler.vae.weight.data_ptr(), weight_ptr)
+
+    def _cuda_pool(self, allocated):
+        decoder, _cfg = _tiny_decoder(2)
+        decoder.float().eval()
+        pool = sgs.install(decoder, torch.device("cpu"), torch.bfloat16)
+        pool.cuda = True
+        pool._gpu_ready = True
+        collected = []
+        patches = [
+            mock.patch.object(sgs.torch.cuda, "synchronize"),
+            mock.patch.object(sgs.torch.cuda, "empty_cache"),
+            mock.patch.object(sgs.torch.cuda, "memory_allocated", return_value=allocated),
+            mock.patch.object(pool, "_record_activations"),
+            mock.patch.object(sgs.gc, "collect", side_effect=lambda *a: collected.append(1) or 0),
+        ]
+        for p in patches:
+            p.start()
+        try:
+            pool.release_gpu()
+        finally:
+            mock.patch.stopall()
+        return collected
+
+    def test_the_release_skips_the_garbage_collector_when_the_card_is_empty(self):
+        self.assertEqual(self._cuda_pool(allocated=10 * 1024 ** 2), [])
+
+    def test_the_release_collects_when_something_stays_on_the_card(self):
+        self.assertEqual(len(self._cuda_pool(allocated=sgs.RELEASE_LEFTOVER_BYTES + 1)), 1)
+
+
+class CpuCopyKeptTests(unittest.TestCase):
+    """The VAE comes back to the processor with the very tensors it left with, and the DiT release skips a useless collection."""
+
+    def _tiny(self):
+        return nn.Sequential(nn.Linear(4, 3), nn.LayerNorm(3))
+
+    def test_the_processor_tensors_come_back_not_copies(self):
+        module = self._tiny()
+        pointers = {n: p.data_ptr() for n, p in module.named_parameters()}
+        saved = sgs.snapshot_cpu_weights(module)
+        self.assertIsNotNone(saved)
+        module.to("meta")  # stands in for the card: the weights really leave the processor
+        sgs.restore_cpu_weights(saved)
+        for name, p in module.named_parameters():
+            self.assertEqual(p.device.type, "cpu")
+            self.assertEqual(p.data_ptr(), pointers[name])
+
+    def test_a_module_that_is_not_float32_on_the_processor_is_left_to_the_regular_path(self):
+        self.assertIsNone(sgs.snapshot_cpu_weights(self._tiny().to(torch.bfloat16)))
+        self.assertIsNone(sgs.snapshot_cpu_weights(self._tiny().to("meta")))
+        self.assertIsNone(sgs.snapshot_cpu_weights(mock.Mock()))
+        self.assertIsNone(sgs.snapshot_cpu_weights(nn.Sequential()))
+
+    def _cuda_pool(self, allocated):
+        decoder, _cfg = _tiny_decoder(2)
+        decoder.float().eval()
+        pool = sgs.install(decoder, torch.device("cpu"), torch.bfloat16)
+        pool.cuda = True
+        pool._gpu_ready = True
+        collected = []
+        with mock.patch.object(sgs.torch.cuda, "synchronize"), \
+                mock.patch.object(sgs.torch.cuda, "empty_cache"), \
+                mock.patch.object(sgs.torch.cuda, "memory_allocated", return_value=allocated), \
+                mock.patch.object(pool, "_record_activations"), \
+                mock.patch.object(sgs.gc, "collect", side_effect=lambda *a: collected.append(1) or 0):
+            pool.release_gpu()
+        return collected
+
+    def test_the_release_skips_the_garbage_collector_when_the_card_is_empty(self):
+        self.assertEqual(self._cuda_pool(allocated=10 * 1024 ** 2), [])
+
+    def test_the_release_collects_when_something_stays_on_the_card(self):
+        self.assertEqual(len(self._cuda_pool(allocated=sgs.RELEASE_LEFTOVER_BYTES + 1)), 1)
+
+
+class ReleasePinnedCacheTests(unittest.TestCase):
+    def test_it_empties_the_host_cache(self):
+        with mock.patch.object(sgs.torch._C, "_host_emptyCache", create=True) as empty:
+            self.assertTrue(sgs.release_pinned_cache())
+        empty.assert_called_once_with()
+
+    def test_it_tries_the_other_name_when_the_first_fails_or_is_missing(self):
+        with mock.patch.object(sgs.torch._C, "_host_emptyCache", create=True, side_effect=RuntimeError("no")), \
+                mock.patch.object(sgs.torch._C, "_accelerator_emptyHostCache", create=True) as other:
+            self.assertTrue(sgs.release_pinned_cache())
+        other.assert_called_once_with()
+
+    def test_it_never_raises(self):
+        with mock.patch.object(sgs.torch._C, "_host_emptyCache", create=True, side_effect=RuntimeError("no")), \
+                mock.patch.object(sgs.torch._C, "_accelerator_emptyHostCache", create=True, side_effect=OSError("no")):
+            self.assertFalse(sgs.release_pinned_cache())
+
+
 class LazyStatsTests(unittest.TestCase):
     """The timings are read once at the report, not after every block (a wait per block would stop the card's queue from filling)."""
 

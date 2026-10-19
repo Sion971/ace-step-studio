@@ -82,6 +82,7 @@ ENV_RESERVE_AUTO = "ACESTEP_STREAM_RESERVE_AUTO"
 ACT_SAFETY = 1.25
 ACT_MARGIN_BYTES = int(0.3 * 1024**3)
 ACT_MIN_RESERVE_BYTES = int(0.5 * 1024**3)
+RELEASE_LEFTOVER_BYTES = int(0.25 * 1024 ** 3)  # still allocated on the card after the slots are dropped: run the garbage collector
 ACT_MEASURES_KEPT = 4
 DEFAULT_RESERVE_GB = 2.5
 DEFAULT_VAE_CHUNK = 96
@@ -860,10 +861,16 @@ class StreamPool:
         self._gpu_ready = False
         self.args.clear()
         self._last_index = -1
-        gc.collect()
+        if not self.cuda:
+            gc.collect()
         collected = time.perf_counter()
         if self.cuda:
+            # Dropping the lists above frees the card's tensors by reference counting. The garbage collector (0.35 s with the
+            # models in memory) is only needed when something stays allocated, for instance blocks kept alive by a reference cycle.
             torch.cuda.empty_cache()
+            if torch.cuda.memory_allocated(self.dev) > RELEASE_LEFTOVER_BYTES:
+                gc.collect()
+                torch.cuda.empty_cache()
         done = time.perf_counter()
         self.release_times = (collected - started, done - collected)  # (dropping + garbage collection, cache emptying)
 
@@ -1124,6 +1131,25 @@ def attach_if_enabled(model: nn.Module, quantized: bool = False) -> bool:
         logger.warning("[small_gpu_stream] could not stream the DiT ({}: {}): regular processor mode.", type(exc).__name__, exc)
         _ACTIVE_POOL = None
         return False
+
+
+def release_pinned_cache() -> bool:
+    """Give the system the pinned blocks that torch keeps cached after a DiT has been freed. Never raises.
+
+    The pinned allocator keeps every freed block for reuse and shows it as ``Shmem``. When a DiT is loaded again the
+    new weights are read in float32 first (about 19 GB for the XL model), on top of the 13.5 GB still held by the
+    cache: on a 31 GB machine that went through 13 GB of swap and took 52 s instead of 17 s.
+    """
+    for name in ("_host_emptyCache", "_accelerator_emptyHostCache"):
+        function = getattr(torch._C, name, None)
+        if function is None:
+            continue
+        try:
+            function()
+            return True
+        except Exception as exc:
+            logger.debug("[small_gpu_stream] {} failed: {}", name, exc)
+    return False
 
 
 def detach() -> None:
@@ -1486,6 +1512,35 @@ def decode_with_ladder(handler: Any, latents: torch.Tensor, ladder: List[int], c
     return (pieces[0] if len(pieces) == 1 else torch.cat(pieces, dim=0)), used
 
 
+def snapshot_cpu_weights(module: nn.Module) -> Optional[list]:
+    """The processor tensors of a float32 module (parameters and buffers), to put back after it has been on the card; None if unsafe.
+
+    ``Module.to`` replaces them by card copies; coming back with ``to("cpu")`` copies every weight again (0.3 s for the VAE)
+    although nothing changed them. None when the module is not entirely float32 on the processor: the regular ``to`` is used then.
+    """
+    try:
+        modules = list(module.modules())
+        params = [(sub, name, p, p.data) for sub in modules for name, p in sub._parameters.items() if p is not None]
+        buffers = [(sub, name, b) for sub in modules for name, b in sub._buffers.items() if b is not None]
+        if not params or any(d.device.type != "cpu" or d.dtype != torch.float32 for _s, _n, _p, d in params):
+            return None
+        if any(b.device.type != "cpu" for _s, _n, b in buffers):
+            return None
+        return [params, buffers]
+    except Exception:
+        return None
+
+
+def restore_cpu_weights(saved: list) -> None:
+    """Put back the tensors taken by ``snapshot_cpu_weights`` (``to`` may have replaced the Parameter objects themselves)."""
+    params, buffers = saved
+    for sub, name, p, data in params:
+        p.data = data
+        sub._parameters[name] = p
+    for sub, name, b in buffers:
+        sub._buffers[name] = b
+
+
 def drop_card_leftovers(module: nn.Module, on_card: Any = None) -> int:
     """Bring back to the processor the plain tensors a module keeps on the card after ``module.to("cpu")``; returns the bytes moved.
 
@@ -1558,6 +1613,7 @@ def tiled_decode_on_card(handler: Any, latents: torch.Tensor) -> torch.Tensor:
             gc.collect()
         torch.cuda.empty_cache()
 
+    saved = snapshot_cpu_weights(vae)
     try:
         vae.to(device=device, dtype=torch.float32)
         clock.lap("weights to the card")
@@ -1579,9 +1635,17 @@ def tiled_decode_on_card(handler: Any, latents: torch.Tensor) -> torch.Tensor:
     finally:
         failed = sys.exc_info()[0] is not None
         try:
-            handler.vae = handler.vae.to(device="cpu", dtype=torch.float32)
+            if saved is not None:
+                restore_cpu_weights(saved)  # the weights did not change: take the processor copies again instead of copying them back
+            else:
+                handler.vae = handler.vae.to(device="cpu", dtype=torch.float32)
         except Exception as exc:  # pragma: no cover
             logger.warning("[small_gpu_stream] could not move the VAE back to the processor: {}", exc)
+            try:
+                handler.vae = handler.vae.to(device="cpu", dtype=torch.float32)
+            except Exception:
+                pass
+        saved = None
         clock.lap("weights back")
         try:
             left = drop_card_leftovers(handler.vae)
