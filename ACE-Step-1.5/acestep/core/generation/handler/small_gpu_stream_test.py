@@ -1645,6 +1645,71 @@ class VaeLeftoversTests(unittest.TestCase):
         self.assertEqual(order, ["leftovers", "after the audio decoding"])  # freed before the memory is measured
 
 
+class DetachTests(unittest.TestCase):
+    """A DiT that is replaced (the service is initialised again) must free its RAM copy of the weights."""
+
+    def tearDown(self):
+        sgs._ACTIVE_POOL = None
+        sgs._ENCODER_POOL = None
+
+    @torch.no_grad()
+    def test_the_ram_copy_of_the_blocks_is_freed_with_the_model(self):
+        import gc
+        import weakref
+
+        decoder, _cfg = _tiny_decoder(4)
+        decoder.float().eval()
+        pool = sgs.install(decoder, torch.device("cpu"), torch.bfloat16)
+        sgs._ACTIVE_POOL = pool
+        copy = weakref.ref(pool.cpu_params[0][0])
+        del pool
+        sgs.detach()
+        del decoder
+        gc.collect()
+        self.assertIsNone(copy())
+        self.assertIsNone(sgs._ACTIVE_POOL)
+
+    @torch.no_grad()
+    def test_without_detach_the_pool_keeps_the_copy_alive(self):
+        """The reason for detach(): deleting the model alone leaves the pool (and its RAM copy) reachable."""
+        import gc
+        import weakref
+
+        decoder, _cfg = _tiny_decoder(4)
+        decoder.float().eval()
+        sgs._ACTIVE_POOL = sgs.install(decoder, torch.device("cpu"), torch.bfloat16)
+        copy = weakref.ref(sgs._ACTIVE_POOL.cpu_params[0][0])
+        del decoder
+        gc.collect()
+        self.assertIsNotNone(copy())
+
+    def test_both_pools_are_forgotten_and_the_condition_cache_emptied(self):
+        sgs._ACTIVE_POOL = mock.Mock()
+        sgs._ENCODER_POOL = mock.Mock()
+        active, encoder = sgs._ACTIVE_POOL, sgs._ENCODER_POOL
+        with mock.patch.object(sgs, "clear_condition_cache") as clear:
+            sgs.detach()
+        for pool in (active, encoder):
+            pool.release_gpu.assert_called_once()
+            pool.drop_weights.assert_called_once()
+        clear.assert_called_once()
+        self.assertIsNone(sgs._ACTIVE_POOL)
+        self.assertIsNone(sgs._ENCODER_POOL)
+
+    def test_a_card_that_fails_does_not_stop_the_ram_from_being_freed(self):
+        sgs._ACTIVE_POOL = mock.Mock()
+        sgs._ACTIVE_POOL.release_gpu.side_effect = RuntimeError("card lost")
+        pool = sgs._ACTIVE_POOL
+        sgs.detach()
+        pool.drop_weights.assert_called_once()
+        self.assertIsNone(sgs._ACTIVE_POOL)
+
+    def test_nothing_to_forget_is_not_an_error(self):
+        sgs._ACTIVE_POOL = None
+        sgs._ENCODER_POOL = None
+        sgs.detach()
+
+
 class LazyStatsTests(unittest.TestCase):
     """The timings are read once at the report, not after every block (a wait per block would stop the card's queue from filling)."""
 

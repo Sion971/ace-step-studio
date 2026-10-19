@@ -626,6 +626,40 @@ class InitServiceMixinTests(unittest.TestCase):
         self.assertIsNotNone(host.model)
         self.assertIsNotNone(host.silence_latent)
 
+    def test_load_main_model_forgets_the_previous_streamed_dit_first(self):
+        """A model loaded again (another LM re-initialises the service) must not keep the previous pinned DiT in RAM."""
+        host = _Host(project_root="K:/fake_root", device="cpu")
+        host.offload_to_cpu = True
+        host.offload_dit_to_cpu = True
+        order = []
+
+        class _DummyModel:
+            def __init__(self):
+                self.config = types.SimpleNamespace(_attn_implementation="sdpa")
+
+            def to(self, *_args, **_kwargs):
+                return self
+
+            def eval(self):
+                return self
+
+        def _load(*_args, **_kwargs):
+            order.append("load")
+            return _DummyModel()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            checkpoint_dir = os.path.join(tmpdir, "acestep-v15-turbo")
+            os.makedirs(checkpoint_dir, exist_ok=True)
+            torch.save(torch.zeros(1, 1, 1), os.path.join(checkpoint_dir, "silence_latent.pt"))
+            with patch.object(INIT_SERVICE_LOADER_MODULE.small_gpu_stream, "detach", side_effect=lambda: order.append("detach")), \
+                    patch("transformers.AutoModel.from_pretrained", side_effect=_load), \
+                    patch.object(host, "is_flash_attention_available", return_value=False):
+                host._load_main_model_from_checkpoint(
+                    model_checkpoint_path=checkpoint_dir, device="cpu", use_flash_attention=False,
+                    compile_model=False, quantization=None,
+                )
+        self.assertEqual(order, ["detach", "load"])
+
     def test_apply_cuda_bool_argsort_workaround_patches_pack_sequences(self):
         """It monkey-patches dynamic ``pack_sequences`` when CUDA bool argsort is unsupported."""
         host = _Host(project_root="K:/fake_root", device="cuda")

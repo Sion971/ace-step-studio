@@ -827,6 +827,15 @@ class StreamPool:
             for ev in self._free:
                 ev.record(torch.cuda.current_stream(self.dev))
 
+    def drop_weights(self) -> None:
+        """Let go of every RAM copy and of the blocks themselves (the pool is not usable afterwards)."""
+        self.cpu_params = []
+        self.attrs = []
+        self.real = []
+        self._template = None
+        self._skeleton = None
+        self.args.clear()
+
     def release_gpu(self) -> None:
         """Give the card back (before the VAE decode needs it)."""
         if not self._gpu_ready:
@@ -1109,6 +1118,36 @@ def attach_if_enabled(model: nn.Module, quantized: bool = False) -> bool:
         logger.warning("[small_gpu_stream] could not stream the DiT ({}: {}): regular processor mode.", type(exc).__name__, exc)
         _ACTIVE_POOL = None
         return False
+
+
+def detach() -> None:
+    """Forget the pools of a DiT that is about to be replaced (a new initialisation of the service).
+
+    The pools hold the pinned RAM copy of every block, and the model's proxies and wrappers refer to the pools: deleting
+    the model alone frees nothing. Without this, loading a model again (for example after choosing another LM, which
+    initialises the whole service) kept two DiTs in RAM at once: 13.5 GB + 11.7 GB of pinned memory on a 31 GB machine.
+    Never raises.
+    """
+    global _ACTIVE_POOL, _ENCODER_POOL
+    pools = [pool for pool in (_ENCODER_POOL, _ACTIVE_POOL) if pool is not None]
+    if not pools:
+        return
+    try:
+        clear_condition_cache()
+        for pool in pools:
+            try:
+                pool.release_gpu()
+            except Exception as exc:  # the card may already be unusable: the RAM must be freed anyway
+                logger.debug("[small_gpu_stream] could not give the card back: {}", exc)
+            pool.drop_weights()
+        _ACTIVE_POOL = None
+        _ENCODER_POOL = None
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        logger.info("[small_gpu_stream] previous DiT forgotten before loading the new one.")
+    except Exception as exc:
+        logger.debug("[small_gpu_stream] could not forget the previous DiT: {}", exc)
 
 
 def log_stats() -> None:

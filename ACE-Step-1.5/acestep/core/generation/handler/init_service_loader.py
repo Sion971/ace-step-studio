@@ -1,5 +1,6 @@
 """Checkpoint and model-loading helpers for service initialization."""
 
+import gc
 import importlib
 import os
 from typing import Optional
@@ -135,10 +136,13 @@ class InitServiceLoaderMixin(InitServiceLoaderComponentsMixin):
         if not os.path.exists(model_checkpoint_path):
             raise FileNotFoundError(f"ACE-Step V1.5 checkpoint not found at {model_checkpoint_path}")
 
+        # A previous DiT streamed from pinned RAM is held by its pools too: forget them first or both stay in RAM.
+        small_gpu_stream.detach()
         if torch.cuda.is_available():
             if getattr(self, "model", None) is not None:
                 del self.model
                 self.model = None
+            gc.collect()
             torch.cuda.empty_cache()
             try:
                 torch.cuda.synchronize()
