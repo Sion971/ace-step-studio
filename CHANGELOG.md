@@ -15,6 +15,7 @@
 ### Changed
 - End of a generation: `gc.collect()` (0.35 s each, four times per generation, and it freed 0 MB every time in the measurements) now only runs when the card still holds more than 256 MB. Measured on short and long tracks: post-processing 2.3 s to 0.9 s
 - 5Hz LM: the graphs, their buffers and the static cache are released explicitly at the end of each generation
+- AI covers (SDXL Turbo) in stream mode: they were refused whenever `HW_MODE=stream`, even on a 6 to 8 GB card (stream mode is also used there when the XL model does not fit), where the card has the room. They are now refused only under 6 GiB of card memory (the size PyTorch sees, from `hardware_profile.env`); an unknown size still counts as too small. `STUDIO_COVERS_ON_STREAM=on` or `off` forces the answer. If the card turns out too full when a cover is made, the song keeps its default gradient, as before
 
 ## 2026-10-18
 

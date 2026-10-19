@@ -14,7 +14,7 @@ import path from 'path';
 import { createInterface } from 'readline';
 import { fileURLToPath } from 'url';
 import { config } from '../config/index.js';
-import { isCpuMode, isStreamMode } from './hardware-mode.js';
+import { isCpuMode, coversBlockedBySmallCard } from './hardware-mode.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -54,7 +54,7 @@ export interface AiCoverOptions {
   /** How to start the worker, or null when it cannot be (no Python, no script). */
   command: () => WorkerCommand | null;
   isCpuMode: () => boolean;
-  /** Small card (stream mode): the card is busy with the music model and too small for the image model. */
+  /** Small card (stream mode, under 6 GiB): the card is busy with the music model and too small for the image model. */
   isSmallGpu?: () => boolean;
   /** Stop the worker after this long without a request (frees VRAM). */
   idleMs?: number;
@@ -218,4 +218,4 @@ function defaultCommand(): WorkerCommand | null {
   return { command: python, args: [script] };
 }
 
-export const aiCover = new AiCoverEngine({ command: defaultCommand, isCpuMode, isSmallGpu: isStreamMode });
+export const aiCover = new AiCoverEngine({ command: defaultCommand, isCpuMode, isSmallGpu: coversBlockedBySmallCard });

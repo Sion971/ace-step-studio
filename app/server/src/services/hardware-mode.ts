@@ -29,3 +29,30 @@ export function isCpuMode(): boolean {
 export function isStreamMode(): boolean {
   return hardwareMode() === 'stream';
 }
+
+/** Smallest card (GiB as PyTorch sees it) on which the local cover model can share the card with the streamed music model. */
+export const COVER_MIN_VRAM_GIB = 6;
+
+/** The card's memory in GiB as PyTorch sees it: HW_VRAM_TORCH_MIB / HW_VRAM_MIB in the environment, else the profile file. */
+function cardVramGiB(): number | undefined {
+  for (const key of ['HW_VRAM_TORCH_MIB', 'HW_VRAM_MIB']) {
+    const mib = Number(process.env[key]);
+    if (process.env[key] && Number.isFinite(mib) && mib > 0) return mib / 1024;
+  }
+  const file = process.env.HARDWARE_PROFILE_PATH || path.join(config.pipeline.aceStepDir, '..', 'hardware_profile.env');
+  return readHardwareProfile(file)?.vramGiB;
+}
+
+/**
+ * True when the AI covers cannot run: stream mode on a card too small to hold the image model next to the music model.
+ * Stream mode is also used on 6 to 8 GB cards (an XL model that does not fit), where the card has the room: there the
+ * covers work. STUDIO_COVERS_ON_STREAM=on / off forces the answer; an unknown card size counts as too small.
+ */
+export function coversBlockedBySmallCard(): boolean {
+  if (!isStreamMode()) return false;
+  const forced = (process.env.STUDIO_COVERS_ON_STREAM || '').trim().toLowerCase();
+  if (['on', '1', 'true', 'yes'].includes(forced)) return false;
+  if (['off', '0', 'false', 'no'].includes(forced)) return true;
+  const vram = cardVramGiB();
+  return vram === undefined || vram < COVER_MIN_VRAM_GIB;
+}
