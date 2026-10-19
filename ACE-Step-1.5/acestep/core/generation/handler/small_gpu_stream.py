@@ -163,14 +163,9 @@ def tokens_of(args: tuple, kwargs: dict) -> Optional[int]:
     return None
 
 
-def lora_blocked_message() -> Optional[str]:
-    """Message to show when a LoRA is requested while the DiT is streamed, else None."""
-    if not active():
-        return None
-    return (
-        "❌ LoRA adapters are not supported in small-GPU mode (the DiT is streamed block by block). "
-        "Use a card with more memory or the regular processor mode to apply a LoRA."
-    )
+def active_pool() -> Optional["StreamPool"]:
+    """The pool of the streamed DiT, or None when the mode is not running."""
+    return _ACTIVE_POOL
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -604,6 +599,9 @@ class StreamPool:
 
         # RAM copy of every block's parameters (bfloat16 by default: exact for bfloat16 checkpoints, half the
         # RAM and half the PCIe traffic of float32).
+        self.lora = None  # StreamLoraSet once an adapter is loaded (small_gpu_stream_lora)
+        self.param_names = [name for name, _ in real_layers[0].named_parameters()]
+        self.param_shapes = [tuple(p.shape) for _, p in real_layers[0].named_parameters()]
         self.cpu_params: List[List[torch.Tensor]] = []
         for layer in real_layers:
             tensors = []
@@ -740,6 +738,8 @@ class StreamPool:
             p.requires_grad_(False)
         for dst, src in zip(params, self.cpu_params[index]):
             dst.copy_(src.to(self.dev, non_blocking=self.cuda))
+        if self.lora is not None:
+            self.lora.apply(index, params)
         for sub, attrs in zip(module.modules(), self.attrs[index]):
             sub.__dict__.update(attrs)
         self._tune(module)
@@ -917,6 +917,8 @@ class StreamPool:
                         begin = None
                 for dst, src in zip(self.slot_params[slot_idx], self.cpu_params[layer_idx]):
                     dst.copy_(src.to(self.dev, non_blocking=True))  # bf16 over the bus, converted on the card if needed
+                if self.lora is not None:
+                    self.lora.apply(layer_idx, self.slot_params[slot_idx])  # the adapter's change, added on the card
                 self._ready[slot_idx].record(self._copy_stream)
                 if timed and begin is not None:
                     end = torch.cuda.Event(enable_timing=True)
@@ -927,6 +929,8 @@ class StreamPool:
             started = time.perf_counter()
             for dst, src in zip(self.slot_params[slot_idx], self.cpu_params[layer_idx]):
                 dst.copy_(src)
+            if self.lora is not None:
+                self.lora.apply(layer_idx, self.slot_params[slot_idx])
             self.stats.copy_wall += time.perf_counter() - started
         if timed:
             self.stats.copy_bytes += self.bytes_per_layer

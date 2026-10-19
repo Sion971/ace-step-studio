@@ -74,12 +74,12 @@ describe('LoraPanel and the catalog', () => {
     await settle(20);
   }
 
-  it('says a LoRA cannot be loaded in small-card mode, and greys out "Load" (the catalog stays usable)', async () => {
+  it('keeps "Load" enabled in small-card mode: the engine applies the adapter block by block', async () => {
     smallGpu = true;
     await mount();
-    expect(q('lora-small-gpu')?.textContent).toContain('Not available with a small graphics card');
+    expect(q('lora-small-gpu')).toBeNull();
     const load = [...document.body.querySelectorAll('button')].find((b) => b.textContent === 'Load') as HTMLButtonElement;
-    expect(load.disabled).toBe(true);
+    expect(load.disabled).toBe(false);
     expect(q('lora-open-catalog')).not.toBeNull();
   });
 
@@ -87,7 +87,6 @@ describe('LoraPanel and the catalog', () => {
     smallGpu = true;
     quantizationOn = true; // what the engine's start-up form may still say
     await mount();
-    expect(q('lora-small-gpu')).not.toBeNull();
     expect(document.body.textContent).not.toContain('Quantization is on');
     expect(document.body.querySelector('button[aria-label="INT8 quantization"]')).toBeNull();
     expect(document.body.textContent).not.toContain('INT8');

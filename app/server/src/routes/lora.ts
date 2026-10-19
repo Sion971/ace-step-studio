@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { describeLoadFailure } from '../services/lora-engine-status.js';
 import { isStreamMode } from '../services/hardware-mode.js';
-import { SMALL_GPU_LORA_MESSAGE, SMALL_GPU_QUANTIZATION_MESSAGE } from '../services/lora-text.js';
+import { SMALL_GPU_QUANTIZATION_MESSAGE } from '../services/lora-text.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,12 +33,6 @@ router.post('/load', authMiddleware, async (req: AuthenticatedRequest, res: Resp
       res.status(400).json({ error: 'lora_path is required' });
       return;
     }
-    // Small-card mode: the DiT blocks are streamed through the card, so an adapter cannot be applied. Say so before asking the engine.
-    if (isStreamMode()) {
-      res.status(409).json({ error: SMALL_GPU_LORA_MESSAGE, code: 'small_gpu' });
-      return;
-    }
-
     const client = await getGradioClient();
     const result = await client.predict('/load_lora', [lora_path]);
     const status = (result.data as unknown[])[0] as string;
@@ -191,7 +185,7 @@ router.get('/quantization-status', authMiddleware, async (_req: AuthenticatedReq
 
 // GET /api/lora/status — Get current LoRA state
 router.get('/status', authMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
-  // small_gpu: the install runs in small-card mode (HW_MODE=stream), where no LoRA can be loaded; the panel says so before the user tries.
+  // small_gpu: the install runs in small-card mode (HW_MODE=stream): no quantization there. A LoRA does load: the engine adds it to each block as it passes through the card.
   res.json({ ...loraState, small_gpu: isStreamMode() });
 });
 

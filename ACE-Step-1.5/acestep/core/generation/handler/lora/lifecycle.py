@@ -8,7 +8,7 @@ from loguru import logger
 
 from acestep.constants import DEBUG_MODEL_LOADING
 from acestep.debug_utils import debug_log
-from acestep.core.generation.handler import small_gpu_stream
+from acestep.core.generation.handler.lora import stream_adapter
 from acestep.training.configs import LoKRConfig
 
 LOKR_WEIGHTS_FILENAME = "lokr_weights.safetensors"
@@ -198,9 +198,12 @@ def add_lora(self, lora_path: str, adapter_name: str | None = None) -> str:
     if self.model is None:
         return "❌ Model not initialized. Please initialize service first."
 
-    stream_block = small_gpu_stream.lora_blocked_message()
-    if stream_block is not None:
-        return stream_block
+    if stream_adapter.streaming():
+        # Small-card mode: the DiT blocks pass through the card, the adapter is added to their weights there.
+        name = adapter_name.strip() if isinstance(adapter_name, str) and adapter_name.strip() else _default_adapter_name_from_path(
+            (lora_path or "").strip()
+        )
+        return stream_adapter.add(self, lora_path, name)
 
     if self.quantization is not None:
         return (
@@ -347,6 +350,9 @@ def remove_lora(self, adapter_name: str) -> str:
     if adapter_name not in _active_loras:
         return f"❌ Unknown adapter: {adapter_name}. Loaded: {list(_active_loras.keys())}"
 
+    if stream_adapter.streaming():
+        return stream_adapter.remove(self, adapter_name)
+
     try:
         from peft import PeftModel
     except ImportError:
@@ -443,6 +449,9 @@ def unload_lora(self) -> str:
     """Unload all LoRA adapters and restore base decoder."""
     if not self.lora_loaded:
         return "⚠️ No LoRA adapter loaded."
+
+    if stream_adapter.streaming():
+        return stream_adapter.unload(self)
 
     if self._base_decoder is None:
         return "❌ Base decoder backup not found. Cannot restore."

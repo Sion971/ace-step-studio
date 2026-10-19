@@ -111,10 +111,11 @@ class EnvironmentTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {sgs.ENV_FLAG: "1"}), mock.patch.object(torch.cuda, "is_available", return_value=True):
             self.assertFalse(sgs.attach_if_enabled(mock.Mock(), quantized=True))
 
-    def test_lora_blocked_only_when_active(self):
-        self.assertIsNone(sgs.lora_blocked_message())
-        with mock.patch.object(sgs, "_ACTIVE_POOL", object()):
-            self.assertIn("LoRA", sgs.lora_blocked_message())
+    def test_the_active_pool_is_known_only_when_attached(self):
+        self.assertIsNone(sgs.active_pool())
+        marker = object()
+        with mock.patch.object(sgs, "_ACTIVE_POOL", marker):
+            self.assertIs(sgs.active_pool(), marker)
 
     def test_vae_chunk_size(self):
         with mock.patch.dict(os.environ, {sgs.ENV_VAE_CHUNK: "64"}):

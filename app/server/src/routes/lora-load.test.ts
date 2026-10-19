@@ -48,15 +48,13 @@ describe('POST /api/lora/load: what the engine answered', () => {
   };
   const state = async () => (await (await fetch(`${base}/status`)).json()) as { loaded: boolean; path: string };
 
-  it('refuses to load anything in small-card mode, before asking the engine, and says so in /status', async () => {
+  it('loads a LoRA in small-card mode like anywhere else: the engine adds it to each block as it passes through the card', async () => {
     vi.stubEnv('HW_MODE', 'stream');
     predict.mockClear();
-    const { status, body } = await load('./lora_output/final', '✅ LoRA loaded from ./lora_output/final');
-    expect(status).toBe(409);
-    expect(body.code).toBe('small_gpu');
-    expect(String(body.error)).toContain('small-card mode');
-    expect(predict).not.toHaveBeenCalled();
-    expect(await state()).toMatchObject({ loaded: false, small_gpu: true });
+    const { status } = await load('./lora_output/final', '✅ LoRA \'final\' loaded from ./lora_output/final');
+    expect(status).toBe(200);
+    expect(predict).toHaveBeenCalledWith('/load_lora', ['./lora_output/final']);
+    expect(await state()).toMatchObject({ loaded: true, small_gpu: true });
   });
 
   it('reports quantization as off in small-card mode, without asking the engine, and refuses to switch it', async () => {

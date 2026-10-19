@@ -7,6 +7,7 @@ from loguru import logger
 
 from acestep.constants import DEBUG_MODEL_LOADING
 from acestep.debug_utils import debug_log
+from acestep.core.generation.handler.lora import stream_adapter
 
 
 def _toggle_lokr(decoder, enable: bool, scale: float = 1.0) -> bool:
@@ -38,6 +39,14 @@ def set_use_lora(self, use_lora: bool) -> str:
         return "❌ No LoRA adapter loaded. Please load a LoRA first."
 
     self.use_lora = use_lora
+    if stream_adapter.streaming():
+        message = stream_adapter.set_use(self, use_lora)
+        if use_lora:
+            active = getattr(self, "_lora_active_adapter", None)
+            scale = (getattr(self, "_active_loras", None) or {}).get(active, 1.0)
+            if active:
+                stream_adapter.set_scale(self, active, scale)
+        return message
     model = getattr(self, "model", None)
     decoder = getattr(model, "decoder", None) if model is not None else None
     if self.lora_loaded and decoder is None:
@@ -113,6 +122,9 @@ def set_lora_scale(self, adapter_name_or_scale: str | float, scale: float | None
     self.lora_scale = scale_value  # backward compat: single "current" scale for status/UI
 
     adapter_label = "LoKr" if getattr(self, "_adapter_type", None) == "lokr" else "LoRA"
+
+    if stream_adapter.streaming():
+        return stream_adapter.set_scale(self, effective_name, scale_value)
 
     if not self.use_lora:
         logger.info(f"{adapter_label} scale for '{effective_name}' set to {scale_value:.2f} (will apply when enabled)")
@@ -192,6 +204,8 @@ def set_lora_scale(self, adapter_name_or_scale: str | float, scale: float | None
 
 def set_active_lora_adapter(self, adapter_name: str) -> str:
     """Set the active LoRA adapter for scaling/inference."""
+    if stream_adapter.streaming():
+        return stream_adapter.set_active(self, adapter_name)
     self._ensure_lora_registry()
     if not self._lora_service.set_active_adapter(adapter_name):
         return f"❌ Unknown adapter: {adapter_name}"
@@ -209,12 +223,13 @@ def get_lora_status(self) -> dict[str, Any]:
     """Get current LoRA status."""
     self._ensure_lora_registry()
     _active_loras = getattr(self, "_active_loras", None) or {}
+    streamed = stream_adapter.adapter_names() if stream_adapter.streaming() else None
     return {
         "loaded": self.lora_loaded,
         "active": self.use_lora,
         "scale": self.lora_scale,
         "scales": dict(_active_loras),
         "active_adapter": self._lora_active_adapter,
-        "adapters": list(self._lora_service.registry.keys()),
+        "adapters": streamed if streamed is not None else list(self._lora_service.registry.keys()),
         "synthetic_default_mode": self._lora_service.synthetic_default_mode,
     }

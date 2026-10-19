@@ -355,8 +355,8 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
               <button
                 type="button"
                 onClick={handleToggle}
-                disabled={!loraPath.trim() || isLoading || (!loraLoaded && (quantizationEnabled === true || smallGpu))}
-                title={(!loraLoaded && smallGpu) ? t('loraHubSmallGpu') : (!loraLoaded && quantizationEnabled === true) ? (t('quantizationBlocksLora') || 'Quantification active — desactivez-la pour charger un LoRA.') : undefined}
+                disabled={!loraPath.trim() || isLoading || (!loraLoaded && quantizationEnabled === true)}
+                title={(!loraLoaded && quantizationEnabled === true) ? (t('quantizationBlocksLora') || 'Quantification active — desactivez-la pour charger un LoRA.') : undefined}
                 className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                   loraLoaded
                     ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg shadow-green-500/20 hover:from-green-600 hover:to-emerald-700'
@@ -366,11 +366,6 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
                 {isLoading ? '...' : (loraLoaded ? t('loraUnload') : t('loraLoad'))}
               </button>
             </div>
-            {smallGpu && !loraLoaded && (
-              <div data-testid="lora-small-gpu" className="text-[11px] text-amber-600 dark:text-amber-500">
-                {t('loraHubSmallGpu')}
-              </div>
-            )}
             {loraError && (
               <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
                 {loraError}
