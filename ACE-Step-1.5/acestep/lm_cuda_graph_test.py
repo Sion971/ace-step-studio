@@ -136,6 +136,61 @@ class WindowFallbackTests(unittest.TestCase):
 
 
 @unittest.skipIf(_IMPORT_ERROR is not None, f"dependencies missing: {_IMPORT_ERROR}")
+class ReleaseTests(unittest.TestCase):
+    def _ready(self):
+        model = _tiny_model()
+        ids, mask = _prompt(2)
+        with torch.inference_mode():
+            out = model(input_ids=ids, attention_mask=mask, use_cache=True)
+            token = out.logits[:, -1, :].argmax(-1, keepdim=True)
+            generated = torch.cat([ids, token], dim=1)
+            mask = torch.cat([mask, torch.ones((2, 1), dtype=mask.dtype)], dim=1)
+            graph = lm_cuda_graph.LmGraph(model, 12, capture=False, window_step=4)
+            graph.end_step(out, mask, generated)
+            usual = model(input_ids=generated[:, -1:], attention_mask=mask, past_key_values=out.past_key_values,
+                          use_cache=True)
+            graph.check(usual, generated)
+            for _ in range(5):  # several windows
+                generated = torch.cat([generated, token], dim=1)
+                graph.step(generated)
+        return graph
+
+    def test_release_drops_the_buffers_and_the_graphs(self):
+        import weakref
+        graph = self._ready()
+        decoder = graph.decoder
+        keys = [weakref.ref(layer.keys) for layer in decoder.cache.layers]
+        reset = MagicMock()
+        decoder.captured[4] = lm_cuda_graph._Captured(MagicMock(reset=reset), torch.zeros(1))
+        decoder.release()
+        reset.assert_called_once()
+        self.assertEqual(decoder.captured, {})
+        self.assertEqual(decoder.views, {})
+        self.assertIsNone(decoder.cache)
+        self.assertTrue(all(ref() is None for ref in keys))
+
+    def test_release_goes_on_when_a_graph_cannot_be_reset(self):
+        graph = self._ready()
+        decoder = graph.decoder
+        decoder.captured[4] = lm_cuda_graph._Captured(MagicMock(reset=MagicMock(side_effect=RuntimeError("busy"))),
+                                                      torch.zeros(1))
+        decoder.release()
+        self.assertEqual(decoder.captured, {})
+
+    def test_close_releases_and_reports_the_memory_of_the_card(self):
+        graph = self._ready()
+        readings = iter([4000.0, 4400.0])
+        with patch.object(lm_cuda_graph, "_card_mb", side_effect=lambda: next(readings)), \
+                patch.object(lm_cuda_graph, "logger") as logger:
+            graph.card_before = 3000.0
+            graph.close()
+        text = [call.args for call in logger.info.call_args_list]
+        self.assertTrue(any("card memory" in args[0] and args[1:] == (3000.0, 4000.0, 4400.0) for args in text), text)
+        self.assertIsNone(graph.decoder)
+        self.assertEqual(graph.state, "off")
+
+
+@unittest.skipIf(_IMPORT_ERROR is not None, f"dependencies missing: {_IMPORT_ERROR}")
 class CheckTests(unittest.TestCase):
     def test_rounding_passes_and_damage_does_not(self):
         base = torch.randn(2, 64) * 5

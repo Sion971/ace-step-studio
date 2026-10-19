@@ -57,6 +57,16 @@ def logits_match(reference: torch.Tensor, candidate: torch.Tensor):
     return diff <= CHECK_ABS + CHECK_REL * float(ref.abs().max()), diff
 
 
+def _card_mb() -> Optional[float]:
+    """Memory held by live tensors on the card, in MB; None without a card."""
+    if not torch.cuda.is_available():
+        return None
+    try:
+        return torch.cuda.memory_allocated() / 1024 ** 2
+    except Exception:
+        return None
+
+
 class _Captured:
     def __init__(self, graph, logits):
         self.graph = graph
@@ -208,6 +218,21 @@ class GraphDecoder:
         self.next_position += 1
         return SimpleNamespace(logits=logits.clone().unsqueeze(1))
 
+    def release(self) -> None:
+        """Let go of everything this decoder holds, graphs first, instead of waiting for the references to die."""
+        for entry in self.captured.values():
+            try:
+                entry.graph.reset()
+            except Exception:  # a graph that cannot be reset is dropped with the entry
+                pass
+            entry.graph = entry.logits = None
+        self.captured.clear()
+        self.views.clear()
+        if self.cache is not None:
+            for layer in getattr(self.cache, "layers", []):
+                layer.keys = layer.values = None
+        self.cache = self.mask = self.ids = self.position = None
+
     def summary(self) -> str:
         return (f"{len(self.captured)} graph(s), capture {self.capture_seconds:.2f} s in all, "
                 f"{self.eager_steps} step(s) without graph")
@@ -223,6 +248,7 @@ class LmGraph:
         self.window_step = window_step
         self.decoder: Optional[GraphDecoder] = None
         self.state = "new"  # new -> checking -> ready, or off at any moment
+        self.card_before = _card_mb()
 
     @property
     def ready(self) -> bool:
@@ -276,10 +302,22 @@ class LmGraph:
         return self.decoder.step(generated_ids)
 
     def close(self) -> None:
-        if self.state == "ready" and self.decoder is not None:
-            logger.info("[lm_graph] generation done: {}", self.decoder.summary())
-        self.decoder = None
+        """End of the generation: log, release the decoder, and say what the card held before, at the end and after."""
+        decoder, self.decoder = self.decoder, None
+        ready = self.state == "ready"
         self.state = "off"
+        if decoder is None:
+            return
+        if ready:
+            logger.info("[lm_graph] generation done: {}", decoder.summary())
+        at_end = _card_mb()
+        decoder.release()
+        del decoder
+        after = _card_mb()
+        if after is not None:
+            logger.info("[lm_graph] card memory held by tensors: {:.0f} MB before the generation, {:.0f} MB at its end, "
+                        "{:.0f} MB once the graphs are released",
+                        self.card_before or 0.0, at_end or 0.0, after)
 
 
 def create(model, device, max_new_tokens: int) -> Optional[LmGraph]:
