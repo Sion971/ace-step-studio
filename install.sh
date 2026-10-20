@@ -840,14 +840,21 @@ if [ "$HW_PROFILE_MODE" = "cpu" ]; then
 fi
 if [ "$HW_PROFILE_MODE" = "stream" ]; then
     echo "  Petite carte (${HW_STREAM_REF_MIB} Mio) : mode flux — le DiT passe bloc par bloc dans la carte, l'audio est décodé par la carte."
-    echo "  Les LoRA ne sont pas pris en charge dans ce mode. STUDIO_SMALL_GPU=off pour le désactiver (puis relancer install.sh)."
+    echo "  STUDIO_SMALL_GPU=off pour le désactiver (puis relancer install.sh)."
+fi
+
+# === Raccourci : menu des applications et bureau, avec l'icone ===============
+# Un echec ici (pas de bureau graphique, par ex.) ne doit jamais faire echouer l'installation.
+if [ -x "$SCRIPT_DIR/create-shortcut.sh" ] || [ -f "$SCRIPT_DIR/create-shortcut.sh" ]; then
+    echo ""
+    bash "$SCRIPT_DIR/create-shortcut.sh" || echo "  Raccourci non cree (relancer ./create-shortcut.sh plus tard)."
 fi
 
 echo ""
 echo "========================================"
 echo "   Installation terminée avec succès !"
 echo ""
-echo "   Démarrage        : ./run.sh"
+echo "   Démarrage        : ./run.sh (ou le raccourci « ACE-Step Studio »)"
 echo "   Sans LM local    : ./run.sh --no-lm"
 echo "   Gradio seul      : ./run.sh --gradio-only"
 echo "   Options          : ./run.sh --help"
