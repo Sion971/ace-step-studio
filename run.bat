@@ -48,6 +48,36 @@ set "WEB_PORT=3001"
 
 :parse_args
 if "%~1"=="" goto :args_done
+
+REM === Is a session already running? ============================================
+REM A second launch must not touch anything: it would empty the first session's
+REM caches, fight for the card and the ports, then fail with an obscure error.
+REM So we look for a listener on the web port (3001 by default) and on the engine
+REM port (8001, fixed) and stop before doing anything else. The test does not
+REM rely on the word LISTENING (translated on non-English Windows): a listening
+REM socket is one whose remote address ends in ":0" (0.0.0.0:0 or [::]:0).
+set "BUSY_PORT="
+if not "%GRADIO_ONLY%"=="true" (
+    netstat -ano | findstr /R /C:":%WEB_PORT% *[^ ]*:0 " >nul
+    if not errorlevel 1 set "BUSY_PORT=%WEB_PORT%"
+)
+if not defined BUSY_PORT (
+    netstat -ano | findstr /R /C:":8001 *[^ ]*:0 " >nul
+    if not errorlevel 1 set "BUSY_PORT=8001"
+)
+if defined BUSY_PORT (
+    echo ========================================
+    echo   ACE-Step Studio is already running
+    echo ========================================
+    echo Port !BUSY_PORT! is already in use: another Studio session ^(or another program^) is using it.
+    echo This launch is cancelled; the running session is untouched.
+    if "!BUSY_PORT!"=="%WEB_PORT%" echo To use it, open http://localhost:%WEB_PORT% in your browser.
+    echo To replace it: stop it first ^(Ctrl+C in its window, or close its page if it was started with
+    echo --quit-on-close^), then launch again.
+    pause
+    exit /b 1
+)
+
 if /i "%~1"=="--no-lm" (
     set "NO_LM=true"
     shift

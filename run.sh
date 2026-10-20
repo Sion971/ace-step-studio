@@ -70,6 +70,33 @@ trap cleanup SIGINT SIGTERM
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# === 1b. Une session est-elle deja en cours ? ===============================
+# Un deuxieme lancement ne doit rien toucher : il viderait le cache Gradio de la premiere session, essaierait de reprendre
+# la carte (VRAM) et les ports, et finirait par une erreur obscure. On regarde donc si le port du serveur web (3001 par
+# defaut) ou celui du moteur (8001, fixe) repond deja, et on s'arrete avant toute autre action. Test fait par bash seul
+# (/dev/tcp) : aucun outil a installer.
+port_in_use() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+
+BUSY_PORT=""
+if ! $GRADIO_ONLY && port_in_use "$WEB_PORT"; then
+    BUSY_PORT="$WEB_PORT"
+elif port_in_use 8001; then
+    BUSY_PORT="8001"
+fi
+if [ -n "$BUSY_PORT" ]; then
+    echo "========================================"
+    echo "   ACE-Step Studio est deja lance"
+    echo "========================================"
+    echo "Le port $BUSY_PORT repond deja : une autre session du Studio (ou un autre programme) l'utilise."
+    echo "Le nouveau lancement est annule, la session en cours n'est pas touchee."
+    if [ "$BUSY_PORT" = "$WEB_PORT" ] && ! $GRADIO_ONLY; then
+        echo "Pour l'utiliser, ouvrez http://localhost:$WEB_PORT dans le navigateur."
+    fi
+    echo "Pour la remplacer : arretez-la d'abord (Ctrl+C dans sa fenetre, ou fermez sa page si elle a ete lancee avec"
+    echo "--quit-on-close), puis relancez."
+    exit 1
+fi
+
 export PATH="$SCRIPT_DIR/.venv/bin:$PATH"
 
 # NE PAS ajouter $SCRIPT_DIR/.venv/lib à LD_LIBRARY_PATH : ce dossier ne
