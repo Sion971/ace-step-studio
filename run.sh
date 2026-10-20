@@ -96,7 +96,13 @@ if [ -n "$BUSY_PORT" ]; then
     echo "--quit-on-close), puis relancez."
     # Lance depuis un raccourci (pas de terminal) : le message ci-dessus n'est lu par personne. On previent alors par une
     # notification du bureau et, si c'est le Studio web qui repond, on ouvre sa page (sauf avec --no-browser).
-    if [ ! -t 1 ]; then
+    # Plusieurs clics de suite sur le raccourci ne doivent pas empiler fenetres et notifications : on ne previent qu'une fois
+    # toutes les 30 secondes (horodatage dans temp/).
+    STAMP="$SCRIPT_DIR/temp/.deja-lance"
+    NOW=$(date +%s)
+    LAST=$(cat "$STAMP" 2>/dev/null || echo 0)
+    if [ ! -t 1 ] && [ $((NOW - LAST)) -ge 30 ]; then
+        mkdir -p "$SCRIPT_DIR/temp" && echo "$NOW" > "$STAMP" 2>/dev/null || true
         if command -v notify-send >/dev/null 2>&1; then
             notify-send "ACE-Step Studio" "Deja lance (port $BUSY_PORT). Le nouveau lancement est annule." 2>/dev/null || true
         fi
