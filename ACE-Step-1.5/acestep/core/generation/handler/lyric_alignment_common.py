@@ -12,6 +12,35 @@ from loguru import logger
 _DEFAULT_LAYERS_CONFIG: Dict[int, List[int]] = {2: [6], 3: [10, 11], 4: [3], 5: [8, 9], 6: [8]}
 
 
+def compact_alignment_attentions(
+    attentions: Sequence[Optional[torch.Tensor]],
+    custom_layers_config: Dict[int, List[int]],
+) -> Tuple[Optional[torch.Tensor], Dict[int, List[int]]]:
+    """Gather the heads of ``custom_layers_config`` from the decoder's cross-attention output into one tensor.
+
+    The decoder (``enable_early_exit=True``) returns, for each layer of the config, only the listed heads, and ``None`` for the
+    other layers. Keeping all 32 layers x 32 heads of the full attention filled the RAM on long tracks, and every later step
+    copied it. The heads are joined in the order of the config, which is the order the scorer reads them, so the result is the
+    same as selecting them from the full tensor. A full tensor (more heads than listed) is accepted too.
+
+    Returns ``(matrix, config)``: ``matrix`` is ``[batch, heads, frames, tokens]`` (``None`` when nothing is selected) and
+    ``config`` is ``{0: [0, 1, ...]}``, the config to give to the scorer for that matrix.
+    """
+    parts: List[torch.Tensor] = []
+    for layer_idx, head_indices in custom_layers_config.items():
+        if layer_idx >= len(attentions) or attentions[layer_idx] is None:
+            continue
+        weights = attentions[layer_idx]
+        if weights.shape[1] > len(head_indices):  # full tensor: pick the heads
+            parts.append(weights[:, [h for h in head_indices if h < weights.shape[1]]])
+        else:  # the decoder already kept only the listed heads
+            parts.append(weights)
+    if not parts:
+        return None, {}
+    matrix = torch.cat(parts, dim=1)
+    return matrix, {0: list(range(matrix.shape[1]))}
+
+
 class LyricAlignmentCommonMixin:
     """Provide shared data preparation helpers for lyric alignment methods."""
 

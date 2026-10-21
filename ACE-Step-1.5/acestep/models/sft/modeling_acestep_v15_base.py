@@ -1466,12 +1466,17 @@ class AceStepDiTModel(AceStepPreTrainedModel):
 
         # Handle early exit for custom layer configurations
         max_needed_layer = float('inf')
+        selected_heads = None
         if custom_layers_config is not None and enable_early_exit:
             max_needed_layer = max(custom_layers_config.keys())
+            # Only the (layer, head) pairs of the config are returned, the other layers give None: the full attention
+            # of every layer (32 layers x 32 heads x frames x lyric tokens) filled the RAM on long tracks.
+            selected_heads = custom_layers_config
             # Force output_attentions to True when early exit is enabled for attention extraction
             output_attentions = True
             if all_cross_attentions is None:
                 all_cross_attentions = ()
+        cross_position = 0  # rank of the layer among those that return cross-attention weights
 
         # Process through transformer layers
         for index_block, layer_module in enumerate(self.layers):
@@ -1496,7 +1501,18 @@ class AceStepDiTModel(AceStepPreTrainedModel):
                 # layer_outputs structure: (hidden_states, self_attn_weights, cross_attn_weights)
                 # Extract the last element which is cross_attn_weights
                 if len(layer_outputs) >= 3:
-                    all_cross_attentions += (layer_outputs[2],)
+                    cross_weights = layer_outputs[2]
+                    if selected_heads is not None:
+                        heads = selected_heads.get(cross_position)
+                        if heads:
+                            n_heads = cross_weights.shape[1]
+                            cross_weights = cross_weights[:, [h for h in heads if h < n_heads]]
+                        else:
+                            cross_weights = None
+                    all_cross_attentions += (cross_weights,)
+                    cross_position += 1
+                    if selected_heads is not None and cross_position > max_needed_layer:
+                        break  # early exit: the layers after the last one of the config are not needed
 
         if return_hidden_states:
             return hidden_states

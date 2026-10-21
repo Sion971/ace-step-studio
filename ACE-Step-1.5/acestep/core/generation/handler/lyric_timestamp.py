@@ -5,7 +5,10 @@ from typing import Any, Dict, List, Optional
 import torch
 from loguru import logger
 
-from acestep.core.generation.handler.lyric_alignment_common import LyricAlignmentCommonMixin
+from acestep.core.generation.handler.lyric_alignment_common import (
+    LyricAlignmentCommonMixin,
+    compact_alignment_attentions,
+)
 
 
 class LyricTimestampMixin(LyricAlignmentCommonMixin):
@@ -93,15 +96,11 @@ class LyricTimestampMixin(LyricAlignmentCommonMixin):
             if decoder_outputs[2] is None:
                 return self._lyric_timestamp_error("Model did not return attentions")
 
-            captured_layers = []
-            for layer_attn in decoder_outputs[2]:
-                if layer_attn is None:
-                    continue
-                captured_layers.append(layer_attn[:bsz].transpose(-1, -2))
-            if not captured_layers:
+            selected, align_config = compact_alignment_attentions(decoder_outputs[2], custom_layers_config)
+            if selected is None:
                 return self._lyric_timestamp_error("No valid attention layers returned")
 
-            stacked = torch.stack(captured_layers)
+            stacked = selected[:bsz].transpose(-1, -2).unsqueeze(0)
             all_layers_matrix = stacked.squeeze(1) if bsz == 1 else stacked
 
             _, pure_lyric_ids, start_idx, end_idx = self._extract_lyric_segment(
@@ -117,7 +116,7 @@ class LyricTimestampMixin(LyricAlignmentCommonMixin):
                 attention_matrix=pure_lyric_matrix,
                 lyrics_tokens=pure_lyric_ids,
                 total_duration_seconds=total_duration_seconds,
-                custom_config=custom_layers_config,
+                custom_config=align_config,
                 return_matrices=False,
                 violence_level=2.0,
                 medfilt_width=1,

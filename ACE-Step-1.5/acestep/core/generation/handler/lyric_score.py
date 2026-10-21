@@ -5,7 +5,10 @@ from typing import Any, Dict, List, Optional
 import torch
 from loguru import logger
 
-from acestep.core.generation.handler.lyric_alignment_common import LyricAlignmentCommonMixin
+from acestep.core.generation.handler.lyric_alignment_common import (
+    LyricAlignmentCommonMixin,
+    compact_alignment_attentions,
+)
 
 
 class LyricScoreMixin(LyricAlignmentCommonMixin):
@@ -112,15 +115,11 @@ class LyricScoreMixin(LyricAlignmentCommonMixin):
             if decoder_outputs[2] is None:
                 return self._lyric_score_error("Model did not return attentions")
 
-            captured_layers = []
-            for layer_attn in decoder_outputs[2]:
-                if layer_attn is None:
-                    continue
-                captured_layers.append(layer_attn.transpose(-1, -2))
-            if not captured_layers:
+            selected, align_config = compact_alignment_attentions(decoder_outputs[2], custom_layers_config)
+            if selected is None:
                 return self._lyric_score_error("No valid attention layers returned")
 
-            stacked = torch.stack(captured_layers)
+            stacked = selected.transpose(-1, -2).unsqueeze(0)
             all_layers_matrix_lm = stacked[:, :bsz, ...]
             all_layers_matrix_dit = stacked[:, bsz:, ...]
             if bsz == 1:
@@ -144,13 +143,13 @@ class LyricScoreMixin(LyricAlignmentCommonMixin):
                 aligner=aligner,
                 matrix=pure_matrix_lm,
                 pure_lyric_ids=pure_lyric_ids,
-                custom_layers_config=custom_layers_config,
+                custom_layers_config=align_config,
             )
             dit_score = self._calculate_single_lyric_score(
                 aligner=aligner,
                 matrix=pure_matrix_dit,
                 pure_lyric_ids=pure_lyric_ids,
-                custom_layers_config=custom_layers_config,
+                custom_layers_config=align_config,
             )
             return {
                 "lm_score": lm_score,

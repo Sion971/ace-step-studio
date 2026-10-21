@@ -53,7 +53,7 @@ class _Host(LyricTimestampMixin, LyricScoreMixin):
         self.text_tokenizer = _Tokenizer()
         self.device = "cpu"
         self.dtype = torch.float32
-        self.custom_layers_config = {2: [6]}
+        self.custom_layers_config = {0: [0, 1]}
 
     def _load_model_context(self, _name):
         """Return a no-op context manager to mimic handler model context."""

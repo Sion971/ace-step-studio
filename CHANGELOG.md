@@ -3,6 +3,7 @@
 ## 2026-10-21
 
 ### Fixed
+- Alignment of the lyrics (LRC) and lyric score: the decoder returned the cross-attention of all 32 layers x 32 heads, and several copies of it were made, which filled about 31 GB of RAM on a track (the PC froze on Windows). It now returns only the layers and heads of the alignment configuration, joined in the configuration's order, and stops after the last layer needed. The scorer reads the same values (new tests compare with the full attention).
 - Stream mode: after the synchronised lyrics (LRC) or the score, the engine kept about 6 GB of DiT blocks on the card, so the AI cover worker (SDXL Turbo) ran out of memory and crashed. The card is now given back once the lyric alignment and the score are done (`give_card_back_if_active`); the regular card mode is not affected.
 
 ### Changed
