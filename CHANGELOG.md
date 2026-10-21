@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-20
+
+### Added
+- Windows: `create-shortcut.bat` creates the "ACE-Step Studio" shortcut on the Desktop and in the Start menu, with the icon from `app/docs/Ace-Step UI.ico` (`--no-desktop`, `--no-menu`, `--remove`). `install.bat` runs it at the end.
+
+### Fixed
+- Windows: the length of a song could not be read when Smart App Control had not yet accepted `ffprobe.exe` ("Failed to get audio duration"), although `ffmpeg.exe` already ran. The server now falls back to the engine's Python (soundfile) when ffprobe cannot be run, and `install.bat` / `run.bat` wait for `ffprobe.exe` (and `ffmpeg.exe`) like they wait for the other native files.
+
 ## 2026-10-19
 
 ### Version 2.0.0

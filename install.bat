@@ -745,6 +745,15 @@ if exist "ffmpeg\ffmpeg.exe" (
         set "SAC_BAD=1"
     )
 )
+REM ffprobe.exe est un fichier distinct : Windows peut l'accepter plus tard que ffmpeg.exe. Sans lui, la duree des morceaux
+REM est lue par Python ^(secours du serveur^), mais le controle doit quand meme l'attendre.
+if exist "ffmpeg\ffprobe.exe" (
+    ffmpeg\ffprobe.exe -version >nul 2>nul
+    if errorlevel 1 (
+        echo   [ffprobe] REFUSE : ffprobe.exe ne demarre pas
+        set "SAC_BAD=1"
+    )
+)
 if "%SAC_BAD%"=="0" goto :sac_ok
 set /a SAC_TRY+=1
 if %SAC_TRY% GEQ %SAC_MAX% goto :sac_failed
@@ -775,6 +784,14 @@ echo.
 .venv\Scripts\python.exe write-hardware-profile.py
 if errorlevel 1 echo   ATTENTION : le profil materiel n'a pas ete ecrit ^(run.bat le refera au prochain lancement^).
 
+REM === Raccourcis : Bureau et menu Demarrer, avec l'icone ======================
+REM Un echec ici ne doit jamais faire echouer l'installation.
+if exist "create-shortcut.bat" (
+    echo.
+    call create-shortcut.bat
+    if errorlevel 1 echo   Raccourci non cree ^(relancer create-shortcut.bat plus tard^).
+)
+
 echo.
 echo ========================================
 if defined SAC_FAILED (
@@ -783,7 +800,7 @@ if defined SAC_FAILED (
     echo   Installation terminee avec succes.
 )
 echo.
-echo   Demarrage : run.bat
+echo   Demarrage : run.bat ^(ou le raccourci "ACE-Step Studio" du Bureau et du menu Demarrer^)
 echo   Les modeles se telechargent au premier lancement.
 echo ========================================
 pause

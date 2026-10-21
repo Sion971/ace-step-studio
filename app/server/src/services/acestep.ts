@@ -1,25 +1,11 @@
 import { writeFile, mkdir, copyFile, rm, readFile } from 'fs/promises';
-import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import path from 'path';
 import { handle_file } from '@gradio/client';
 
-// Get audio duration using ffprobe
-function getAudioDuration(filePath: string): number {
-  try {
-    const result = execSync(
-      `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`,
-      { encoding: 'utf-8', timeout: 30000 }
-    );
-    const duration = parseFloat(result.trim());
-    return isNaN(duration) ? 0 : Math.round(duration);
-  } catch (error) {
-    console.warn('Failed to get audio duration:', error);
-    return 0;
-  }
-}
 import { fileURLToPath } from 'url';
 import { config } from '../config/index.js';
+import { getAudioDuration } from './audio-duration.js';
 import { classifyGenerationFailure, friendlyTimeoutMessage } from './generation-errors.js';
 import { getGradioClient, resetGradioClient, isGradioAvailable, callInitServiceWrapper, fetchCurrentInitServiceValues, MAIN_MODEL_PATH_COMPONENT_ID } from './gradio-client.js';
 

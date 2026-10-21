@@ -306,6 +306,14 @@ if exist "%SCRIPT_DIR%.venv-demucs\Scripts\python.exe" (
     "%SCRIPT_DIR%.venv-demucs\Scripts\python.exe" "%SCRIPT_DIR%check-imports.py" demucs 2>nul
     if errorlevel 1 set "SAC_BAD=1"
 )
+if exist "%SCRIPT_DIR%ffmpeg\ffmpeg.exe" (
+    "%SCRIPT_DIR%ffmpeg\ffmpeg.exe" -version >nul 2>nul
+    if errorlevel 1 set "SAC_BAD=1"
+)
+if exist "%SCRIPT_DIR%ffmpeg\ffprobe.exe" (
+    "%SCRIPT_DIR%ffmpeg\ffprobe.exe" -version >nul 2>nul
+    if errorlevel 1 set "SAC_BAD=1"
+)
 if "%SAC_BAD%"=="0" goto :sac_wait_ok
 set /a SAC_TRY+=1
 if %SAC_TRY% GEQ 60 goto :sac_wait_giveup
