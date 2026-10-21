@@ -3,7 +3,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
-import { AiCoverEngine, AiCoverError, coverIdleMsFromEnv } from './ai-cover.js';
+import { AiCoverEngine, AiCoverError, coverIdleMsFromEnv, waitForCoverBeforeGeneration } from './ai-cover.js';
 
 describe('coverIdleMsFromEnv', () => {
   it('defaults to 3 minutes', () => {
@@ -32,6 +32,7 @@ rl.on('line', (line) => {
   if (!loaded) { send({ event: 'loading' }); loaded = true; send({ event: 'ready' }); }
   if (req.prompt.startsWith('black')) { send({ id: req.id, ok: false, error: 'the model returned a black image' }); return; }
   if (req.prompt.startsWith('die')) process.exit(3);
+  if (req.prompt.startsWith('slow')) { setTimeout(() => send({ id: req.id, ok: true, mime: 'image/jpeg', data: Buffer.from('slow').toString('base64') }), 400); return; }
   send({ id: req.id, ok: true, mime: 'image/jpeg', data: Buffer.from('JPEG:' + req.prompt + ':' + req.seed + ':' + process.pid).toString('base64') });
 });
 `;
@@ -132,5 +133,48 @@ describe('AiCoverEngine', () => {
     await expect(engine.generate({ prompt: 'die', seed: 2 })).rejects.toMatchObject({ code: 'failed' });
     const r = await engine.generate({ prompt: 'back', seed: 3 });
     expect(r.buffer.toString()).toContain('JPEG:back');
+  });
+  it('reports busy while a cover is being made, and whenIdle waits for it', async () => {
+    const e = make();
+    expect(e.busy()).toBe(false);
+    expect(await e.whenIdle(10)).toBe(true);
+    const cover = e.generate({ prompt: 'slow one', seed: 1 });
+    expect(e.busy()).toBe(true);
+    const started = Date.now();
+    expect(await e.whenIdle(10_000)).toBe(true);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(200);
+    expect(e.busy()).toBe(false);
+    await cover;
+  });
+
+  it('whenIdle gives up after the delay when the cover is still running', async () => {
+    const e = make();
+    const cover = e.generate({ prompt: 'slow two', seed: 1 });
+    expect(await e.whenIdle(50)).toBe(false);
+    expect(e.busy()).toBe(true);
+    await cover;
+    expect(e.busy()).toBe(false);
+  });
+
+  it('stays busy for every queued cover, and also after a failure', async () => {
+    const e = make();
+    const a = e.generate({ prompt: 'slow a', seed: 1 });
+    const b = e.generate({ prompt: 'black b', seed: 2 });
+    await a;
+    expect(e.busy()).toBe(true);
+    await expect(b).rejects.toBeInstanceOf(AiCoverError);
+    expect(e.busy()).toBe(false);
+  });
+
+  it('a queued generation waits for the cover, then goes on', async () => {
+    const e = make();
+    expect(await waitForCoverBeforeGeneration(e, 1000)).toBe(true); // nothing running: no wait
+    const cover = e.generate({ prompt: 'slow c', seed: 1 });
+    expect(await waitForCoverBeforeGeneration(e, 10_000)).toBe(true);
+    expect(e.busy()).toBe(false);
+    await cover;
+    const longer = e.generate({ prompt: 'slow d', seed: 1 });
+    expect(await waitForCoverBeforeGeneration(e, 30)).toBe(false); // gives up
+    await longer;
   });
 });

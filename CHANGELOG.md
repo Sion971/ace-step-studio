@@ -2,6 +2,9 @@
 
 ## 2026-10-21
 
+### Fixed
+- Windows/small cards: a music generation could start while the AI cover of the previous song was still being made. Both use the card, the engine ran out of memory ("CUDA error: out of memory", then "Sticky error": every later generation failed until restart). The queue now waits for the cover in progress (5 minutes at most) before it starts the next generation. The cover itself already waited for the music jobs.
+
 ### Added
 - Covers: `ACESTEP_COVER_IDLE_S` (seconds, at least 5; in `ACE-Step-1.5/.env`) sets how long the AI cover worker stays loaded after the last cover. It keeps about 9 GB of RAM while loaded, so a PC short of RAM can free it sooner (the next cover reloads it in a few seconds). Default unchanged: 180 s.
 

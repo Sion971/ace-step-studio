@@ -88,6 +88,8 @@ export class AiCoverEngine {
   private pending = new Map<number, Pending>();
   private tail: Promise<unknown> = Promise.resolve();
   private idleTimer?: NodeJS.Timeout;
+  private inFlight = 0;
+  private idleWaiters: Array<(idle: boolean) => void> = [];
   private failure: { at: number; detail: string } | null = null;
   private readonly idleMs: number;
   private readonly loadTimeoutMs: number;
@@ -113,9 +115,38 @@ export class AiCoverEngine {
   }
 
   generate(req: AiCoverRequest): Promise<AiCoverResult> {
+    this.inFlight++;
     const run = this.tail.then(() => this.runOne(req));
     this.tail = run.catch(() => undefined);
+    const done = () => {
+      this.inFlight--;
+      if (this.inFlight === 0) for (const wake of this.idleWaiters.splice(0)) wake(true);
+    };
+    run.then(done, done);
     return run;
+  }
+
+  /** True while a cover is being made (or waits for the one before it): the worker may be using the card. */
+  busy(): boolean {
+    return this.inFlight > 0;
+  }
+
+  /** Resolves true as soon as no cover is in progress, or false after `maxMs` if one still is. */
+  whenIdle(maxMs: number): Promise<boolean> {
+    if (this.inFlight === 0) return Promise.resolve(true);
+    return new Promise<boolean>((resolve) => {
+      const timer = setTimeout(() => {
+        const at = this.idleWaiters.indexOf(wake);
+        if (at >= 0) this.idleWaiters.splice(at, 1);
+        resolve(false);
+      }, maxMs);
+      timer.unref?.();
+      const wake = (idle: boolean) => {
+        clearTimeout(timer);
+        resolve(idle);
+      };
+      this.idleWaiters.push(wake);
+    });
   }
 
   /** Stops the worker now (server shutdown, tests). */
@@ -225,6 +256,22 @@ function defaultCommand(): WorkerCommand | null {
   const python = config.pipeline.pythonPath;
   if (!existsSync(python) || !existsSync(script)) return null;
   return { command: python, args: [script] };
+}
+
+/** How long a queued music generation waits for a cover in progress before it starts anyway. */
+export const COVER_WAIT_MAX_MS = 5 * 60_000;
+
+/**
+ * The cover model and the music engine share the card: a generation that starts while a cover is being made runs out of
+ * memory on a small card (CUDA OOM, and the engine's CUDA context is then unusable). Called before each queued generation;
+ * returns false when it had to give up waiting.
+ */
+export async function waitForCoverBeforeGeneration(engine: Pick<AiCoverEngine, 'busy' | 'whenIdle'>, maxMs = COVER_WAIT_MAX_MS): Promise<boolean> {
+  if (!engine.busy()) return true;
+  console.log('[queue] the AI cover is still being made: the next generation waits for it (they share the card)');
+  const idle = await engine.whenIdle(maxMs);
+  if (!idle) console.warn(`[queue] the AI cover is still running after ${Math.round(maxMs / 1000)} s: the generation starts anyway`);
+  return idle;
 }
 
 export const aiCover = new AiCoverEngine({ command: defaultCommand, isCpuMode, isSmallGpu: coversBlockedBySmallCard });

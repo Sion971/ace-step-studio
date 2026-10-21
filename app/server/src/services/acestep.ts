@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { config } from '../config/index.js';
 import { getAudioDuration } from './audio-duration.js';
 import { classifyGenerationFailure, friendlyTimeoutMessage } from './generation-errors.js';
+import { aiCover, waitForCoverBeforeGeneration } from './ai-cover.js';
 import { getGradioClient, resetGradioClient, isGradioAvailable, callInitServiceWrapper, fetchCurrentInitServiceValues, MAIN_MODEL_PATH_COMPONENT_ID } from './gradio-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -556,6 +557,8 @@ async function processQueue(): Promise<void> {
     const job = activeJobs.get(jobId);
 
     if (job && job.status === 'queued') {
+      // The AI cover of the previous song may still be using the card (the cover starts when the audio is done).
+      await waitForCoverBeforeGeneration(aiCover);
       try {
         await processGeneration(jobId, job.params, job);
       } catch (error: any) {
