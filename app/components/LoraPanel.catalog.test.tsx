@@ -117,6 +117,41 @@ describe('LoraPanel and the catalog', () => {
     expect(q('hub-entry-lofi')?.textContent).toContain('Lo-Fi');
   });
 
+  it('fresh install: after a catalog install, "Load" sends the LoRA that was just installed, not the missing default "./lora_output/final"', async () => {
+    loras = []; // nothing in lora_output yet
+    installed = [];
+    let done = false;
+    const loadBodies: string[] = [];
+    const base = (globalThis.fetch as unknown as (input: string, init?: RequestInit) => Promise<Response>);
+    vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
+      const path = String(input).split('?')[0];
+      if (path === '/api/lora-hub/catalog') return new Response(JSON.stringify({ entries: [{ ...entry, installed: done ? lofi : null }], problems: [] }), { status: 200 });
+      if (path === '/api/lora-hub/catalog/lofi/install') return new Response(JSON.stringify({ job: { id: 'j1', repo: 'user/lofi', name: 'lofi', state: 'downloading', bytesDone: 0, bytesTotal: 88_130_248 } }), { status: 200 });
+      if (path === '/api/lora-hub/installs/j1') {
+        done = true;
+        loras = [{ name: 'lofi', path: './lora_output/lofi' }];
+        installed = [lofi];
+        return new Response(JSON.stringify({ job: { id: 'j1', repo: 'user/lofi', name: 'lofi', state: 'done', bytesDone: 88_130_248, bytesTotal: 88_130_248, result: { name: 'lofi', path: './lora_output/lofi' } } }), { status: 200 });
+      }
+      if (path === '/api/lora/load') {
+        loadBodies.push(JSON.parse(String(init?.body)).lora_path);
+        return new Response(JSON.stringify({ message: 'ok', loaded: true }), { status: 200 });
+      }
+      return base(input, init);
+    }));
+    await mount();
+    expect(select().value).toBe('./lora_output/final'); // the placeholder: no LoRA exists yet
+    await click(q('lora-open-catalog'));
+    await settle(20);
+    await click(q('hub-install-lofi'));
+    await settle(1800); // the install is followed by polling
+    // No click on "Use": a <select> shows its first option even when the state holds another path, so only what "Load" sends tells.
+    const load = [...document.body.querySelectorAll('button')].find((b) => b.textContent === 'Load') as HTMLButtonElement;
+    await click(load);
+    await settle(20);
+    expect(loadBodies).toEqual(['./lora_output/lofi']);
+  });
+
   it('shows the trigger word and the recommended settings of the LoRA that was installed from the catalog', async () => {
     await mount();
     await act(async () => { select().value = './lora_output/lofi'; select().dispatchEvent(new Event('change', { bubbles: true })); });

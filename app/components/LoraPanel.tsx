@@ -29,6 +29,12 @@ interface LoraPanelProps {
   onLoadedChange: (loaded: boolean) => void;
 }
 
+/** The chosen path when the list has it, else the first LoRA of the list; unchanged while the list is empty. */
+export function pathInList(list: ReadonlyArray<{ path: string }>, current: string): string {
+  if (list.length === 0 || list.some((l) => l.path === current)) return current;
+  return list[0].path;
+}
+
 export const LoraPanel: React.FC<LoraPanelProps> = ({
   token,
   t,
@@ -205,9 +211,7 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
         // pas forcement chez tout le monde), bascule sur le premier de
         // la liste plutot que de laisser un menu deroulant sans
         // correspondance visible.
-        if (result.loras.length > 0 && !result.loras.some((l) => l.path === loraPath)) {
-          setLoraPath(result.loras[0].path);
-        }
+        setLoraPath((current) => pathInList(result.loras, current));
       })
       .catch((err) => {
         console.error('Failed to load available LoRAs:', err);
@@ -227,7 +231,14 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
 
   const refreshAvailableLoras = useCallback(() => {
     if (!token) return;
-    generateApi.getAvailableLoras(token).then((result) => setAvailableLoras(result.loras)).catch(() => undefined);
+    generateApi.getAvailableLoras(token).then((result) => {
+      setAvailableLoras(result.loras);
+      // La liste vient de changer (un LoRA du catalogue vient d'arriver) : si le chemin choisi n'y figure pas (le defaut
+      // "./lora_output/final" n'existe pas sur une installation neuve), le menu AFFICHAIT deja le premier LoRA de la liste
+      // alors que "Charger" envoyait encore l'ancien chemin (erreur 422 "LoRA path not found"). Forme fonctionnelle : un
+      // choix fait entre-temps (« Utiliser ») est garde.
+      setLoraPath((current) => pathInList(result.loras, current));
+    }).catch(() => undefined);
   }, [token]);
 
   /** « Utiliser » dans le catalogue : on selectionne ce LoRA et on regle l'intensite recommandee. Le chargement reste un geste explicite (Charger). */
