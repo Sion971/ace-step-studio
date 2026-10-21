@@ -18,6 +18,15 @@ import { isCpuMode, coversBlockedBySmallCard } from './hardware-mode.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Idle delay of the cover worker, in ms. `ACESTEP_COVER_IDLE_S` (seconds, at least 5) overrides the default of 3 minutes: the
+ * worker keeps about 9 GB of RAM while it is loaded, so a PC short of RAM can free it sooner (the next cover then reloads it).
+ */
+export function coverIdleMsFromEnv(env: NodeJS.ProcessEnv = process.env): number {
+  const seconds = Number(env.ACESTEP_COVER_IDLE_S);
+  return Number.isFinite(seconds) && seconds >= 5 ? Math.round(seconds * 1000) : 180_000;
+}
+
 export type AiCoverUnavailable = 'disabled' | 'cpu-mode' | 'small-gpu' | 'unavailable' | 'failed';
 
 export class AiCoverError extends Error {
@@ -86,7 +95,7 @@ export class AiCoverEngine {
   private readonly retryAfterMs: number;
 
   constructor(private readonly opts: AiCoverOptions) {
-    this.idleMs = opts.idleMs ?? 180_000;
+    this.idleMs = opts.idleMs ?? coverIdleMsFromEnv();
     this.loadTimeoutMs = opts.loadTimeoutMs ?? 45 * 60_000;
     this.runTimeoutMs = opts.runTimeoutMs ?? 180_000;
     this.retryAfterMs = opts.retryAfterMs ?? 5 * 60_000;

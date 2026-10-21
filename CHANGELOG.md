@@ -2,6 +2,9 @@
 
 ## 2026-10-21
 
+### Added
+- Covers: `ACESTEP_COVER_IDLE_S` (seconds, at least 5; in `ACE-Step-1.5/.env`) sets how long the AI cover worker stays loaded after the last cover. It keeps about 9 GB of RAM while loaded, so a PC short of RAM can free it sooner (the next cover reloads it in a few seconds). Default unchanged: 180 s.
+
 ### Fixed
 - Alignment of the lyrics (LRC) and lyric score: the decoder returned the cross-attention of all 32 layers x 32 heads, and several copies of it were made, which filled about 31 GB of RAM on a track (the PC froze on Windows). It now returns only the layers and heads of the alignment configuration, joined in the configuration's order, and stops after the last layer needed. The scorer reads the same values (new tests compare with the full attention).
 - Stream mode: after the synchronised lyrics (LRC) or the score, the engine kept about 6 GB of DiT blocks on the card, so the AI cover worker (SDXL Turbo) ran out of memory and crashed. The card is now given back once the lyric alignment and the score are done (`give_card_back_if_active`); the regular card mode is not affected.

@@ -3,7 +3,23 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
-import { AiCoverEngine, AiCoverError } from './ai-cover.js';
+import { AiCoverEngine, AiCoverError, coverIdleMsFromEnv } from './ai-cover.js';
+
+describe('coverIdleMsFromEnv', () => {
+  it('defaults to 3 minutes', () => {
+    expect(coverIdleMsFromEnv({})).toBe(180_000);
+    expect(coverIdleMsFromEnv({ ACESTEP_COVER_IDLE_S: '' })).toBe(180_000);
+  });
+  it('reads seconds', () => {
+    expect(coverIdleMsFromEnv({ ACESTEP_COVER_IDLE_S: '30' })).toBe(30_000);
+    expect(coverIdleMsFromEnv({ ACESTEP_COVER_IDLE_S: '7.5' })).toBe(7_500);
+  });
+  it('ignores values that are too small or not numbers', () => {
+    expect(coverIdleMsFromEnv({ ACESTEP_COVER_IDLE_S: '1' })).toBe(180_000);
+    expect(coverIdleMsFromEnv({ ACESTEP_COVER_IDLE_S: 'abc' })).toBe(180_000);
+    expect(coverIdleMsFromEnv({ ACESTEP_COVER_IDLE_S: '-30' })).toBe(180_000);
+  });
+});
 
 /** A stand-in for cover_worker.py: same line protocol, behaviour chosen by the first word of the prompt. */
 const FAKE_WORKER = `
