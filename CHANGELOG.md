@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-21
+
+### Changed
+- Windows: the Desktop and Start menu shortcut now starts `run.bat --quit-on-close`, like the Linux launcher: closing the last browser page stops the server and the engine, and the console window closes with them (it stays open only after an error). Running `run.bat` by hand keeps the old behaviour (the Studio runs until the window is closed). Re-run `create-shortcut.bat` to update an existing shortcut.
+
 ## 2026-10-20
 
 ### Added

@@ -43,6 +43,8 @@ foreach ($p in $places) {
     $lnk = $shell.CreateShortcut($f)
     $lnk.TargetPath = $target
     $lnk.WorkingDirectory = $root
+    # Comme sous Linux : fermer la page web arrete le serveur et le moteur (la fenetre noire se ferme avec eux).
+    $lnk.Arguments = '--quit-on-close'
     $lnk.Description = 'ACE-Step Studio - generation musicale par IA, en local'
     $lnk.WindowStyle = 1
     if (Test-Path -LiteralPath $icon) { $lnk.IconLocation = $icon + ',0' }
