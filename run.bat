@@ -49,34 +49,6 @@ set "WEB_PORT=3001"
 :parse_args
 if "%~1"=="" goto :args_done
 
-REM === Is a session already running? ============================================
-REM A second launch must not touch anything: it would empty the first session's
-REM caches, fight for the card and the ports, then fail with an obscure error.
-REM So we look for a listener on the web port (3001 by default) and on the engine
-REM port (8001, fixed) and stop before doing anything else. The test does not
-REM rely on the word LISTENING (translated on non-English Windows): a listening
-REM socket is one whose remote address ends in ":0" (0.0.0.0:0 or [::]:0).
-set "BUSY_PORT="
-if not "%GRADIO_ONLY%"=="true" (
-    netstat -ano | findstr /R /C:":%WEB_PORT% *[^ ]*:0 " >nul
-    if not errorlevel 1 set "BUSY_PORT=%WEB_PORT%"
-)
-if not defined BUSY_PORT (
-    netstat -ano | findstr /R /C:":8001 *[^ ]*:0 " >nul
-    if not errorlevel 1 set "BUSY_PORT=8001"
-)
-if defined BUSY_PORT (
-    echo ========================================
-    echo   ACE-Step Studio is already running
-    echo ========================================
-    echo Port !BUSY_PORT! is already in use: another Studio session ^(or another program^) is using it.
-    echo This launch is cancelled; the running session is untouched.
-    if "!BUSY_PORT!"=="%WEB_PORT%" echo To use it, open http://localhost:%WEB_PORT% in your browser.
-    echo To replace it: stop it first ^(Ctrl+C in its window, or close its page if it was started with
-    echo --quit-on-close^), then launch again.
-    pause
-    exit /b 1
-)
 
 if /i "%~1"=="--no-lm" (
     set "NO_LM=true"
@@ -121,6 +93,31 @@ echo   --help          Show this help.
 exit /b 0
 
 :args_done
+
+REM === Is a session already running? ============================================
+REM A second launch must not touch anything: it would empty the first session's caches, fight for the card and the
+REM ports, then fail with an obscure error. We look for a listener on the web port ^(3001 by default^) and on the
+REM engine port ^(8001, fixed^) and stop before doing anything else. The test is made by PowerShell through .NET
+REM ^(the list of listening TCP ports, IPv4 and IPv6^): it does not depend on the language of Windows. It answers with the
+REM busy port as exit code, 0 when both are free; any other answer ^(PowerShell unavailable...^) is ignored.
+set "CHECK_PORTS=%WEB_PORT%,8001"
+if "%GRADIO_ONLY%"=="true" set "CHECK_PORTS=8001"
+powershell -NoProfile -Command "$p=@(%CHECK_PORTS%); $l=[Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners() | ForEach-Object { $_.Port }; $hit=$p | Where-Object { $l -contains $_ } | Select-Object -First 1; if ($hit) { exit $hit }; exit 0" >nul 2>nul
+set "BUSY_PORT=!errorlevel!"
+if "!BUSY_PORT!"=="%WEB_PORT%" goto :already_running
+if "!BUSY_PORT!"=="8001" goto :already_running
+goto :not_running
+:already_running
+echo ========================================
+echo   ACE-Step Studio is already running
+echo ========================================
+echo Port !BUSY_PORT! is already in use: another Studio session, or another program, is using it.
+echo This launch is cancelled; the running session is untouched.
+if "!BUSY_PORT!"=="%WEB_PORT%" if not "%GRADIO_ONLY%"=="true" echo To use it, open http://localhost:%WEB_PORT% in your browser.
+echo To replace it: stop it first, by closing its window or pressing Ctrl+C in it, then launch again.
+pause
+exit /b 1
+:not_running
 
 echo ========================================
 if "%GRADIO_ONLY%"=="true" (
