@@ -1252,7 +1252,7 @@ export const en = {
     loraHubLicense: "License: {{license}}",
     loraHubLicenseUnknown: "License not declared",
     loraHubTrigger: "Trigger word",
-    loraHubTriggerHint: "Put this word in your prompt for the style to apply.",
+    loraHubTriggerHint: "Add this word to your prompt to bring out the style (the author's recommendation).",
     loraHubRecommended: "Recommended settings",
     loraHubScale: "Scale: {{value}}",
     loraHubSteps: "Steps: {{value}}",

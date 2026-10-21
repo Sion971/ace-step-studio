@@ -158,7 +158,7 @@ describe('LoraPanel and the catalog', () => {
     await settle(10);
     const info = q('lora-selected-info');
     expect(info?.textContent).toContain('roti-l0f1y');
-    expect(info?.textContent).toContain('Put this word in your prompt for the style to apply.');
+    expect(info?.textContent).toContain('Add this word to your prompt to bring out the style (the author\'s recommendation).');
     expect(info?.textContent).toContain('Scale: 0.8 · Steps: 8 · Guidance: 7 · Shift: 3');
   });
 

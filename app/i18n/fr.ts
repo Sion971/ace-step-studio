@@ -1269,7 +1269,7 @@ export const fr = {
     loraHubLicense: "Licence : {{license}}",
     loraHubLicenseUnknown: "Licence non déclarée",
     loraHubTrigger: "Mot déclencheur",
-    loraHubTriggerHint: "Ajoutez ce mot à votre prompt pour que le style s’applique.",
+    loraHubTriggerHint: "Ajoutez ce mot à votre prompt pour accentuer le style (conseillé par l’auteur).",
     loraHubRecommended: "Réglages recommandés",
     loraHubScale: "Échelle : {{value}}",
     loraHubSteps: "Étapes : {{value}}",

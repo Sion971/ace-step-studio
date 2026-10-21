@@ -6,6 +6,8 @@
 - Windows: `create-shortcut.bat` creates the "ACE-Step Studio" shortcut on the Desktop and in the Start menu, with the icon from `app/docs/Ace-Step UI.ico` (`--no-desktop`, `--no-menu`, `--remove`). `install.bat` runs it at the end.
 
 ### Fixed
+- Windows: the "Delai de generation" line printed by `run.bat` at start-up was empty in small-card stream mode when no delay was configured; it now shows the engine's default (600 s), like `run.sh`.
+- LoRA panel: the hint under the trigger word no longer says the style applies only with it. A LoRA acts on every generation whatever the prompt (the word is the author's recommendation to bring the style out more).
 - Windows: the "already running" check of `run.bat` sat inside the argument loop, so it never ran when `run.bat` was started without arguments (a second launch started a second server). It now runs once the arguments are read, and asks PowerShell (.NET) for the listening TCP ports instead of reading `netstat`.
 - LoRA panel, fresh install: after installing a LoRA from the catalog, "Load" sent the default path `./lora_output/final`, which does not exist yet (error 422 "LoRA path not found"), while the drop-down already showed the new LoRA. The panel now picks the first LoRA of the list whenever the chosen path is not in it, including when the list is refreshed after an install.
 - Windows: the length of a song could not be read when Smart App Control had not yet accepted `ffprobe.exe` ("Failed to get audio duration"), although `ffmpeg.exe` already ran. The server now falls back to the engine's Python (soundfile) when ffprobe cannot be run, and `install.bat` / `run.bat` wait for `ffprobe.exe` (and `ffmpeg.exe`) like they wait for the other native files.
