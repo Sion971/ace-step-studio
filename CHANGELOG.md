@@ -2,6 +2,9 @@
 
 ## 2026-10-21
 
+### Fixed
+- Stream mode: after the synchronised lyrics (LRC) or the score, the engine kept about 6 GB of DiT blocks on the card, so the AI cover worker (SDXL Turbo) ran out of memory and crashed. The card is now given back once the lyric alignment and the score are done (`give_card_back_if_active`); the regular card mode is not affected.
+
 ### Changed
 - Windows: the Desktop and Start menu shortcut now starts `run.bat --quit-on-close`, like the Linux launcher: closing the last browser page stops the server and the engine, and the console window closes with them (it stays open only after an error). Running `run.bat` by hand keeps the old behaviour (the Studio runs until the window is closed). Re-run `create-shortcut.bat` to update an existing shortcut.
 

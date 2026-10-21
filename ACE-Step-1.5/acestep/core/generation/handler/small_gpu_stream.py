@@ -1212,6 +1212,17 @@ def report_checks() -> None:
                 logger.debug("[small_gpu_stream] could not report the self-check: {}", exc)
 
 
+def give_card_back_if_active() -> None:
+    """Free the card after a DiT pass that ran once the audio was already decoded (lyric timestamps, alignment score).
+
+    The decode gives the card back before the VAE, but the DiT is attached to the card again when the lyric alignment runs
+    afterwards, and nothing released it: the engine kept its resident blocks (about 6 GB) and the programs that need the
+    card next (the cover worker) ran out of memory. Without the stream mode this does nothing.
+    """
+    if active():
+        release_gpu()
+
+
 def release_gpu() -> None:
     """Free the card's slots (DiT and condition encoder); they are recreated on the next use."""
     log_stats()

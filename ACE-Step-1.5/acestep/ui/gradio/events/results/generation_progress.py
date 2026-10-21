@@ -362,6 +362,11 @@ def generate_with_progress(
 
         time_module.sleep(0.05)
 
+    if auto_score or auto_lrc:
+        # The score and the lyric timestamps ran the DiT again after the decode: give the card back (stream mode only).
+        from acestep.core.generation.handler.small_gpu_stream import give_card_back_if_active
+        give_card_back_if_active()
+
     # Final timing
     audio_conversion_time = time_module.time() - audio_conversion_start_time
     if audio_conversion_time > 0:

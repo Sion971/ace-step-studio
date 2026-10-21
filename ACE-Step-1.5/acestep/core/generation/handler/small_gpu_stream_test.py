@@ -584,6 +584,16 @@ class ConditionEncoderTests(unittest.TestCase):
         self.assertFalse(sgs.attach_encoder(nn.Linear(1, 1), torch.device("cpu"), torch.bfloat16))
         self.assertIsNone(sgs._ENCODER_POOL)
 
+    def test_give_card_back_if_active_releases_only_when_the_mode_runs(self):
+        dit, enc = mock.Mock(), mock.Mock()
+        with mock.patch.object(sgs, "_ACTIVE_POOL", None), mock.patch.object(sgs, "_ENCODER_POOL", enc):
+            sgs.give_card_back_if_active()  # regular card mode: nothing to give back
+        enc.release_gpu.assert_not_called()
+        with mock.patch.object(sgs, "_ACTIVE_POOL", dit), mock.patch.object(sgs, "_ENCODER_POOL", enc):
+            sgs.give_card_back_if_active()
+        dit.release_gpu.assert_called_once()
+        enc.release_gpu.assert_called_once()
+
     def test_release_gpu_frees_both_pools(self):
         dit, enc = mock.Mock(), mock.Mock()
         with mock.patch.object(sgs, "_ACTIVE_POOL", dit), mock.patch.object(sgs, "_ENCODER_POOL", enc):

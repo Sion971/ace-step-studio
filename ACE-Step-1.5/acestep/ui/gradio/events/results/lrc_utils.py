@@ -261,17 +261,21 @@ def generate_lrc_handler(dit_handler, sample_idx, current_batch_index, batch_que
         if audio_duration is None or audio_duration <= 0:
             audio_duration = pred_latents.shape[1] / 25.0
 
-        result = dit_handler.get_lyric_timestamp(
-            pred_latent=pred_latents[idx0:idx0 + 1],
-            encoder_hidden_states=encoder_hidden_states[idx0:idx0 + 1],
-            encoder_attention_mask=encoder_attention_mask[idx0:idx0 + 1],
-            context_latents=context_latents[idx0:idx0 + 1],
-            lyric_token_ids=lyric_token_idss[idx0:idx0 + 1],
-            total_duration_seconds=float(audio_duration),
-            vocal_language=vocal_language or "en",
-            inference_steps=int(inference_steps),
-            seed=42,
-        )
+        try:
+            result = dit_handler.get_lyric_timestamp(
+                pred_latent=pred_latents[idx0:idx0 + 1],
+                encoder_hidden_states=encoder_hidden_states[idx0:idx0 + 1],
+                encoder_attention_mask=encoder_attention_mask[idx0:idx0 + 1],
+                context_latents=context_latents[idx0:idx0 + 1],
+                lyric_token_ids=lyric_token_idss[idx0:idx0 + 1],
+                total_duration_seconds=float(audio_duration),
+                vocal_language=vocal_language or "en",
+                inference_steps=int(inference_steps),
+                seed=42,
+            )
+        finally:
+            from acestep.core.generation.handler.small_gpu_stream import give_card_back_if_active
+            give_card_back_if_active()
 
         if result.get("success"):
             lrc_text = result.get("lrc_text", "")

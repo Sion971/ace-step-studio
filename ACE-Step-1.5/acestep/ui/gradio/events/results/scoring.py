@@ -235,11 +235,15 @@ def calculate_score_handler_with_selection(
                     print(f"Error slicing tensor data for score: {e}")
                     extra_tensor_data = None
 
-    score_display = calculate_score_handler(
-        llm_handler, audio_codes_str, caption, lyrics, lm_metadata,
-        bpm, key_scale, time_signature, audio_duration, vocal_language,
-        score_scale, dit_handler, extra_tensor_data, inference_steps,
-    )
+    try:
+        score_display = calculate_score_handler(
+            llm_handler, audio_codes_str, caption, lyrics, lm_metadata,
+            bpm, key_scale, time_signature, audio_duration, vocal_language,
+            score_scale, dit_handler, extra_tensor_data, inference_steps,
+        )
+    finally:
+        from acestep.core.generation.handler.small_gpu_stream import give_card_back_if_active
+        give_card_back_if_active()
 
     if current_batch_index in batch_queue:
         if "scores" not in batch_queue[current_batch_index]:
