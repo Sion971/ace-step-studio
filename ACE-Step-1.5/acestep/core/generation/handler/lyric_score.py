@@ -93,7 +93,9 @@ class LyricScoreMixin(LyricAlignmentCommonMixin):
                 dtype=pred_latent.dtype,
             )
 
-            with self._load_model_context("model"):
+            from acestep.core.generation.handler.small_gpu_stream import alignment_heads
+
+            with self._load_model_context("model"), alignment_heads(custom_layers_config) as decoder_config:
                 decoder = self.model.decoder
                 if hasattr(decoder, "eval"):
                     decoder.eval()
@@ -108,14 +110,14 @@ class LyricScoreMixin(LyricAlignmentCommonMixin):
                     encoder_attention_mask=encoder_attention_mask_in,
                     context_latents=context_latents_in,
                     output_attentions=True,
-                    custom_layers_config=custom_layers_config,
+                    custom_layers_config=decoder_config,
                     enable_early_exit=True,
                 )
 
             if decoder_outputs[2] is None:
                 return self._lyric_score_error("Model did not return attentions")
 
-            selected, align_config = compact_alignment_attentions(decoder_outputs[2], custom_layers_config)
+            selected, align_config = compact_alignment_attentions(decoder_outputs[2], decoder_config)
             if selected is None:
                 return self._lyric_score_error("No valid attention layers returned")
 

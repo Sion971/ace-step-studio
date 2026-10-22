@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-22
+
+### Fixed
+- Stream mode, lyric alignment (LRC) and lyric score: on a PC with 32 GB of RAM the engine's memory grew by about 17 GB in 9 seconds during the LRC (0.5 GB per DiT block, measured on Windows) and the PC froze for several seconds. Each streamed block computed the cross-attention of all its heads on the card and sent them all to the processor, although only a few heads of a few blocks are read. The blocks now keep only those heads on the card side (`alignment_heads`, `StreamPool.select_alignment_heads`) and send nothing else, the self-attention weights included; the values are the same (new tests compare with the plain decoder). The LRC also gets faster (the transfer was about 4 s on a 4-minute track).
+
 ## 2026-10-21
 
 ### Documentation

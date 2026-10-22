@@ -56,7 +56,8 @@ import os
 import subprocess
 import sys
 import time
-from typing import Any, List, Optional
+from contextlib import contextmanager
+from typing import Any, Dict, List, Optional
 
 import torch
 from loguru import logger
@@ -569,6 +570,17 @@ class StreamPool:
         self.n_slots = 2
         self.count = len(real_layers)
         self.real = real_layers
+        # Rank of each block among those that return cross-attention weights (the numbering of the alignment config).
+        self.cross_position: List[Optional[int]] = []
+        rank = 0
+        for layer in real_layers:
+            if getattr(layer, "use_cross_attention", True):
+                self.cross_position.append(rank)
+                rank += 1
+            else:
+                self.cross_position.append(None)
+        # While set (see alignment_heads), a block returns only these cross-attention heads, chosen on the card.
+        self.align_heads: Optional[Dict[int, List[int]]] = None
         self.compute_dtype = compute_dtype
         self.resident_request = resident
         self.reserve_bytes = reserve_bytes
@@ -950,6 +962,26 @@ class StreamPool:
         if self.loaded[slot] != target:
             self._load(target, slot)
 
+    def select_alignment_heads(self, index: int, out: Any) -> Any:
+        """Keep, from the output of block ``index``, only the cross-attention heads the lyric alignment reads.
+
+        The block computes the weights of all its heads on the card (frames x lyric tokens x heads, about 0.5 GB per block
+        on a 4-minute track), and sending them all to the processor, 32 times, filled the RAM of a 32 GB PC. Only a few
+        heads of a few blocks are used, so the others are dropped here, before the transfer. The self-attention weights are
+        never read and are dropped too.
+        """
+        if not (isinstance(out, tuple) and len(out) >= 3) or self.align_heads is None:
+            return out
+        rank = self.cross_position[index] if index < len(self.cross_position) else None
+        heads = self.align_heads.get(rank) if rank is not None else None
+        weights = out[2]
+        if torch.is_tensor(weights) and heads:
+            valid = [h for h in heads if 0 <= h < weights.shape[1]]
+            weights = weights[:, torch.tensor(valid, dtype=torch.long, device=weights.device)]
+        else:
+            weights = None
+        return (out[0], None, weights) + tuple(out[3:])
+
     def begin_call(self, layer_idx: int) -> None:
         """A block call whose index does not go up starts a new step: the shared inputs of the previous one are dropped."""
         if layer_idx <= self._last_index:
@@ -1042,6 +1074,8 @@ class StreamedLayer(nn.Module):
             )
             raise torch.cuda.OutOfMemoryError(f"out of memory in streamed block {index}")
         pool.release(index)
+        if pool.align_heads is not None:
+            out = pool.select_alignment_heads(index, out)
         keep = pool.keep_on_card and not last
         if timed:
             stats.add_events((ev_start, ev_ready, ev_run, ev_done))
@@ -1221,6 +1255,26 @@ def give_card_back_if_active() -> None:
     """
     if active():
         release_gpu()
+
+
+@contextmanager
+def alignment_heads(config: Dict[int, List[int]]):
+    """Around a decoder call that reads the cross-attention of some heads (lyric timestamps, alignment score).
+
+    Yields the config to give the decoder. With the stream mode running, the blocks keep only the listed heads on the card
+    side (``StreamPool.select_alignment_heads``) and the config yielded numbers the kept heads 0, 1, 2... per block, so
+    the decoder's own selection and ``compact_alignment_attentions`` read them back unchanged. Without the mode, the config
+    is yielded as it is and nothing else happens.
+    """
+    pool = _ACTIVE_POOL
+    if pool is None or not config:
+        yield config
+        return
+    pool.align_heads = {rank: list(heads) for rank, heads in config.items()}
+    try:
+        yield {rank: list(range(len(heads))) for rank, heads in config.items()}
+    finally:
+        pool.align_heads = None
 
 
 def release_gpu() -> None:

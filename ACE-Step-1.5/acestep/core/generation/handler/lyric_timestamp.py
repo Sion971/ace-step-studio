@@ -77,7 +77,9 @@ class LyricTimestampMixin(LyricAlignmentCommonMixin):
             xt = t_last_val * noise + (1.0 - t_last_val) * pred_latent
             attention_mask = torch.ones(bsz, pred_latent.shape[1], device=pred_latent.device, dtype=pred_latent.dtype)
 
-            with self._load_model_context("model"):
+            from acestep.core.generation.handler.small_gpu_stream import alignment_heads
+
+            with self._load_model_context("model"), alignment_heads(custom_layers_config) as decoder_config:
                 decoder_outputs = self.model.decoder(
                     hidden_states=xt,
                     timestep=t_tensor,
@@ -89,14 +91,14 @@ class LyricTimestampMixin(LyricAlignmentCommonMixin):
                     encoder_attention_mask=encoder_attention_mask,
                     context_latents=context_latents,
                     output_attentions=True,
-                    custom_layers_config=custom_layers_config,
+                    custom_layers_config=decoder_config,
                     enable_early_exit=True,
                 )
 
             if decoder_outputs[2] is None:
                 return self._lyric_timestamp_error("Model did not return attentions")
 
-            selected, align_config = compact_alignment_attentions(decoder_outputs[2], custom_layers_config)
+            selected, align_config = compact_alignment_attentions(decoder_outputs[2], decoder_config)
             if selected is None:
                 return self._lyric_timestamp_error("No valid attention layers returned")
 
