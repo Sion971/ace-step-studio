@@ -3,6 +3,7 @@
 ## 2026-10-22
 
 ### Added
+- LoRA catalog: three XL LoRA by RyanOnTheInside (techno, alternative, lo-fi), pinned to a commit and a checksum, tested by the maintainer.
 - The engine now restarts by itself after a lost CUDA context ("Sticky error", illegal memory access, device-side assert...). A generation that fails with such an error gets a clear message, the engine is stopped and restarted by the pipeline manager, and the queue waits for it (5 minutes at most) before it starts the next generation. A plain error such as "out of memory" restarts the engine only when it happens twice in a row. Server log: `[Pipeline] CUDA context lost: restarting the engine`, `[queue] the engine restarts after a CUDA error: the next generation waits for it`, `[queue] the engine is back`.
 
 ### Fixed

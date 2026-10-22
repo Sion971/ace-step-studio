@@ -209,6 +209,99 @@
         "date": "2026-10-18",
         "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
       }
+    },
+    {
+      "id": "techno-acestep1.5-xl-v1",
+      "repo": "ryanontheinside/techno-acestep1.5-xl-v1",
+      "file": "techno-xl-v1.safetensors",
+      "revision": "5154315313eb08bf9ff4d685b611706bfb4a2832",
+      "sha256": "dd6a194d9fc1273eeb4a731e3103e23b91b0819e75f38e67bca236010227cc66",
+      "name": "Techno (XL)",
+      "description": "Driving, dark and minimal techno. For the XL models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 XL Turbo (5B)",
+      "genre": "techno",
+      "tags": [
+        "techno",
+        "driving",
+        "dark",
+        "minimal"
+      ],
+      "triggerWord": "roti-t3kn0",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 167839168,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Installed, checksum verified and listened to by the maintainer (Linux, RTX 5060)."
+      }
+    },
+    {
+      "id": "alternative-acestep1.5-xl-v1",
+      "repo": "ryanontheinside/alternative-acestep1.5-xl-v1",
+      "file": "alternative-xl-v1.safetensors",
+      "revision": "67251d5b47c4d69ff98b47998a48152d34a9dd9e",
+      "sha256": "e611474418e627680f738327178d0ecac668d3d0e8e47c31446c28003cb0ffdf",
+      "name": "Alternative (XL)",
+      "description": "Alternative rock, alternative indie and atmospheric alternative. For the XL models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 XL Turbo (5B)",
+      "genre": "alternative",
+      "tags": [
+        "alternative",
+        "indie",
+        "rock",
+        "atmospheric"
+      ],
+      "triggerWord": "roti-4ltrntv",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 167839168,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Installed, checksum verified and listened to by the maintainer (Linux, RTX 5060)."
+      }
+    },
+    {
+      "id": "lo_fi-acestep1.5-xl-v1",
+      "repo": "ryanontheinside/lo_fi-acestep1.5-xl-v1",
+      "file": "lo_fi-xl-v1.safetensors",
+      "revision": "25acf236a2af0fed13c0c6eb43a2ad04f94ec1d8",
+      "sha256": "89d483ef48bec309e639d0c8c90db57f4235c113ceb6c79a706187dd47e23932",
+      "name": "Lo-Fi (XL)",
+      "description": "Lo-fi hip hop and chillhop: vinyl crackle, soft drums, warm keys. For the XL models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 XL Turbo (5B)",
+      "genre": "lo-fi",
+      "tags": [
+        "lo-fi",
+        "chillhop",
+        "vinyl crackle",
+        "soft drums"
+      ],
+      "triggerWord": null,
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 167839168,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Installed, checksum verified and listened to by the maintainer (Linux, RTX 5060)."
+      }
     }
   ]
 }
