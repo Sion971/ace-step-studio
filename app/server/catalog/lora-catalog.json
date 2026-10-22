@@ -822,6 +822,35 @@
         "date": "2026-10-22",
         "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
       }
+    },
+    {
+      "id": "rap-acestep1.5-xl-v1",
+      "repo": "ryanontheinside/rap-acestep1.5-xl-v1",
+      "file": "rap-xl-v1.safetensors",
+      "revision": "2e0aedf64871b3b533b55afc9c5ae5f200a8f4f8",
+      "sha256": "440fb8f56ed49a931928e20b202101ed0d2a961ab39195a2323571c043a55147",
+      "name": "Rap (XL)",
+      "description": "Rap style. For the XL models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 XL Turbo (5B)",
+      "genre": "rap",
+      "tags": [
+        "rap",
+        "hip hop"
+      ],
+      "triggerWord": "roti-r4pz",
+      "recommended": {
+        "scale": null,
+        "steps": null,
+        "guidance": null,
+        "shift": null
+      },
+      "sizeBytes": 167839168,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
     }
   ]
 }

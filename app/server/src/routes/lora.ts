@@ -25,6 +25,14 @@ let loraState = {
   path: '',
 };
 
+// The engine forgets its LoRA when it restarts (crash, CUDA error): the server must not go on saying it is loaded, or the interface
+// would show a LoRA that is not there (it now reads this state when the Create page opens).
+import('../services/pipeline-manager.js').then(({ pipelineManager }) => {
+  pipelineManager.onRestart(() => {
+    loraState = { loaded: false, active: false, scale: 1.0, path: '' };
+  });
+}).catch(() => {});
+
 // POST /api/lora/load — Load a LoRA adapter
 router.post('/load', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {

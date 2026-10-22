@@ -117,6 +117,11 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
       console.log('LoRA loaded:', result?.message);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'LoRA operation failed';
+      // Le moteur l'a deja : l'interface s'etait desynchronisee (autre onglet du navigateur, page rechargee). On se remet d'accord avec lui.
+      if (/already in use/i.test(message)) {
+        onLoadedChange(true);
+        return;
+      }
       setLoraError(message);
       console.error('LoRA error:', err);
     } finally {
@@ -171,6 +176,25 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
       setIsTogglingQuantization(false);
     }
   }, [token, onLoadedChange, t]);
+
+  /* -- Reprend l'etat reel du moteur au montage : la page Creer est demontee quand on change d'onglet (Bibliotheque, Entrainement...), -- */
+  /* -- son etat local repart de zero alors que le LoRA reste charge dans le moteur ; sans cela « Charger » renvoyait 422 « already in use ». -- */
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    generateApi.getLoraStatus(token)
+      .then((result) => {
+        if (cancelled || !result.loaded) return;
+        onLoadedChange(true);
+        if (result.path) setLoraPath(result.path);
+        if (typeof result.scale === 'number') setLoraScale(result.scale);
+        setLoraEnabled(result.active !== false);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+    // Une seule fois par montage (et par connexion) : onLoadedChange vient du parent et change a chaque rendu.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   /* -- Verifie l'etat reel de la quantification a l'ouverture du panneau --- */
   useEffect(() => {
