@@ -2,6 +2,9 @@
 
 ## 2026-10-22
 
+### Documentation
+- README: the requirements now say that cards from 2 GB work (stream mode), with a new section "Which graphics card?" (what the installer chooses from 2 GB to more than 8 GB, the normal / stream choice for 4 to 8 GB cards, measured times), the `--mode` flag, and the small-GPU troubleshooting rows brought up to date.
+
 ### Added
 - NVIDIA card of 4 to 8 GB (Turing or newer): the installers (`install.sh`, `install.bat`) now ask whether to use the normal mode or the stream mode, with what each costs, measured on an RTX 5060 8 GB. The choice is kept in `hardware_profile.env` (`HW_MODE_PREF`) together with the stream settings for such a card (`ACESTEP_STREAM_COMPUTE=bfloat16`, `ACESTEP_STREAM_RESIDENT=auto`, `ACESTEP_STREAM_RESERVE_GB=1.5`, `ACESTEP_LM_CUDA_GRAPH=1`), which the launchers pass to the engine unless the environment or `ACE-Step-1.5/.env` already sets them. No more `.env` editing. It can be changed without reinstalling: `./run.sh --mode normal|flux`, `run.bat --mode normal|flux`. Cards of 3 GB or less still go to the stream mode by themselves, cards above 8 GB stay in the normal mode. New files: `hardware-mode.sh`; `write-hardware-profile.py` gets `--can-choose`, `--get-mode`, `--set-mode`.
 - LoRA catalog window: search box (name, genre, tags), model size buttons (All / XL / 2B, set by default on the size of the loaded model) and genre list, with a count of the entries shown. A LoRA whose size is not known is never hidden by the size filter.

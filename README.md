@@ -30,6 +30,7 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
 - **MIDI conversion, server-side** — [basic-pitch](https://github.com/spotify/basic-pitch) running in an isolated Python 3.11 environment (its TensorFlow dependency doesn't ship wheels for newer Python), converting stems to MIDI in seconds rather than tens of minutes in-browser, with a piano roll and built-in synthesizer to hear the result.
 - **Mastering and loudness normalization** — optional mastering (warmth and harmonics, tone, glue compression, stereo width, with presets), then normalization to a streaming platform's LUFS target (Spotify, Apple Music, YouTube, ...) with two-pass `ffmpeg` loudnorm; compare the original and the result at the same volume before downloading.
 - **AudioMass, updated and wired in** — upgraded to the multitrack build, with direct-load support: open a single stem or all of a song's stems together as separate tracks, straight from the browser, no manual export/import round-trip.
+- **Runs on small graphics cards, down to 2 GB** — a *stream* mode keeps the model in RAM and sends it through the card one block at a time, then decodes the audio on the card. Measured on a GTX 1050 2 GB: a DiT step 12.7 s → 1.26 s, audio decoding 170 s → about 10 s, compared to the processor alone. Cards of 4 to 8 GB can choose between this mode and the normal one at install time. See [Which graphics card?](#-which-graphics-card).
 - **LoRA training from the UI** — the full scan → label → preprocess → train pipeline, drivable from React without dropping into Gradio directly.
 - **One installer per platform, both `uv`-based and GPU-aware** — detects your actual compute capability and compiler version, not just a menu choice, and knows when `flash-attn` will and won't build correctly for your hardware (Blackwell/RTX 50-series needs CUDA 12.8+ to compile it at all on Linux, or a matching prebuilt wheel on Windows — both installers check this before attempting work that's doomed to fail).
 
@@ -167,11 +168,25 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
 | **OS** | Linux (developed on Linux Mint / Ubuntu 24.04) or Windows 10/11 |
 | **Node.js** | 22 LTS |
 | **Python** | Managed automatically by `uv` — 3.12 on both platforms for the main environment; a separate isolated 3.11 environment on both platforms for MIDI conversion (and, on Linux, another for stem separation) |
-| **NVIDIA GPU** | 4GB+ VRAM (works without LLM), 12GB+ recommended (with LLM) |
+| **NVIDIA GPU** | **From 2 GB of VRAM** (a GTX 1050 2 GB works: small-card *stream* mode, no language model). 4 GB and up: the 2B Turbo model. **8 GB** runs the XL Turbo model with the 0.6B language model (measured on an RTX 5060 8 GB). More VRAM leaves room for larger language models and longer tracks. See [Which graphics card?](#-which-graphics-card) below. No NVIDIA card at all: a CPU-only mode exists, but it is about 15 times slower than the length of the audio produced |
 | **NVIDIA driver (Linux)** | **580 or newer** for the CUDA 13.0 stack (the default for RTX 20-series and newer); **525 or newer** for the older CUDA 12.x stacks; **570 or newer** for any RTX 50-series card. The installer reads `nvidia-smi`, suggests the newest stack your driver allows, and warns before installing if the driver is too old |
 | **CUDA compiler (`nvcc`)** | Linux only, and only when `flash-attn` has to be compiled: on the CUDA 12.x stacks for RTX 30/40-series cards, or if a prebuilt wheel cannot be downloaded — `nvcc` must then support your card (the installer checks and falls back to SDPA if not). The CUDA 13.0 stack and RTX 50-series installs use a prebuilt wheel that is tested on your GPU after installation. Windows uses a prebuilt wheel too, no local compiler needed |
 | **FFmpeg, libsndfile** | Installed automatically by the installer if missing |
 | **uv** | Python package manager — installed automatically by both installers if missing |
+
+### 🎮 Which graphics card?
+
+The installer reads your card (`nvidia-smi`, then what PyTorch really sees) and chooses the model and the mode for you; you can always override them.
+
+| Your card | What the installer chooses | Notes |
+|-----------|----------------------------|-------|
+| **3 GB or less** (e.g. GTX 1050 2 GB) | 2B Turbo, no language model, **stream mode** (automatic) | The processor keeps the model in RAM (about 3 GB for the 2B model); the card runs it block by block and decodes the audio. Pick the GPU option in the installer, not "CPU only". LoRA adapters work (not LoKr); AI covers need 6 GB or more. `STUDIO_SMALL_GPU=off` turns the mode off |
+| **Over 3 GB, up to 6 GB** | 2B Turbo, no language model | Normal mode by default. On RTX 20-series and newer the installer also offers the stream mode (see below) |
+| **Over 6 GB, up to 8 GB** (e.g. RTX 5060 8 GB) | XL Turbo BF16 on a card of 8 GB, 2B Turbo under that; 0.6B language model | **You choose, at install time, between the normal mode and the stream mode** (RTX 20-series and newer). Normal: the model is compressed to int8 and loaded on the card for each generation. Stream: no compression (bfloat16), blocks that fit stay on the card, about 10 GB of free RAM more (32 GB of RAM advised). Measured on an RTX 5060 8 GB, a 3-minute track: about 3 to 7 s of DiT in normal mode (plus 4 to 6 s to load and unload it), about 9 s in stream mode |
+| **More than 8 GB** | XL Turbo BF16, language model on | Normal mode. ACE-Step recommends language models of 1.7B from 12 GB and 4B beyond 24 GB (the Studio does not change the language model by itself) |
+| **No NVIDIA card** | CPU-only mode | Works, slowly (about 15 times the length of the audio) |
+
+You can change the mode later without reinstalling: `./run.sh --mode normal` or `./run.sh --mode flux` (Windows: `run.bat --mode flux`). Details and measurements: `TROUBLESHOOTING.md` (sections 60 to 62).
 
 ---
 
@@ -309,6 +324,7 @@ Models download automatically on first run (~5GB).
 | `--gradio-only` | ACE-Step's own Gradio UI only (port 8001), no Express/React frontend — needed for dataset labeling |
 | `--no-browser` | Don't auto-open a browser tab |
 | `--port <n>` | Web server port (default 3001) |
+| `--mode <normal\|flux>` | NVIDIA card of 4 to 8 GB (RTX 20-series and newer): choose the normal or the stream mode; the choice is saved |
 
 </details>
 
@@ -319,7 +335,7 @@ Models download automatically on first run (~5GB).
 run.bat
 ```
 
-Same flags as Linux (`--no-lm`, `--gradio-only`, `--no-browser`, `--port <n>`).
+Same flags as Linux (`--no-lm`, `--gradio-only`, `--no-browser`, `--port <n>`, `--mode <normal|flux>`).
 
 </details>
 
@@ -363,11 +379,11 @@ Generate several variations of the same prompt in one pass to compare results qu
 |-------|----------|
 | **ACE-Step not reachable** | Ensure Gradio server is running with `--enable-api` (handled automatically by the launcher) |
 | **CUDA out of memory** | Set batch size to **1**, reduce duration, or disable Thinking Mode |
-| **4GB GPU — Out of memory** | Batch size **1**, Thinking Mode **off**. LLM features need 12GB+ |
+| **4GB GPU — Out of memory** | Batch size **1**, Thinking Mode **off**. The language model is off by default under 6 GB (the 0.6B model runs from 6 GB; larger ones need more). On RTX 20-series and newer, `./run.sh --mode flux` may help |
 | **`flash-attn` build fails or errors at runtime (Linux)** | Check your `nvcc` version supports your GPU's compute capability — see `install.sh` step 6, or fall back to `--no-lm` if you just need generation working now |
 | **PyTorch doesn't see the GPU (`torch.cuda.is_available()` is `False`) after the CUDA 13.0 stack (Linux)** | Your NVIDIA driver is too old for CUDA 13. Update it to 580 or newer, or re-run `install.sh` and choose the CUDA 12.8 stack. Check with `nvidia-smi`: its CUDA line (`CUDA Version`, or `CUDA UMD Version` on recent drivers) must show 13.0 or higher |
 | **`install.sh` stops with « the PyTorch index does not offer torch X for cuYY »** | That stack is no longer published for that PyTorch version (the old CUDA 11.8 option, for instance, stopped at torch 2.7.1). Pick another stack in the menu |
-| **Studio is slow or fails on a small GPU (6 GB or less)** | The default model is chosen from your VRAM when you run `install.sh` (2B Turbo and no language model below 8 GB). Re-run `install.sh` to regenerate `hardware_profile.env`, or set `DEFAULT_MODEL` in `ACE-Step-1.5/.env` — it always wins |
+| **Studio is slow or fails on a small GPU (6 GB or less)** | Cards of 3 GB or less use the stream mode by themselves. The default model is chosen from your VRAM when you run `install.sh` (2B Turbo and no language model below 8 GB). Re-run `install.sh` to regenerate `hardware_profile.env`, or set `DEFAULT_MODEL` in `ACE-Step-1.5/.env` — it always wins |
 | **`torchaudio` fails to load with "Could not find module ... (or one of its dependencies)" (Windows)** | Install the [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) |
 | **DCW disabled with a `pytorch_wavelets` warning** | Both installers patch this automatically (step 7 on Linux, step 5 on Windows) — if it's still happening, run `patch-pytorch-wavelets.py` manually against the relevant environment |
 | **Songs show 0:00 duration** | Linux: `sudo apt install ffmpeg`. Windows: delete the `ffmpeg\` folder and re-run the installer |
