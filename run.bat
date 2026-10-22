@@ -33,6 +33,10 @@ REM                     or download to finish.
 REM
 REM     --port <n>      Web server port (default: 3001).
 REM
+REM     --mode <m>      NVIDIA card of 4 to 8GB: "normal" or "flux" (the DiT goes
+REM                     through the card block by block, see TROUBLESHOOTING.md).
+REM                     The choice is saved in hardware_profile.env and kept.
+REM
 REM     --help          Show this help.
 REM =============================================================================
 
@@ -45,6 +49,7 @@ set "GRADIO_ONLY=false"
 set "NO_BROWSER=false"
 set "QUIT_ON_CLOSE=false"
 set "WEB_PORT=3001"
+set "HW_MODE_ARG="
 
 :parse_args
 if "%~1"=="" goto :args_done
@@ -76,6 +81,12 @@ if /i "%~1"=="--port" (
     shift
     goto :parse_args
 )
+if /i "%~1"=="--mode" (
+    set "HW_MODE_ARG=%~2"
+    shift
+    shift
+    goto :parse_args
+)
 if /i "%~1"=="--help" goto :show_help
 if /i "%~1"=="-h" goto :show_help
 echo Unknown option: %~1
@@ -89,6 +100,7 @@ echo   --gradio-only   Launch only the ACE-Step engine (Gradio UI, port 8001).
 echo   --no-browser    Do not automatically open a browser tab.
 echo   --quit-on-close Stop the Studio when the last page is closed.
 echo   --port ^<n^>      Web server port (default: 3001).
+echo   --mode ^<m^>      4 to 8GB NVIDIA card: normal or flux (saved).
 echo   --help          Show this help.
 exit /b 0
 
@@ -194,6 +206,10 @@ set "BASIC_PITCH_PYTHON_PATH=%SCRIPT_DIR%.venv-basicpitch\Scripts\python.exe"
 set "DEMUCS_PYTHON_PATH=%SCRIPT_DIR%.venv-demucs\Scripts\python.exe"
 REM Profil materiel ^(install.bat, ou ici s'il manque^) : modele par defaut selon la VRAM, comme run.sh.
 REM Priorites : DEFAULT_MODEL deja defini, puis ACE-Step-1.5\.env ^(lu plus bas^), puis le profil, puis l'ancien defaut.
+REM --mode normal^|flux : saves the choice in the profile first ^(NVIDIA card of 4 to 8GB only^).
+if defined HW_MODE_ARG if exist "%SCRIPT_DIR%write-hardware-profile.py" (
+    if /i "!HW_MODE_ARG!"=="normal" ("%PYTHON_PATH%" "%SCRIPT_DIR%write-hardware-profile.py" --set-mode normal) else if /i "!HW_MODE_ARG!"=="flux" ("%PYTHON_PATH%" "%SCRIPT_DIR%write-hardware-profile.py" --set-mode flux) else echo Option --mode: normal or flux expected.
+)
 if exist "%SCRIPT_DIR%hardware_profile.env" goto :hw_profile_read
 if not exist "%SCRIPT_DIR%write-hardware-profile.py" goto :hw_profile_done
 "%PYTHON_PATH%" "%SCRIPT_DIR%write-hardware-profile.py" 2>nul
@@ -230,6 +246,15 @@ if exist "%SCRIPT_DIR%ACE-Step-1.5\.env" (
         set "line=%%a"
         if not "!line:~0,1!"=="#" if not "!line!"=="" set "%%a=%%b"
     )
+)
+
+REM Flux mode chosen at install time ^(or by --mode^): engine settings for a 4 to 8GB card. A value already set
+REM ^(environment or ACE-Step-1.5\.env^) wins.
+if /i "!HW_MODE!"=="stream" (
+    if defined HW_STREAM_COMPUTE if not defined ACESTEP_STREAM_COMPUTE set "ACESTEP_STREAM_COMPUTE=!HW_STREAM_COMPUTE!"
+    if defined HW_STREAM_RESIDENT if not defined ACESTEP_STREAM_RESIDENT set "ACESTEP_STREAM_RESIDENT=!HW_STREAM_RESIDENT!"
+    if defined HW_STREAM_RESERVE_GB if not defined ACESTEP_STREAM_RESERVE_GB set "ACESTEP_STREAM_RESERVE_GB=!HW_STREAM_RESERVE_GB!"
+    if defined HW_LM_CUDA_GRAPH if not defined ACESTEP_LM_CUDA_GRAPH set "ACESTEP_LM_CUDA_GRAPH=!HW_LM_CUDA_GRAPH!"
 )
 
 REM --- Command-line options (override .env) ---

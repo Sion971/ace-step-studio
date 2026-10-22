@@ -12,6 +12,11 @@ Memes regles que install.sh :
   - mode processeur : delai de generation porte a 3600 s ;
   - petite carte (3 Gio ou moins) : mode « stream » (voir small_gpu_stream.py), delai porte a 1800 s ;
     STUDIO_SMALL_GPU=off le desactive.
+  - carte de plus de 3 Gio et de 8 Go au plus (Turing ou plus recente) : le choix « normal » ou « flux » existe (cle
+    HW_MODE_PREF, gardee d'un lancement a l'autre) :
+        --can-choose       code 0 si la carte a ce choix (rien d'ecrit)
+        --get-mode         affiche le choix enregistre (normal, stream, ou rien)
+        --set-mode <m>     enregistre normal ou stream (flux) et reecrit le profil
 """
 import os
 import re
@@ -24,6 +29,14 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 XL_MODEL = "marcorez8/acestep-v15-xl-turbo-bf16"
 SMALL_MODEL = "acestep-v15-turbo"
 STREAM_MAX_MIB = 3072  # memes seuil que install.sh
+# Reglages du moteur pour le mode flux sur une carte de 4 a 8 Go (mesures sur une RTX 5060 8 Go, voir TROUBLESHOOTING §60).
+MID_STREAM = [
+    ("HW_STREAM_COMPUTE", "bfloat16"),
+    ("HW_STREAM_RESIDENT", "auto"),
+    ("HW_STREAM_RESERVE_GB", "1.5"),
+    ("HW_LM_CUDA_GRAPH", "1"),
+]
+PROFILE = os.path.join(ROOT, "hardware_profile.env")
 
 
 def smi(fields):
@@ -84,7 +97,45 @@ def torch_vram_mib():
     return None
 
 
-def main():
+def saved_pref():
+    """Le choix « normal » / « stream » deja enregistre dans le profil, ou ''."""
+    try:
+        with open(PROFILE, encoding="utf-8") as f:
+            for line in f:
+                m = re.match(r'\s*HW_MODE_PREF=["\']?([a-z]+)', line)
+                if m and m.group(1) in ("normal", "stream"):
+                    return m.group(1)
+    except OSError:
+        pass
+    return ""
+
+
+def choice_possible(cpu_mode, ref_mib, cls, cc):
+    """Plus de 3 Gio, 8 Go au plus, calcul bf16 natif (Turing, compute capability 7.5, ou plus recente)."""
+    if cpu_mode or ref_mib <= STREAM_MAX_MIB or cls > 8:
+        return False
+    try:
+        return float(cc) >= 7.5
+    except ValueError:
+        return False
+
+
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    set_pref = ""
+    query = ""
+    if "--set-mode" in argv:
+        i = argv.index("--set-mode")
+        value = argv[i + 1].lower() if i + 1 < len(argv) else ""
+        set_pref = {"normal": "normal", "stream": "stream", "flux": "stream"}.get(value, "")
+        if not set_pref:
+            print("  --set-mode : normal ou flux attendu.")
+            return 2
+    elif "--can-choose" in argv:
+        query = "can"
+    elif "--get-mode" in argv:
+        print(saved_pref())
+        return 0
     cuda = read_cuda_version()
     info = smi("name,memory.total,compute_cap")
     name = ""
@@ -121,6 +172,16 @@ def main():
                    and 0 < stream_ref <= STREAM_MAX_MIB)
     mode = "cpu" if cpu_mode else ("stream" if stream_mode else "gpu")
     timeout = "3600" if cpu_mode else ("1800" if stream_mode else "")
+    can_choose = choice_possible(cpu_mode, stream_ref, cls, cc)
+    if query == "can":
+        return 0 if can_choose else 1
+    pref = ""
+    if can_choose:
+        pref = set_pref or saved_pref()
+        if pref == "stream":
+            mode = "stream"
+    elif set_pref:
+        print("  Le choix normal / flux n'existe que pour une carte NVIDIA de plus de 3 Go et de 8 Go au plus (Turing ou plus recente).")
 
     lines = [
         "# Profil materiel - genere par install.bat ou run.bat. Ne pas editer : relancer install.bat.",
@@ -137,6 +198,10 @@ def main():
         "HW_INIT_LLM=" + init_llm,
         "HW_ACE_RECOMMENDED_LM=" + recommended_lm(tier),
     ]
+    if pref:
+        lines.append("HW_MODE_PREF=" + pref)
+    if pref == "stream":
+        lines.extend(k + "=" + v for k, v in MID_STREAM)
     # Les cles vides sont omises : run.bat lit le fichier avec "for /f", qui ne definit pas la valeur
     # d'une cle sans contenu (et laisserait un texte parasite a la place).
     lines = [l for l in lines if l.startswith("#") or not l.endswith("=")]
@@ -145,6 +210,8 @@ def main():
 
     if cpu_mode:
         print("  Profil materiel : mode processeur, palier ACE-Step %s." % tier)
+    elif mode == "stream" and not stream_mode:
+        print("  Profil materiel : %s, %d Go de VRAM : mode flux choisi (DiT bloc par bloc, calcul en bf16)." % (name or "GPU", cls))
     elif stream_mode:
         print("  Profil materiel : %s, petite carte (%d Mio) : mode flux (DiT bloc par bloc, audio decode par la carte)." % (name or "GPU", stream_ref))
         print("  Les LoRA ne sont pas pris en charge dans ce mode. STUDIO_SMALL_GPU=off pour le desactiver.")

@@ -784,6 +784,37 @@ echo.
 .venv\Scripts\python.exe write-hardware-profile.py
 if errorlevel 1 echo   ATTENTION : le profil materiel n'a pas ete ecrit ^(run.bat le refera au prochain lancement^).
 
+REM === Carte de 4 a 8 Go : choix du mode normal ou flux ========================
+REM Le choix deja fait ^(reinstallation^) est repris comme suggestion et garde par write-hardware-profile.py.
+.venv\Scripts\python.exe write-hardware-profile.py --can-choose
+if errorlevel 1 goto :hw_choice_done
+set "HW_PREV="
+for /f "delims=" %%p in ('.venv\Scripts\python.exe write-hardware-profile.py --get-mode') do set "HW_PREV=%%p"
+set "HW_CHOICE_DEFAULT=1"
+if /i "%HW_PREV%"=="stream" set "HW_CHOICE_DEFAULT=2"
+echo.
+echo Mode de generation pour cette carte ^(4 a 8 Go^) :
+echo   1. Normal
+echo        Le modele est comprime ^(int8^) et charge sur la carte a chaque generation, puis decharge.
+echo        Mesure sur une RTX 5060 8 Go, modele XL Turbo, morceau de 3 minutes : environ 3 a 7 s de calcul du DiT, plus
+echo        4 a 6 s de chargement / dechargement. Aucun reglage. Les morceaux longs peuvent manquer de memoire carte
+echo        pendant le LRC.
+echo   2. Flux
+echo        Le moteur reste sur le processeur et fait passer le modele par la carte, bloc par bloc ; les blocs qui tiennent
+echo        restent sur la carte. Pas de compression : calcul en bf16, comme le modele publie. Mesure sur la meme carte,
+echo        meme duree : environ 9 s pour le DiT XL. Demande environ 10 Go de RAM libre en plus ^(32 Go de RAM conseilles^).
+echo        LoRA possible. Les pochettes IA exigent 6 Go de carte ou plus.
+echo   Les deux modes se changent plus tard sans reinstaller : run.bat --mode normal  ou  run.bat --mode flux
+set "HW_CHOICE="
+set /p "HW_CHOICE=Votre choix [%HW_CHOICE_DEFAULT%] : "
+if "%HW_CHOICE%"=="" set "HW_CHOICE=%HW_CHOICE_DEFAULT%"
+if "%HW_CHOICE%"=="2" (
+    .venv\Scripts\python.exe write-hardware-profile.py --set-mode flux
+) else (
+    .venv\Scripts\python.exe write-hardware-profile.py --set-mode normal
+)
+:hw_choice_done
+
 REM === Raccourcis : Bureau et menu Demarrer, avec l'icone ======================
 REM Un echec ici ne doit jamais faire echouer l'installation.
 if exist "create-shortcut.bat" (

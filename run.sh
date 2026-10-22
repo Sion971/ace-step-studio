@@ -25,6 +25,10 @@
 #
 #    --port <n>      Port du serveur web (défaut : 3001).
 #
+#    --mode <m>      Carte NVIDIA de 4 à 8 Go : « normal » ou « flux » (le DiT passe
+#                    par la carte bloc par bloc, voir TROUBLESHOOTING.md §60). Le
+#                    choix est enregistré dans hardware_profile.env et gardé.
+#
 #    --help          Affiche cette aide.
 # =============================================================================
 
@@ -36,9 +40,10 @@ GRADIO_ONLY=false
 NO_BROWSER=false
 QUIT_ON_CLOSE=false
 WEB_PORT=3001
+HW_MODE_ARG=""
 
 show_help() {
-    sed -n '2,29p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
+    sed -n '2,33p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
     exit 0
 }
 
@@ -49,6 +54,12 @@ while [[ $# -gt 0 ]]; do
         --no-browser)  NO_BROWSER=true; shift ;;
         --quit-on-close) QUIT_ON_CLOSE=true; shift ;;
         --port)        WEB_PORT="$2"; shift 2 ;;
+        --mode)
+            case "${2:-}" in
+                normal|flux|stream) HW_MODE_ARG="$2"; shift 2 ;;
+                *) echo "Option --mode : « normal » ou « flux » attendu."; exit 1 ;;
+            esac
+            ;;
         --help|-h)     show_help ;;
         *)
             echo "Option inconnue : $1"
@@ -185,6 +196,23 @@ export ACESTEP_PATH="$SCRIPT_DIR/ACE-Step-1.5"
 if [ -f "$SCRIPT_DIR/hardware_profile.env" ]; then
     source "$SCRIPT_DIR/hardware_profile.env"
 fi
+# --mode normal|flux : enregistre le choix dans le profil, puis le relit (carte NVIDIA de 4 a 8 Go seulement).
+if [ -n "$HW_MODE_ARG" ]; then
+    if [ -f "$SCRIPT_DIR/hardware-mode.sh" ] && [ -f "$SCRIPT_DIR/hardware_profile.env" ]; then
+        source "$SCRIPT_DIR/hardware-mode.sh"
+        if hw_mode_choice_possible; then
+            [ "$HW_MODE_ARG" = "normal" ] && HW_NEW_PREF="normal" || HW_NEW_PREF="stream"
+            hw_write_mode_pref "$HW_NEW_PREF" "$SCRIPT_DIR/hardware_profile.env"
+            unset HW_MODE HW_MODE_PREF HW_STREAM_COMPUTE HW_STREAM_RESIDENT HW_STREAM_RESERVE_GB HW_LM_CUDA_GRAPH
+            source "$SCRIPT_DIR/hardware_profile.env"
+            echo "Mode ${HW_MODE_ARG/stream/flux} enregistré (hardware_profile.env)."
+        else
+            echo "Option --mode ignorée : le choix n'existe que pour une carte NVIDIA de plus de 3 Go et de 8 Go au plus (Turing ou plus récente)."
+        fi
+    else
+        echo "Option --mode ignorée : pas de profil matériel (relancer ./install.sh)."
+    fi
+fi
 export DEFAULT_MODEL="${DEFAULT_MODEL:-${HW_DEFAULT_MODEL:-acestep-v15-xl-turbo-bf16}}"
 if [ "${HW_INIT_LLM:-true}" = "false" ] && [ -z "${INIT_LLM:-}" ]; then
     export INIT_LLM="false"
@@ -219,6 +247,15 @@ if [ -f "$SCRIPT_DIR/ACE-Step-1.5/.env" ]; then
     set -a
     source "$SCRIPT_DIR/ACE-Step-1.5/.env"
     set +a
+fi
+
+# Mode flux choisi a l'installation (ou par --mode) : reglages du moteur pour une carte de 4 a 8 Go. Une valeur deja definie
+# (environnement ou ACE-Step-1.5/.env) l'emporte.
+if [ "${HW_MODE:-}" = "stream" ]; then
+    [ -n "${HW_STREAM_COMPUTE:-}" ]  && export ACESTEP_STREAM_COMPUTE="${ACESTEP_STREAM_COMPUTE:-$HW_STREAM_COMPUTE}"
+    [ -n "${HW_STREAM_RESIDENT:-}" ] && export ACESTEP_STREAM_RESIDENT="${ACESTEP_STREAM_RESIDENT:-$HW_STREAM_RESIDENT}"
+    [ -n "${HW_STREAM_RESERVE_GB:-}" ] && export ACESTEP_STREAM_RESERVE_GB="${ACESTEP_STREAM_RESERVE_GB:-$HW_STREAM_RESERVE_GB}"
+    [ -n "${HW_LM_CUDA_GRAPH:-}" ]   && export ACESTEP_LM_CUDA_GRAPH="${ACESTEP_LM_CUDA_GRAPH:-$HW_LM_CUDA_GRAPH}"
 fi
 
 # --- Options de ligne de commande (priorité sur le .env) ---

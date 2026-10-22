@@ -817,6 +817,10 @@ else
     HW_PROFILE_MODE="gpu"
     HW_PROFILE_TIMEOUT=""
 fi
+HW_PREVIOUS_PREF=""
+if [ -f hardware_profile.env ]; then
+    HW_PREVIOUS_PREF=$(sed -n 's/^HW_MODE_PREF="\{0,1\}\([a-z]*\)"\{0,1\}$/\1/p' hardware_profile.env | head -n 1)
+fi
 cat > hardware_profile.env <<EOF
 # Profil matériel — généré par install.sh le $(date +%Y-%m-%d). Ne pas éditer : relancer install.sh.
 # Pour imposer un autre modèle : définir DEFAULT_MODEL dans l'environnement ou dans ACE-Step-1.5/.env.
@@ -841,6 +845,32 @@ fi
 if [ "$HW_PROFILE_MODE" = "stream" ]; then
     echo "  Petite carte (${HW_STREAM_REF_MIB} Mio) : mode flux — le DiT passe bloc par bloc dans la carte, l'audio est décodé par la carte."
     echo "  STUDIO_SMALL_GPU=off pour le désactiver (puis relancer install.sh)."
+fi
+
+# Carte de 4 a 8 Go : choix du mode normal ou flux (hardware-mode.sh). Un choix deja fait (reinstallation) est repris comme suggestion.
+if [ -f "$SCRIPT_DIR/hardware-mode.sh" ]; then
+    # shellcheck disable=SC1091
+    if ( . "$SCRIPT_DIR/hardware-mode.sh"; . "$SCRIPT_DIR/hardware_profile.env"; hw_mode_choice_possible ); then
+        . "$SCRIPT_DIR/hardware-mode.sh"
+        HW_CHOICE="${STUDIO_HW_MODE_CHOICE:-}"
+        if [ -z "$HW_CHOICE" ]; then
+            hw_mode_choice_text
+            HW_CHOICE_DEFAULT=1
+            [ "$HW_PREVIOUS_PREF" = "stream" ] && HW_CHOICE_DEFAULT=2
+            read -p "Votre choix [$HW_CHOICE_DEFAULT] : " HW_CHOICE_ANSWER
+            case "${HW_CHOICE_ANSWER:-$HW_CHOICE_DEFAULT}" in
+                2) HW_CHOICE="stream" ;;
+                *) HW_CHOICE="normal" ;;
+            esac
+        fi
+        case "$HW_CHOICE" in flux) HW_CHOICE="stream" ;; esac
+        hw_write_mode_pref "$HW_CHOICE" "$SCRIPT_DIR/hardware_profile.env"
+        if [ "$HW_CHOICE" = "stream" ]; then
+            echo "  Mode flux enregistré (hardware_profile.env)."
+        else
+            echo "  Mode normal enregistré (hardware_profile.env)."
+        fi
+    fi
 fi
 
 # === Raccourci : menu des applications et bureau, avec l'icone ===============
