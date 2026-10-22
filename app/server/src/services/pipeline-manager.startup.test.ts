@@ -24,7 +24,7 @@ describe('pipelineManager start-up delay', () => {
 
   const load = async (proc: any) => {
     vi.resetModules();
-    vi.doMock('child_process', async (orig) => ({ ...(await orig<typeof import('child_process')>()), spawn: vi.fn(() => proc), execSync: vi.fn() }));
+    vi.doMock('child_process', async (orig: any) => ({ ...(await orig()), spawn: vi.fn(() => proc), execSync: vi.fn() }));
     ({ pipelineManager: manager } = await import('./pipeline-manager.js'));
     warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(console, 'log').mockImplementation(() => {});
