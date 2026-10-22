@@ -2,6 +2,9 @@
 
 ## 2026-10-22
 
+### Added
+- The engine now restarts by itself after a lost CUDA context ("Sticky error", illegal memory access, device-side assert...). A generation that fails with such an error gets a clear message, the engine is stopped and restarted by the pipeline manager, and the queue waits for it (5 minutes at most) before it starts the next generation. A plain error such as "out of memory" restarts the engine only when it happens twice in a row. Server log: `[Pipeline] CUDA context lost: restarting the engine`, `[queue] the engine restarts after a CUDA error: the next generation waits for it`, `[queue] the engine is back`.
+
 ### Fixed
 - Stream mode, lyric alignment (LRC) and lyric score: on a PC with 32 GB of RAM the engine's memory grew by about 17 GB in 9 seconds during the LRC (0.5 GB per DiT block, measured on Windows) and the PC froze for several seconds. Each streamed block computed the cross-attention of all its heads on the card and sent them all to the processor, although only a few heads of a few blocks are read. The blocks now keep only those heads on the card side (`alignment_heads`, `StreamPool.select_alignment_heads`) and send nothing else, the self-attention weights included; the values are the same (new tests compare with the plain decoder). The LRC also gets faster (the transfer was about 4 s on a 4-minute track).
 

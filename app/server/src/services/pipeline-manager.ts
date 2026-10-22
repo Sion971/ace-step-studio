@@ -386,6 +386,39 @@ class PipelineManager {
     this.scheduleRestart();
   }
 
+  /**
+   * Restart the engine on purpose, e.g. after a CUDA error that lost its context (every later generation fails until then).
+   * The process is killed; its 'exit' handler restarts it with the usual backoff and limit (PIPELINE_MAX_RESTARTS), so an
+   * engine that keeps failing does not loop for ever. Returns false when there is nothing to restart: the engine is not
+   * managed by this server, is already restarting, or the server is shutting down / stopped for a training.
+   */
+  restartEngine(reason: string): boolean {
+    if (this.isShuttingDown || this.isStoppedForTraining) return false;
+    if (!this.process?.pid) return false;
+    if (this.state === 'restarting' || this.state === 'error') return false;
+    console.error(`[Pipeline] ${reason}: restarting the engine`);
+    this.state = 'error';
+    this.lastError = reason;
+    this.message = 'Restarting the engine (CUDA error)...';
+    this.stopHealthCheck();
+    this.killProcess();
+    return true;
+  }
+
+  /** Resolves true as soon as the engine is ready, or false after `maxMs` (restart limit reached, slow start). */
+  whenReady(maxMs: number, pollMs = 1000): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      const deadline = Date.now() + maxMs;
+      const check = () => {
+        if (this.state === 'ready') return resolve(true);
+        if (Date.now() >= deadline) return resolve(false);
+        const timer = setTimeout(check, pollMs);
+        timer.unref?.();
+      };
+      check();
+    });
+  }
+
   private scheduleRestart() {
     const { maxRestarts, backoffBase, backoffMax } = config.pipeline;
 

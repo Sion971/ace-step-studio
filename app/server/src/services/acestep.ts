@@ -6,8 +6,9 @@ import { handle_file } from '@gradio/client';
 import { fileURLToPath } from 'url';
 import { config } from '../config/index.js';
 import { getAudioDuration } from './audio-duration.js';
-import { classifyGenerationFailure, friendlyTimeoutMessage } from './generation-errors.js';
+import { classifyGenerationFailure, friendlyTimeoutMessage, friendlyCudaRestartMessage, CudaFailureTracker } from './generation-errors.js';
 import { aiCover, waitForCoverBeforeGeneration } from './ai-cover.js';
+import { pipelineManager } from './pipeline-manager.js';
 import { getGradioClient, resetGradioClient, isGradioAvailable, callInitServiceWrapper, fetchCurrentInitServiceValues, MAIN_MODEL_PATH_COMPONENT_ID } from './gradio-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -448,6 +449,10 @@ setInterval(() => cleanupOldJobs(3600000), 600000);
 const jobQueue: string[] = [];
 let isProcessingQueue = false;
 
+// A CUDA error that loses the engine's context makes every later generation fail: the engine is restarted (see processQueue).
+const cudaFailures = new CudaFailureTracker();
+const ENGINE_RESTART_WAIT_MAX_MS = 5 * 60_000;
+
 // Health check - verify Gradio app is reachable
 export async function checkSpaceHealth(): Promise<boolean> {
   return isGradioAvailable();
@@ -561,6 +566,7 @@ async function processQueue(): Promise<void> {
       await waitForCoverBeforeGeneration(aiCover);
       try {
         await processGeneration(jobId, job.params, job);
+        if (activeJobs.get(jobId)?.status !== 'failed') cudaFailures.succeeded();
       } catch (error: any) {
         const msg = error?.message || String(error);
         job.status = 'failed';
@@ -575,6 +581,18 @@ async function processQueue(): Promise<void> {
           console.error(`   Reduce duration/batch or switch to a lighter model\n`);
         } else {
           console.error(`[${jobId}] Generation failed: ${msg}`);
+        }
+
+        // Lost CUDA context ("Sticky error"): the engine is alive but every CUDA call fails until it is restarted. Restart it,
+        // and hold the queue until it is back, so the jobs behind this one are not lost against a dying engine.
+        if (cudaFailures.failed(msg)) {
+          job.error = friendlyCudaRestartMessage(msg);
+          if (pipelineManager.restartEngine('CUDA context lost')) {
+            resetGradioClient();
+            console.log('[queue] the engine restarts after a CUDA error: the next generation waits for it');
+            const back = await pipelineManager.whenReady(ENGINE_RESTART_WAIT_MAX_MS);
+            console.log(back ? '[queue] the engine is back' : '[queue] the engine is not back yet: the next generations may fail');
+          }
         }
       }
     }
