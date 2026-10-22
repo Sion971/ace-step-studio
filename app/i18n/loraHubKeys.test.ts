@@ -18,6 +18,13 @@ const KEYS = [
   'loraHubLoadFailed',
   'loraHubEmpty',
   'loraHubIgnored',
+  'loraHubFilterSearch',
+  'loraHubFilterSize',
+  'loraHubFilterAll',
+  'loraHubFilterGenre',
+  'loraHubFilterAllGenres',
+  'loraHubFilterShown',
+  'loraHubFilterNone',
   'loraHubContextModel',
   'loraHubContextVram',
   'loraHubContextUnknown',
@@ -127,7 +134,7 @@ describe('texts of the LoRA catalog', () => {
 
   it('every marker that a text asks for is one that the code fills', () => {
     // the markers used by services/loraHub.ts and components/LoraCatalogModal.tsx
-    const filled = new Set(['count', 'model', 'gb', 'author', 'date', 'license', 'value', 'done', 'total', 'rank', 'required', 'active', 'sources', 'needed']);
+    const filled = new Set(['count', 'model', 'gb', 'author', 'date', 'license', 'value', 'done', 'total', 'rank', 'required', 'active', 'sources', 'needed', 'shown']);
     for (const key of KEYS) for (const marker of (en[key as keyof typeof en].match(/\{\{(\w+)\}\}/g) ?? [])) expect(filled.has(marker.slice(2, -2)), `${key}: ${marker}`).toBe(true);
   });
 });

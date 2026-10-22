@@ -10,7 +10,7 @@
  * et on le dit une fois en haut plutot que sur chaque carte.
  * ==========================================================================*/
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Copy, Download, Library, Link2, Loader2, ShieldCheck, TriangleAlert, X } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
@@ -96,6 +96,12 @@ export const LoraCatalogModal: React.FC<Props> = ({ token, onClose, onUse, onIns
   const [catalogState, setCatalogState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [installs, setInstalls] = useState<Record<string, InstallView>>({});
   const [copied, setCopied] = useState<string | null>(null);
+
+  // the filters of the list: free text, model size, genre. The size starts on the one of the loaded model (when it is known): on an XL model
+  // a 2B LoRA cannot be used anyway. 'all' shows everything; a LoRA whose size is not known is never hidden by the size filter.
+  const [query, setQuery] = useState('');
+  const [sizeFilter, setSizeFilter] = useState<'auto' | 'all' | '2B' | 'XL'>('auto');
+  const [genreFilter, setGenreFilter] = useState('');
 
   // the install from a link
   const [source, setSource] = useState('');
@@ -237,6 +243,21 @@ export const LoraCatalogModal: React.FC<Props> = ({ token, onClose, onUse, onIns
     onUse(installed);
     onClose();
   };
+
+  const activeSize = context?.activeModel && catalog ? (catalog.entries.find((e) => e.compatibility.active?.size)?.compatibility.active?.size ?? null) : null;
+  const effectiveSize: 'all' | '2B' | 'XL' = sizeFilter === 'auto' ? (activeSize ?? 'all') : sizeFilter;
+  const genres = useMemo(() => [...new Set((catalog?.entries ?? []).map((e) => e.genre).filter((g): g is string => !!g))].sort((a, b) => a.localeCompare(b)), [catalog]);
+  const visibleEntries = useMemo(() => {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    return (catalog?.entries ?? []).filter((entry) => {
+      const size = entry.compatibility.required?.size ?? null;
+      if (effectiveSize !== 'all' && size && size !== effectiveSize) return false;
+      if (genreFilter && entry.genre !== genreFilter) return false;
+      if (words.length === 0) return true;
+      const haystack = [entry.name, entry.genre ?? '', entry.description ?? '', entry.author ?? '', entry.repo, ...entry.tags].join(' ').toLowerCase();
+      return words.every((word) => haystack.includes(word));
+    });
+  }, [catalog, query, effectiveSize, genreFilter]);
 
   /* -- Morceaux de rendu ------------------------------------------------------------------------------------------ */
   const triggerRow = (word: string, id: string) => (
@@ -594,7 +615,55 @@ export const LoraCatalogModal: React.FC<Props> = ({ token, onClose, onUse, onIns
           {catalogState === 'ready' && catalog && (
             <>
               {catalog.entries.length === 0 && <p className="text-xs text-zinc-500">{t('loraHubEmpty')}</p>}
-              <div className="space-y-3">{catalog.entries.map(entryCard)}</div>
+              {catalog.entries.length > 0 && (
+                <div data-testid="hub-filters" className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={t('loraHubFilterSearch')}
+                    aria-label={t('loraHubFilterSearch')}
+                    className="min-w-0 flex-1 basis-40 bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500"
+                  />
+                  <div role="group" aria-label={t('loraHubFilterSize')} className="inline-flex rounded-lg border border-zinc-200 dark:border-white/10 overflow-hidden">
+                    {(['all', 'XL', '2B'] as const).map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        data-testid={`hub-size-${value}`}
+                        aria-pressed={effectiveSize === value}
+                        onClick={() => setSizeFilter(value)}
+                        className={`px-2.5 py-1.5 text-xs font-semibold transition-colors ${effectiveSize === value ? 'bg-pink-500 text-white' : 'bg-zinc-50 dark:bg-black/20 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/10'}`}
+                      >
+                        {value === 'all' ? t('loraHubFilterAll') : value}
+                      </button>
+                    ))}
+                  </div>
+                  {genres.length > 1 && (
+                    <select
+                      value={genreFilter}
+                      onChange={(e) => setGenreFilter(e.target.value)}
+                      aria-label={t('loraHubFilterGenre')}
+                      data-testid="hub-genre"
+                      className="bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-xs text-zinc-700 dark:text-zinc-200 focus:outline-none focus:border-pink-500"
+                    >
+                      <option value="">{t('loraHubFilterAllGenres')}</option>
+                      {genres.map((genre) => (
+                        <option key={genre} value={genre}>
+                          {genre}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {visibleEntries.length !== catalog.entries.length && (
+                    <span data-testid="hub-filter-count" className="text-[11px] text-zinc-500 whitespace-nowrap">
+                      {fillTemplate(t('loraHubFilterShown'), { shown: visibleEntries.length, total: catalog.entries.length })}
+                    </span>
+                  )}
+                </div>
+              )}
+              {catalog.entries.length > 0 && visibleEntries.length === 0 && <p data-testid="hub-filter-none" className="text-xs text-zinc-500">{t('loraHubFilterNone')}</p>}
+              <div className="space-y-3">{visibleEntries.map(entryCard)}</div>
               {catalog.problems.length > 0 && <p className="text-[11px] text-amber-600 dark:text-amber-500">{fillTemplate(t('loraHubIgnored'), { count: catalog.problems.length })}</p>}
             </>
           )}

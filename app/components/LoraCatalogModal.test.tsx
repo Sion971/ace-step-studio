@@ -349,4 +349,61 @@ describe('LoraCatalogModal', () => {
     await mount();
     expect(document.activeElement).toBe(document.body.querySelector('button[aria-label="Close"]'));
   });
+
+  // ------------------------------------------------------------------------------------------------------------------ filters --
+  describe('filters', () => {
+    const xlCompat = (active: '2B' | 'XL' | null) => ({ ...compat(), required: { family: 'turbo' as const, size: 'XL' as const, label: 'XL Turbo', sources: ['metadata file'], conflict: false }, active: active ? { id: 'm', family: 'turbo' as const, size: active } : null });
+    const smallCompat = (active: '2B' | 'XL' | null) => ({ ...compat(), active: active ? { id: 'm', family: 'turbo' as const, size: active } : null });
+    const many = (active: '2B' | 'XL' | null) => fakeApi({
+      catalog: vi.fn(async () => ({
+        problems: [] as string[],
+        entries: [
+          entry({ id: 'techno-xl', name: 'Techno (XL)', genre: 'techno', tags: ['dark'], compatibility: xlCompat(active) }),
+          entry({ id: 'jazz-xl', name: 'Jazz (XL)', genre: 'jazz', tags: ['smooth'], compatibility: xlCompat(active) }),
+          entry({ id: 'trap', name: 'Trap', genre: 'trap', tags: ['808'], compatibility: smallCompat(active) }),
+        ],
+      })),
+    });
+    const ids = () => [...document.body.querySelectorAll('[data-testid^="hub-entry-"]')].map((el) => el.getAttribute('data-testid'));
+    const type = async (el: HTMLInputElement, value: string) => {
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+        setter.call(el, value);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    };
+
+    it('shows everything when the loaded model is not known, and hides nothing by default', async () => {
+      await mount({ api: many(null), context: {} });
+      expect(ids()).toEqual(['hub-entry-techno-xl', 'hub-entry-jazz-xl', 'hub-entry-trap']);
+      expect(q('hub-filter-count')).toBeNull();
+    });
+
+    it('starts on the size of the loaded model, and "All" shows the rest', async () => {
+      await mount({ api: many('XL') });
+      expect(ids()).toEqual(['hub-entry-techno-xl', 'hub-entry-jazz-xl']);
+      expect(q('hub-filter-count')?.textContent).toBe('2 of 3 shown');
+      await click(q('hub-size-all'));
+      expect(ids()).toHaveLength(3);
+      await click(q('hub-size-2B'));
+      expect(ids()).toEqual(['hub-entry-trap']);
+    });
+
+    it('searches the name, the genre and the tags, and filters by genre', async () => {
+      await mount({ api: many(null), context: {} });
+      const input = document.body.querySelector('input[type="search"]') as HTMLInputElement;
+      await type(input, 'smooth');
+      expect(ids()).toEqual(['hub-entry-jazz-xl']);
+      await type(input, 'zzz');
+      expect(ids()).toEqual([]);
+      expect(q('hub-filter-none')).not.toBeNull();
+      await type(input, '');
+      const select = q('hub-genre') as unknown as HTMLSelectElement;
+      await act(async () => {
+        select.value = 'trap';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      expect(ids()).toEqual(['hub-entry-trap']);
+    });
+  });
 });
