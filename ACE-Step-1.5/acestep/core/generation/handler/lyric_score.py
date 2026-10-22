@@ -95,7 +95,7 @@ class LyricScoreMixin(LyricAlignmentCommonMixin):
 
             from acestep.core.generation.handler.small_gpu_stream import alignment_heads
 
-            with self._load_model_context("model"), alignment_heads(custom_layers_config) as decoder_config:
+            with self._load_model_context("model"), alignment_heads(custom_layers_config, self.model.decoder) as decoder_config:
                 decoder = self.model.decoder
                 if hasattr(decoder, "eval"):
                     decoder.eval()

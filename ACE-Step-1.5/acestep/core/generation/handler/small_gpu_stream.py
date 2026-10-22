@@ -1258,23 +1258,35 @@ def give_card_back_if_active() -> None:
 
 
 @contextmanager
-def alignment_heads(config: Dict[int, List[int]]):
+def alignment_heads(config: Dict[int, List[int]], decoder: Optional[nn.Module] = None):
     """Around a decoder call that reads the cross-attention of some heads (lyric timestamps, alignment score).
 
-    Yields the config to give the decoder. With the stream mode running, the blocks keep only the listed heads on the card
-    side (``StreamPool.select_alignment_heads``) and the config yielded numbers the kept heads 0, 1, 2... per block, so
-    the decoder's own selection and ``compact_alignment_attentions`` read them back unchanged. Without the mode, the config
-    is yielded as it is and nothing else happens.
+    Yields the config to give the decoder, which numbers the kept heads 0, 1, 2... per layer, so that the decoder's own selection and
+    ``compact_alignment_attentions`` read the compact weights back unchanged.
+    - Stream mode running: the blocks keep only the listed heads on the card side (``StreamPool.select_alignment_heads``).
+    - Otherwise, when the decoder is given: its cross-attention layers compute their weights a few heads at a time and return only the
+      listed heads (``models/common/alignment_attention.py``), so the peak on the card no longer holds the weights of all the heads.
+    - Neither (no config, no decoder): the config is yielded as it is and nothing else happens.
     """
+    identity = {rank: list(range(len(heads))) for rank, heads in (config or {}).items()}
     pool = _ACTIVE_POOL
-    if pool is None or not config:
-        yield config
+    if pool is not None and config:
+        pool.align_heads = {rank: list(heads) for rank, heads in config.items()}
+        try:
+            yield identity
+        finally:
+            pool.align_heads = None
         return
-    pool.align_heads = {rank: list(heads) for rank, heads in config.items()}
-    try:
-        yield {rank: list(range(len(heads))) for rank, heads in config.items()}
-    finally:
-        pool.align_heads = None
+    if decoder is not None and config:
+        from acestep.models.common.alignment_attention import clear_alignment_keep, set_alignment_keep
+
+        if set_alignment_keep(decoder, config):
+            try:
+                yield identity
+            finally:
+                clear_alignment_keep(decoder)
+            return
+    yield config
 
 
 def release_gpu() -> None:

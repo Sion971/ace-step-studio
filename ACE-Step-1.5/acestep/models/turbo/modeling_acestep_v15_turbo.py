@@ -361,6 +361,10 @@ class AceStepAttention(nn.Module):
         attention_interface: Callable = eager_attention_forward
         if is_cross_attention and output_attentions:
             attention_interface: Callable = eager_attention_forward
+            if getattr(self, "align_keep", None) is not None:
+                # lyric alignment: a few heads at a time, only the wanted heads' weights come back (models/common/alignment_attention.py)
+                from acestep.models.common.alignment_attention import chunked_cross_attention
+                attention_interface = chunked_cross_attention
         elif self.config._attn_implementation != "eager":
             attention_interface = ALL_ATTENTION_FUNCTIONS[self.config._attn_implementation]
     
