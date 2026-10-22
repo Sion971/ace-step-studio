@@ -278,6 +278,8 @@ if [ -n "${HW_GPU_NAME:-}" ]; then
         if [ "$HW_GPU_NAME" != "aucun GPU NVIDIA" ]; then CPU_CARD=" (carte détectée : $HW_GPU_NAME, non utilisée)"; fi
         echo "Profil matériel        : mode processeur${CPU_CARD}, palier ACE-Step ${HW_ACE_TIER}"
         echo "Délai de génération    : ${ACESTEP_GENERATION_TIMEOUT:-600} s"
+    elif [ "${HW_MODE:-}" = "stream" ] && [ "${HW_MODE_PREF:-}" = "stream" ]; then
+        echo "Profil matériel        : $HW_GPU_NAME — ${HW_VRAM_CLASS_GB} Go : mode flux choisi (DiT bloc par bloc, calcul en bf16 ; ./run.sh --mode normal pour revenir)"
     elif [ "${HW_MODE:-}" = "stream" ]; then
         echo "Profil matériel        : $HW_GPU_NAME — petite carte (${HW_VRAM_CLASS_GB} Go) : mode flux (DiT bloc par bloc, audio décodé par la carte)"
         echo "Délai de génération    : ${ACESTEP_GENERATION_TIMEOUT:-600} s"

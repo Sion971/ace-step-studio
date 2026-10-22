@@ -276,7 +276,11 @@ if defined HW_GPU_NAME (
         echo Profil materiel : mode processeur, palier ACE-Step !HW_ACE_TIER!
         echo Delai de generation : !GEN_TO! s
     ) else if /i "!HW_MODE!"=="stream" (
-        echo Profil materiel : !HW_GPU_NAME!, petite carte ^(!HW_VRAM_CLASS_GB! Go^) : mode flux, DiT bloc par bloc et audio decode par la carte
+        if /i "!HW_MODE_PREF!"=="stream" (
+            echo Profil materiel : !HW_GPU_NAME!, !HW_VRAM_CLASS_GB! Go : mode flux choisi, DiT bloc par bloc et calcul en bf16 ^(run.bat --mode normal pour revenir^)
+        ) else (
+            echo Profil materiel : !HW_GPU_NAME!, petite carte ^(!HW_VRAM_CLASS_GB! Go^) : mode flux, DiT bloc par bloc et audio decode par la carte
+        )
         echo Delai de generation : !GEN_TO! s
     ) else (
         echo Profil materiel : !HW_GPU_NAME!, !HW_VRAM_CLASS_GB! Go, palier ACE-Step !HW_ACE_TIER!
