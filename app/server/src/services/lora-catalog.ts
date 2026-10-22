@@ -235,6 +235,7 @@ export function pinEntry(entry: CatalogEntry, card: LoraCard, installedSha256: s
       revision: card.revision,
       sha256,
       license: entry.license ?? card.license,
+      triggerWord: entry.triggerWord ?? card.sidecar?.triggerWord ?? null,
       baseModel,
       sizeBytes: card.selected.size ?? entry.sizeBytes,
       verified: { date, note },

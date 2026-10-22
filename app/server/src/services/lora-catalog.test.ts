@@ -229,6 +229,18 @@ describe('pinEntry: from a candidate to a pinned entry', () => {
     expect(parseCatalog(JSON.stringify({ schema: 1, entries: [out] })).entries).toEqual([out]);
   });
 
+  it("takes the trigger word from the author's metadata file when the candidate has none, and keeps the one the maintainer wrote", async () => {
+    fake.repos.set('user/cand', {
+      files: { 'adapter_model.safetensors': WEIGHTS, 'adapter_config.json': GOOD_ADAPTER_CONFIG, 'adapter_model.metadata.json': JSON.stringify(exampleSidecar(sha256(WEIGHTS), {})) },
+      cardData: {},
+    });
+    const card = await inspect();
+    const filled = pinEntry(candidate({ baseModel: 'AceStep v1.5 Turbo (2B)' }), card, null, '2026-10-18', 'n') as { entry: CatalogEntry };
+    expect(filled.entry.triggerWord).toBe('ex-l0f1');
+    const kept = pinEntry(candidate({ baseModel: 'AceStep v1.5 Turbo (2B)', triggerWord: 'mine' }), card, null, '2026-10-18', 'n') as { entry: CatalogEntry };
+    expect(kept.entry.triggerWord).toBe('mine');
+  });
+
   it('keeps the license the maintainer wrote over the one the repository says, and chooses the only weights file when the candidate did not', async () => {
     fake.repos.set('user/cand', { files: { 'adapter_model.safetensors': WEIGHTS, 'adapter_config.json': GOOD_ADAPTER_CONFIG }, cardData: { license: 'mit' } });
     const pinned = pinEntry(candidate({ license: 'cc-by-4.0', baseModel: 'AceStep v1.5 Turbo (2B)' }), await inspect(), null, '2026-10-18', 'n') as { entry: CatalogEntry };

@@ -290,7 +290,7 @@
         "vinyl crackle",
         "soft drums"
       ],
-      "triggerWord": null,
+      "triggerWord": "roti-l0f1y",
       "recommended": {
         "scale": 1,
         "steps": 8,
@@ -301,6 +301,526 @@
       "verified": {
         "date": "2026-10-22",
         "note": "Installed, checksum verified and listened to by the maintainer (Linux, RTX 5060)."
+      }
+    },
+    {
+      "id": "r_b-acestep1.5-xl-v1",
+      "repo": "ryanontheinside/r_b-acestep1.5-xl-v1",
+      "file": "r_b-xl-v1.safetensors",
+      "revision": "da71468c0bb6a7e5c274f62fd7cb31a90b8d3839",
+      "sha256": "f31f0af47ab699fb6fe3a999da2c62bd08e1be2af4ac35ae2ccb11e15f3ff2da",
+      "name": "R&B (XL)",
+      "description": "R&B style. For the XL models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 XL Turbo (5B)",
+      "genre": "r-and-b",
+      "tags": [
+        "r&b",
+        "soul",
+        "smooth"
+      ],
+      "triggerWord": "roti-rrnbb",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 167839168,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "pop-acestep1.5-xl-v1",
+      "repo": "ryanontheinside/pop-acestep1.5-xl-v1",
+      "file": "pop-xl-v1.safetensors",
+      "revision": "c86b13ff0e50bbff0c47bdb82a5a7c164d5211a9",
+      "sha256": "61ba0614ab59f4a835258e8feafec52dcc8653b3e6e3d30f7d43711702cf1292",
+      "name": "Pop (XL)",
+      "description": "Pop style. For the XL models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 XL Turbo (5B)",
+      "genre": "pop",
+      "tags": [
+        "pop"
+      ],
+      "triggerWord": "roti-p0pp4",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 167839168,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "phonk-acestep1.5-xl-v1",
+      "repo": "ryanontheinside/phonk-acestep1.5-xl-v1",
+      "file": "phonk-xl-v1.safetensors",
+      "revision": "8611aa947b34f7e943d5e25e44ffefb101ca15ce",
+      "sha256": "191d0df95f1e38cb7dd27df37ba88f651e4dfff6c2fe9cd5497531fef1d88009",
+      "name": "Phonk (XL)",
+      "description": "Phonk style. For the XL models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 XL Turbo (5B)",
+      "genre": "phonk",
+      "tags": [
+        "phonk",
+        "drift",
+        "cowbell"
+      ],
+      "triggerWord": "roti-ph0nkk",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 167839168,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "jazz-acestep1.5-xl-v1",
+      "repo": "ryanontheinside/jazz-acestep1.5-xl-v1",
+      "file": "jazz-xl-v1.safetensors",
+      "revision": "9aa1aa725697d88f17d2cde5ac49edc96fb6ec1e",
+      "sha256": "83473ea5128125825748e4eacb1ec84a4875df95c5f6beda71d9f96d21b0bb93",
+      "name": "Jazz (XL)",
+      "description": "Jazz style. For the XL models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 XL Turbo (5B)",
+      "genre": "jazz",
+      "tags": [
+        "jazz"
+      ],
+      "triggerWord": "roti-j4zzz",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 167839168,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "j_pop-acestep1.5-xl-v1",
+      "repo": "ryanontheinside/j_pop-acestep1.5-xl-v1",
+      "file": "j_pop-xl-v1.safetensors",
+      "revision": "2e068a8bb9222ea1c356da4cec0916186de6cfd9",
+      "sha256": "eee918f092ae51fc8899ebbd1d8041b29865c9f67bb314b8491abe22111442f7",
+      "name": "J-Pop (XL)",
+      "description": "J-Pop style. For the XL models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 XL Turbo (5B)",
+      "genre": "j-pop",
+      "tags": [
+        "j-pop",
+        "japanese pop"
+      ],
+      "triggerWord": "roti-jp0pp",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 167839168,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "indie_rock-acestep1.5-xl-v1",
+      "repo": "ryanontheinside/indie_rock-acestep1.5-xl-v1",
+      "file": "indie_rock-xl-v1.safetensors",
+      "revision": "4a26fd0b9ee09c52a754d6d14f91d5709d16f8f7",
+      "sha256": "3fdc39abc2d693ac3e66654083ec897be871b713b45eae89c80682512b3759d4",
+      "name": "Indie Rock (XL)",
+      "description": "Indie Rock style. For the XL models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 XL Turbo (5B)",
+      "genre": "indie rock",
+      "tags": [
+        "indie",
+        "rock"
+      ],
+      "triggerWord": "roti-1ndr0k",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 167839168,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "house-acestep1.5-xl-v1",
+      "repo": "ryanontheinside/house-acestep1.5-xl-v1",
+      "file": "house-xl-v1.safetensors",
+      "revision": "3a1cae4ca28c4ea6620c706493ea64294cd1d92d",
+      "sha256": "0b272ed0fcf5b37da0022b4e08f4d5ca877b723a7875f95c0c32e239681a4947",
+      "name": "House (XL)",
+      "description": "House style. For the XL models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 XL Turbo (5B)",
+      "genre": "house",
+      "tags": [
+        "house",
+        "dance"
+      ],
+      "triggerWord": "roti-h0us3",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 167839168,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "future_bass-acestep1.5-xl-v1",
+      "repo": "ryanontheinside/future_bass-acestep1.5-xl-v1",
+      "file": "future_bass-xl-v1.safetensors",
+      "revision": "d54872b42bffca11082b7289d5152b394cc76942",
+      "sha256": "a25d066ddee2cfa898ced278f84849fa08669568213b2ef5b473c5423f781b6f",
+      "name": "Future Bass (XL)",
+      "description": "Future Bass style. For the XL models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 XL Turbo (5B)",
+      "genre": "future bass",
+      "tags": [
+        "future bass",
+        "electronic"
+      ],
+      "triggerWord": "roti-fbass",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 167839168,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "deep_house-acestep1.5-xl-v1",
+      "repo": "ryanontheinside/deep_house-acestep1.5-xl-v1",
+      "file": "deep_house-xl-v1.safetensors",
+      "revision": "89b50a578f7aa0b0c1074c7d3088aca1b207f5aa",
+      "sha256": "6304d3fd08b2db45cfb93498a24e6fafed87e797a1f7e8597c8e1332f9f5568b",
+      "name": "Deep House (XL)",
+      "description": "Deep House style. For the XL models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 XL Turbo (5B)",
+      "genre": "deep house",
+      "tags": [
+        "deep house",
+        "dance"
+      ],
+      "triggerWord": "roti-d33ph0us",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 167839168,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "acoustic-acestep1.5-xl-v1",
+      "repo": "ryanontheinside/acoustic-acestep1.5-xl-v1",
+      "file": "acoustic-xl-v1.safetensors",
+      "revision": "1467e68ac86c3d088181de3a7ba0fdd116e9e5f3",
+      "sha256": "f1414b9489adcd0766223aaac73a8c43216009b46e744408aa38b0c9c4ad4a68",
+      "name": "Acoustic (XL)",
+      "description": "Acoustic style. For the XL models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 XL Turbo (5B)",
+      "genre": "acoustic",
+      "tags": [
+        "acoustic"
+      ],
+      "triggerWord": "roti-4custic",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 167839168,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "trap-acestep1.5-v1",
+      "repo": "ryanontheinside/trap-acestep1.5-v1",
+      "file": "trap-v1.safetensors",
+      "revision": "77c9423e14c5cdaea0989d5070014d9d15cee8df",
+      "sha256": "c9bfe6b742197726e204502e9378335b7b82efcb569dc34a13bfaaf6d664facb",
+      "name": "Trap",
+      "description": "Trap style. For the 2B models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 Turbo (2B)",
+      "genre": "trap",
+      "tags": [
+        "trap"
+      ],
+      "triggerWord": "roti-tr4ph0p",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 88130248,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "synthwave-acestep1.5-v1",
+      "repo": "ryanontheinside/synthwave-acestep1.5-v1",
+      "file": "synthwave-v1.safetensors",
+      "revision": "6b7fd261d3300e2f6f3f17758fd46a533793190d",
+      "sha256": "ec393f55a87204e19d55528a04684c597955f9be5e3c9a8780971d26dbfbf036",
+      "name": "Synthwave",
+      "description": "Synthwave style. For the 2B models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 Turbo (2B)",
+      "genre": "synthwave",
+      "tags": [
+        "synthwave",
+        "retro",
+        "80s"
+      ],
+      "triggerWord": "roti-s1nthwv",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 88130248,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "synth_pop-acestep1.5-v1",
+      "repo": "ryanontheinside/synth_pop-acestep1.5-v1",
+      "file": "synth_pop-v1.safetensors",
+      "revision": "4e35f7dd4062aadc9b2b94fc65156fcb86f1e4c3",
+      "sha256": "9e77028ba5142d4545c511254baa7a818595a55586a0dafd5034d84b1a875ef6",
+      "name": "Synth Pop",
+      "description": "Synth Pop style. For the 2B models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 Turbo (2B)",
+      "genre": "synth pop",
+      "tags": [
+        "synth pop",
+        "80s"
+      ],
+      "triggerWord": "roti-s1nthp0p",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 88130248,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "shoegaze-acestep1.5-v1",
+      "repo": "ryanontheinside/shoegaze-acestep1.5-v1",
+      "file": "shoegaze-v1.safetensors",
+      "revision": "24568c1339f4155c253f0a2c12feb0f0c976257f",
+      "sha256": "f424f07b439a6d8c86f3626dadaefd918663c8c79974956d87929d0aed18cd3a",
+      "name": "Shoegaze",
+      "description": "Shoegaze style. For the 2B models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 Turbo (2B)",
+      "genre": "shoegaze",
+      "tags": [
+        "shoegaze",
+        "dream"
+      ],
+      "triggerWord": "roti-sh0gz",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 88130248,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "rap-acestep1.5-v1",
+      "repo": "ryanontheinside/rap-acestep1.5-v1",
+      "file": "rap-v1.safetensors",
+      "revision": "0a0428b8f3bb934db8763ab9649f30bceaa517e9",
+      "sha256": "d00a0f7125d657dbc09814e0d017b585d03fd93249b8cd63faff84e7e625bfc4",
+      "name": "Rap",
+      "description": "Rap style. For the 2B models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 Turbo (2B)",
+      "genre": "rap",
+      "tags": [
+        "rap",
+        "hip hop"
+      ],
+      "triggerWord": "roti-r4pz",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 88130248,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "r_b-acestep1.5-v1",
+      "repo": "ryanontheinside/r_b-acestep1.5-v1",
+      "file": "r_b-v1.safetensors",
+      "revision": "e7f205ba85413fa16e2c19b6089a8639c50ab749",
+      "sha256": "6cd6cd7378e87b6758b1a2b8e5fc6a6722136f88dd30528f9ab090b4501b6dd9",
+      "name": "R&B",
+      "description": "R&B style. For the 2B models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 Turbo (2B)",
+      "genre": "r-and-b",
+      "tags": [
+        "r&b",
+        "soul",
+        "smooth"
+      ],
+      "triggerWord": "roti-rrnbb",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 88130248,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "pop-acestep1.5-v1",
+      "repo": "ryanontheinside/pop-acestep1.5-v1",
+      "file": "pop-v1.safetensors",
+      "revision": "5cec3337307113fa0aeaa295ff79a045dad26c83",
+      "sha256": "c8f1367fbb53cfb3161c76298aedcc662d1976fa1b2271fc6adc8138f61bafbc",
+      "name": "Pop",
+      "description": "Pop style. For the 2B models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 Turbo (2B)",
+      "genre": "pop",
+      "tags": [
+        "pop"
+      ],
+      "triggerWord": "roti-p0pp4",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 88130248,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
+      }
+    },
+    {
+      "id": "acoustic-acestep1.5-v1",
+      "repo": "ryanontheinside/acoustic-acestep1.5-v1",
+      "file": "acoustic-v1.safetensors",
+      "revision": "7fa69128048dfb92365269ec88cb6f4d72239f4e",
+      "sha256": "8500538194ac9c0634cc9d3343df3fa88a12edf3d58c174d3f00fd294c8f2771",
+      "name": "Acoustic",
+      "description": "Acoustic style. For the 2B models.",
+      "author": "RyanOnTheInside",
+      "license": null,
+      "baseModel": "AceStep v1.5 Turbo (2B)",
+      "genre": "acoustic",
+      "tags": [
+        "acoustic"
+      ],
+      "triggerWord": "roti-4custic",
+      "recommended": {
+        "scale": 1,
+        "steps": 8,
+        "guidance": 7,
+        "shift": 3
+      },
+      "sizeBytes": 88130248,
+      "verified": {
+        "date": "2026-10-22",
+        "note": "Downloaded and checksum-verified by verify-lora-catalog; not listened to."
       }
     }
   ]
