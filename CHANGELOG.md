@@ -2,6 +2,9 @@
 
 ## 2026-10-21
 
+### Documentation
+- `TROUBLESHOOTING.md` section 61: small card with little RAM (freeze, "Sticky error", cover unload delay, Windows page file on a fast disk, Re-Size BAR).
+
 ### Fixed
 - Windows/small cards: a music generation could start while the AI cover of the previous song was still being made. Both use the card, the engine ran out of memory ("CUDA error: out of memory", then "Sticky error": every later generation failed until restart). The queue now waits for the cover in progress (5 minutes at most) before it starts the next generation. The cover itself already waited for the music jobs.
 

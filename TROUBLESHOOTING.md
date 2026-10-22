@@ -2359,3 +2359,21 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 **Si le flux ne peut pas démarrer** (pas de carte visible, bloc incompatible, mémoire verrouillable insuffisante), le moteur écrit `[small_gpu_stream] could not stream the DiT …` et continue en mode processeur normal.
 
 **Non vérifié ici.** Le chemin réel sur carte (copies asynchrones, caches d'attention créés sur la carte, VAE sur la carte à l'intérieur du moteur complet) n'a été exécuté que par les scripts de mesure sur la GTX 1050, pas à l'intérieur du moteur : les tests du dépôt (`small_gpu_stream_test.py`) vérifient la logique sur le processeur (équivalence avec le DiT normal, cache d'attention sur plusieurs étapes, libération de la carte, routage du décodage).
+
+## 61. Petite carte, PC court en RAM (Windows et Linux) : gel, « Sticky error », réglages retenus
+
+**Contexte (2026-10-21).** RTX 5060 8 Go, 31 à 32 Go de RAM, `HW_MODE=stream`, modèle XL, LM 0,6B, LRC automatique et pochettes IA activés. Trois mémoires se disputent la machine : le DiT épinglé du moteur (243 Mo par bloc, 32 blocs ; compté dans « partagée » de `free`, pas dans le RSS), le générateur de pochette SDXL Turbo (environ 9 Go de RAM tant qu'il est chargé) et, pendant l'alignement des paroles, l'attention du décodeur.
+
+**Le PC gèle (Windows) ou la RAM monte à 31/31 (Linux) pendant une génération avec LRC.** Corrigé le 2026-10-21 : le décodeur rendait l'attention croisée des 32 couches x 32 têtes, en plusieurs copies (environ 31 Go). Il ne rend plus que les couches et têtes de la configuration d'alignement, et s'arrête après la dernière couche utile. Un pic bref à 32/32 qui retombe seul n'est plus un défaut : c'est le chargement de SDXL Turbo.
+
+**La RAM redescend 3 minutes après la dernière pochette.** C'est le délai de déchargement du générateur. `ACESTEP_COVER_IDLE_S=30` dans `ACE-Step-1.5/.env` le ramène à 30 s (minimum 5 ; sans la variable : 180 s). La pochette suivante recharge le modèle en quelques secondes. Mesuré sur Windows : la mémoire redescend bien après 30 s.
+
+**`CUDA error: out of memory`, puis `Sticky error`, et toutes les générations suivantes échouent.** Une génération a démarré pendant qu'une pochette était dessinée : les deux utilisent la carte. Après une « Sticky error », le contexte CUDA du moteur est inutilisable : il faut relancer le Studio. Corrigé le 2026-10-21 : la file attend la fin de la pochette en cours (5 minutes au plus) avant de lancer la génération suivante ; le journal du serveur écrit alors `[queue] the AI cover is still being made: the next generation waits for it`. La pochette, elle, attendait déjà les morceaux. Le moteur ne redémarre pas tout seul après une « Sticky error » (non traité).
+
+**Linux : la pochette plante après le LRC.** Le mode flux gardait environ 6 Go de blocs DiT sur la carte après l'alignement des paroles ; la carte est maintenant rendue juste après le LRC et le score.
+
+**Windows : le fichier de pagination.** Laisser Windows le gérer (taille « gérée par le système ») et le placer sur un disque rapide (M.2 / SSD), pas sur un disque mécanique : avec le DiT épinglé, le moteur peut pousser le système à paginer, et sur un disque dur le PC paraît figé. Réglage retenu sur la machine de test : pagination système sur le M.2.
+
+**Les premières lignes de la console du navigateur** (propriétés CSS inconnues de Firefox, bannière `Tone.js`, « Un AudioContext n'a pas pu démarrer automatiquement ») sont normales : Firefox ignore les déclarations CSS qu'il ne connaît pas, et refuse de lancer le son avant un premier clic sur la page.
+
+**Above 4G Decoding / Re-Size BAR.** Les activer dans le BIOS peut faire annoncer plus de VRAM utilisable au démarrage (7,93 Go au lieu de 7,61 Go sur la machine de test, ce qui laisse un bloc de plus sur la carte). Sous Linux : `nvidia-smi -q | grep -A3 BAR1` ; un BAR1 de la taille de la carte (8192 Mio) indique que Re-Size BAR est actif.
