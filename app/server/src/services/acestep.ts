@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { config } from '../config/index.js';
 import { getAudioDuration } from './audio-duration.js';
 import { estimateDurationFromLyrics } from './lyrics-duration.js';
+import { describeGenerationArgs } from './generation-log.js';
 import { classifyGenerationFailure, friendlyTimeoutMessage, friendlyCudaRestartMessage, CudaFailureTracker } from './generation-errors.js';
 import { aiCover, waitForCoverBeforeGeneration } from './ai-cover.js';
 import { pipelineManager } from './pipeline-manager.js';
@@ -702,6 +703,7 @@ async function processGenerationViaGradio(
 
   const client = await getGradioClient();
   const args = await buildGradioArgs(params);
+  console.log(describeGenerationArgs(args));
 
   const caption = params.style || 'pop music';
   const prompt = params.customMode ? caption : (params.songDescription || caption);
