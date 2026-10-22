@@ -5,7 +5,7 @@ import { listAvailableLoras } from '../services/lora-available.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { describeLoadFailure } from '../services/lora-engine-status.js';
-import { isStreamMode } from '../services/hardware-mode.js';
+import { isStreamMode, loraNeedsStreamMode, XL_LORA_NEEDS_STREAM_MESSAGE } from '../services/hardware-mode.js';
 import { SMALL_GPU_QUANTIZATION_MESSAGE } from '../services/lora-text.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -31,6 +31,13 @@ router.post('/load', authMiddleware, async (req: AuthenticatedRequest, res: Resp
     const { lora_path } = req.body;
     if (!lora_path || typeof lora_path !== 'string') {
       res.status(400).json({ error: 'lora_path is required' });
+      return;
+    }
+    // Normal mode, XL model, 8 GB card: the engine would send the whole model to the card and run out of memory (then restart). Say so first.
+    const { getActiveLoadedModel } = await import('./generate.js');
+    if (loraNeedsStreamMode(getActiveLoadedModel())) {
+      console.warn('[LoRA] Refused before asking the engine: XL model in normal mode on a small card');
+      res.status(409).json({ error: XL_LORA_NEEDS_STREAM_MESSAGE, code: 'xl_needs_flux_mode' });
       return;
     }
     const client = await getGradioClient();

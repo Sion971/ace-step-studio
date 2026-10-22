@@ -56,3 +56,22 @@ export function coversBlockedBySmallCard(): boolean {
   const vram = cardVramGiB();
   return vram === undefined || vram < COVER_MIN_VRAM_GIB;
 }
+
+/** Largest card (GiB as PyTorch sees it) on which the regular mode cannot load a LoRA on an XL music model: the whole model has to go to the card first. */
+export const XL_LORA_MAX_VRAM_GIB = 10;
+
+export const XL_LORA_NEEDS_STREAM_MESSAGE =
+  'A LoRA cannot be loaded on an XL model in normal mode on a card of 8 GB or less: loading it puts the whole model on the card, which is full. ' +
+  'Switch to flux mode (./run.sh --mode flux, or run.bat --mode flux) to use this LoRA with the XL model, or pick a non-XL model.';
+
+/**
+ * True when loading a LoRA would fill the card: normal mode (not the processor, not stream), an XL model and a card of 10 GiB or less.
+ * An unknown card size is not blamed (nothing is refused on a guess).
+ */
+export function loraNeedsStreamMode(model: string | undefined): boolean {
+  if (!model || !/(^|[-_])xl([-_]|$)/i.test(model)) return false;
+  const mode = hardwareMode();
+  if (mode === 'cpu' || mode === 'stream') return false;
+  const vram = cardVramGiB();
+  return vram !== undefined && vram <= XL_LORA_MAX_VRAM_GIB;
+}

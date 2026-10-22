@@ -6,6 +6,7 @@ import { handle_file } from '@gradio/client';
 import { fileURLToPath } from 'url';
 import { config } from '../config/index.js';
 import { getAudioDuration } from './audio-duration.js';
+import { estimateDurationFromLyrics } from './lyrics-duration.js';
 import { classifyGenerationFailure, friendlyTimeoutMessage, friendlyCudaRestartMessage, CudaFailureTracker } from './generation-errors.js';
 import { aiCover, waitForCoverBeforeGeneration } from './ai-cover.js';
 import { pipelineManager } from './pipeline-manager.js';
@@ -155,6 +156,19 @@ async function buildGradioArgs(params: GenerationParams): Promise<Record<string,
   }
 
   const useCot = isEnhance || isThinking;
+  // Duration left on "auto": without the language model the engine falls back to 120 s, too short for long lyrics (it skips words). The
+  // length is then estimated from the lyrics. A cover or a repaint takes the length of its source, and the language model chooses its own.
+  const wantsAutoDuration = !(params.duration && params.duration > 0);
+  const isSourceTask = params.taskType === 'cover' || params.taskType === 'audio2audio' || params.taskType === 'repaint';
+  let audioDuration = params.duration && params.duration > 0 ? params.duration : -1;
+  if (wantsAutoDuration && !useCot && !isSourceTask && !params.instrumental && process.env.STUDIO_AUTO_DURATION !== 'off') {
+    const limits = pipelineManager.getLimits();
+    const estimate = estimateDurationFromLyrics(lyrics, { bpm: params.bpm, maxSeconds: Math.min(limits?.withoutLm ?? 240, 300) });
+    if (estimate !== null) {
+      audioDuration = estimate;
+      console.log(`[Duration] auto: ${estimate} s estimated from the lyrics (STUDIO_AUTO_DURATION=off to keep the engine's 120 s)`);
+    }
+  }
   const isTurbo = (params.ditModel || '').includes('turbo') && !(params.ditModel || '').includes('merge');
   const taskType = (params.taskType === 'audio2audio' ? 'cover' : params.taskType) || 'text2music';
 
@@ -170,7 +184,7 @@ async function buildGradioArgs(params: GenerationParams): Promise<Record<string,
     random_seed_checkbox: params.randomSeed !== false,
     seed: String(params.seed ?? -1),
     reference_audio: referenceAudio,
-    audio_duration: params.duration && params.duration > 0 ? params.duration : -1,
+    audio_duration: audioDuration,
     batch_size_input: Math.min(Math.max(params.batchSize ?? 1, 1), 16),
     src_audio: sourceAudio,
     text2music_audio_code_string: params.audioCodes || '',

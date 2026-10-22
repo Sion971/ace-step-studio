@@ -13,7 +13,7 @@
 // It is only blamed on the folder when the engine says so AND the folder has a ".": a load is never refused on a guess about the name.
 
 export interface LoadFailure {
-  code: 'invalid_adapter_name' | 'lora_load_failed';
+  code: 'invalid_adapter_name' | 'lora_out_of_memory' | 'lora_load_failed';
   message: string;
 }
 
@@ -36,6 +36,12 @@ export function describeLoadFailure(status: unknown, loraPath: string): LoadFail
     return {
       code: 'invalid_adapter_name',
       message: `The folder name "${folder}" contains a ".", and the engine uses the folder name as the adapter name, which cannot contain one. Rename the folder to "${adapterSafeName(folder)}" (in ACE-Step-1.5/lora_output) and try again.`,
+    };
+  }
+  if (/out of memory/i.test(text)) {
+    return {
+      code: 'lora_out_of_memory',
+      message: 'The card ran out of memory while loading this LoRA. On a card of 8 GB or less, use flux mode (./run.sh --mode flux) or a smaller (non-XL) model.',
     };
   }
   const readable = text.replace(/^[\s❌✗✖]+/u, '').trim();

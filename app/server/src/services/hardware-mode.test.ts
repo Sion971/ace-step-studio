@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
-import { hardwareMode, isCpuMode, isStreamMode, coversBlockedBySmallCard } from './hardware-mode.js';
+import { hardwareMode, isCpuMode, isStreamMode, coversBlockedBySmallCard, loraNeedsStreamMode } from './hardware-mode.js';
 
 describe('hardware mode', () => {
   let dir: string;
@@ -86,6 +86,29 @@ describe('hardware mode', () => {
       withCard('stream', 7800);
       process.env.STUDIO_COVERS_ON_STREAM = 'off';
       expect(coversBlockedBySmallCard()).toBe(true);
+    });
+  });
+
+  describe('LoRA on an XL model', () => {
+    const XL = 'acestep-v15-xl-turbo-bf16';
+    it('needs flux mode in normal mode on an 8 GB card', () => {
+      profile('gpu');
+      process.env.HW_VRAM_TORCH_MIB = '7790';
+      expect(loraNeedsStreamMode(XL)).toBe(true);
+    });
+    it('is allowed in flux mode, on the processor, on a larger card, with a non-XL model, or when the card size is unknown', () => {
+      process.env.HW_VRAM_TORCH_MIB = '7790';
+      profile('stream');
+      expect(loraNeedsStreamMode(XL)).toBe(false);
+      profile('cpu');
+      expect(loraNeedsStreamMode(XL)).toBe(false);
+      profile('gpu');
+      expect(loraNeedsStreamMode('acestep-v15-turbo')).toBe(false);
+      expect(loraNeedsStreamMode(undefined)).toBe(false);
+      process.env.HW_VRAM_TORCH_MIB = '24000';
+      expect(loraNeedsStreamMode(XL)).toBe(false);
+      delete process.env.HW_VRAM_TORCH_MIB;
+      expect(loraNeedsStreamMode(XL)).toBe(false);
     });
   });
 });

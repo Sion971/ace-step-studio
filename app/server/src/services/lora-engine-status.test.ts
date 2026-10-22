@@ -34,7 +34,7 @@ describe('describeLoadFailure', () => {
 
   it('blames the name only when the engine says so AND the folder has a dot: never on a guess', () => {
     expect(describeLoadFailure(`❌ Failed to load LoRA: 'module name can\\'t contain ".", got: x'`, './lora_output/final')).toMatchObject({ code: 'lora_load_failed' }); // no dot in this folder
-    expect(describeLoadFailure('❌ Failed to load LoRA: out of memory', './lora_output/a.b')).toMatchObject({ code: 'lora_load_failed' }); // a dot, but not the cause
+    expect(describeLoadFailure('❌ Failed to load LoRA: out of memory', './lora_output/a.b')).toMatchObject({ code: 'lora_out_of_memory' }); // a dot, but not the cause
   });
 
   it('recognizes the message with the backslash that Python puts before the apostrophe, and without it', () => {
@@ -59,5 +59,10 @@ describe('folder names', () => {
     expect(adapterSafeName('lo_fi-acestep1.5-v1')).toBe('lo_fi-acestep1_5-v1');
     expect(adapterSafeName('final')).toBe('final');
     expect(adapterSafeName('a.b.c')).toBe('a_b_c');
+  });
+
+  it('explains an out-of-memory failure with the way out (flux mode)', () => {
+    const failure = describeLoadFailure('❌ Failed to load LoRA: CUDA out of memory. Tried to allocate 20.00 MiB.', './lora_output/final');
+    expect(failure).toMatchObject({ code: 'lora_out_of_memory', message: expect.stringContaining('--mode flux') });
   });
 });
