@@ -11,6 +11,7 @@ cross-attention layers of a decoder which heads to keep; the config the decoder 
 """
 
 import os
+import sys
 from typing import Dict, List, Optional
 
 import torch
@@ -69,6 +70,32 @@ def chunked_cross_attention(
     return attn_output, kept_weights
 
 
+def _install_dispatch(attention: nn.Module) -> bool:
+    """Make the module that defines ``attention`` use ``chunked_cross_attention`` for the layers marked with ``align_keep``.
+
+    The model code that runs is the one of the checkpoint (``models/modules/transformers_modules/<model>/modeling_*.py``, loaded with
+    ``trust_remote_code``), not the copy in ``acestep/models``: it cannot be edited here, so the ``eager_attention_forward`` it calls by
+    name is replaced, in that module only, by a function that sends the marked layers to the chunked version and every other call to the
+    original. Done once per module; harmless when no layer is marked.
+    """
+    module = sys.modules.get(type(attention).__module__)
+    original = getattr(module, "eager_attention_forward", None)
+    if module is None or original is None:
+        return False
+    if getattr(original, "_alignment_dispatch", False):
+        return True
+
+    def eager_attention_forward(layer, *args, **kwargs):
+        if getattr(layer, KEEP_ATTR, None) is not None:
+            return chunked_cross_attention(layer, *args, **kwargs)
+        return original(layer, *args, **kwargs)
+
+    eager_attention_forward._alignment_dispatch = True  # type: ignore[attr-defined]
+    eager_attention_forward._original = original  # type: ignore[attr-defined]
+    module.eager_attention_forward = eager_attention_forward
+    return True
+
+
 def set_alignment_keep(decoder: nn.Module, config: Dict[int, List[int]]) -> int:
     """Tell the cross-attention layers which heads to keep: ``config`` maps the rank of a layer among those that have a
     cross-attention to its heads. Returns the number of layers marked (the others are marked with an empty list)."""
@@ -79,6 +106,8 @@ def set_alignment_keep(decoder: nn.Module, config: Dict[int, List[int]]) -> int:
             continue
         attention = getattr(layer, "cross_attn", None)
         if attention is not None:
+            if not _install_dispatch(attention):
+                continue  # cannot reach the attention function of this model: leave the layer as it is
             setattr(attention, KEEP_ATTR, list(config.get(rank, [])))
             marked += 1
         rank += 1

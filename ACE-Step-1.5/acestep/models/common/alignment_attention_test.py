@@ -70,5 +70,60 @@ class ChunkedAlignmentTests(unittest.TestCase):
         self.assertFalse(any(hasattr(l.cross_attn, aa.KEEP_ATTR) for l in decoder.layers if l.use_cross_attention))
 
 
+class CheckpointCodeTests(unittest.TestCase):
+    """The model code that runs is the checkpoint's own copy of the modeling file (another module): the chunked attention reaches it too."""
+
+    def _remote_decoder(self):
+        import importlib.util
+        import sys
+
+        from acestep.models.xl_turbo import modeling_acestep_v15_xl_turbo as local
+        from acestep.models.xl_turbo.configuration_acestep_v15 import AceStepConfig
+
+        name = "acestep.models.xl_turbo.checkpoint_copy_for_test"
+        spec = importlib.util.spec_from_file_location(name, local.__file__)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        self.addCleanup(sys.modules.pop, name, None)
+        spec.loader.exec_module(module)
+        cfg = AceStepConfig(
+            hidden_size=32, intermediate_size=64, num_hidden_layers=5, num_attention_heads=4, num_key_value_heads=2,
+            head_dim=8, in_channels=24, audio_acoustic_hidden_dim=8, patch_size=2, use_sliding_window=False,
+            layer_types=["full_attention"] * 5, vocab_size=100, max_position_embeddings=256,
+        )
+        cfg.encoder_hidden_size = 32
+        cfg._attn_implementation = "eager"
+        torch.manual_seed(0)
+        return module, module.AceStepDiTModel(cfg).eval()
+
+    def test_the_copy_of_the_checkpoint_gets_the_chunked_attention_with_the_same_values(self):
+        config = {3: [1, 0], 1: [2], 4: [3, 99]}
+        module, decoder = self._remote_decoder()
+        original = module.eager_attention_forward
+        with mock.patch.object(sgs, "_ACTIVE_POOL", None), torch.no_grad():
+            plain = decoder(**_inputs(), custom_layers_config=config, enable_early_exit=True)
+            with mock.patch.object(aa, "chunked_cross_attention", wraps=aa.chunked_cross_attention) as spy:
+                with sgs.alignment_heads(config, decoder) as given:
+                    lean = decoder(**_inputs(), custom_layers_config=given, enable_early_exit=True)
+        self.assertGreater(spy.call_count, 0)
+        self.assertTrue(getattr(module.eager_attention_forward, "_alignment_dispatch", False))
+        self.assertIsNot(module.eager_attention_forward, original)
+        expected, expected_config = compact_alignment_attentions(plain[2], config)
+        matrix, got_config = compact_alignment_attentions(lean[2], given)
+        self.assertEqual(got_config, expected_config)
+        self.assertTrue(torch.allclose(matrix, expected, atol=1e-6, rtol=1e-5))
+        self.assertTrue(torch.allclose(lean[0], plain[0], atol=1e-6, rtol=1e-5))
+
+    def test_the_dispatch_is_installed_once_and_unmarked_layers_keep_the_original(self):
+        module, decoder = self._remote_decoder()
+        with mock.patch.object(sgs, "_ACTIVE_POOL", None), torch.no_grad():
+            with sgs.alignment_heads({1: [0]}, decoder):
+                first = module.eager_attention_forward
+            with sgs.alignment_heads({1: [0]}, decoder):
+                self.assertIs(module.eager_attention_forward, first)
+            full = decoder(**_inputs())[2]  # no config: the whole weights, from the original function
+        self.assertEqual(full[0].shape[1], 4)
+
+
 if __name__ == "__main__":
     unittest.main()
