@@ -71,6 +71,7 @@ import { SearchPage } from './components/SearchPage';
 import { TrainingPanel } from './components/TrainingPanel';
 import { ToolsPanel } from './components/ToolsPanel';
 import { NewsPage } from './components/NewsPage';
+import { StudioPage } from './components/StudioPage';
 import { ConfirmDialog } from './components/ConfirmDialog';
 
 
@@ -486,6 +487,8 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         setCurrentView('search');
       } else if (path === '/news') {
         setCurrentView('news');
+      } else if (path === '/studio') {
+        setCurrentView('studio');
       }
     };
 
@@ -2063,6 +2066,9 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
       case 'news':
         return <NewsPage />;
 
+      case 'studio':
+        return <StudioPage songs={songs} />;
+
       case 'create':
       default:
         // Filtre par espace de travail actif (voir handleSelectWorkspace) :
@@ -2252,6 +2258,8 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
               window.history.pushState({}, '', '/search');
             } else if (v === 'news') {
               window.history.pushState({}, '', '/news');
+            } else if (v === 'studio') {
+              window.history.pushState({}, '', '/studio');
             }
             if (isMobile) setShowLeftSidebar(false);
           }}

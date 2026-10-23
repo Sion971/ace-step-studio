@@ -6,6 +6,14 @@ export const ru = {
     training: 'Обучение',
     tools: 'Инструменты',
     news: 'Новости',
+    studio: "Студия",
+    studioSearchPlaceholder: "Поиск среди ваших треков…",
+    studioAddTrack: "Добавить в редактор как новую дорожку",
+    studioEmpty: "Ничего не найдено",
+    studioHint: "Выберите трек, чтобы открыть его в редакторе, затем другие, чтобы наложить их дорожками.",
+    studioLoadError: "Не удалось загрузить этот трек в редактор.",
+    studioLoading: "Загрузка редактора…",
+    studioInEditor: "В редакторе",
 
     // Tools
     toolsDescription: 'Утилиты для конвертации и управления моделями',

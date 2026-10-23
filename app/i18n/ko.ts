@@ -6,6 +6,14 @@ export const ko = {
     training: '훈련',
     tools: '도구',
     news: '뉴스',
+    studio: "스튜디오",
+    studioSearchPlaceholder: "내 곡 검색…",
+    studioAddTrack: "새 트랙으로 편집기에 추가",
+    studioEmpty: "곡을 찾을 수 없습니다",
+    studioHint: "곡을 선택하면 편집기에서 열리고, 다른 곡을 선택하면 트랙으로 쌓입니다.",
+    studioLoadError: "이 곡을 편집기에 불러오지 못했습니다.",
+    studioLoading: "편집기 불러오는 중…",
+    studioInEditor: "편집기에 있음",
 
     // Tools
     toolsDescription: '모델 변환 및 관리 유틸리티',

@@ -6,6 +6,14 @@ export const en = {
     training: 'Training',
     tools: 'Tools',
     news: 'News',
+    studio: "Studio",
+    studioSearchPlaceholder: "Search your songs…",
+    studioAddTrack: "Add to the editor as a new track",
+    studioEmpty: "No song found",
+    studioHint: "Pick a song to open it in the editor, then pick others to stack them as tracks.",
+    studioLoadError: "Could not load this song into the editor.",
+    studioLoading: "Loading the editor…",
+    studioInEditor: "In the editor",
 
     // Tools
     toolsDescription: 'Utilities for model conversion and management',

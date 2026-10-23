@@ -6,6 +6,14 @@ export const ja = {
   training: 'トレーニング',
   tools: 'ツール',
   news: 'ニュース',
+  studio: "スタジオ",
+  studioSearchPlaceholder: "曲を検索…",
+  studioAddTrack: "新しいトラックとしてエディターに追加",
+  studioEmpty: "曲が見つかりません",
+  studioHint: "曲を選ぶとエディターで開きます。さらに選ぶとトラックとして重ねられます。",
+  studioLoadError: "この曲をエディターに読み込めませんでした。",
+  studioLoading: "エディターを読み込み中…",
+  studioInEditor: "エディター内",
 
   // Tools
   toolsDescription: 'モデルの変換・管理ツール',

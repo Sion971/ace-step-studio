@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Library, Disc, Search, LogIn, LogOut, Sun, Moon, GraduationCap, Newspaper, Wrench } from 'lucide-react';
+import { Library, Disc, Search, LogIn, LogOut, Sun, Moon, GraduationCap, Newspaper, Wrench, AudioLines } from 'lucide-react';
 import { View } from '../types';
 import { useI18n } from '../context/I18nContext';
 import type { TranslationKey } from '../i18n/translations';
@@ -324,6 +324,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           label={t('create')}
           active={currentView === 'create'}
           onClick={() => onNavigate('create')}
+          isExpanded={isOpen}
+        />
+        <NavItem
+          icon={<AudioLines size={20} />}
+          label={t('studio')}
+          active={currentView === 'studio'}
+          onClick={() => onNavigate('studio')}
           isExpanded={isOpen}
         />
         <NavItem

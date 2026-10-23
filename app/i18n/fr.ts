@@ -6,6 +6,14 @@ export const fr = {
     training: 'Entraînement',
     tools: 'Outils',
     news: 'Actualités',
+    studio: "Studio",
+    studioSearchPlaceholder: "Rechercher parmi tes morceaux…",
+    studioAddTrack: "Ajouter à l'éditeur comme nouvelle piste",
+    studioEmpty: "Aucun morceau trouvé",
+    studioHint: "Choisis un morceau pour l'ouvrir dans l'éditeur, puis d'autres pour les empiler en pistes.",
+    studioLoadError: "Impossible de charger ce morceau dans l'éditeur.",
+    studioLoading: "Chargement de l'éditeur…",
+    studioInEditor: "Dans l'éditeur",
 
     // Tools
     toolsDescription: 'Utilitaires pour la conversion et la gestion de modèles',

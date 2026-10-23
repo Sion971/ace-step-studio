@@ -5377,6 +5377,21 @@
 				addURL ( 'test.mp3', 'Sample File' );
 				return true;
 			}
+			if (id === 'RequestAddTrackFile') {
+				// Studio tab: put an audio file (arg1 = File with a name) on a NEW track, from time 0 so it lines up with the others.
+				// It goes on the first track that has no clip yet (the editor starts with empty ones), and only when there is none a track is added.
+				var empty_track = null;
+				for (var ti = 0; ti < tracks.length && !empty_track; ++ti) {
+					var used = false;
+					for (var ci = 0; ci < clips.length && !used; ++ci)
+						if (clips[ci].track === tracks[ti].id) used = true;
+					if (!used) empty_track = tracks[ti];
+				}
+				if (empty_track) selected_track = empty_track.id;
+				else addTrack ();
+				addFiles ( [ arg1 ], selected_track, 0 );
+				return true;
+			}
 			if (id === 'RequestLoadURL') {
 				addURL ( arg1 );
 				return true;

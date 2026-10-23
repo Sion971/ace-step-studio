@@ -6,6 +6,14 @@ export const zh = {
     training: '训练',
     tools: '工具',
     news: '新闻',
+    studio: "工作室",
+    studioSearchPlaceholder: "搜索你的歌曲…",
+    studioAddTrack: "作为新音轨添加到编辑器",
+    studioEmpty: "未找到歌曲",
+    studioHint: "选择一首歌曲在编辑器中打开，再选择其他歌曲即可叠加为音轨。",
+    studioLoadError: "无法将这首歌曲载入编辑器。",
+    studioLoading: "正在加载编辑器…",
+    studioInEditor: "已在编辑器中",
 
     // Tools
     toolsDescription: '模型转换和管理工具',
