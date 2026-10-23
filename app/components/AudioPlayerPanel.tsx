@@ -172,7 +172,7 @@ export const AudioPlayerPanel: React.FC<AudioPlayerPanelProps> = ({
                   <input type="range" min="0" max="1" step="0.05" value={repaintStrength} onChange={(e) => onRepaintStrengthChange(Number(e.target.value))} className="flex-1 h-1 accent-purple-500 cursor-pointer" />
                   <span className="text-[10px] text-zinc-500 tabular-nums w-8 text-right">{Math.round(repaintStrength * 100)}%</span>
                 </div>
-                <p className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-12">{tf('hintRepaintStrength', '0% — fully regenerate the region, 100% — leave it almost unchanged')}</p>
+                <p className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-12">{tf('hintRepaintStrength', '0% — stay close to the source, 100% — regenerate the region freely')}</p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 w-10">{tf('region', 'Region')}</span>

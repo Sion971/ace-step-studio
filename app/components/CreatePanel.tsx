@@ -6,7 +6,6 @@ import { OutputSettings } from './OutputSettings';
 import { SamplingSettings } from './SamplingSettings';
 import { InstructionField, LEGACY_INSTRUCTION_DEFAULT } from './InstructionField';
 import { TrackSettings } from './TrackSettings';
-import { RepaintSettings } from './RepaintSettings';
 import { GuidanceSettings } from './GuidanceSettings';
 import { CotDebugToggles, type CotDebugTogglesValues } from './CotDebugToggles';
 import { LmParametersPanel } from './LmParametersPanel';
@@ -412,7 +411,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const [mp3SampleRate, setMp3SampleRate] = useState(48000);
   const [fadeInDuration, setFadeInDuration] = useState(0.0);
   const [fadeOutDuration, setFadeOutDuration] = useState(0.0);
-  const [repaintMode, setRepaintMode] = useState<'conservative' | 'balanced' | 'aggressive' | 'most_natural'>('balanced');
   const [repaintStrength, setRepaintStrength] = useState(0.5);
 
   const [maxDurationWithLm, setMaxDurationWithLm] = useState(240);
@@ -2032,7 +2030,11 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         mp3SampleRate,
         fadeInDuration: fadeInDuration > 0 ? fadeInDuration : undefined,
         fadeOutDuration: fadeOutDuration > 0 ? fadeOutDuration : undefined,
-        repaintMode: taskType === 'repaint' ? repaintMode : undefined,
+        // Le moteur n'a que trois modes qui ne sont que des paliers de la force :
+        // 0 = conservateur, 1 = agressif, entre les deux = equilibre (comme l'UI Gradio).
+        repaintMode: taskType === 'repaint'
+          ? (repaintStrength <= 0 ? 'conservative' : repaintStrength >= 1 ? 'aggressive' : 'balanced')
+          : undefined,
         repaintStrength: taskType === 'repaint' ? repaintStrength : undefined,
         loraLoaded,
 
@@ -2844,14 +2846,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               audioCoverStrength={audioCoverStrength}
               onAudioCoverStrengthChange={setAudioCoverStrength}
               taskType={taskType}
-              t={t}
-              tf={tf}
-            />
-
-            <RepaintSettings
-              taskType={taskType}
-              repaintMode={repaintMode}
-              onRepaintModeChange={setRepaintMode}
               t={t}
               tf={tf}
             />

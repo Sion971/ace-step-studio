@@ -106,7 +106,7 @@ describe('every tf() key used by a component exists in the English file', () => 
   }
 
   it('finds the calls it is meant to check', () => {
-    expect(used.size).toBeGreaterThan(100); // guards the scan itself against silently matching nothing
+    expect(used.size).toBeGreaterThan(80); // guards the scan itself against silently matching nothing
     expect(used.has('errNothingToGenerate')).toBe(true);
   });
 

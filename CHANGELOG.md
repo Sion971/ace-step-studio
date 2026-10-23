@@ -28,6 +28,7 @@
 - Create page, advanced settings: the Guidance (CFG scheduling) block is now a collapsed panel like LoRA, placed right after Shift, and is hidden on turbo models where it has no effect; the "Audio format" menu sits on the same line as the three other sampling menus.
 - Create page: the DCW quality correction block is now hidden on non-turbo models (it was greyed out and unusable there), and DCW is never sent enabled to a non-turbo model, even if an old saved setting had it on.
 - Create page, advanced settings: removed the duplicates of the AUDIO block (read-only task type, repaint strength and the start/end fields of the region, which were even shown outside repaint mode); only the inpainting mode and the instruction remain. The four sampling menus now keep their selects on one line whatever the width of the panel, even when a title wraps.
+- Repaint: the "Repaint mode" menu is gone from the advanced settings. The engine's three modes are only steps of the strength (0 = conservative, 1 = aggressive, in between = balanced), so the "Strength" slider of the AUDIO block now drives it alone; the help text under it states the direction clearly (0 % = stay close to the original, 100 % = regenerate freely).
 
 ## 2026-10-21
 
