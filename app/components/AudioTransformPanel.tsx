@@ -7,12 +7,6 @@ interface AudioTransformPanelProps {
    *  chargé, la conversion n'a rien à traiter. */
   sourceAudioUrl: string;
 
-  audioCoverStrength: number;
-  onAudioCoverStrengthChange: (value: number) => void;
-
-  /** Sert seulement à masquer la force de reprise en mode repaint. */
-  taskType: string;
-
   t: (key: string) => string;
   tf: (key: string, fallback: string) => string;
 }
@@ -21,20 +15,17 @@ interface AudioTransformPanelProps {
  * Section « Transform » des Contrôles experts : codes audio précalculés
  * (avec les deux actions Convert/Transcribe, non câblées côté serveur —
  * Gradio n'expose pas ces lambdas comme endpoints nommés, voir les
- * commentaires d'origine conservés dans les gestionnaires), et l'accès
- * numérique brut à la force de reprise. Le type de tâche n'est plus rappelé ici :
- * le sélecteur de mode du bloc AUDIO le montre déjà.
+ * commentaires d'origine conservés dans les gestionnaires).
  *
- * Composant présentationnel : `audioCodes` et `audioCoverStrength` restent
- * dans CreatePanel.
+ * La force de reprise et le type de tâche ne sont plus répétés ici : le bloc
+ * AUDIO les propose déjà (curseurs « Force de la reprise audio » et « Fidélité »).
+ *
+ * Composant présentationnel : `audioCodes` reste dans CreatePanel.
  */
 export const AudioTransformPanel: React.FC<AudioTransformPanelProps> = ({
   audioCodes,
   onAudioCodesChange,
   sourceAudioUrl,
-  audioCoverStrength,
-  onAudioCoverStrengthChange,
-  taskType,
   t,
   tf,
 }) => {
@@ -79,27 +70,6 @@ export const AudioTransformPanel: React.FC<AudioTransformPanelProps> = ({
             Transcribe
           </button>
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        {/* Non envoye au serveur pour Repaint (voir CreatePanel.tsx, payload
-            audioCoverStrength) — masque ici pour la meme raison que le
-            curseur equivalent du bloc AUDIO, sinon un champ visible et
-            modifiable enverrait une valeur silencieusement ignoree. */}
-        {taskType !== 'repaint' && (
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintAudioCoverStrength', 'Influence marginale entre 0 et 75 % : la fidelite harmonique et le grain montent tres legerement avec la valeur.')}>{t('audioCoverStrength')}</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              max="1"
-              value={audioCoverStrength}
-              onChange={(e) => onAudioCoverStrengthChange(Number(e.target.value))}
-              className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none"
-            />
-          </div>
-        )}
       </div>
     </>
   );

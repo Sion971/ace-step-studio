@@ -2843,9 +2843,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               audioCodes={audioCodes}
               onAudioCodesChange={setAudioCodes}
               sourceAudioUrl={sourceAudioUrl}
-              audioCoverStrength={audioCoverStrength}
-              onAudioCoverStrengthChange={setAudioCoverStrength}
-              taskType={taskType}
               t={t}
               tf={tf}
             />
