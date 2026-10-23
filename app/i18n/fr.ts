@@ -15,6 +15,8 @@ export const fr = {
     studioLoading: "Chargement de l'éditeur…",
     studioInEditor: "Dans l'éditeur",
     studioAllSongs: "Tous mes morceaux",
+    studioSongCount: "morceaux",
+    studioShowMore: "Afficher plus",
     studioAddInstrument: "Ajouter un instrument",
     studioInstrumentSource: "Morceau",
     studioInstrument: "Instrument",

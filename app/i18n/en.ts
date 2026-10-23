@@ -15,6 +15,8 @@ export const en = {
     studioLoading: "Loading the editor…",
     studioInEditor: "In the editor",
     studioAllSongs: "All my songs",
+    studioSongCount: "songs",
+    studioShowMore: "Show more",
     studioAddInstrument: "Add an instrument",
     studioInstrumentSource: "Song",
     studioInstrument: "Instrument",

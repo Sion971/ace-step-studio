@@ -15,6 +15,8 @@ export const ru = {
     studioLoading: "Загрузка редактора…",
     studioInEditor: "В редакторе",
     studioAllSongs: "Все мои песни",
+    studioSongCount: "песен",
+    studioShowMore: "Показать ещё",
     studioAddInstrument: "Добавить инструмент",
     studioInstrumentSource: "Песня",
     studioInstrument: "Инструмент",

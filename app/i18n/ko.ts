@@ -15,6 +15,8 @@ export const ko = {
     studioLoading: "편집기 불러오는 중…",
     studioInEditor: "편집기에 있음",
     studioAllSongs: "모든 곡",
+    studioSongCount: "곡",
+    studioShowMore: "더 보기",
     studioAddInstrument: "악기 추가",
     studioInstrumentSource: "곡",
     studioInstrument: "악기",

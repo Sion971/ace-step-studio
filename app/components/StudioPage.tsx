@@ -8,6 +8,7 @@ import type { EditorEntry } from './studioBridge';
 import { StudioInstrumentPanel } from './StudioInstrumentPanel';
 import type { StudioInstrumentRequest } from './StudioInstrumentPanel';
 import { TRACK_LABELS } from './TrackPicker';
+import { getModelDisplayName } from '../utils/modelNames';
 
 export type { StudioInstrumentRequest };
 
@@ -28,6 +29,7 @@ interface StudioPageProps {
   onGenerateInstrument?: (req: StudioInstrumentRequest) => Promise<string[]>;
 }
 
+const STUDIO_PAGE = 100;
 const SCOPE_ALL = '__all__';
 const SCOPE_DEFAULT = '__default__';
 
@@ -77,7 +79,11 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
     return workspaceSongs ?? [];
   }, [scope, songs, songsInAnyWorkspace, workspaceSongs]);
 
-  const list = useMemo(() => filterStudioSongs(scoped, query).slice(0, 100), [scoped, query]);
+  const matches = useMemo(() => filterStudioSongs(scoped, query), [scoped, query]);
+  // The list is newest first: a cap with no way past it hid the older songs (made with earlier models).
+  const [shown, setShown] = useState(STUDIO_PAGE);
+  useEffect(() => { setShown(STUDIO_PAGE); }, [scope, query]);
+  const list = useMemo(() => matches.slice(0, shown), [matches, shown]);
 
   // Keep the green marks in step with what is really on the editor's timeline.
   useEffect(() => {
@@ -168,6 +174,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
           <p className="mt-2 text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
             {tf('studioHint', 'Pick a song to open it in the editor, then pick others to stack them as tracks.')}
           </p>
+          <p className="mt-1 text-[10px] text-zinc-400 tabular-nums">{matches.length} {tf('studioSongCount', 'songs')}</p>
           {error && <p className="mt-2 text-[11px] text-red-500">{error}</p>}
         </div>
 
@@ -194,7 +201,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
                   )}
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium text-zinc-900 dark:text-white truncate">{song.title}</span>
-                    <span className="block text-[11px] text-zinc-500 dark:text-zinc-400 truncate">{song.style}</span>
+                    <span className="block text-[11px] text-zinc-500 dark:text-zinc-400 truncate">{song.ditModel ? `${getModelDisplayName(song.ditModel)} · ` : ''}{song.style}</span>
                   </span>
                   <span className="text-[10px] text-zinc-400 tabular-nums flex-shrink-0">{song.duration}</span>
                   {busy ? (
@@ -208,6 +215,17 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
               </li>
             );
           })}
+          {matches.length > list.length && (
+            <li className="p-2">
+              <button
+                type="button"
+                onClick={() => setShown((n) => n + STUDIO_PAGE)}
+                className="w-full py-2 text-xs rounded-lg border border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-white/5"
+              >
+                {tf('studioShowMore', 'Show more')} ({matches.length - list.length})
+              </button>
+            </li>
+          )}
         </ul>
         {onGenerateInstrument && (
           <StudioInstrumentPanel sources={sources} tf={tf} onGenerate={onGenerateInstrument} onResult={addGenerated} getEditorRegion={() => getEditorRegion(frameRef.current)} />

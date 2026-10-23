@@ -15,6 +15,8 @@ export const ja = {
   studioLoading: "エディターを読み込み中…",
   studioInEditor: "エディター内",
   studioAllSongs: "すべての曲",
+  studioSongCount: "曲",
+  studioShowMore: "もっと見る",
   studioAddInstrument: "楽器を追加",
   studioInstrumentSource: "曲",
   studioInstrument: "楽器",

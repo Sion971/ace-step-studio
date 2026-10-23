@@ -15,6 +15,8 @@ export const zh = {
     studioLoading: "正在加载编辑器…",
     studioInEditor: "已在编辑器中",
     studioAllSongs: "所有歌曲",
+    studioSongCount: "首歌曲",
+    studioShowMore: "显示更多",
     studioAddInstrument: "添加乐器",
     studioInstrumentSource: "歌曲",
     studioInstrument: "乐器",
