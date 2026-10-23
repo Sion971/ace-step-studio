@@ -8,7 +8,8 @@ import { config } from '../config/index.js';
 import { getAudioDuration } from './audio-duration.js';
 import { estimateDurationFromLyrics } from './lyrics-duration.js';
 import { describeGenerationArgs } from './generation-log.js';
-import { buildTrackInstruction, isTrackTask, validateTrackTask } from './track-tasks.js';
+import { buildTrackInstruction, isTrackTask, trackCaptionFallback, validateTrackTask } from './track-tasks.js';
+import { clampLevel, mixStemWithSource, shouldMix } from './track-mix.js';
 import { classifyGenerationFailure, friendlyTimeoutMessage, friendlyCudaRestartMessage, CudaFailureTracker } from './generation-errors.js';
 import { aiCover, waitForCoverBeforeGeneration } from './ai-cover.js';
 import { pipelineManager } from './pipeline-manager.js';
@@ -143,7 +144,7 @@ async function prepareAudioFile(audioUrl: string | undefined): Promise<unknown> 
  * gr.State params (is_format_caption, batch states) are handled by Gradio automatically.
  */
 async function buildGradioArgs(params: GenerationParams): Promise<Record<string, unknown>> {
-  const caption = params.style || 'pop music';
+  const caption = params.style || trackCaptionFallback(params.taskType, params.trackName, params.completeTrackClasses) || 'pop music';
   const prompt = params.customMode ? caption : (params.songDescription || caption);
   const lyrics = params.instrumental ? '' : (params.lyrics || '');
   const isThinking = params.thinking ?? false;
@@ -378,6 +379,10 @@ export interface GenerationParams {
   lmBatchChunkSize?: number;
   trackName?: string;
   completeTrackClasses?: string[];
+  /** Lego / Complete : fabriquer aussi un mix (audio source + nouvelle piste). */
+  mixWithSource?: boolean;
+  /** Niveau de la nouvelle piste dans le mix, en % (defaut 80). */
+  mixStemLevel?: number;
   isFormatCaption?: boolean;
 
   // v1.5 XL parameters
@@ -423,6 +428,8 @@ export interface GenerationParams {
 
 interface GenerationResult {
   audioUrls: string[];
+  /** Lego / Complete with a mix: how many of the first audioUrls are the new track alone (the mixes follow). */
+  stemCount?: number;
   duration: number;
   bpm?: number;
   keyScale?: string;
@@ -714,7 +721,7 @@ async function processGenerationViaGradio(
   const args = await buildGradioArgs(params);
   console.log(describeGenerationArgs(args));
 
-  const caption = params.style || 'pop music';
+  const caption = params.style || trackCaptionFallback(params.taskType, params.trackName, params.completeTrackClasses) || 'pop music';
   const prompt = params.customMode ? caption : (params.songDescription || caption);
 
   job.stage = 'generating';
@@ -809,6 +816,29 @@ async function processGenerationViaGradio(
     audioUrls.push(`/audio/${filename}`);
   }
 
+  let stemCount: number | undefined;
+  // Lego / Complete : the engine returns only the NEW track. A second file mixes it with the source audio.
+  if (params.sourceAudioUrl && isTrackTask(params.taskType)) {
+    const sourcePath = resolveAudioPath(params.sourceAudioUrl);
+    const sourceDuration = existsSync(sourcePath) ? getAudioDuration(sourcePath) : 0;
+    if (shouldMix(params, sourceDuration)) {
+      if (!existsSync(sourcePath)) {
+        console.warn(`[Mix] source audio not found on disk (${params.sourceAudioUrl}), no mix made`);
+      } else {
+        const stems = [...audioUrls];
+        stemCount = stems.length;
+        for (let i = 0; i < stems.length; i++) {
+          const ext = path.extname(stems[i]);
+          const mixName = `${jobId}_mix_${i}${ext}`;
+          const ok = await mixStemWithSource(sourcePath, path.join(AUDIO_DIR, path.basename(stems[i])), path.join(AUDIO_DIR, mixName), clampLevel(params.mixStemLevel));
+          if (ok) audioUrls.push(`/audio/${mixName}`);
+        }
+        if (audioUrls.length === stems.length) stemCount = undefined;
+        console.log(`[Mix] ${audioUrls.length - stems.length} mix(es) made at ${clampLevel(params.mixStemLevel)} % of the new track`);
+      }
+    }
+  }
+
   // Parse metadata from generation details if available
   const metas = parseGenerationDetails(genDetails);
 
@@ -821,6 +851,7 @@ async function processGenerationViaGradio(
   job.status = 'succeeded';
   job.result = {
     audioUrls,
+    stemCount,
     duration: finalDuration,
     bpm: metas.bpm || params.bpm,
     keyScale: metas.keyScale || params.keyScale,

@@ -63,6 +63,8 @@ export interface Comment {
 }
 
 export interface GenerationParams {
+  mixWithSource?: boolean;
+  mixStemLevel?: number;
   // Mode
   customMode: boolean;
 

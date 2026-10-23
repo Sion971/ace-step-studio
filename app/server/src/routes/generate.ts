@@ -232,6 +232,8 @@ interface GenerateBody {
   lmBatchChunkSize?: number;
   trackName?: string;
   completeTrackClasses?: string[];
+  mixWithSource?: boolean;
+  mixStemLevel?: number;
   isFormatCaption?: boolean;
 
   // v1.5 XL parameters
@@ -397,6 +399,8 @@ router.post('/', authMiddleware, async (req: AuthenticatedRequest, res: Response
       lmBatchChunkSize,
       trackName,
       completeTrackClasses,
+      mixWithSource,
+      mixStemLevel,
       isFormatCaption,
       coverNoiseStrength,
       samplerMode,
@@ -502,6 +506,8 @@ router.post('/', authMiddleware, async (req: AuthenticatedRequest, res: Response
       lmBatchChunkSize,
       trackName,
       completeTrackClasses,
+      mixWithSource,
+      mixStemLevel,
       isFormatCaption,
       coverNoiseStrength,
       samplerMode,
@@ -633,7 +639,12 @@ router.get('/status/:jobId', authMiddleware, async (req: AuthenticatedRequest, r
 
             for (let i = 0; i < audioUrls.length; i++) {
               const audioUrl = audioUrls[i];
-              const variationSuffix = audioUrls.length > 1 ? ` (v${i + 1})` : '';
+              // Lego / Complete with a mix: first the new track alone (stemCount of them), then the mixes.
+              const stemCount: number = aceStatus.result.stemCount ?? 0;
+              const hasMix = stemCount > 0 && audioUrls.length > stemCount;
+              const variationSuffix = hasMix
+                ? ` (${i < stemCount ? 'stem' : 'mix'}${stemCount > 1 ? ` v${(i % stemCount) + 1}` : ''})`
+                : (audioUrls.length > 1 ? ` (v${i + 1})` : '');
               const songTitle = autoTitle(params) + variationSuffix;
 
               const songId = generateUUID();

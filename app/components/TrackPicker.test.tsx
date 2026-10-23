@@ -11,7 +11,7 @@ function mount(props: Partial<React.ComponentProps<typeof TrackPicker>>) {
   const el = document.createElement('div');
   document.body.appendChild(el);
   const root = createRoot(el);
-  const base = { mode: 'lego' as const, trackName: '', onTrackNameChange: vi.fn(), completeTrackClasses: '', onCompleteTrackClassesChange: vi.fn(), hasAudio: true, modelIsBase: true, tf };
+  const base = { mode: 'lego' as const, trackName: '', onTrackNameChange: vi.fn(), completeTrackClasses: '', onCompleteTrackClassesChange: vi.fn(), hasAudio: true, modelIsBase: true, mixWithSource: true, onMixWithSourceChange: vi.fn(), mixLevel: 80, onMixLevelChange: vi.fn(), tf };
   act(() => root.render(<TrackPicker {...base} {...props} />));
   return { el, root };
 }
@@ -26,6 +26,20 @@ describe('TrackPicker', () => {
   it('lego: warns when no audio is loaded', () => {
     const { el, root } = mount({ hasAudio: false });
     expect(el.textContent).toContain('Load a source audio first');
+    act(() => root.unmount());
+  });
+  it('lego: shows the mix option and the guards (short region, partial region, empty style)', () => {
+    const { el, root } = mount({ regionTooShort: true, regionPartial: true, styleEmpty: true });
+    expect(el.textContent).toContain('Also make a mix with the original');
+    expect(el.textContent).toContain('80%');
+    expect(el.textContent).toContain('shorter than 3 s');
+    expect(el.textContent).toContain('covers the whole audio');
+    expect(el.textContent).toContain('Describe the track in Style');
+    act(() => root.unmount());
+  });
+  it('extract: no mix option', () => {
+    const { el, root } = mount({ mode: 'extract' });
+    expect(el.textContent).not.toContain('Also make a mix');
     act(() => root.unmount());
   });
   it('complete: toggles tracks into the comma list', () => {

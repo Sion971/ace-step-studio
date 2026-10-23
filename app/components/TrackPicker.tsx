@@ -33,6 +33,16 @@ interface TrackPickerProps {
   onCompleteTrackClassesChange: (value: string) => void;
   hasAudio: boolean;
   modelIsBase: boolean;
+  /** Lego et Complete : fabriquer aussi un mix avec l'audio source (le moteur ne rend que la nouvelle piste). */
+  mixWithSource: boolean;
+  onMixWithSourceChange: (value: boolean) => void;
+  mixLevel: number;
+  onMixLevelChange: (value: number) => void;
+  /** Lego : la region choisie fait moins de 3 s (limite du moteur) ; ou ne couvre pas tout l'audio (pas de mix dans ce cas). */
+  regionTooShort?: boolean;
+  regionPartial?: boolean;
+  /** Style est vide : seule la piste demandee part comme description. */
+  styleEmpty?: boolean;
   tf: (key: string, fallback: string) => string;
 }
 
@@ -43,7 +53,8 @@ interface TrackPickerProps {
  * Composant présentationnel : les deux états restent dans CreatePanel.
  */
 export const TrackPicker: React.FC<TrackPickerProps> = ({
-  mode, trackName, onTrackNameChange, completeTrackClasses, onCompleteTrackClassesChange, hasAudio, modelIsBase, tf,
+  mode, trackName, onTrackNameChange, completeTrackClasses, onCompleteTrackClassesChange, hasAudio, modelIsBase,
+  mixWithSource, onMixWithSourceChange, mixLevel, onMixLevelChange, regionTooShort, regionPartial, styleEmpty, tf,
 }) => {
   const selected = completeTrackClasses.split(',').map((s) => s.trim()).filter(Boolean);
   const label = (name: (typeof TRACK_NAMES)[number]) => tf(TRACK_LABELS[name][0], TRACK_LABELS[name][1]);
@@ -87,6 +98,29 @@ export const TrackPicker: React.FC<TrackPickerProps> = ({
           ))}
         </select>
       )}
+      {mode !== 'extract' && (
+        <div className="space-y-1.5 pt-1">
+          <label className="flex items-start gap-2 text-[11px] text-zinc-600 dark:text-zinc-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={mixWithSource}
+              onChange={(e) => onMixWithSourceChange(e.target.checked)}
+              className="mt-0.5 w-3.5 h-3.5 rounded accent-pink-500"
+            />
+            <span>{tf('trackMixLabel', 'Also make a mix with the original (the new track alone is kept too)')}</span>
+          </label>
+          {mixWithSource && (
+            <div className="flex items-center gap-2 pl-5">
+              <span className="text-[10px] text-zinc-500 dark:text-zinc-400 flex-shrink-0">{tf('trackMixLevel', 'Level of the new track in the mix')}</span>
+              <input type="range" min={0} max={150} step={5} value={mixLevel} onChange={(e) => onMixLevelChange(Number(e.target.value))} className="flex-1 h-1 accent-pink-500 cursor-pointer" />
+              <span className="text-[10px] text-zinc-500 tabular-nums w-9 text-right">{mixLevel}%</span>
+            </div>
+          )}
+          {mixWithSource && mode === 'lego' && regionPartial && <p className="text-[10px] text-amber-500">{tf('trackMixPartial', 'The mix is made only when the region covers the whole audio.')}</p>}
+        </div>
+      )}
+      {mode === 'lego' && regionTooShort && <p className="text-[10px] text-amber-500">{tf('trackRegionShort', 'The region is shorter than 3 s: the engine needs at least 3 s to work with.')}</p>}
+      {styleEmpty && <p className="text-[10px] text-amber-500">{tf('trackStyleEmpty', 'Describe the track in Style (in English, e.g. "clean funky electric guitar, rhythmic chord stabs"): otherwise only its name is sent.')}</p>}
       {!modelIsBase && <p className="text-[10px] text-amber-500">{tf('trackNeedsBase', 'This mode needs a pure base model (for example XL Base), not a turbo or SFT one.')}</p>}
       {!hasAudio && <p className="text-[10px] text-amber-500">{tf('trackNeedsAudio', 'Load a source audio first: without it this task cannot start.')}</p>}
       {mode === 'complete' && selected.length === 0 && <p className="text-[10px] text-zinc-400">{tf('trackNeedsChoice', 'Choose at least one track.')}</p>}

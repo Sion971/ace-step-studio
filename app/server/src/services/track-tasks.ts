@@ -71,3 +71,10 @@ export const validateTrackTask = (p: TrackTaskInput): string | null => {
   }
   return null;
 };
+
+/** Description de repli quand Style est vide : la piste demandée plutôt que « pop music », qui n'a aucun rapport avec une tâche par piste. */
+export const trackCaptionFallback = (taskType?: string, trackName?: string, trackClasses?: string[]): string => {
+  if (!isTrackTask(taskType)) return '';
+  const names = taskType === 'complete' ? (trackClasses || []) : [trackName || ''];
+  return names.map((n) => n.trim().replace(/_/g, ' ')).filter(Boolean).join(', ');
+};

@@ -471,6 +471,8 @@ export interface GenerationParams {
   lmBatchChunkSize?: number;
   trackName?: string;
   completeTrackClasses?: string[];
+  mixWithSource?: boolean;
+  mixStemLevel?: number;
   isFormatCaption?: boolean;
 
   // v1.5 XL parameters

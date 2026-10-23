@@ -392,6 +392,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const [lmBatchChunkSize, setLmBatchChunkSize] = useState(8);
   const [trackName, setTrackName] = useState('');
   const [completeTrackClasses, setCompleteTrackClasses] = useState('');
+  // Lego / Complete : le moteur ne rend que la nouvelle piste ; un mix avec l'audio source est fabrique en plus par le serveur.
+  const [mixWithSource, setMixWithSource] = useState(true);
+  const [mixStemLevel, setMixStemLevel] = useState(80);
   const [isFormatCaption, setIsFormatCaption] = useState(false);
 
   // v1.5 XL parameters
@@ -1556,6 +1559,10 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const isTrackMode = audioMode === 'lego' || audioMode === 'extract' || audioMode === 'complete';
   const isLegoMode = audioMode === 'lego';
   const modelIsBase = isPureBaseModel(selectedModel);
+  // Region de travail du Lego : le moteur veut 3 s au moins ; un mix n'est fait que si elle couvre tout l'audio.
+  const legoRegionEnd = repaintingEnd < 0 ? sourceDuration : repaintingEnd;
+  const legoRegionTooShort = isLegoMode && legoRegionEnd > 0 && legoRegionEnd - repaintingStart < 3;
+  const legoRegionPartial = isLegoMode && (repaintingStart > 0.05 || (repaintingEnd >= 0 && sourceDuration > 0 && repaintingEnd < sourceDuration - 0.1));
   const trackModeBlock: string | null = !isTrackMode ? null
     : !modelIsBase ? tf('trackNeedsBase', 'This mode needs a pure base model (for example XL Base), not a turbo or SFT one.')
     : !sourceAudioUrl.trim() ? tf('trackNeedsAudio', 'Load a source audio first: without it this task cannot start.')
@@ -2024,6 +2031,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         getLrc,
         scoreScale,
         lmBatchChunkSize,
+        mixWithSource: (taskType === 'lego' || taskType === 'complete') ? mixWithSource : undefined,
+        mixStemLevel: (taskType === 'lego' || taskType === 'complete') ? mixStemLevel : undefined,
         trackName: (taskType === 'lego' || taskType === 'extract') ? (trackName.trim() || undefined) : undefined,
         completeTrackClasses: taskType !== 'complete' ? undefined : (() => {
           const parsed = completeTrackClasses
@@ -2336,6 +2345,13 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                   onCompleteTrackClassesChange={setCompleteTrackClasses}
                   hasAudio={!!sourceAudioUrl.trim()}
                   modelIsBase={modelIsBase}
+                  mixWithSource={mixWithSource}
+                  onMixWithSourceChange={setMixWithSource}
+                  mixLevel={mixStemLevel}
+                  onMixLevelChange={setMixStemLevel}
+                  regionTooShort={legoRegionTooShort}
+                  regionPartial={legoRegionPartial}
+                  styleEmpty={!style.trim()}
                   tf={tf}
                 />
               )}
