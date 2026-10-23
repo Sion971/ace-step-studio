@@ -2675,6 +2675,25 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               title={tf('hintShift', 'Spreads the denoising steps. Turbo models use 3 with 8 steps; base and SFT models use 1 with about 50 steps.')}
             />
 
+            {/* Planification du guidage (CFG) : repliée, masquée en turbo. */}
+            <GuidanceSettings
+              cfgIntervalStart={cfgIntervalStart}
+              onCfgIntervalStartChange={setCfgIntervalStart}
+              cfgIntervalEnd={cfgIntervalEnd}
+              onCfgIntervalEndChange={setCfgIntervalEnd}
+              customTimesteps={customTimesteps}
+              onCustomTimestepsChange={setCustomTimesteps}
+              scoreScale={scoreScale}
+              onScoreScaleChange={setScoreScale}
+              lmBatchChunkSize={lmBatchChunkSize}
+              onLmBatchChunkSizeChange={setLmBatchChunkSize}
+              useAdg={useAdg}
+              onUseAdgChange={setUseAdg}
+              turbo={turboActive}
+              t={t}
+              tf={tf}
+            />
+
             {/* Échantillonnage, sampler/scheduler et DCW — voir
                 SamplingSettings.tsx. Les neuf états restent ici : ils sont
                 lus à la construction de la charge utile. */}
@@ -2848,23 +2867,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               onInstructionChange={handleInstructionChange}
               taskType={taskType}
               showStaleWarning={instructionMayBeStale}
-              t={t}
-              tf={tf}
-            />
-
-            <GuidanceSettings
-              cfgIntervalStart={cfgIntervalStart}
-              onCfgIntervalStartChange={setCfgIntervalStart}
-              cfgIntervalEnd={cfgIntervalEnd}
-              onCfgIntervalEndChange={setCfgIntervalEnd}
-              customTimesteps={customTimesteps}
-              onCustomTimestepsChange={setCustomTimesteps}
-              scoreScale={scoreScale}
-              onScoreScaleChange={setScoreScale}
-              lmBatchChunkSize={lmBatchChunkSize}
-              onLmBatchChunkSizeChange={setLmBatchChunkSize}
-              useAdg={useAdg}
-              onUseAdgChange={setUseAdg}
               t={t}
               tf={tf}
             />

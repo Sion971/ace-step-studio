@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { ChevronDown, Sliders } from 'lucide-react';
 
 interface GuidanceSettingsProps {
   cfgIntervalStart: number;
@@ -16,6 +17,9 @@ interface GuidanceSettingsProps {
    *  CotDebugToggles, pas ici. */
   useAdg: boolean;
   onUseAdgChange: (value: boolean) => void;
+  /** Modèle turbo : le moteur impose guidance_scale = 1, donc tout ce bloc
+   *  (préréglages, intervalle CFG…) est sans effet — on ne l'affiche pas. */
+  turbo?: boolean;
   t: (key: string) => string;
   tf: (key: string, fallback: string) => string;
 }
@@ -43,9 +47,13 @@ export const GuidanceSettings: React.FC<GuidanceSettingsProps> = ({
   onLmBatchChunkSizeChange,
   useAdg,
   onUseAdgChange,
+  turbo = false,
   t,
   tf,
 }) => {
+  const [open, setOpen] = useState(false);
+  if (turbo) return null;
+
   const presets = [
     { label: t('presetDefault'), cfg: [0, 1], ts: '', score: 0.5, adg: false, desc: t('presetDefaultDesc') },
     { label: t('presetCleanVocals'), cfg: [0, 0.5], ts: '', score: 0.5, adg: false, desc: t('presetCleanVocalsDesc') },
@@ -57,8 +65,21 @@ export const GuidanceSettings: React.FC<GuidanceSettingsProps> = ({
 
   return (
     <>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between px-4 py-3 bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Sliders size={16} className="text-zinc-500" />
+          <span>{t('guidance')}</span>
+        </div>
+        <ChevronDown size={16} className={`text-zinc-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+      <div className="bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 p-4 space-y-4">
       <div className="space-y-1">
-        <h4 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">{t('guidance')}</h4>
         <p className="text-[11px] text-zinc-400 dark:text-zinc-500">{t('advancedCfgScheduling')}</p>
         {/* Presets */}
         <div className="grid grid-cols-3 gap-1.5 pt-1">
@@ -148,6 +169,8 @@ export const GuidanceSettings: React.FC<GuidanceSettingsProps> = ({
           />
         </div>
       </div>
+      </div>
+      )}
     </>
   );
 };

@@ -71,7 +71,7 @@ export const SamplingSettings: React.FC<SamplingSettingsProps> = ({
         {/* Audio Format, Inference Method, Sampler, Scheduler */}
         <div className="grid grid-cols-4 gap-3">
           <div className="space-y-1.5">
-            <label className="block text-center text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('audioFormat')}</label>
+            <label className="block min-h-[2rem] text-center text-xs leading-4 font-medium text-zinc-600 dark:text-zinc-400">{t('audioFormat')}</label>
             <select
               value={audioFormat}
               title={`${t('mp3Smaller')} / ${t('flacLossless')}`}
@@ -83,7 +83,7 @@ export const SamplingSettings: React.FC<SamplingSettingsProps> = ({
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="block text-center text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('inferMethod')}</label>
+            <label className="block min-h-[2rem] text-center text-xs leading-4 font-medium text-zinc-600 dark:text-zinc-400">{t('inferMethod')}</label>
             <select
               value={inferMethod}
               onChange={(e) => {
@@ -99,7 +99,7 @@ export const SamplingSettings: React.FC<SamplingSettingsProps> = ({
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="block text-center text-xs font-medium text-zinc-600 dark:text-zinc-400">{tf('samplerMode', 'Sampler')}</label>
+            <label className="block min-h-[2rem] text-center text-xs leading-4 font-medium text-zinc-600 dark:text-zinc-400">{tf('samplerMode', 'Sampler')}</label>
             <select
               value={samplerMode}
               onChange={(e) => {
@@ -131,7 +131,7 @@ export const SamplingSettings: React.FC<SamplingSettingsProps> = ({
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="block text-center text-xs font-medium text-zinc-600 dark:text-zinc-400">{tf('schedulerType', 'Scheduler')}</label>
+            <label className="block min-h-[2rem] text-center text-xs leading-4 font-medium text-zinc-600 dark:text-zinc-400">{tf('schedulerType', 'Scheduler')}</label>
             <select
               value={schedulerType}
               onChange={(e) => {
