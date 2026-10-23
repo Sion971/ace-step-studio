@@ -37,6 +37,7 @@
 - Region fields (Repaint / Lego): the arrows of the start and end fields no longer climb past the end of the audio; typed or stepped values are kept between 0 and the length of the loaded audio (and the end never goes before the start).
 - Server terminal: the `[Generate]` line shows the region of a Lego / Repaint (`region=0-end`), and a `[Mix] no mix made: ...` line says why no mix was built (option off, region that does not cover the whole source, ...).
 - Mix with the original (Lego / Complete): the option and its level were dropped on the way to the server (App.tsx rebuilt the request without them), so no mix was ever made; they are now forwarded.
+- Guidance: Lego, Extract and Complete on a base model start at 5 instead of 7 (measured on an XL Base: 5 gives the fewest artefacts, below 4.5 the track loses the thread). It works in both orders, mode first then model or model first then mode (changing the model used to put 7 back); a value changed by hand is never overwritten, and leaving the per-track modes puts 7 back only if 5 is still the value the Studio had set.
 
 ## 2026-10-21
 

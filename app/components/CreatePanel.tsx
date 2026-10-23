@@ -16,6 +16,7 @@ import { VoiceRecorder } from './VoiceRecorder';
 import { LmSettings } from './LmSettings';
 import { ModelMenu } from './ModelMenu';
 import { isTurboModel, isPureBaseModel } from '../utils/modelNames';
+import { defaultGuidance, isTrackAudioMode, BASE_GUIDANCE, TRACK_TASK_GUIDANCE } from '../utils/guidanceDefaults';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Sparkles, ChevronDown, Settings2, Trash2, Music2, Sliders, Dices, RefreshCw, Plus, Upload, Play, Pause, Loader2, Disc3, Undo2, Wand2, Square, Scissors, Repeat, Gauge, Layers, ArrowRightToLine, Library, Blocks, Split, Puzzle } from 'lucide-react';
 import { AudioWaveform } from './AudioWaveform';
@@ -707,6 +708,10 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // captured when the drag started.
   const lyricsHeightRef = useRef(lyricsHeight);
 
+  // True while the guidance was set to the per-track start value by the Studio (and not touched by the user since):
+  // only then does leaving the per-track modes put the usual base value back.
+  const guidanceAutoRef = useRef(false);
+
   // Auto-adjust LM backend and params when model changes (including initial load)
   // Auto-adjust ALL model-dependent settings (including initial load)
   //
@@ -732,7 +737,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     // Steps & guidance
     if (turbo) {
       setInferenceSteps(8);
-      setGuidanceScale(0.0);
+      guidanceAutoRef.current = false;
+      setGuidanceScale(defaultGuidance(true, false));
       setUseAdg(false);
       setShift(3.0); // the turbo schedule is built for shift 3 (8 steps)
       // Turbo: only euler + linear
@@ -740,7 +746,10 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       setSchedulerType('linear');
     } else {
       setInferenceSteps(50);
-      setGuidanceScale(7.0);
+      // A per-track task (Lego...) on a base model starts lower, whichever came first: the mode or the model.
+      const trackStart = isTrackAudioMode(audioMode) && isPureBaseModel(selectedModel);
+      guidanceAutoRef.current = trackStart;
+      setGuidanceScale(defaultGuidance(false, trackStart));
       setUseAdg(true);
       setShift(1.0); // base and SFT: even schedule (about 50 steps)
     }
@@ -751,6 +760,21 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       setLmBackend('vllm');
     }
   }, [selectedModel]);
+
+  // Entering Lego / Extract / Complete on a base model: guidance 5 (instead of 7), unless the user already changed it.
+  // Leaving them: back to 7, only if 5 is still the value the Studio put there. Updaters keep this safe next to the model effect.
+  useEffect(() => {
+    if (isTrackAudioMode(audioMode) && isPureBaseModel(selectedModel)) {
+      setGuidanceScale((prev) => {
+        if (prev !== BASE_GUIDANCE) return prev;
+        guidanceAutoRef.current = true;
+        return TRACK_TASK_GUIDANCE;
+      });
+    } else if (guidanceAutoRef.current) {
+      guidanceAutoRef.current = false;
+      setGuidanceScale((prev) => (prev === TRACK_TASK_GUIDANCE ? BASE_GUIDANCE : prev));
+    }
+  }, [audioMode, selectedModel]);
 
   // Auto-disable thinking and ADG when LoRA is loaded
   useEffect(() => {
@@ -779,7 +803,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         if (data.time_signature !== undefined) setTimeSignature(data.time_signature);
         if (data.duration !== undefined) setDuration(data.duration);
         if (data.inference_steps !== undefined) setInferenceSteps(data.inference_steps);
-        if (data.guidance_scale !== undefined) setGuidanceScale(data.guidance_scale);
+        if (data.guidance_scale !== undefined) { guidanceAutoRef.current = false; setGuidanceScale(data.guidance_scale); }
         if (data.audio_format !== undefined) setAudioFormat(data.audio_format);
         if (data.infer_method !== undefined) setInferMethod(data.infer_method);
         if (data.seed !== undefined) { setSeed(data.seed); setRandomSeed(false); }
@@ -831,7 +855,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       if (p.timeSignature) setTimeSignature(p.timeSignature);
       if (p.duration && p.duration > 0) setDuration(p.duration);
       if (p.inferenceSteps) setInferenceSteps(p.inferenceSteps);
-      if (p.guidanceScale !== undefined) setGuidanceScale(p.guidanceScale);
+      if (p.guidanceScale !== undefined) { guidanceAutoRef.current = false; setGuidanceScale(p.guidanceScale); }
       if (p.seed !== undefined && p.seed >= 0) { setSeed(p.seed); setRandomSeed(false); }
       if (p.shift !== undefined) setShift(p.shift);
       if (p.thinking !== undefined) setThinking(p.thinking);
@@ -2739,7 +2763,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               min={0}
               max={selectedModel.includes('merge') ? 100 : 20}
               step={0.1}
-              onChange={setGuidanceScale}
+              onChange={(v) => { guidanceAutoRef.current = false; setGuidanceScale(v); }}
               formatDisplay={(val) => val.toFixed(1)}
               helpText={t('howCloselyFollowPrompt')}
               title={tf('hintGuidanceScale', 'How strongly the model follows the prompt. Higher = stricter, lower = freer. 0 = no guidance (turbo).')}
