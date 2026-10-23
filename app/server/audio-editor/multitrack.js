@@ -696,7 +696,12 @@
 		function addTrack ( index ) {
 			var prev = cloneState ();
 			var tr = makeTrack ();
-			tr.name = 'Channel ' + (tracks.length + 1);
+			// First free "Channel N": counting the tracks gave the same name twice once a middle one had been deleted.
+			var taken = {};
+			for (var ni = 0; ni < tracks.length; ++ni) taken[tracks[ni].name] = true;
+			var next_n = 1;
+			while (taken['Channel ' + next_n]) ++next_n;
+			tr.name = 'Channel ' + next_n;
 			if (index === undefined) tracks.push ( tr );
 			else tracks.splice ( Math.max (0, Math.min (index, tracks.length)), 0, tr );
 			selected_track = tr.id;

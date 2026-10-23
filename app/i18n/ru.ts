@@ -14,6 +14,7 @@ export const ru = {
     studioLoadError: "Не удалось загрузить этот трек в редактор.",
     studioLoading: "Загрузка редактора…",
     studioInEditor: "В редакторе",
+    studioAllSongs: "Все мои песни",
 
     // Tools
     toolsDescription: 'Утилиты для конвертации и управления моделями',

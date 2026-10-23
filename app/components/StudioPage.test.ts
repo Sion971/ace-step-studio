@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { filterStudioSongs } from './StudioPage';
-import { editorFileName } from './studioBridge';
+import { editorFileName, syncEditorEntries } from './studioBridge';
 import type { Song } from '../types';
 
 const song = (over: Partial<Song>): Song => ({
@@ -32,5 +32,34 @@ describe('editorFileName', () => {
   });
   it('falls back to mp3 and to a name when there is none', () => {
     expect(editorFileName('', '/audio/blob')).toBe('Audio.mp3');
+  });
+});
+
+describe('filterStudioSongs robustness', () => {
+  it('does not throw when tags is a string or missing, or style is missing', () => {
+    const odd = [
+      song({ id: 'a', title: 'A', tags: 'funk, rock' as unknown as string[] }),
+      song({ id: 'b', title: 'B', tags: undefined, style: undefined as unknown as string }),
+    ];
+    expect(filterStudioSongs(odd, 'funk').map((s) => s.id)).toEqual(['a']);
+    expect(filterStudioSongs(odd, 'b').map((s) => s.id)).toEqual(['b']);
+  });
+});
+
+describe('syncEditorEntries', () => {
+  const e = (id: string, name: string, addedAt: number, seen = false) => ({ id, name, addedAt, seen });
+  it('confirms an entry once its clip is on the timeline', () => {
+    expect(syncEditorEntries([e('1', 'A.flac', 0)], ['A.flac'], 1000)[0].seen).toBe(true);
+  });
+  it('removes a confirmed entry whose clip is gone', () => {
+    expect(syncEditorEntries([e('1', 'A.flac', 0, true)], [], 1000)).toEqual([]);
+  });
+  it('keeps a fresh entry that has not shown up yet, drops it after the grace period', () => {
+    expect(syncEditorEntries([e('1', 'A.flac', 0)], [], 1000)).toHaveLength(1);
+    expect(syncEditorEntries([e('1', 'A.flac', 0)], [], 30000)).toHaveLength(0);
+  });
+  it('matches the same song added twice clip by clip', () => {
+    const out = syncEditorEntries([e('1', 'A.flac', 0, true), e('2', 'A.flac', 5, true)], ['A.flac'], 1000);
+    expect(out.map((x) => x.id)).toEqual(['1']);
   });
 });

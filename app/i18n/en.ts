@@ -14,6 +14,7 @@ export const en = {
     studioLoadError: "Could not load this song into the editor.",
     studioLoading: "Loading the editor…",
     studioInEditor: "In the editor",
+    studioAllSongs: "All my songs",
 
     // Tools
     toolsDescription: 'Utilities for model conversion and management',

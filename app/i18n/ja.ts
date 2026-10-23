@@ -14,6 +14,7 @@ export const ja = {
   studioLoadError: "この曲をエディターに読み込めませんでした。",
   studioLoading: "エディターを読み込み中…",
   studioInEditor: "エディター内",
+  studioAllSongs: "すべての曲",
 
   // Tools
   toolsDescription: 'モデルの変換・管理ツール',

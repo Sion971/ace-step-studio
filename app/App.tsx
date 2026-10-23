@@ -1819,6 +1819,23 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     }
   }, [token]);
 
+  // Songs of one named workspace, for the Studio tab's workspace selector.
+  const loadStudioWorkspaceSongs = useCallback(async (workspaceId: string): Promise<Song[]> => {
+    if (!token) return [];
+    const res = await playlistsApi.getPlaylist(workspaceId, token);
+    return (res.songs || []).map((s: any): Song => ({
+      id: s.id,
+      title: s.title,
+      lyrics: s.lyrics || '',
+      style: s.style || '',
+      coverUrl: s.cover_url || s.coverUrl || getCoverUrl(s.id),
+      duration: s.duration && s.duration > 0 ? `${Math.floor(s.duration / 60)}:${String(Math.floor(s.duration % 60)).padStart(2, '0')}` : '0:00',
+      createdAt: parseServerDate(s.created_at),
+      tags: s.tags || [],
+      audioUrl: getAudioUrl(s.audio_url, s.id),
+    }));
+  }, [token]);
+
   const handleSelectWorkspace = async (workspace: Playlist) => {
     setActiveWorkspaceFilter(workspace);
     setActiveWorkspaceSongIds(null); // vide pendant le chargement
@@ -2067,7 +2084,14 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         return <NewsPage />;
 
       case 'studio':
-        return <StudioPage songs={songs} />;
+        return (
+          <StudioPage
+            songs={songs}
+            workspaces={workspaces.map(w => ({ id: w.id, name: w.name }))}
+            songsInAnyWorkspace={songsInAnyWorkspace}
+            loadWorkspaceSongs={loadStudioWorkspaceSongs}
+          />
+        );
 
       case 'create':
       default:

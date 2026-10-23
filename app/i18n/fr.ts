@@ -14,6 +14,7 @@ export const fr = {
     studioLoadError: "Impossible de charger ce morceau dans l'éditeur.",
     studioLoading: "Chargement de l'éditeur…",
     studioInEditor: "Dans l'éditeur",
+    studioAllSongs: "Tous mes morceaux",
 
     // Tools
     toolsDescription: 'Utilitaires pour la conversion et la gestion de modèles',

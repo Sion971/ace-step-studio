@@ -47,3 +47,44 @@ export function addTrackToEditor(frame: HTMLIFrameElement | null, file: File): b
   api.fireEvent('RequestAddTrackFile', file);
   return true;
 }
+
+/** Names of the clips currently in the editor's timeline, or null when it cannot be read. */
+export function listEditorClipNames(frame: HTMLIFrameElement | null): string[] | null {
+  try {
+    const doc = frame?.contentDocument;
+    if (!doc || !getEditorApi(frame)) return null;
+    return Array.from(doc.querySelectorAll('.pk_mt_clip')).map((el) => {
+      const last = el.lastElementChild;
+      return (last ? last.textContent : el.textContent)?.trim() ?? '';
+    });
+  } catch {
+    return null;
+  }
+}
+
+export interface EditorEntry {
+  id: string;
+  name: string;
+  addedAt: number;
+  seen: boolean;
+}
+
+/**
+ * Keeps the "already in the editor" marks truthful: an entry is confirmed once its clip shows up in the
+ * timeline, removed when a confirmed clip is gone (track deleted), and given up if it never showed up.
+ * The same song added twice is matched clip by clip.
+ */
+export function syncEditorEntries(entries: EditorEntry[], clipNames: string[], now: number, graceMs = 20000): EditorEntry[] {
+  const remaining = [...clipNames];
+  const out: EditorEntry[] = [];
+  for (const e of entries) {
+    const idx = remaining.indexOf(e.name);
+    if (idx >= 0) {
+      remaining.splice(idx, 1);
+      out.push(e.seen ? e : { ...e, seen: true });
+    } else if (!e.seen && now - e.addedAt < graceMs) {
+      out.push(e);
+    }
+  }
+  return out;
+}

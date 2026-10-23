@@ -14,6 +14,7 @@ export const zh = {
     studioLoadError: "无法将这首歌曲载入编辑器。",
     studioLoading: "正在加载编辑器…",
     studioInEditor: "已在编辑器中",
+    studioAllSongs: "所有歌曲",
 
     // Tools
     toolsDescription: '模型转换和管理工具',

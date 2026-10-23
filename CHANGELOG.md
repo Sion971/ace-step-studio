@@ -39,6 +39,7 @@
 - Mix with the original (Lego / Complete): the option and its level were dropped on the way to the server (App.tsx rebuilt the request without them), so no mix was ever made; they are now forwarded.
 - Guidance: Lego, Extract and Complete on a base model start at 5 instead of 7 (measured on an XL Base: 5 gives the fewest artefacts, below 4.5 the track loses the thread). It works in both orders, mode first then model or model first then mode (changing the model used to put 7 back); a value changed by hand is never overwritten, and leaving the per-track modes puts 7 back only if 5 is still the value the Studio had set.
 - New "Studio" tab (menu, `/studio`): the audio editor shown inside the app, with a search bar over your songs (title, style, tags). A click on a song puts it on a new track of the editor, so several songs can be stacked and mixed. The editor got a small entry point for it (`RequestAddTrackFile`: the file goes on the first empty track, or on a new one). First step towards adding generated instruments to a song from this tab.
+- Studio tab fixes: typing in the search bar no longer blanks the screen (a song whose tags are a plain text crashed the filter); the green mark next to a song follows the editor (it goes away when the track is deleted); a selector chooses "All my songs", "My Workspace" or a named workspace; a new track in the editor takes the first free "Channel N" name instead of repeating one after a track was deleted.
 
 ## 2026-10-21
 

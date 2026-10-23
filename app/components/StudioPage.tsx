@@ -1,24 +1,41 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Plus, Check, Music } from 'lucide-react';
 import { Song } from '../types';
 import { useI18n } from '../context/I18nContext';
 import type { TranslationKey } from '../i18n/translations';
-import { addTrackToEditor, editorFileName, waitForEditor } from './studioBridge';
+import { addTrackToEditor, editorFileName, listEditorClipNames, syncEditorEntries, waitForEditor } from './studioBridge';
+import type { EditorEntry } from './studioBridge';
+
+interface StudioWorkspace {
+  id: string;
+  name: string;
+}
 
 interface StudioPageProps {
   songs: Song[];
+  /** Named workspaces; the default one ("My Workspace") is virtual and handled here. */
+  workspaces?: StudioWorkspace[];
+  /** Ids of the songs that belong to a named workspace (the default workspace is what is left over). */
+  songsInAnyWorkspace?: Set<string>;
+  /** Loads the songs of one named workspace. */
+  loadWorkspaceSongs?: (workspaceId: string) => Promise<Song[]>;
 }
+
+const SCOPE_ALL = '__all__';
+const SCOPE_DEFAULT = '__default__';
+
+const asText = (v: unknown): string => (Array.isArray(v) ? v.join(' ') : v == null ? '' : String(v));
 
 /** Songs that can be opened in the editor: finished, with an audio file. Newest first. */
 export function filterStudioSongs(songs: Song[], query: string): Song[] {
   const q = query.trim().toLowerCase();
   return songs
     .filter((s) => !s.isGenerating && !!s.audioUrl)
-    .filter((s) => !q || `${s.title} ${s.style} ${(s.tags || []).join(' ')}`.toLowerCase().includes(q))
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    .filter((s) => !q || `${asText(s.title)} ${asText(s.style)} ${asText(s.tags)}`.toLowerCase().includes(q))
+    .sort((a, b) => (new Date(b.createdAt).getTime() || 0) - (new Date(a.createdAt).getTime() || 0));
 }
 
-export const StudioPage: React.FC<StudioPageProps> = ({ songs }) => {
+export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs }) => {
   const { t } = useI18n();
   const tf = useCallback((key: string, fallback: string): string => {
     const value = t(key as TranslationKey);
@@ -27,11 +44,47 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs }) => {
 
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const [query, setQuery] = useState('');
-  const [inEditor, setInEditor] = useState<string[]>([]);
+  const [scope, setScope] = useState<string>(SCOPE_ALL);
+  const [workspaceSongs, setWorkspaceSongs] = useState<Song[] | null>(null);
+  const [entries, setEntries] = useState<(EditorEntry & { songId: string })[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const list = useMemo(() => filterStudioSongs(songs, query).slice(0, 100), [songs, query]);
+  useEffect(() => {
+    if (scope === SCOPE_ALL || scope === SCOPE_DEFAULT || !loadWorkspaceSongs) {
+      setWorkspaceSongs(null);
+      return;
+    }
+    let cancelled = false;
+    setWorkspaceSongs(null);
+    loadWorkspaceSongs(scope)
+      .then((res) => { if (!cancelled) setWorkspaceSongs(res); })
+      .catch((e) => { console.error('[Studio] could not load the workspace songs', e); if (!cancelled) setWorkspaceSongs([]); });
+    return () => { cancelled = true; };
+  }, [scope, loadWorkspaceSongs]);
+
+  const scoped = useMemo(() => {
+    if (scope === SCOPE_ALL) return songs;
+    if (scope === SCOPE_DEFAULT) return songs.filter((s) => !songsInAnyWorkspace?.has(s.id));
+    return workspaceSongs ?? [];
+  }, [scope, songs, songsInAnyWorkspace, workspaceSongs]);
+
+  const list = useMemo(() => filterStudioSongs(scoped, query).slice(0, 100), [scoped, query]);
+
+  // Keep the green marks in step with what is really on the editor's timeline.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const names = listEditorClipNames(frameRef.current);
+      if (!names) return;
+      setEntries((prev) => {
+        if (prev.length === 0) return prev;
+        const next = syncEditorEntries(prev, names, Date.now()) as (EditorEntry & { songId: string })[];
+        const same = next.length === prev.length && next.every((e, i) => e === prev[i]);
+        return same ? prev : next;
+      });
+    }, 800);
+    return () => clearInterval(timer);
+  }, []);
 
   const addSong = useCallback(async (song: Song) => {
     if (!song.audioUrl || busyId) return;
@@ -44,7 +97,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs }) => {
       const file = new File([blob], editorFileName(song.title, song.audioUrl), { type: blob.type });
       const api = await waitForEditor(frameRef.current);
       if (!api || !addTrackToEditor(frameRef.current, file)) throw new Error('editor not ready');
-      setInEditor((prev) => (prev.includes(song.id) ? prev : [...prev, song.id]));
+      setEntries((prev) => [...prev, { id: `${song.id}:${Date.now()}`, songId: song.id, name: file.name, addedAt: Date.now(), seen: false }]);
     } catch (e) {
       console.error('[Studio] could not add the song to the editor', e);
       setError(tf('studioLoadError', 'Could not load this song into the editor.'));
@@ -67,6 +120,17 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs }) => {
               className="w-full pl-8 pr-3 py-2 text-sm rounded-lg bg-zinc-100 dark:bg-black/30 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-pink-500"
             />
           </div>
+          {(workspaces.length > 0 || loadWorkspaceSongs) && (
+            <select
+              value={scope}
+              onChange={(e) => setScope(e.target.value)}
+              className="mt-2 w-full px-2 py-1.5 text-xs rounded-lg bg-zinc-100 dark:bg-black/30 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500"
+            >
+              <option value={SCOPE_ALL}>{tf('studioAllSongs', 'All my songs')}</option>
+              <option value={SCOPE_DEFAULT}>{tf('myWorkspace', 'My Workspace')}</option>
+              {workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </select>
+          )}
           <p className="mt-2 text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
             {tf('studioHint', 'Pick a song to open it in the editor, then pick others to stack them as tracks.')}
           </p>
@@ -78,7 +142,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs }) => {
             <li className="p-4 text-sm text-zinc-500 text-center">{tf('studioEmpty', 'No song found')}</li>
           )}
           {list.map((song) => {
-            const added = inEditor.includes(song.id);
+            const added = entries.some((e) => e.songId === song.id);
             const busy = busyId === song.id;
             return (
               <li key={song.id}>

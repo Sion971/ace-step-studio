@@ -14,6 +14,7 @@ export const ko = {
     studioLoadError: "이 곡을 편집기에 불러오지 못했습니다.",
     studioLoading: "편집기 불러오는 중…",
     studioInEditor: "편집기에 있음",
+    studioAllSongs: "모든 곡",
 
     // Tools
     toolsDescription: '모델 변환 및 관리 유틸리티',
