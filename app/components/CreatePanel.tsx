@@ -39,6 +39,7 @@ import { llmStorage } from '../services/llm/storage';
 import type { SongDraft } from '../services/llm/types';
 import { aiCoverStorage } from '../services/cover/settings';
 import { buildCoverPrompt } from '../services/cover/prompts';
+import { formatTimeSignature } from '../services/timeSignature';
 
 interface ReferenceTrack {
   id: string;
@@ -2555,7 +2556,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               >
                 <option value="">Auto</option>
                 {TIME_SIGNATURES.filter(t => t).map(time => (
-                  <option key={time} value={time}>{time}</option>
+                  <option key={time} value={time}>{formatTimeSignature(time)}</option>
                 ))}
               </select>
             </div>

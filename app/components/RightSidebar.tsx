@@ -8,6 +8,7 @@ import { SongDropdownMenu } from './SongDropdownMenu';
 import { ShareModal } from './ShareModal';
 import { StemSeparationModal } from './StemSeparationModal';
 import { AlbumCover } from './AlbumCover';
+import { formatTimeSignature } from '../services/timeSignature';
 
 interface RightSidebarProps {
     song: Song | null;
@@ -534,7 +535,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
                             ['LM', song.lmModel ? `${song.lmModel.replace('acestep-5Hz-lm-', '')} (${song.lmBackend || 'pt'})` : undefined],
                             ['BPM', song.bpm && song.bpm > 0 ? song.bpm : undefined],
                             ['Key', song.keyScale],
-                            ['Time', song.timeSignature],
+                            ['Time', formatTimeSignature(song.timeSignature) || undefined],
                             ['Duration', song.duration && song.duration !== '0:00' ? song.duration : undefined],
                             ['Steps', p.inferenceSteps],
                             ['Guidance', p.guidanceScale != null ? p.guidanceScale : undefined],
