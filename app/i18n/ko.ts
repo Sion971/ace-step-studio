@@ -1247,6 +1247,7 @@ export const ko = {
     loraHubScale: "강도: {{value}}",
     loraHubSteps: "단계: {{value}}",
     loraHubGuidance: "가이던스: {{value}}",
+    loraHubGuidanceTurbo: "가이던스: {{value}} (turbo 모델에서는 무시됨)",
     loraHubShift: "시프트: {{value}}",
     loraHubInstall: "설치",
     loraHubInstalled: "설치됨",

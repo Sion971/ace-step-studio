@@ -16,6 +16,7 @@ import { Sliders, ChevronDown, Library, Check, Copy } from 'lucide-react';
 import { generateApi } from '../services/api';
 import { EditableSlider } from './EditableSlider';
 import { LoraCatalogModal } from './LoraCatalogModal';
+import { isTurboModel } from '../utils/modelNames';
 import { loraHubApi, recommendedParts, scaleFor, trainedParts, type InstalledLoraDto } from '../services/loraHub';
 import { fillTemplate } from '../utils/fillTemplate';
 
@@ -344,7 +345,7 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
           </button>
 
           {/* Mot declencheur et reglages du LoRA choisi, quand le catalogue les a notes */}
-          {selectedInfo && (selectedInfo.triggerWord || selectedInfo.training || recommendedParts(selectedInfo.recommended, t).length > 0) && (
+          {selectedInfo && (selectedInfo.triggerWord || selectedInfo.training || recommendedParts(selectedInfo.recommended, t, isTurboModel(selectedModel)).length > 0) && (
             <div data-testid="lora-selected-info" className="rounded-lg bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 p-2.5 space-y-1.5 text-[11px]">
               {selectedInfo.triggerWord && (
                 <div className="space-y-1">
@@ -363,10 +364,10 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
                   <div className="text-zinc-500">{t('loraHubTriggerHint')}</div>
                 </div>
               )}
-              {recommendedParts(selectedInfo.recommended, t).length > 0 && (
+              {recommendedParts(selectedInfo.recommended, t, isTurboModel(selectedModel)).length > 0 && (
                 <div className="text-zinc-500">
                   <span className="font-medium">{t('loraHubRecommended')} — </span>
-                  {recommendedParts(selectedInfo.recommended, t).join(' · ')}
+                  {recommendedParts(selectedInfo.recommended, t, isTurboModel(selectedModel)).join(' · ')}
                 </div>
               )}
               {selectedInfo.training && (

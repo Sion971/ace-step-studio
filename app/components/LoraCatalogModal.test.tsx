@@ -87,7 +87,7 @@ describe('LoraCatalogModal', () => {
     expect(q('hub-entry-lofi')?.textContent).toContain('Verified 2026-10-07');
     expect(q('hub-trigger-lofi')?.textContent).toBe('roti-l0f1y');
     expect(q('hub-entry-lofi')?.textContent).toContain('License not declared');
-    expect(q('hub-entry-lofi')?.textContent).toContain('Scale: 0.8 · Steps: 8 · Guidance: 7 · Shift: 3');
+    expect(q('hub-entry-lofi')?.textContent).toContain('Scale: 0.8 · Steps: 8 · Guidance: 7 (ignored by turbo models) · Shift: 3');
   });
 
   it('asks the server with the loaded model and the memory', async () => {

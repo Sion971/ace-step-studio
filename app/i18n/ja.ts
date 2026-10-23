@@ -1247,6 +1247,7 @@ export const ja = {
     loraHubScale: "スケール: {{value}}",
     loraHubSteps: "ステップ数: {{value}}",
     loraHubGuidance: "ガイダンス: {{value}}",
+    loraHubGuidanceTurbo: "ガイダンス: {{value}}（turbo モデルでは無視されます）",
     loraHubShift: "シフト: {{value}}",
     loraHubInstall: "インストール",
     loraHubInstalled: "インストール済み",

@@ -1281,6 +1281,7 @@ export const fr = {
     loraHubScale: "Échelle : {{value}}",
     loraHubSteps: "Étapes : {{value}}",
     loraHubGuidance: "Guidage : {{value}}",
+    loraHubGuidanceTurbo: "Guidage : {{value}} (ignoré par les modèles turbo)",
     loraHubShift: "Shift : {{value}}",
     loraHubInstall: "Installer",
     loraHubInstalled: "Installé",

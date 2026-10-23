@@ -159,7 +159,7 @@ describe('LoraPanel and the catalog', () => {
     const info = q('lora-selected-info');
     expect(info?.textContent).toContain('roti-l0f1y');
     expect(info?.textContent).toContain('Add this word to your prompt to bring out the style (the author\'s recommendation).');
-    expect(info?.textContent).toContain('Scale: 0.8 · Steps: 8 · Guidance: 7 · Shift: 3');
+    expect(info?.textContent).toContain('Scale: 0.8 · Steps: 8 · Guidance: 7 (ignored by turbo models) · Shift: 3');
   });
 
   it('shows nothing of the kind for a LoRA that was trained here: it has no such file', async () => {

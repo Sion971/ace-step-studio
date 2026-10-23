@@ -14,7 +14,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import { Check, Copy, Download, Library, Link2, Loader2, ShieldCheck, TriangleAlert, X } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
-import { getModelDisplayName } from '../utils/modelNames';
+import { getModelDisplayName, isTurboModel } from '../utils/modelNames';
 import { fillTemplate } from '../utils/fillTemplate';
 import {
   canUse,
@@ -336,7 +336,7 @@ export const LoraCatalogModal: React.FC<Props> = ({ token, onClose, onUse, onIns
     const justInstalled = view?.job?.state === 'done';
     const installed = entry.installed;
     const usable = canUse(entry);
-    const recommended = recommendedParts(entry.recommended, t);
+    const recommended = recommendedParts(entry.recommended, t, isTurboModel(context?.activeModel ?? ''));
     return (
       <div key={entry.id} data-testid={`hub-entry-${entry.id}`} className="rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-black/20 p-3 space-y-2">
         <div className="flex items-start justify-between gap-3">

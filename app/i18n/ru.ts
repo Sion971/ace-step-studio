@@ -1258,6 +1258,7 @@ export const ru = {
     loraHubScale: "Масштаб: {{value}}",
     loraHubSteps: "Шагов: {{value}}",
     loraHubGuidance: "Управление: {{value}}",
+    loraHubGuidanceTurbo: "Управление: {{value}} (turbo-модели его игнорируют)",
     loraHubShift: "Сдвиг: {{value}}",
     loraHubInstall: "Установить",
     loraHubInstalled: "Установлено",

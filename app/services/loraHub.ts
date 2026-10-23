@@ -350,12 +350,13 @@ export function scaleFor(installed: Pick<InstalledLoraDto, 'recommended'>): numb
 /** "Use" is offered once installed, unless the loaded model cannot take it at all. */
 export const canUse = (entry: Pick<CatalogEntryDto, 'installed' | 'compatibility'>): boolean => entry.installed !== null && entry.compatibility.verdict !== 'incompatible';
 
-/** The settings an author recommends, as short labelled values; what is not recommended is left out. */
-export function recommendedParts(recommended: RecommendedDto, t: T): string[] {
+/** The settings an author recommends, as short labelled values; what is not recommended is left out. `turbo`: the model in use is a turbo one. */
+export function recommendedParts(recommended: RecommendedDto, t: T, turbo = false): string[] {
   const parts: string[] = [];
   if (recommended.scale !== null) parts.push(fillTemplate(t('loraHubScale'), { value: recommended.scale }));
   if (recommended.steps !== null) parts.push(fillTemplate(t('loraHubSteps'), { value: recommended.steps }));
-  if (recommended.guidance !== null) parts.push(fillTemplate(t('loraHubGuidance'), { value: recommended.guidance }));
+  // A turbo model has its guidance built in and the engine forces it to 1.0: the author's figure only counts for a base or SFT model.
+  if (recommended.guidance !== null) parts.push(fillTemplate(t(turbo ? 'loraHubGuidanceTurbo' : 'loraHubGuidance'), { value: recommended.guidance }));
   if (recommended.shift !== null) parts.push(fillTemplate(t('loraHubShift'), { value: recommended.shift }));
   return parts;
 }

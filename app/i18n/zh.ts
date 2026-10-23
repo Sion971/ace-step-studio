@@ -1247,6 +1247,7 @@ export const zh = {
     loraHubScale: "强度：{{value}}",
     loraHubSteps: "步数：{{value}}",
     loraHubGuidance: "引导：{{value}}",
+    loraHubGuidanceTurbo: "引导：{{value}}（turbo 模型会忽略）",
     loraHubShift: "偏移：{{value}}",
     loraHubInstall: "安装",
     loraHubInstalled: "已安装",

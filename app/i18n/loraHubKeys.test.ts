@@ -40,6 +40,7 @@ const KEYS = [
   'loraHubScale',
   'loraHubSteps',
   'loraHubGuidance',
+  'loraHubGuidanceTurbo',
   'loraHubShift',
   'loraHubInstall',
   'loraHubInstalled',

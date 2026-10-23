@@ -161,6 +161,11 @@ describe('what to do with an installed LoRA', () => {
     expect(recommendedParts({ scale: 0.8, steps: 32, guidance: null, shift: null }, t)).toEqual(['Scale: 0.8', 'Steps: 32']);
     expect(recommendedParts({ scale: null, steps: null, guidance: null, shift: null }, t)).toEqual([]);
   });
+  it('says that a turbo model ignores the recommended guidance, and only for a turbo model', () => {
+    expect(recommendedParts({ scale: 1, steps: 8, guidance: 7, shift: 3 }, t, true)).toEqual(['Scale: 1', 'Steps: 8', 'Guidance: 7 (ignored by turbo models)', 'Shift: 3']);
+    expect(recommendedParts({ scale: 1, steps: 8, guidance: 7, shift: 3 }, t, false)).toContain('Guidance: 7');
+    expect(recommendedParts({ scale: 1, steps: 8, guidance: null, shift: 3 }, t, true)).toEqual(['Scale: 1', 'Steps: 8', 'Shift: 3']);
+  });
 });
 
 // ------------------------------------------------------------------------------------------------------------------- the client --
