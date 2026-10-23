@@ -11,6 +11,11 @@ export interface StudioInstrumentRequest {
   style: string;
   model: string;
   guidance: number;
+  /** Tempo and key given to the engine (as typed; absent = left to the engine). */
+  bpm?: number;
+  keyScale?: string;
+  /** Fixed seed; absent = a random one. */
+  seed?: number;
   /** Part of the song to work on, in seconds; absent = the whole song. */
   region?: { start: number; end: number };
   onProgress?: (progress: number | undefined, stage?: string) => void;
@@ -41,6 +46,9 @@ export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate
   const [trackName, setTrackName] = useState<string>('keyboard');
   const [style, setStyle] = useState('');
   const [guidance, setGuidance] = useState(5);
+  const [bpm, setBpm] = useState('');
+  const [keyScale, setKeyScale] = useState('');
+  const [seed, setSeed] = useState('');
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<number | undefined>(undefined);
   const [phase, setPhase] = useState<string | undefined>(undefined);
@@ -63,6 +71,14 @@ export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate
   }, []);
 
   const source = useMemo(() => sources.find((s) => s.id === sourceId) ?? sources[sources.length - 1], [sources, sourceId]);
+
+  // The tempo and key of the chosen song fill the fields; they can be corrected (a wrong value there spoils Lego).
+  const sourceKey = source?.id;
+  useEffect(() => {
+    setBpm(source?.bpm ? String(source.bpm) : '');
+    setKeyScale(source?.keyScale || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceKey]);
 
   const sourceSeconds = source ? durationToSeconds(source.duration) : 0;
   const regionOf = (): { start: number; end: number } | undefined => {
@@ -89,7 +105,7 @@ export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate
     setProgress(undefined);
     setPhase(undefined);
     try {
-      const urls = await onGenerate({ song: source, trackName, style: style.trim(), model, guidance, region, onProgress: (p, stage) => { setProgress(p); setPhase(stage); } });
+      const urls = await onGenerate({ song: source, trackName, style: style.trim(), model, guidance, region, bpm: Number(bpm) > 0 ? Number(bpm) : undefined, keyScale: keyScale.trim() || undefined, seed: seed.trim() !== '' && Number.isFinite(Number(seed)) ? Math.max(0, Math.floor(Number(seed))) : undefined, onProgress: (p, stage) => { setProgress(p); setPhase(stage); } });
       if (urls.length === 0) throw new Error('no audio');
       await onResult(source, trackName, urls, region);
     } catch (e) {
@@ -145,6 +161,20 @@ export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate
               {tf('studioInstrumentRegionNote', 'Only this part is generated; the new track is placed at its start.')}
             </p>
           )}
+          <div className="flex gap-1.5">
+            <div className="w-14">
+              <label className={label}>{tf('studioInstrumentBpm', 'BPM')}</label>
+              <input type="text" inputMode="numeric" className={field} value={bpm} onChange={(e) => setBpm(e.target.value)} placeholder="auto" disabled={busy} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <label className={label}>{tf('studioInstrumentKey', 'Key')}</label>
+              <input type="text" className={field} value={keyScale} onChange={(e) => setKeyScale(e.target.value)} placeholder="G major" disabled={busy} />
+            </div>
+            <div className="w-24">
+              <label className={label}>{tf('studioInstrumentSeed', 'Seed')}</label>
+              <input type="text" inputMode="numeric" className={field} value={seed} onChange={(e) => setSeed(e.target.value)} placeholder={tf('studioInstrumentSeedRandom', 'random')} disabled={busy} />
+            </div>
+          </div>
           <div className="flex gap-2">
             <div className="flex-1 min-w-0">
               <label className={label}>{tf('studioInstrumentModel', 'Model')}</label>

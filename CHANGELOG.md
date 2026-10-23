@@ -46,6 +46,7 @@
 - Studio tab: a "Select" button over the song list lets you tick several songs (or "Select all shown") and delete them at once, with the usual confirmation.
 - Removed from the advanced settings: the "Instruction" field (the server already picks the right instruction for each task, and a text left over from another mode could silently spoil a generation) and the "Convert to Codes" / "Transcribe" buttons (they only wrote to the browser console).
 - Studio tab, "Add an instrument": the "Selection" button takes the selected range, or, when there is none, the span of the selected clip. Also puts back the editor's own `GetRegion` (a previous change had replaced it by a copy without the loop flag); the Studio uses a separate `GetStudioRange`.
+- Studio tab, "Add an instrument": BPM, key and seed fields. The tempo and key of the chosen song fill them and can be corrected (a wrong tempo or key stored with the song, e.g. 50 bpm for a track that is really around 85, made Lego produce noise); empty = left to the engine. A typed seed makes a run repeatable; empty = random.
 
 ## 2026-10-21
 

@@ -52,4 +52,20 @@ describe('StudioInstrumentPanel', () => {
     expect(onGenerate.mock.calls[0][0]).toMatchObject({ trackName: 'keyboard', guidance: 5, model: 'acestep-v15-xl-base' });
     expect(onResult).toHaveBeenCalledWith(song, 'keyboard', ['/audio/stem.flac'], undefined);
   });
+
+  it('fills the tempo and key from the song and sends them, with the seed when one is typed', async () => {
+    const onGenerate = vi.fn().mockResolvedValue(['/audio/stem.flac']);
+    const withMeta = { ...song, bpm: 85, keyScale: 'G major' } as Song;
+    await mount([{ name: 'acestep-v15-xl-base', is_active: true }], { sources: [withMeta], onGenerate });
+    const inputs = Array.from(host!.querySelectorAll('input')) as HTMLInputElement[];
+    expect(inputs.some((i) => i.value === '85')).toBe(true);
+    expect(inputs.some((i) => i.value === 'G major')).toBe(true);
+    const seedInput = inputs.find((i) => i.placeholder === 'random')!;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+    await act(async () => { setter.call(seedInput, '2900000000'); seedInput.dispatchEvent(new Event('input', { bubbles: true })); });
+    const button = Array.from(host!.querySelectorAll('button')).find((b) => b.textContent?.includes('Generate and add as a track'))!;
+    await act(async () => { button.click(); });
+    await flush();
+    expect(onGenerate.mock.calls[0][0]).toMatchObject({ bpm: 85, keyScale: 'G major', seed: 2900000000 });
+  });
 });
