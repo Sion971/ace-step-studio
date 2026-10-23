@@ -36,10 +36,10 @@ export const ko = {
     studioInstrumentRegion: "곡의 일부(초, 비우면 전체)",
     studioInstrumentFrom: "시작",
     studioInstrumentTo: "끝",
-    studioInstrumentUseSelection: "편집기의 선택 영역 사용",
+    studioInstrumentUseSelection: "선택 영역 또는 선택한 클립 사용",
     studioInstrumentUseSelectionShort: "선택 영역",
     studioInstrumentRegionNote: "이 부분만 생성되며 새 트랙은 그 시작 위치에 놓입니다.",
-    studioInstrumentNoSelection: "편집기에서 선택된 구간이 없습니다. 먼저 타임라인을 드래그하세요.",
+    studioInstrumentNoSelection: "편집기에서 선택된 항목이 없습니다. 파형을 드래그하거나 클립을 클릭하세요.",
     studioInstrumentLoadingModel: "Base 모델 불러오는 중…",
 
     // Tools

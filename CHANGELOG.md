@@ -45,6 +45,7 @@
 - Studio tab: the song list was cut at the 100 newest songs, so the older ones (made with earlier models) could only be reached by searching. It now shows how many songs match, a "Show more" button adds 100 at a time, and each row names the model the song was made with.
 - Studio tab: a "Select" button over the song list lets you tick several songs (or "Select all shown") and delete them at once, with the usual confirmation.
 - Removed from the advanced settings: the "Instruction" field (the server already picks the right instruction for each task, and a text left over from another mode could silently spoil a generation) and the "Convert to Codes" / "Transcribe" buttons (they only wrote to the browser console).
+- Studio tab, "Add an instrument": the "Selection" button takes the selected range, or, when there is none, the span of the selected clip. Also puts back the editor's own `GetRegion` (a previous change had replaced it by a copy without the loop flag); the Studio uses a separate `GetStudioRange`.
 
 ## 2026-10-21
 

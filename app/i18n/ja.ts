@@ -36,10 +36,10 @@ export const ja = {
   studioInstrumentRegion: "曲の一部（秒、空欄＝全体）",
   studioInstrumentFrom: "開始",
   studioInstrumentTo: "終了",
-  studioInstrumentUseSelection: "エディターの選択範囲を使う",
+  studioInstrumentUseSelection: "選択範囲、またはクリップを使う",
   studioInstrumentUseSelectionShort: "選択範囲",
   studioInstrumentRegionNote: "この部分だけ生成し、新しいトラックはその先頭に配置します。",
-  studioInstrumentNoSelection: "エディターで何も選択されていません。先にタイムラインをドラッグしてください。",
+  studioInstrumentNoSelection: "エディターで何も選択されていません。波形をドラッグするか、クリップをクリックしてください。",
   studioInstrumentLoadingModel: "Baseモデルを読み込み中…",
 
   // Tools

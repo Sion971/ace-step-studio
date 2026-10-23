@@ -76,7 +76,7 @@ export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate
 
   const useEditorSelection = () => {
     const r = getEditorRegion?.();
-    if (!r) { setError(tf('studioInstrumentNoSelection', 'Nothing is selected in the editor: drag on the timeline first.')); return; }
+    if (!r) { setError(tf('studioInstrumentNoSelection', 'Nothing is selected in the editor: drag over the waveform, or click a clip.')); return; }
     setError(null);
     setRegionStart(r.start.toFixed(1));
     setRegionEnd(r.end.toFixed(1));
@@ -136,7 +136,7 @@ export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate
           <div className="flex gap-1.5 items-center">
             <input type="text" inputMode="decimal" className={field} value={regionStart} onChange={(e) => setRegionStart(e.target.value)} placeholder={tf('studioInstrumentFrom', 'from')} disabled={busy} />
             <input type="text" inputMode="decimal" className={field} value={regionEnd} onChange={(e) => setRegionEnd(e.target.value)} placeholder={tf('studioInstrumentTo', 'to')} disabled={busy} />
-            <button type="button" onClick={useEditorSelection} disabled={busy} title={tf('studioInstrumentUseSelection', 'Use the selection of the editor')} className="flex-shrink-0 px-2 py-1.5 text-[11px] rounded-lg border border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-white/5 disabled:opacity-60">
+            <button type="button" onClick={useEditorSelection} disabled={busy} title={tf('studioInstrumentUseSelection', 'Use the selected range, or the selected clip')} className="flex-shrink-0 px-2 py-1.5 text-[11px] rounded-lg border border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-white/5 disabled:opacity-60">
               {tf('studioInstrumentUseSelectionShort', 'Selection')}
             </button>
           </div>

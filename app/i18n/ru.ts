@@ -36,10 +36,10 @@ export const ru = {
     studioInstrumentRegion: "Часть песни (секунды, пусто = вся песня)",
     studioInstrumentFrom: "от",
     studioInstrumentTo: "до",
-    studioInstrumentUseSelection: "Взять выделение из редактора",
+    studioInstrumentUseSelection: "Взять выделение или выбранный клип",
     studioInstrumentUseSelectionShort: "Выделение",
     studioInstrumentRegionNote: "Генерируется только эта часть; новая дорожка ставится в её начало.",
-    studioInstrumentNoSelection: "В редакторе ничего не выделено: сначала выделите участок на таймлайне.",
+    studioInstrumentNoSelection: "В редакторе ничего не выбрано: выделите участок волны или щёлкните по клипу.",
     studioInstrumentLoadingModel: "Загрузка модели Base…",
 
     // Tools

@@ -5304,9 +5304,13 @@
 		q.GetRegion = function () { return region; };
 		q.HasClips = hasClips;
 		q.Mixdown = Mixdown;
-		// Studio tab: the selected time range, {start, end} in seconds, or null.
-		q.GetRegion = function () {
-			return region ? { start: region.start, end: region.end } : null;
+		// Studio tab: the time range to work on, {start, end, from} in seconds, or null. The selected range if there is one,
+		// else the span of the selected clip. (GetRegion above is used by other parts of the editor: it must stay as it is.)
+		q.GetStudioRange = function () {
+			if (region) return { start: region.start, end: region.end, from: 'region' };
+			var clip = selected_clip ? findClip ( selected_clip ) : null;
+			if (clip) return { start: clip.start, end: clipEnd ( clip ), from: 'clip' };
+			return null;
 		};
 		q.MixdownAsync = MixdownAsync;
 		q.GetTempoBuffer = GetTempoBuffer;

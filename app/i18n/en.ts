@@ -36,10 +36,10 @@ export const en = {
     studioInstrumentRegion: "Part of the song (seconds, empty = whole song)",
     studioInstrumentFrom: "from",
     studioInstrumentTo: "to",
-    studioInstrumentUseSelection: "Use the selection of the editor",
+    studioInstrumentUseSelection: "Use the selected range, or the selected clip",
     studioInstrumentUseSelectionShort: "Selection",
     studioInstrumentRegionNote: "Only this part is generated; the new track is placed at its start.",
-    studioInstrumentNoSelection: "Nothing is selected in the editor: drag on the timeline first.",
+    studioInstrumentNoSelection: "Nothing is selected in the editor: drag over the waveform, or click a clip.",
     studioInstrumentLoadingModel: "Loading the Base model…",
 
     // Tools

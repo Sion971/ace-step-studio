@@ -36,10 +36,10 @@ export const zh = {
     studioInstrumentRegion: "歌曲片段（秒，留空＝整首）",
     studioInstrumentFrom: "从",
     studioInstrumentTo: "到",
-    studioInstrumentUseSelection: "使用编辑器中的选区",
+    studioInstrumentUseSelection: "使用选区或所选片段",
     studioInstrumentUseSelectionShort: "选区",
     studioInstrumentRegionNote: "仅生成该片段；新音轨放在片段起点。",
-    studioInstrumentNoSelection: "编辑器中没有选区：请先在时间轴上拖动选择。",
+    studioInstrumentNoSelection: "编辑器中没有选择：请在波形上拖动，或点击一个片段。",
     studioInstrumentLoadingModel: "正在加载 Base 模型…",
 
     // Tools

@@ -3,7 +3,7 @@
 
 export interface EditorWindow extends Window {
   PKAudioEditor?: {
-    multitrack?: { GetRegion?: () => { start: number; end: number } | null };
+    multitrack?: { GetStudioRange?: () => { start: number; end: number; from: 'region' | 'clip' } | null };
     fireEvent: (name: string, ...args: unknown[]) => unknown;
   };
 }
@@ -95,10 +95,10 @@ export function durationToSeconds(text: string | undefined): number {
   return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
 }
 
-/** The time range selected in the editor ({start, end} in seconds), or null when nothing is selected. */
+/** The time range to work on in the editor ({start, end} in seconds): the selected range, else the span of the selected clip, else null. */
 export function getEditorRegion(frame: HTMLIFrameElement | null): { start: number; end: number } | null {
   try {
-    const r = getEditorApi(frame)?.multitrack?.GetRegion?.();
+    const r = getEditorApi(frame)?.multitrack?.GetStudioRange?.();
     return r && r.end > r.start ? { start: r.start, end: r.end } : null;
   } catch {
     return null;

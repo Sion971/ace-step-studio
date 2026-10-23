@@ -36,10 +36,10 @@ export const fr = {
     studioInstrumentRegion: "Partie du morceau (secondes, vide = tout le morceau)",
     studioInstrumentFrom: "de",
     studioInstrumentTo: "à",
-    studioInstrumentUseSelection: "Reprendre la sélection de l'éditeur",
+    studioInstrumentUseSelection: "Reprendre la plage sélectionnée, ou le clip sélectionné",
     studioInstrumentUseSelectionShort: "Sélection",
     studioInstrumentRegionNote: "Seule cette partie est générée ; la nouvelle piste est placée à son début.",
-    studioInstrumentNoSelection: "Rien n'est sélectionné dans l'éditeur : fais d'abord glisser la souris sur la timeline.",
+    studioInstrumentNoSelection: "Rien n'est sélectionné dans l'éditeur : fais glisser la souris sur l'onde, ou clique sur un clip.",
     studioInstrumentLoadingModel: "Chargement du modèle Base…",
 
     // Tools
