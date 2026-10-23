@@ -70,8 +70,8 @@ export const SamplingSettings: React.FC<SamplingSettingsProps> = ({
     <>
         {/* Audio Format, Inference Method, Sampler, Scheduler */}
         <div className="grid grid-cols-4 gap-3">
-          <div className="space-y-1.5">
-            <label className="block min-h-[2rem] text-center text-xs leading-4 font-medium text-zinc-600 dark:text-zinc-400">{t('audioFormat')}</label>
+          <div className="flex flex-col justify-end gap-1.5">
+            <label className="block w-min mx-auto text-center text-xs leading-4 font-medium text-zinc-600 dark:text-zinc-400">{t('audioFormat')}</label>
             <select
               value={audioFormat}
               title={`${t('mp3Smaller')} / ${t('flacLossless')}`}
@@ -82,8 +82,8 @@ export const SamplingSettings: React.FC<SamplingSettingsProps> = ({
               <option value="flac" title={t('flacLossless')}>FLAC</option>
             </select>
           </div>
-          <div className="space-y-1.5">
-            <label className="block min-h-[2rem] text-center text-xs leading-4 font-medium text-zinc-600 dark:text-zinc-400">{t('inferMethod')}</label>
+          <div className="flex flex-col justify-end gap-1.5">
+            <label className="block w-min mx-auto text-center text-xs leading-4 font-medium text-zinc-600 dark:text-zinc-400">{t('inferMethod')}</label>
             <select
               value={inferMethod}
               onChange={(e) => {
@@ -98,8 +98,8 @@ export const SamplingSettings: React.FC<SamplingSettingsProps> = ({
               <option value="sde">{t('sdeStochastic')}</option>
             </select>
           </div>
-          <div className="space-y-1.5">
-            <label className="block min-h-[2rem] text-center text-xs leading-4 font-medium text-zinc-600 dark:text-zinc-400">{tf('samplerMode', 'Sampler')}</label>
+          <div className="flex flex-col justify-end gap-1.5">
+            <label className="block text-center text-xs leading-4 font-medium text-zinc-600 dark:text-zinc-400">{tf('samplerMode', 'Sampler')}</label>
             <select
               value={samplerMode}
               onChange={(e) => {
@@ -130,8 +130,8 @@ export const SamplingSettings: React.FC<SamplingSettingsProps> = ({
               )}
             </select>
           </div>
-          <div className="space-y-1.5">
-            <label className="block min-h-[2rem] text-center text-xs leading-4 font-medium text-zinc-600 dark:text-zinc-400">{tf('schedulerType', 'Scheduler')}</label>
+          <div className="flex flex-col justify-end gap-1.5">
+            <label className="block text-center text-xs leading-4 font-medium text-zinc-600 dark:text-zinc-400">{tf('schedulerType', 'Scheduler')}</label>
             <select
               value={schedulerType}
               onChange={(e) => {
@@ -160,89 +160,83 @@ export const SamplingSettings: React.FC<SamplingSettingsProps> = ({
         </div>
 
         {/* DCW (Differential Correction in Wavelet domain) — CVPR 2026 quality boost.
-            Grise pour les modeles non-turbo : dcwEnabled=true y produit un
-            son deforme/granuleux (voir TROUBLESHOOTING #11). Le message
-            explique pourquoi plutot que de laisser un controle
-            mysterieusement inaccessible — un utilisateur qui ne connait pas
-            cette limite ne devinerait pas la raison d'un simple grisage. */}
-        <div className={`rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50/50 dark:bg-black/10 p-3 space-y-2 ${!turboActive ? 'opacity-60' : ''}`}>
-          <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={dcwEnabled}
-              onChange={(e) => onDcwEnabledChange(e.target.checked)}
-              disabled={!turboActive}
-              className="w-3.5 h-3.5 rounded accent-pink-500 disabled:cursor-not-allowed"
-            />
-            {tf('dcwEnabledLabel', 'DCW Quality Correction')}
-          </label>
-          {!turboActive && (
-            <p className="text-[11px] text-zinc-500 dark:text-zinc-500">
-              {tf('dcwTurboOnlyNotice', 'Disponible uniquement pour les modeles turbo — produit un son deforme sur les autres.')}
-            </p>
-          )}
-          {dcwEnabled && (
-            <>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[11px] text-zinc-600 dark:text-zinc-400">{tf('dcwModeLabel', 'Mode')}</label>
-                  <select
-                    value={dcwMode}
-                    onChange={(e) => onDcwModeChange(e.target.value as 'low' | 'high' | 'double' | 'pix')}
-                    className="w-full bg-white dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500 cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800"
-                  >
-                    <option value="low">Low band</option>
-                    <option value="high">High band</option>
-                    <option value="double">Double (recommended)</option>
-                    <option value="pix">Pixel</option>
-                  </select>
+            Masque pour les modeles non-turbo : dcwEnabled=true y produit un
+            son deforme/granuleux (voir TROUBLESHOOTING #11). Inutile de
+            montrer un controle inutilisable : moins de reglages a parcourir. */}
+        {turboActive && (
+          <div className="rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50/50 dark:bg-black/10 p-3 space-y-2">
+            <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={dcwEnabled}
+                onChange={(e) => onDcwEnabledChange(e.target.checked)}
+                className="w-3.5 h-3.5 rounded accent-pink-500"
+              />
+              {tf('dcwEnabledLabel', 'DCW Quality Correction')}
+            </label>
+            {dcwEnabled && (
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-zinc-600 dark:text-zinc-400">{tf('dcwModeLabel', 'Mode')}</label>
+                    <select
+                      value={dcwMode}
+                      onChange={(e) => onDcwModeChange(e.target.value as 'low' | 'high' | 'double' | 'pix')}
+                      className="w-full bg-white dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500 cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800"
+                    >
+                      <option value="low">Low band</option>
+                      <option value="high">High band</option>
+                      <option value="double">Double (recommended)</option>
+                      <option value="pix">Pixel</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-zinc-600 dark:text-zinc-400">{tf('dcwWaveletLabel', 'Wavelet')}</label>
+                    <select
+                      value={dcwWavelet}
+                      onChange={(e) => onDcwWaveletChange(e.target.value)}
+                      className="w-full bg-white dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500 cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800"
+                    >
+                      <option value="haar">Haar (default)</option>
+                      <option value="db2">db2</option>
+                      <option value="db4">db4</option>
+                      <option value="sym4">sym4</option>
+                      <option value="sym8">sym8</option>
+                      <option value="coif2">coif2</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] text-zinc-600 dark:text-zinc-400">{tf('dcwWaveletLabel', 'Wavelet')}</label>
-                  <select
-                    value={dcwWavelet}
-                    onChange={(e) => onDcwWaveletChange(e.target.value)}
-                    className="w-full bg-white dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500 cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800"
-                  >
-                    <option value="haar">Haar (default)</option>
-                    <option value="db2">db2</option>
-                    <option value="db4">db4</option>
-                    <option value="sym4">sym4</option>
-                    <option value="sym8">sym8</option>
-                    <option value="coif2">coif2</option>
-                  </select>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-zinc-600 dark:text-zinc-400 flex justify-between">
+                      <span>{tf('dcwScalerLabel', 'Low scaler')}</span>
+                      <span className="text-zinc-500">{dcwScaler.toFixed(3)}</span>
+                    </label>
+                    <input
+                      type="range" min={0} max={0.1} step={0.005}
+                      value={dcwScaler}
+                      onChange={(e) => onDcwScalerChange(Number(e.target.value))}
+                      className="w-full accent-pink-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-zinc-600 dark:text-zinc-400 flex justify-between">
+                      <span>{tf('dcwHighScalerLabel', 'High scaler')}</span>
+                      <span className="text-zinc-500">{dcwHighScaler.toFixed(3)}</span>
+                    </label>
+                    <input
+                      type="range" min={0} max={0.1} step={0.005}
+                      value={dcwHighScaler}
+                      onChange={(e) => onDcwHighScalerChange(Number(e.target.value))}
+                      disabled={dcwMode !== 'double'}
+                      className="w-full accent-pink-500 disabled:opacity-40"
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[11px] text-zinc-600 dark:text-zinc-400 flex justify-between">
-                    <span>{tf('dcwScalerLabel', 'Low scaler')}</span>
-                    <span className="text-zinc-500">{dcwScaler.toFixed(3)}</span>
-                  </label>
-                  <input
-                    type="range" min={0} max={0.1} step={0.005}
-                    value={dcwScaler}
-                    onChange={(e) => onDcwScalerChange(Number(e.target.value))}
-                    className="w-full accent-pink-500"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] text-zinc-600 dark:text-zinc-400 flex justify-between">
-                    <span>{tf('dcwHighScalerLabel', 'High scaler')}</span>
-                    <span className="text-zinc-500">{dcwHighScaler.toFixed(3)}</span>
-                  </label>
-                  <input
-                    type="range" min={0} max={0.1} step={0.005}
-                    value={dcwHighScaler}
-                    onChange={(e) => onDcwHighScalerChange(Number(e.target.value))}
-                    disabled={dcwMode !== 'double'}
-                    className="w-full accent-pink-500 disabled:opacity-40"
-                  />
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+              </>
+            )}
+          </div>
+        )}
     </>
   );
 };

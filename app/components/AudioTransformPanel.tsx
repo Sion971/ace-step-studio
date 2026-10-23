@@ -1,5 +1,4 @@
 import React from 'react';
-import type { AudioModeDef } from './CreatePanel';
 
 interface AudioTransformPanelProps {
   audioCodes: string;
@@ -11,12 +10,8 @@ interface AudioTransformPanelProps {
   audioCoverStrength: number;
   onAudioCoverStrengthChange: (value: number) => void;
 
-  /** Lecture seule — le taskType est piloté par le mode du bloc AUDIO, pas
-   *  modifiable ici, pour éviter une seconde source de vérité qui se
-   *  contredirait silencieusement avec le sélecteur de mode. */
+  /** Sert seulement à masquer la force de reprise en mode repaint. */
   taskType: string;
-  activeAudioMode: AudioModeDef;
-  activeAudioUrl: string;
 
   t: (key: string) => string;
   tf: (key: string, fallback: string) => string;
@@ -27,8 +22,8 @@ interface AudioTransformPanelProps {
  * (avec les deux actions Convert/Transcribe, non câblées côté serveur —
  * Gradio n'expose pas ces lambdas comme endpoints nommés, voir les
  * commentaires d'origine conservés dans les gestionnaires), et l'accès
- * numérique brut à la force de reprise, à côté d'un rappel en lecture seule
- * du taskType actif.
+ * numérique brut à la force de reprise. Le type de tâche n'est plus rappelé ici :
+ * le sélecteur de mode du bloc AUDIO le montre déjà.
  *
  * Composant présentationnel : `audioCodes` et `audioCoverStrength` restent
  * dans CreatePanel.
@@ -40,13 +35,9 @@ export const AudioTransformPanel: React.FC<AudioTransformPanelProps> = ({
   audioCoverStrength,
   onAudioCoverStrengthChange,
   taskType,
-  activeAudioMode,
-  activeAudioUrl,
   t,
   tf,
 }) => {
-  const ActiveAudioModeIcon = activeAudioMode.icon;
-
   return (
     <>
       <div className="space-y-1">
@@ -91,17 +82,6 @@ export const AudioTransformPanel: React.FC<AudioTransformPanelProps> = ({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {/* Lecture seule : le taskType est desormais pilote par le mode
-            du bloc AUDIO, pour eviter deux sources de verite qui se
-            contredisent silencieusement. */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400" title={tf('hintTaskType', 'Choose text-to-music or audio-based modes.')}>{t('taskType')}</label>
-          <div className="w-full bg-zinc-100 dark:bg-black/30 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-1.5 text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 cursor-default">
-            <ActiveAudioModeIcon size={12} className="flex-shrink-0 text-pink-500" />
-            <span className="truncate">{activeAudioUrl ? t(activeAudioMode.labelKey) : (tf('textToMusic', 'Text to music'))}</span>
-            <span className="ml-auto text-[9px] font-mono opacity-60 flex-shrink-0">{taskType}</span>
-          </div>
-        </div>
         {/* Non envoye au serveur pour Repaint (voir CreatePanel.tsx, payload
             audioCoverStrength) — masque ici pour la meme raison que le
             curseur equivalent du bloc AUDIO, sinon un champ visible et

@@ -2013,7 +2013,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         isFormatCaption,
         samplerMode,
         schedulerType,
-        dcwEnabled,
+        // DCW deforme le son hors turbo : jamais envoye actif sur base/SFT, meme si un
+        // ancien reglage sauvegarde l'avait laisse a true (le bloc est masque hors turbo).
+        dcwEnabled: dcwEnabled && turboActive,
         dcwMode,
         dcwScaler,
         dcwHighScaler,
@@ -2842,8 +2844,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               audioCoverStrength={audioCoverStrength}
               onAudioCoverStrengthChange={setAudioCoverStrength}
               taskType={taskType}
-              activeAudioMode={activeAudioMode}
-              activeAudioUrl={activeAudioUrl}
               t={t}
               tf={tf}
             />
@@ -2852,12 +2852,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               taskType={taskType}
               repaintMode={repaintMode}
               onRepaintModeChange={setRepaintMode}
-              repaintStrength={repaintStrength}
-              onRepaintStrengthChange={setRepaintStrength}
-              repaintingStart={repaintingStart}
-              onRepaintingStartChange={setRepaintingStart}
-              repaintingEnd={repaintingEnd}
-              onRepaintingEndChange={setRepaintingEnd}
               t={t}
               tf={tf}
             />

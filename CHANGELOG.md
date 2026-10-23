@@ -26,6 +26,8 @@
 - LoRA recommended settings (panel and catalog): on a turbo model, "Guidance: 7" now reads "Guidance: 7 (ignored by turbo models)" (the engine forces the guidance of a turbo model to 1.0, so the author's figure only counts for a base or SFT model).
 - Create page, advanced settings: the six CFG presets (Default, Clear vocals, Creative, Cover, Strict, ADG) are laid out in two rows of three, and the four menus of the sampling row (format, method, sampler, scheduler) have centred titles and values; the format menu reads "FLAC" / "MP3" (the long text stays in the tooltip) so that it fits like the others.
 - Create page, advanced settings: the Guidance (CFG scheduling) block is now a collapsed panel like LoRA, placed right after Shift, and is hidden on turbo models where it has no effect; the "Audio format" menu sits on the same line as the three other sampling menus.
+- Create page: the DCW quality correction block is now hidden on non-turbo models (it was greyed out and unusable there), and DCW is never sent enabled to a non-turbo model, even if an old saved setting had it on.
+- Create page, advanced settings: removed the duplicates of the AUDIO block (read-only task type, repaint strength and the start/end fields of the region, which were even shown outside repaint mode); only the inpainting mode and the instruction remain. The four sampling menus now keep their selects on one line whatever the width of the panel, even when a title wraps.
 
 ## 2026-10-21
 
