@@ -2044,7 +2044,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         dcwWavelet,
         retakeSeed: retakeEnabled ? (Number(retakeSeed) || -1) : -1,
         retakeVariance: retakeEnabled ? retakeVariance : 0,
-        flowEditMorph,
+        // Le flow-edit a besoin d'un audio source : jamais envoye actif hors du mode Cover (le panneau y est masque).
+        flowEditMorph: flowEditMorph && audioMode === 'cover' && !!sourceAudioUrl.trim(),
         flowEditSourceCaption,
         flowEditSourceLyrics,
         flowEditNMin,
@@ -2337,6 +2338,29 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                   modelIsBase={modelIsBase}
                   tf={tf}
                 />
+              )}
+
+              {/* Flow-edit — voir FlowEditSettings.tsx. Il a besoin d'un audio SOURCE : il n'a donc sa place que dans le mode Cover, ici,
+                  et pas dans les reglages avances. Les six etats restent dans CreatePanel. */}
+              {audioMode === 'cover' && sourceAudioUrl.trim() && (
+                <div className="px-3 pb-3">
+                  <FlowEditSettings
+                    taskType={taskType}
+                    morph={flowEditMorph}
+                    sourceCaption={flowEditSourceCaption}
+                    sourceLyrics={flowEditSourceLyrics}
+                    nMin={flowEditNMin}
+                    nMax={flowEditNMax}
+                    nAvg={flowEditNAvg}
+                    onMorphChange={setFlowEditMorph}
+                    onSourceCaptionChange={setFlowEditSourceCaption}
+                    onSourceLyricsChange={setFlowEditSourceLyrics}
+                    onNMinChange={setFlowEditNMin}
+                    onNMaxChange={setFlowEditNMax}
+                    onNAvgChange={setFlowEditNAvg}
+                    tf={tf}
+                  />
+                </div>
               )}
             </div>
 
@@ -2761,25 +2785,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               onDcwWaveletChange={setDcwWavelet}
               turboActive={turboActive}
               t={t}
-              tf={tf}
-            />
-
-            {/* Flow-edit — voir FlowEditSettings.tsx. Les six états restent
-                ici : ils sont lus à la construction de la charge utile. */}
-            <FlowEditSettings
-              taskType={taskType}
-              morph={flowEditMorph}
-              sourceCaption={flowEditSourceCaption}
-              sourceLyrics={flowEditSourceLyrics}
-              nMin={flowEditNMin}
-              nMax={flowEditNMax}
-              nAvg={flowEditNAvg}
-              onMorphChange={setFlowEditMorph}
-              onSourceCaptionChange={setFlowEditSourceCaption}
-              onSourceLyricsChange={setFlowEditSourceLyrics}
-              onNMinChange={setFlowEditNMin}
-              onNMaxChange={setFlowEditNMax}
-              onNAvgChange={setFlowEditNAvg}
               tf={tf}
             />
 

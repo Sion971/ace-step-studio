@@ -31,6 +31,7 @@
 - Repaint: the "Repaint mode" menu is gone from the advanced settings. The engine's three modes are only steps of the strength (0 = conservative, 1 = aggressive, in between = balanced), so the "Strength" slider of the AUDIO block now drives it alone; the help text under it states the direction clearly (0 % = stay close to the original, 100 % = regenerate freely).
 - Create page, advanced settings: removed the last duplicate of the AUDIO block, the "Audio cover strength" number field of the Transform section (the "Audio cover strength" slider of the AUDIO block does the same).
 - Audio block: three new modes, Lego (add a track), Extract (isolate a track) and Complete (add the missing tracks around one), for pure base models only (XL Base, Base). The track is chosen in the AUDIO block, which replaces the "Track name" and "Complete track classes" fields of the advanced settings. The server now builds the engine instruction from the chosen track (it used to send the generic text-to-music sentence, so the engine did not know which track to make), and refuses the request with a clear message when the model is a turbo/SFT one, when no source audio is loaded or when no track is chosen. The Create button is disabled with the same explanation.
+- Flow-edit moved from the advanced settings (where it sat under DCW, and was offered even for plain text-to-music) into the AUDIO block, in Cover mode only once a source audio is loaded: the engine needs that source audio. It is never sent enabled outside Cover mode.
 
 ## 2026-10-21
 
