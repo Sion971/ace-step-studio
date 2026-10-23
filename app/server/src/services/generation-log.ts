@@ -20,6 +20,18 @@ export function describeGenerationArgs(args: Record<string, unknown>): string {
   ];
   const steps = asNumber(args.inference_steps);
   if (steps !== null) parts.push(`steps=${steps}`);
+  // The settings that most change a result, to compare a good generation with a bad one.
+  const key = typeof args.key_scale === 'string' ? args.key_scale.trim() : '';
+  parts.push(`key=${key || 'auto'}`);
+  const guidance = asNumber(args.guidance_scale);
+  if (guidance !== null) parts.push(`guidance=${guidance}`);
+  const shift = asNumber(args.shift);
+  if (shift !== null) parts.push(`shift=${shift}`);
+  if (typeof args.use_adg === 'boolean') parts.push(`adg=${args.use_adg ? 'on' : 'off'}`);
+  // random_seed_checkbox=false means the seed typed in the app is the one the engine must use.
+  if (typeof args.random_seed_checkbox === 'boolean') {
+    parts.push(`seed=${args.random_seed_checkbox ? 'random' : String(args.seed ?? '?')}`);
+  }
   const batch = asNumber(args.batch_size_input);
   if (batch !== null && batch > 1) parts.push(`batch=${batch}`);
   return `[Generate] ${parts.join(', ')}`;

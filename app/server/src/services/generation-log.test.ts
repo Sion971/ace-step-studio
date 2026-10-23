@@ -7,7 +7,15 @@ describe('describeGenerationArgs', () => {
     const line = describeGenerationArgs({
       vocal_language: 'fr', audio_duration: 225, bpm: 90, lyrics: '[Verse 1]\nUne ligne\n\nUne autre\n[Chorus]\n(echo)', task_type: 'text2music', inference_steps: 8, batch_size_input: 1,
     });
-    expect(line).toBe('[Generate] vocal_language=fr, duration=225 s, bpm=90, lyrics=3 lines, task=text2music, steps=8');
+    expect(line).toBe('[Generate] vocal_language=fr, duration=225 s, bpm=90, lyrics=3 lines, task=text2music, steps=8, key=auto');
+  });
+
+  it('shows key, guidance, shift, ADG and the seed that is really sent', () => {
+    const line = describeGenerationArgs({
+      task_type: 'lego', inference_steps: 50, key_scale: 'G major', guidance_scale: 7, shift: 1, use_adg: true, random_seed_checkbox: false, seed: '2900000000',
+    });
+    expect(line).toContain('key=G major, guidance=7, shift=1, adg=on, seed=2900000000');
+    expect(describeGenerationArgs({ random_seed_checkbox: true, seed: '-1' })).toContain('seed=random');
   });
 
   it('says so when the length is left to the engine or the language is empty', () => {
