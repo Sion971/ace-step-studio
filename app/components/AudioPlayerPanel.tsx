@@ -55,6 +55,14 @@ interface AudioPlayerPanelProps {
  *
  * Composant presentationnel : tous les etats restent dans CreatePanel.
  */
+/** Keeps a region bound typed or stepped with the arrows inside the audio: the spinner used to climb forever past the end. */
+export const clampRegionValue = (value: number, min: number, max: number): number => {
+  if (!Number.isFinite(value)) return min;
+  let v = Math.round(Math.max(min, value) * 10) / 10;
+  if (max > 0) v = Math.min(max, v);
+  return v;
+};
+
 export const AudioPlayerPanel: React.FC<AudioPlayerPanelProps> = ({
   activeAudioUrl,
   activeAudioMode,
@@ -186,9 +194,9 @@ export const AudioPlayerPanel: React.FC<AudioPlayerPanelProps> = ({
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 w-10">{tf('region', 'Region')}</span>
                 <div className="flex items-center gap-1 flex-1">
-                  <input type="number" step="0.1" min="0" placeholder="0s" value={repaintingStart || ''} onChange={(e) => onRepaintingStartChange(Number(e.target.value))} className="w-16 bg-zinc-100 dark:bg-black/30 border border-zinc-200 dark:border-white/10 rounded px-1.5 py-0.5 text-[10px] text-zinc-900 dark:text-white text-center focus:outline-none focus:border-purple-500" />
+                  <input type="number" step="0.1" min="0" max={activeAudioDuration > 0 ? activeAudioDuration : undefined} placeholder="0s" value={repaintingStart || ''} onChange={(e) => onRepaintingStartChange(clampRegionValue(Number(e.target.value), 0, repaintingEnd > 0 ? repaintingEnd : activeAudioDuration))} className="w-16 bg-zinc-100 dark:bg-black/30 border border-zinc-200 dark:border-white/10 rounded px-1.5 py-0.5 text-[10px] text-zinc-900 dark:text-white text-center focus:outline-none focus:border-purple-500" />
                   <span className="text-[10px] text-zinc-400">—</span>
-                  <input type="number" step="0.1" min="-1" placeholder={tf('end', 'end')} value={repaintingEnd === -1 ? '' : repaintingEnd} onChange={(e) => onRepaintingEndChange(e.target.value === '' ? -1 : Number(e.target.value))} className="w-16 bg-zinc-100 dark:bg-black/30 border border-zinc-200 dark:border-white/10 rounded px-1.5 py-0.5 text-[10px] text-zinc-900 dark:text-white text-center focus:outline-none focus:border-purple-500" />
+                  <input type="number" step="0.1" min={repaintingStart} max={activeAudioDuration > 0 ? activeAudioDuration : undefined} placeholder={tf('end', 'end')} value={repaintingEnd === -1 ? '' : repaintingEnd} onChange={(e) => onRepaintingEndChange(e.target.value === '' ? -1 : clampRegionValue(Number(e.target.value), repaintingStart, activeAudioDuration))} className="w-16 bg-zinc-100 dark:bg-black/30 border border-zinc-200 dark:border-white/10 rounded px-1.5 py-0.5 text-[10px] text-zinc-900 dark:text-white text-center focus:outline-none focus:border-purple-500" />
                   <span className="text-[10px] text-zinc-400">{tf('seconds', 'sec')}</span>
                 </div>
               </div>
