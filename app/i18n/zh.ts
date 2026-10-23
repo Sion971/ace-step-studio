@@ -15,6 +15,18 @@ export const zh = {
     studioLoading: "正在加载编辑器…",
     studioInEditor: "已在编辑器中",
     studioAllSongs: "所有歌曲",
+    studioAddInstrument: "添加乐器",
+    studioInstrumentSource: "歌曲",
+    studioInstrument: "乐器",
+    studioInstrumentStyle: "乐器风格",
+    studioInstrumentStylePlaceholder: "例如：放克电钢琴，短促和弦",
+    studioInstrumentModel: "模型",
+    studioInstrumentGuidance: "引导强度",
+    studioInstrumentGenerate: "生成并添加为音轨",
+    studioInstrumentRunning: "生成中…",
+    studioInstrumentError: "无法生成该乐器。",
+    studioInstrumentNoModel: "需要 Base 模型（Base 或 XL Base）。请从模型菜单安装。",
+    studioInstrumentNoSource: "请先将歌曲添加到编辑器。",
 
     // Tools
     toolsDescription: '模型转换和管理工具',

@@ -63,3 +63,25 @@ describe('syncEditorEntries', () => {
     expect(out.map((x) => x.id)).toEqual(['1']);
   });
 });
+
+import { durationToSeconds } from './studioBridge';
+import { pickLegoModels } from './StudioInstrumentPanel';
+
+describe('durationToSeconds', () => {
+  it('reads m:ss and returns 0 when unreadable', () => {
+    expect(durationToSeconds('0:22')).toBe(22);
+    expect(durationToSeconds('3:07')).toBe(187);
+    expect(durationToSeconds('--:--')).toBe(0);
+    expect(durationToSeconds(undefined)).toBe(0);
+  });
+});
+
+describe('pickLegoModels', () => {
+  it('keeps pure base models only, the active one first', () => {
+    const out = pickLegoModels([
+      { name: 'acestep-v15-turbo' }, { name: 'acestep-v15-xl-sft' },
+      { name: 'acestep-v15-base' }, { name: 'acestep-v15-xl-base', is_active: true },
+    ]);
+    expect(out).toEqual(['acestep-v15-xl-base', 'acestep-v15-base']);
+  });
+});

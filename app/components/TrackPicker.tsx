@@ -6,7 +6,7 @@ export const TRACK_NAMES = [
   'keyboard', 'guitar', 'bass', 'drums', 'backing_vocals', 'vocals',
 ] as const;
 
-const TRACK_LABELS: Record<(typeof TRACK_NAMES)[number], [string, string]> = {
+export const TRACK_LABELS: Record<(typeof TRACK_NAMES)[number], [string, string]> = {
   woodwinds: ['trackWoodwinds', 'Woodwinds'],
   brass: ['trackBrass', 'Brass'],
   fx: ['trackFx', 'Effects'],

@@ -15,6 +15,18 @@ export const fr = {
     studioLoading: "Chargement de l'éditeur…",
     studioInEditor: "Dans l'éditeur",
     studioAllSongs: "Tous mes morceaux",
+    studioAddInstrument: "Ajouter un instrument",
+    studioInstrumentSource: "Morceau",
+    studioInstrument: "Instrument",
+    studioInstrumentStyle: "Style de l'instrument",
+    studioInstrumentStylePlaceholder: "ex. piano électrique funky, accents courts",
+    studioInstrumentModel: "Modèle",
+    studioInstrumentGuidance: "Guidage",
+    studioInstrumentGenerate: "Générer et ajouter comme piste",
+    studioInstrumentRunning: "Génération…",
+    studioInstrumentError: "Impossible de générer l'instrument.",
+    studioInstrumentNoModel: "Il faut un modèle Base (Base ou XL Base). Installe-en un depuis le menu des modèles.",
+    studioInstrumentNoSource: "Ajoute d'abord un morceau dans l'éditeur.",
 
     // Tools
     toolsDescription: 'Utilitaires pour la conversion et la gestion de modèles',

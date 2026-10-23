@@ -15,6 +15,18 @@ export const ja = {
   studioLoading: "エディターを読み込み中…",
   studioInEditor: "エディター内",
   studioAllSongs: "すべての曲",
+  studioAddInstrument: "楽器を追加",
+  studioInstrumentSource: "曲",
+  studioInstrument: "楽器",
+  studioInstrumentStyle: "楽器のスタイル",
+  studioInstrumentStylePlaceholder: "例：ファンキーなエレピ、短いスタブ",
+  studioInstrumentModel: "モデル",
+  studioInstrumentGuidance: "ガイダンス",
+  studioInstrumentGenerate: "生成してトラックとして追加",
+  studioInstrumentRunning: "生成中…",
+  studioInstrumentError: "楽器を生成できませんでした。",
+  studioInstrumentNoModel: "Baseモデル（BaseまたはXL Base）が必要です。モデルメニューからインストールしてください。",
+  studioInstrumentNoSource: "まずエディターに曲を追加してください。",
 
   // Tools
   toolsDescription: 'モデルの変換・管理ツール',

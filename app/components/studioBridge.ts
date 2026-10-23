@@ -88,3 +88,9 @@ export function syncEditorEntries(entries: EditorEntry[], clipNames: string[], n
   }
   return out;
 }
+
+/** "3:07" or "0:22" -> seconds ; 0 when unreadable. */
+export function durationToSeconds(text: string | undefined): number {
+  const m = /^(\d+):(\d{1,2})$/.exec((text || '').trim());
+  return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
+}

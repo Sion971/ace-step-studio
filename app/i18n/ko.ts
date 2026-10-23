@@ -15,6 +15,18 @@ export const ko = {
     studioLoading: "편집기 불러오는 중…",
     studioInEditor: "편집기에 있음",
     studioAllSongs: "모든 곡",
+    studioAddInstrument: "악기 추가",
+    studioInstrumentSource: "곡",
+    studioInstrument: "악기",
+    studioInstrumentStyle: "악기 스타일",
+    studioInstrumentStylePlaceholder: "예: 펑키한 일렉트릭 피아노, 짧은 스탭",
+    studioInstrumentModel: "모델",
+    studioInstrumentGuidance: "가이던스",
+    studioInstrumentGenerate: "생성하여 트랙으로 추가",
+    studioInstrumentRunning: "생성 중…",
+    studioInstrumentError: "악기를 생성할 수 없습니다.",
+    studioInstrumentNoModel: "Base 모델(Base 또는 XL Base)이 필요합니다. 모델 메뉴에서 설치하세요.",
+    studioInstrumentNoSource: "먼저 편집기에 곡을 추가하세요.",
 
     // Tools
     toolsDescription: '모델 변환 및 관리 유틸리티',

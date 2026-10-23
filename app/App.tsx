@@ -72,6 +72,8 @@ import { TrainingPanel } from './components/TrainingPanel';
 import { ToolsPanel } from './components/ToolsPanel';
 import { NewsPage } from './components/NewsPage';
 import { StudioPage } from './components/StudioPage';
+import type { StudioInstrumentRequest } from './components/StudioPage';
+import { durationToSeconds } from './components/studioBridge';
 import { ConfirmDialog } from './components/ConfirmDialog';
 
 
@@ -1836,6 +1838,68 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     }));
   }, [token]);
 
+  // Studio tab, "Add an instrument": runs Lego on a song over its whole length, without mixing, and hands back the
+  // audio of the new track only. No card is added to the Create view; the song list is refreshed when it is done.
+  const generateStudioInstrument = useCallback(async (req: StudioInstrumentRequest): Promise<string[]> => {
+    if (!token) throw new Error('not signed in');
+    const { song } = req;
+    const seconds = durationToSeconds(song.duration);
+    const job = await generateApi.startGeneration({
+      customMode: true,
+      taskType: 'lego',
+      trackName: req.trackName,
+      sourceAudioUrl: song.audioUrl,
+      sourceAudioTitle: song.title,
+      repaintingStart: 0,
+      repaintingEnd: -1,
+      mixWithSource: false,
+      title: `${song.title} - ${req.trackName}`,
+      style: req.style,
+      lyrics: '[Instrumental]',
+      prompt: '[Instrumental]',
+      instrumental: true,
+      duration: seconds > 0 ? seconds : undefined,
+      bpm: song.bpm || undefined,
+      keyScale: song.keyScale || undefined,
+      timeSignature: song.timeSignature || undefined,
+      ditModel: req.model,
+      inferenceSteps: 50,
+      guidanceScale: req.guidance,
+      shift: 1,
+      useAdg: true,
+      inferMethod: 'ode',
+      samplerMode: 'euler',
+      schedulerType: 'linear',
+      batchSize: 1,
+      randomSeed: true,
+      thinking: false,
+      audioFormat: 'flac',
+      cover: { ai: false },
+    } as any, token);
+    return await new Promise<string[]>((resolve, reject) => {
+      const timer = setInterval(async () => {
+        try {
+          const st = await generateApi.getStatus(job.jobId, token);
+          const p = Number(st.progress);
+          req.onProgress?.(Number.isFinite(p) ? (p > 1 ? p / 100 : p) : undefined, st.stage);
+          if (st.status === 'succeeded' && st.result) {
+            clearInterval(timer);
+            const urls = st.result.audioUrls || [];
+            const stems = Math.max(1, Number((st.result as any).stemCount) || 1);
+            refreshSongsList();
+            resolve(urls.slice(0, stems));
+          } else if (st.status === 'failed') {
+            clearInterval(timer);
+            reject(new Error(st.error || 'generation failed'));
+          }
+        } catch (e) {
+          clearInterval(timer);
+          reject(e);
+        }
+      }, 2000);
+    });
+  }, [token, refreshSongsList]);
+
   const handleSelectWorkspace = async (workspace: Playlist) => {
     setActiveWorkspaceFilter(workspace);
     setActiveWorkspaceSongIds(null); // vide pendant le chargement
@@ -2090,6 +2154,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
             workspaces={workspaces.map(w => ({ id: w.id, name: w.name }))}
             songsInAnyWorkspace={songsInAnyWorkspace}
             loadWorkspaceSongs={loadStudioWorkspaceSongs}
+            onGenerateInstrument={generateStudioInstrument}
           />
         );
 

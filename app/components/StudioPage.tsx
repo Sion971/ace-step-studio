@@ -5,6 +5,11 @@ import { useI18n } from '../context/I18nContext';
 import type { TranslationKey } from '../i18n/translations';
 import { addTrackToEditor, editorFileName, listEditorClipNames, syncEditorEntries, waitForEditor } from './studioBridge';
 import type { EditorEntry } from './studioBridge';
+import { StudioInstrumentPanel } from './StudioInstrumentPanel';
+import type { StudioInstrumentRequest } from './StudioInstrumentPanel';
+import { TRACK_LABELS } from './TrackPicker';
+
+export type { StudioInstrumentRequest };
 
 interface StudioWorkspace {
   id: string;
@@ -19,6 +24,8 @@ interface StudioPageProps {
   songsInAnyWorkspace?: Set<string>;
   /** Loads the songs of one named workspace. */
   loadWorkspaceSongs?: (workspaceId: string) => Promise<Song[]>;
+  /** Runs Lego on a song and resolves with the audio URL(s) of the new track. */
+  onGenerateInstrument?: (req: StudioInstrumentRequest) => Promise<string[]>;
 }
 
 const SCOPE_ALL = '__all__';
@@ -35,7 +42,7 @@ export function filterStudioSongs(songs: Song[], query: string): Song[] {
     .sort((a, b) => (new Date(b.createdAt).getTime() || 0) - (new Date(a.createdAt).getTime() || 0));
 }
 
-export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs }) => {
+export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs, onGenerateInstrument }) => {
   const { t } = useI18n();
   const tf = useCallback((key: string, fallback: string): string => {
     const value = t(key as TranslationKey);
@@ -47,6 +54,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
   const [scope, setScope] = useState<string>(SCOPE_ALL);
   const [workspaceSongs, setWorkspaceSongs] = useState<Song[] | null>(null);
   const [entries, setEntries] = useState<(EditorEntry & { songId: string })[]>([]);
+  const [loaded, setLoaded] = useState<Song[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,6 +94,25 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
     return () => clearInterval(timer);
   }, []);
 
+  const sources = useMemo(
+    () => loaded.filter((l) => entries.some((e) => e.songId === l.id)),
+    [loaded, entries],
+  );
+
+  // A generated track goes on the timeline like any file; its mark is not tied to a song of the list.
+  const addGenerated = useCallback(async (song: Song, trackName: string, urls: string[]) => {
+    const name = tf(TRACK_LABELS[trackName as keyof typeof TRACK_LABELS]?.[0] ?? '', trackName);
+    const api = await waitForEditor(frameRef.current);
+    for (const url of urls) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const file = new File([blob], editorFileName(`${song.title} - ${name}`, url), { type: blob.type });
+      if (!api || !addTrackToEditor(frameRef.current, file)) throw new Error('editor not ready');
+      await new Promise((r) => setTimeout(r, 600));
+    }
+  }, [tf]);
+
   const addSong = useCallback(async (song: Song) => {
     if (!song.audioUrl || busyId) return;
     setError(null);
@@ -98,6 +125,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
       const api = await waitForEditor(frameRef.current);
       if (!api || !addTrackToEditor(frameRef.current, file)) throw new Error('editor not ready');
       setEntries((prev) => [...prev, { id: `${song.id}:${Date.now()}`, songId: song.id, name: file.name, addedAt: Date.now(), seen: false }]);
+      setLoaded((prev) => (prev.some((x) => x.id === song.id) ? prev : [...prev, song]));
     } catch (e) {
       console.error('[Studio] could not add the song to the editor', e);
       setError(tf('studioLoadError', 'Could not load this song into the editor.'));
@@ -175,6 +203,9 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
             );
           })}
         </ul>
+        {onGenerateInstrument && (
+          <StudioInstrumentPanel sources={sources} tf={tf} onGenerate={onGenerateInstrument} onResult={addGenerated} />
+        )}
       </aside>
 
       <section className="flex-1 min-w-0 min-h-[420px] md:min-h-0">

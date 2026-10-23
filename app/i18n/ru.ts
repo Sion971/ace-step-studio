@@ -15,6 +15,18 @@ export const ru = {
     studioLoading: "Загрузка редактора…",
     studioInEditor: "В редакторе",
     studioAllSongs: "Все мои песни",
+    studioAddInstrument: "Добавить инструмент",
+    studioInstrumentSource: "Песня",
+    studioInstrument: "Инструмент",
+    studioInstrumentStyle: "Стиль инструмента",
+    studioInstrumentStylePlaceholder: "напр. фанковое электропиано, короткие аккорды",
+    studioInstrumentModel: "Модель",
+    studioInstrumentGuidance: "Guidance",
+    studioInstrumentGenerate: "Сгенерировать и добавить как дорожку",
+    studioInstrumentRunning: "Генерация…",
+    studioInstrumentError: "Не удалось сгенерировать инструмент.",
+    studioInstrumentNoModel: "Нужна модель Base (Base или XL Base). Установите её в меню моделей.",
+    studioInstrumentNoSource: "Сначала добавьте песню в редактор.",
 
     // Tools
     toolsDescription: 'Утилиты для конвертации и управления моделями',

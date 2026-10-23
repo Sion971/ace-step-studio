@@ -15,6 +15,18 @@ export const en = {
     studioLoading: "Loading the editor…",
     studioInEditor: "In the editor",
     studioAllSongs: "All my songs",
+    studioAddInstrument: "Add an instrument",
+    studioInstrumentSource: "Song",
+    studioInstrument: "Instrument",
+    studioInstrumentStyle: "Style of the instrument",
+    studioInstrumentStylePlaceholder: "e.g. funky electric piano, short stabs",
+    studioInstrumentModel: "Model",
+    studioInstrumentGuidance: "Guidance",
+    studioInstrumentGenerate: "Generate and add as a track",
+    studioInstrumentRunning: "Generating…",
+    studioInstrumentError: "The instrument could not be generated.",
+    studioInstrumentNoModel: "This needs a Base model (Base or XL Base). Install one from the model menu.",
+    studioInstrumentNoSource: "Add a song to the editor first.",
 
     // Tools
     toolsDescription: 'Utilities for model conversion and management',
