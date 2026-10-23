@@ -1386,6 +1386,8 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         lmBatchChunkSize: params.lmBatchChunkSize,
         trackName: params.trackName,
         completeTrackClasses: params.completeTrackClasses,
+        mixWithSource: params.mixWithSource,
+        mixStemLevel: params.mixStemLevel,
         isFormatCaption: enrichedParams.isFormatCaption ?? params.isFormatCaption,
         coverNoiseStrength: params.coverNoiseStrength,
         samplerMode: params.samplerMode as 'euler' | 'heun',

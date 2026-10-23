@@ -36,6 +36,7 @@
 - Server terminal: the `[Generate]` line now also shows the key, the guidance, the shift, the ADG and the seed that is really sent to the engine (`key=G major, guidance=7, shift=1, adg=on, seed=2900000000`, or `seed=random`), to compare a good generation with a bad one and to check that a fixed seed reaches the engine.
 - Region fields (Repaint / Lego): the arrows of the start and end fields no longer climb past the end of the audio; typed or stepped values are kept between 0 and the length of the loaded audio (and the end never goes before the start).
 - Server terminal: the `[Generate]` line shows the region of a Lego / Repaint (`region=0-end`), and a `[Mix] no mix made: ...` line says why no mix was built (option off, region that does not cover the whole source, ...).
+- Mix with the original (Lego / Complete): the option and its level were dropped on the way to the server (App.tsx rebuilt the request without them), so no mix was ever made; they are now forwarded.
 
 ## 2026-10-21
 
