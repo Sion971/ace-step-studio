@@ -3,7 +3,7 @@
 
 export interface EditorWindow extends Window {
   PKAudioEditor?: {
-    multitrack?: unknown;
+    multitrack?: { GetRegion?: () => { start: number; end: number } | null };
     fireEvent: (name: string, ...args: unknown[]) => unknown;
   };
 }
@@ -41,10 +41,10 @@ export function editorFileName(title: string, url: string): string {
 }
 
 /** Puts an audio file on a new track of the editor. Returns false if the editor is not ready. */
-export function addTrackToEditor(frame: HTMLIFrameElement | null, file: File): boolean {
+export function addTrackToEditor(frame: HTMLIFrameElement | null, file: File, startSeconds = 0): boolean {
   const api = getEditorApi(frame);
   if (!api) return false;
-  api.fireEvent('RequestAddTrackFile', file);
+  api.fireEvent('RequestAddTrackFile', file, startSeconds);
   return true;
 }
 
@@ -93,4 +93,59 @@ export function syncEditorEntries(entries: EditorEntry[], clipNames: string[], n
 export function durationToSeconds(text: string | undefined): number {
   const m = /^(\d+):(\d{1,2})$/.exec((text || '').trim());
   return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
+}
+
+/** The time range selected in the editor ({start, end} in seconds), or null when nothing is selected. */
+export function getEditorRegion(frame: HTMLIFrameElement | null): { start: number; end: number } | null {
+  try {
+    const r = getEditorApi(frame)?.multitrack?.GetRegion?.();
+    return r && r.end > r.start ? { start: r.start, end: r.end } : null;
+  } catch {
+    return null;
+  }
+}
+
+interface PcmSource {
+  numberOfChannels: number;
+  sampleRate: number;
+  length: number;
+  getChannelData: (channel: number) => Float32Array;
+}
+
+/** 16-bit PCM WAV of the part [startSec, endSec] of a decoded audio buffer. */
+export function encodeWavSlice(buf: PcmSource, startSec: number, endSec: number): ArrayBuffer {
+  const from = Math.max(0, Math.min(buf.length, Math.round(startSec * buf.sampleRate)));
+  const to = Math.max(from, Math.min(buf.length, Math.round(endSec * buf.sampleRate)));
+  const frames = to - from;
+  const channels = Math.max(1, Math.min(2, buf.numberOfChannels));
+  const out = new ArrayBuffer(44 + frames * channels * 2);
+  const v = new DataView(out);
+  const str = (o: number, t: string) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + frames * channels * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, channels, true);
+  v.setUint32(24, buf.sampleRate, true); v.setUint32(28, buf.sampleRate * channels * 2, true);
+  v.setUint16(32, channels * 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, frames * channels * 2, true);
+  const data = Array.from({ length: channels }, (_, c) => buf.getChannelData(c));
+  let o = 44;
+  for (let i = from; i < to; i++) {
+    for (let c = 0; c < channels; c++) {
+      const x = Math.max(-1, Math.min(1, data[c][i]));
+      v.setInt16(o, x < 0 ? x * 0x8000 : x * 0x7fff, true);
+      o += 2;
+    }
+  }
+  return out;
+}
+
+/** Cuts the part [startSec, endSec] out of an audio file, as a WAV blob. */
+export async function trimAudioToWav(blob: Blob, startSec: number, endSec: number): Promise<Blob> {
+  const Ctx = (window as unknown as { AudioContext?: typeof AudioContext }).AudioContext;
+  if (!Ctx) throw new Error('no AudioContext');
+  const ctx = new Ctx();
+  try {
+    const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
+    return new Blob([encodeWavSlice(decoded, startSec, endSec)], { type: 'audio/wav' });
+  } finally {
+    ctx.close().catch(() => {});
+  }
 }

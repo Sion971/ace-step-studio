@@ -3,7 +3,7 @@ import { Search, Plus, Check, Music } from 'lucide-react';
 import { Song } from '../types';
 import { useI18n } from '../context/I18nContext';
 import type { TranslationKey } from '../i18n/translations';
-import { addTrackToEditor, editorFileName, listEditorClipNames, syncEditorEntries, waitForEditor } from './studioBridge';
+import { addTrackToEditor, editorFileName, getEditorRegion, listEditorClipNames, syncEditorEntries, trimAudioToWav, waitForEditor } from './studioBridge';
 import type { EditorEntry } from './studioBridge';
 import { StudioInstrumentPanel } from './StudioInstrumentPanel';
 import type { StudioInstrumentRequest } from './StudioInstrumentPanel';
@@ -100,15 +100,21 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
   );
 
   // A generated track goes on the timeline like any file; its mark is not tied to a song of the list.
-  const addGenerated = useCallback(async (song: Song, trackName: string, urls: string[]) => {
+  const addGenerated = useCallback(async (song: Song, trackName: string, urls: string[], region?: { start: number; end: number }) => {
     const name = tf(TRACK_LABELS[trackName as keyof typeof TRACK_LABELS]?.[0] ?? '', trackName);
     const api = await waitForEditor(frameRef.current);
     for (const url of urls) {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const file = new File([blob], editorFileName(`${song.title} - ${name}`, url), { type: blob.type });
-      if (!api || !addTrackToEditor(frameRef.current, file)) throw new Error('editor not ready');
+      let blob = await res.blob();
+      let fileName = editorFileName(`${song.title} - ${name}`, url);
+      if (region) {
+        // The engine hands back the whole length: keep only the part that was asked for, and place it where it belongs.
+        blob = await trimAudioToWav(blob, region.start, region.end);
+        fileName = editorFileName(`${song.title} - ${name} (${Math.round(region.start)}-${Math.round(region.end)} s)`, '.wav');
+      }
+      const file = new File([blob], fileName, { type: blob.type });
+      if (!api || !addTrackToEditor(frameRef.current, file, region?.start ?? 0)) throw new Error('editor not ready');
       await new Promise((r) => setTimeout(r, 600));
     }
   }, [tf]);
@@ -204,7 +210,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
           })}
         </ul>
         {onGenerateInstrument && (
-          <StudioInstrumentPanel sources={sources} tf={tf} onGenerate={onGenerateInstrument} onResult={addGenerated} />
+          <StudioInstrumentPanel sources={sources} tf={tf} onGenerate={onGenerateInstrument} onResult={addGenerated} getEditorRegion={() => getEditorRegion(frameRef.current)} />
         )}
       </aside>
 

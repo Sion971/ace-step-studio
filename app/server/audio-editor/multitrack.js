@@ -5304,6 +5304,10 @@
 		q.GetRegion = function () { return region; };
 		q.HasClips = hasClips;
 		q.Mixdown = Mixdown;
+		// Studio tab: the selected time range, {start, end} in seconds, or null.
+		q.GetRegion = function () {
+			return region ? { start: region.start, end: region.end } : null;
+		};
 		q.MixdownAsync = MixdownAsync;
 		q.GetTempoBuffer = GetTempoBuffer;
 		q.GetFxBuffer = GetFxBuffer;
@@ -5383,7 +5387,7 @@
 				return true;
 			}
 			if (id === 'RequestAddTrackFile') {
-				// Studio tab: put an audio file (arg1 = File with a name) on a NEW track, from time 0 so it lines up with the others.
+				// Studio tab: put an audio file (arg1 = File with a name) on a NEW track, from time 0 (or arg2 seconds) so it lines up with the others.
 				// It goes on the first track that has no clip yet (the editor starts with empty ones), and only when there is none a track is added.
 				var empty_track = null;
 				for (var ti = 0; ti < tracks.length && !empty_track; ++ti) {
@@ -5394,7 +5398,7 @@
 				}
 				if (empty_track) selected_track = empty_track.id;
 				else addTrack ();
-				addFiles ( [ arg1 ], selected_track, 0 );
+				addFiles ( [ arg1 ], selected_track, Math.max (0, Number ( arg2 ) || 0) );
 				return true;
 			}
 			if (id === 'RequestLoadURL') {

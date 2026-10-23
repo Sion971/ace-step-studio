@@ -3,6 +3,7 @@ import { Wand2 } from 'lucide-react';
 import type { Song } from '../types';
 import { TRACK_NAMES, TRACK_LABELS } from './TrackPicker';
 import { isPureBaseModel } from '../utils/modelNames';
+import { durationToSeconds } from './studioBridge';
 
 export interface StudioInstrumentRequest {
   song: Song;
@@ -10,6 +11,8 @@ export interface StudioInstrumentRequest {
   style: string;
   model: string;
   guidance: number;
+  /** Part of the song to work on, in seconds; absent = the whole song. */
+  region?: { start: number; end: number };
   onProgress?: (progress: number | undefined, stage?: string) => void;
 }
 
@@ -20,16 +23,18 @@ interface Props {
   /** Runs Lego on the song and resolves with the audio URL(s) of the new track. */
   onGenerate: (req: StudioInstrumentRequest) => Promise<string[]>;
   /** Puts a generated track in the editor. */
-  onResult: (song: Song, trackName: string, urls: string[]) => Promise<void>;
+  onResult: (song: Song, trackName: string, urls: string[], region?: { start: number; end: number }) => Promise<void>;
+  /** The range selected in the editor, if any. */
+  getEditorRegion?: () => { start: number; end: number } | null;
 }
 
 /** Installed models that can run Lego (pure base models), the active one first. */
-export function pickLegoModels(models: { name: string; is_active?: boolean }[]): string[] {
-  const ok = models.filter((m) => isPureBaseModel(m.name));
+export function pickLegoModels(models: { name: string; is_active?: boolean; is_preloaded?: boolean }[]): string[] {
+  const ok = models.filter((m) => isPureBaseModel(m.name) && m.is_preloaded !== false);
   return [...ok.filter((m) => m.is_active), ...ok.filter((m) => !m.is_active)].map((m) => m.name);
 }
 
-export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate, onResult }) => {
+export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate, onResult, getEditorRegion }) => {
   const [models, setModels] = useState<string[] | null>(null);
   const [model, setModel] = useState('');
   const [sourceId, setSourceId] = useState('');
@@ -38,6 +43,9 @@ export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate
   const [guidance, setGuidance] = useState(5);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<number | undefined>(undefined);
+  const [phase, setPhase] = useState<string | undefined>(undefined);
+  const [regionStart, setRegionStart] = useState('');
+  const [regionEnd, setRegionEnd] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -56,15 +64,34 @@ export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate
 
   const source = useMemo(() => sources.find((s) => s.id === sourceId) ?? sources[sources.length - 1], [sources, sourceId]);
 
+  const sourceSeconds = source ? durationToSeconds(source.duration) : 0;
+  const regionOf = (): { start: number; end: number } | undefined => {
+    const a = Math.max(0, Number(regionStart.replace(',', '.')) || 0);
+    const b = Number(regionEnd.replace(',', '.')) || 0;
+    if (b <= a) return undefined;
+    if (a <= 0.05 && sourceSeconds > 0 && b >= sourceSeconds - 0.1) return undefined;
+    return { start: a, end: sourceSeconds > 0 ? Math.min(b, sourceSeconds) : b };
+  };
+  const region = regionOf();
+
+  const useEditorSelection = () => {
+    const r = getEditorRegion?.();
+    if (!r) { setError(tf('studioInstrumentNoSelection', 'Nothing is selected in the editor: drag on the timeline first.')); return; }
+    setError(null);
+    setRegionStart(r.start.toFixed(1));
+    setRegionEnd(r.end.toFixed(1));
+  };
+
   const run = async () => {
     if (!source || !model || busy) return;
     setError(null);
     setBusy(true);
     setProgress(undefined);
+    setPhase(undefined);
     try {
-      const urls = await onGenerate({ song: source, trackName, style: style.trim(), model, guidance, onProgress: (p) => setProgress(p) });
+      const urls = await onGenerate({ song: source, trackName, style: style.trim(), model, guidance, region, onProgress: (p, stage) => { setProgress(p); setPhase(stage); } });
       if (urls.length === 0) throw new Error('no audio');
-      await onResult(source, trackName, urls);
+      await onResult(source, trackName, urls, region);
     } catch (e) {
       console.error('[Studio] instrument generation failed', e);
       setError(tf('studioInstrumentError', 'The instrument could not be generated.'));
@@ -105,6 +132,19 @@ export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate
             placeholder={tf('studioInstrumentStylePlaceholder', 'e.g. funky electric piano, short stabs')}
             disabled={busy}
           />
+          <label className={label}>{tf('studioInstrumentRegion', 'Part of the song (seconds, empty = whole song)')}</label>
+          <div className="flex gap-1.5 items-center">
+            <input type="text" inputMode="decimal" className={field} value={regionStart} onChange={(e) => setRegionStart(e.target.value)} placeholder={tf('studioInstrumentFrom', 'from')} disabled={busy} />
+            <input type="text" inputMode="decimal" className={field} value={regionEnd} onChange={(e) => setRegionEnd(e.target.value)} placeholder={tf('studioInstrumentTo', 'to')} disabled={busy} />
+            <button type="button" onClick={useEditorSelection} disabled={busy} title={tf('studioInstrumentUseSelection', 'Use the selection of the editor')} className="flex-shrink-0 px-2 py-1.5 text-[11px] rounded-lg border border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-white/5 disabled:opacity-60">
+              {tf('studioInstrumentUseSelectionShort', 'Selection')}
+            </button>
+          </div>
+          {region && (
+            <p className="mt-1 text-[10px] leading-snug text-zinc-500 dark:text-zinc-400">
+              {tf('studioInstrumentRegionNote', 'Only this part is generated; the new track is placed at its start.')}
+            </p>
+          )}
           <div className="flex gap-2">
             <div className="flex-1 min-w-0">
               <label className={label}>{tf('studioInstrumentModel', 'Model')}</label>
@@ -130,7 +170,9 @@ export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate
             className="mt-3 w-full py-2 text-xs font-semibold rounded-lg bg-pink-500 hover:bg-pink-600 text-white disabled:opacity-60 disabled:cursor-wait"
           >
             {busy
-              ? `${tf('studioInstrumentRunning', 'Generating…')}${progress != null ? ` ${Math.round(progress * 100)} %` : ''}`
+              ? (phase === 'model'
+                ? tf('studioInstrumentLoadingModel', 'Loading the Base model…')
+                : `${tf('studioInstrumentRunning', 'Generating…')}${progress != null ? ` ${Math.round(progress * 100)} %` : ''}`)
               : tf('studioInstrumentGenerate', 'Generate and add as a track')}
           </button>
           {error && <p className="mt-2 text-[11px] text-red-500">{error}</p>}

@@ -27,6 +27,14 @@ export const ko = {
     studioInstrumentError: "악기를 생성할 수 없습니다.",
     studioInstrumentNoModel: "Base 모델(Base 또는 XL Base)이 필요합니다. 모델 메뉴에서 설치하세요.",
     studioInstrumentNoSource: "먼저 편집기에 곡을 추가하세요.",
+    studioInstrumentRegion: "곡의 일부(초, 비우면 전체)",
+    studioInstrumentFrom: "시작",
+    studioInstrumentTo: "끝",
+    studioInstrumentUseSelection: "편집기의 선택 영역 사용",
+    studioInstrumentUseSelectionShort: "선택 영역",
+    studioInstrumentRegionNote: "이 부분만 생성되며 새 트랙은 그 시작 위치에 놓입니다.",
+    studioInstrumentNoSelection: "편집기에서 선택된 구간이 없습니다. 먼저 타임라인을 드래그하세요.",
+    studioInstrumentLoadingModel: "Base 모델 불러오는 중…",
 
     // Tools
     toolsDescription: '모델 변환 및 관리 유틸리티',

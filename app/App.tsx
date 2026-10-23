@@ -1844,14 +1844,33 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     if (!token) throw new Error('not signed in');
     const { song } = req;
     const seconds = durationToSeconds(song.duration);
+    // The engine runs whatever model is loaded, whatever the request says (a Turbo model would clamp the steps to 8 and the
+    // guidance to 1): Lego needs the Base model loaded first, as the model menu does.
+    try {
+      const listRes = await fetch('/api/generate/models');
+      const listed = ((await listRes.json()).models || []) as { name: string; is_active?: boolean }[];
+      const info = listed.find((m) => m.name === req.model);
+      if (!info?.is_active) {
+        req.onProgress?.(undefined, 'model');
+        const sw = await fetch('/api/generate/switch-model', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ model: req.model }),
+        });
+        const swData = await sw.json().catch(() => ({} as { success?: boolean; error?: string }));
+        if (!swData.success) throw new Error(swData.error || `model switch failed (HTTP ${sw.status})`);
+      }
+    } catch (e) {
+      throw e instanceof Error ? e : new Error(String(e));
+    }
     const job = await generateApi.startGeneration({
       customMode: true,
       taskType: 'lego',
       trackName: req.trackName,
       sourceAudioUrl: song.audioUrl,
       sourceAudioTitle: song.title,
-      repaintingStart: 0,
-      repaintingEnd: -1,
+      repaintingStart: req.region ? req.region.start : 0,
+      repaintingEnd: req.region ? req.region.end : -1,
       mixWithSource: false,
       title: `${song.title} - ${req.trackName}`,
       style: req.style,

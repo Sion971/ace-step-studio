@@ -85,3 +85,27 @@ describe('pickLegoModels', () => {
     expect(out).toEqual(['acestep-v15-xl-base', 'acestep-v15-base']);
   });
 });
+
+import { encodeWavSlice } from './studioBridge';
+
+describe('encodeWavSlice', () => {
+  const buf = { numberOfChannels: 1, sampleRate: 10, length: 30, getChannelData: () => Float32Array.from({ length: 30 }, (_, i) => i / 30) };
+  it('writes a WAV with only the requested part', () => {
+    const wav = encodeWavSlice(buf, 1, 2); // frames 10..20
+    const v = new DataView(wav);
+    expect(String.fromCharCode(v.getUint8(0), v.getUint8(1), v.getUint8(2), v.getUint8(3))).toBe('RIFF');
+    expect(v.getUint32(24, true)).toBe(10);          // sample rate
+    expect(v.getUint32(40, true)).toBe(10 * 2);      // 10 frames, 16 bit
+    expect(wav.byteLength).toBe(44 + 20);
+    expect(v.getInt16(44, true)).toBe(Math.floor((10 / 30) * 0x7fff));
+  });
+  it('clamps a range that goes past the end', () => {
+    expect(encodeWavSlice(buf, 2, 99).byteLength).toBe(44 + 10 * 2);
+  });
+});
+
+describe('pickLegoModels not installed', () => {
+  it('leaves out a Base model that is not on the disk', () => {
+    expect(pickLegoModels([{ name: 'acestep-v15-xl-base', is_preloaded: false }, { name: 'acestep-v15-base', is_preloaded: true }])).toEqual(['acestep-v15-base']);
+  });
+});

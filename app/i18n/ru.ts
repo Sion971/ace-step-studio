@@ -27,6 +27,14 @@ export const ru = {
     studioInstrumentError: "Не удалось сгенерировать инструмент.",
     studioInstrumentNoModel: "Нужна модель Base (Base или XL Base). Установите её в меню моделей.",
     studioInstrumentNoSource: "Сначала добавьте песню в редактор.",
+    studioInstrumentRegion: "Часть песни (секунды, пусто = вся песня)",
+    studioInstrumentFrom: "от",
+    studioInstrumentTo: "до",
+    studioInstrumentUseSelection: "Взять выделение из редактора",
+    studioInstrumentUseSelectionShort: "Выделение",
+    studioInstrumentRegionNote: "Генерируется только эта часть; новая дорожка ставится в её начало.",
+    studioInstrumentNoSelection: "В редакторе ничего не выделено: сначала выделите участок на таймлайне.",
+    studioInstrumentLoadingModel: "Загрузка модели Base…",
 
     // Tools
     toolsDescription: 'Утилиты для конвертации и управления моделями',

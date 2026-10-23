@@ -27,6 +27,14 @@ export const fr = {
     studioInstrumentError: "Impossible de générer l'instrument.",
     studioInstrumentNoModel: "Il faut un modèle Base (Base ou XL Base). Installe-en un depuis le menu des modèles.",
     studioInstrumentNoSource: "Ajoute d'abord un morceau dans l'éditeur.",
+    studioInstrumentRegion: "Partie du morceau (secondes, vide = tout le morceau)",
+    studioInstrumentFrom: "de",
+    studioInstrumentTo: "à",
+    studioInstrumentUseSelection: "Reprendre la sélection de l'éditeur",
+    studioInstrumentUseSelectionShort: "Sélection",
+    studioInstrumentRegionNote: "Seule cette partie est générée ; la nouvelle piste est placée à son début.",
+    studioInstrumentNoSelection: "Rien n'est sélectionné dans l'éditeur : fais d'abord glisser la souris sur la timeline.",
+    studioInstrumentLoadingModel: "Chargement du modèle Base…",
 
     // Tools
     toolsDescription: 'Utilitaires pour la conversion et la gestion de modèles',

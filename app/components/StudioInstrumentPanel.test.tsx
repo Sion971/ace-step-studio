@@ -50,6 +50,6 @@ describe('StudioInstrumentPanel', () => {
     await act(async () => { button.click(); });
     await flush();
     expect(onGenerate.mock.calls[0][0]).toMatchObject({ trackName: 'keyboard', guidance: 5, model: 'acestep-v15-xl-base' });
-    expect(onResult).toHaveBeenCalledWith(song, 'keyboard', ['/audio/stem.flac']);
+    expect(onResult).toHaveBeenCalledWith(song, 'keyboard', ['/audio/stem.flac'], undefined);
   });
 });

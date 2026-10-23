@@ -27,6 +27,14 @@ export const en = {
     studioInstrumentError: "The instrument could not be generated.",
     studioInstrumentNoModel: "This needs a Base model (Base or XL Base). Install one from the model menu.",
     studioInstrumentNoSource: "Add a song to the editor first.",
+    studioInstrumentRegion: "Part of the song (seconds, empty = whole song)",
+    studioInstrumentFrom: "from",
+    studioInstrumentTo: "to",
+    studioInstrumentUseSelection: "Use the selection of the editor",
+    studioInstrumentUseSelectionShort: "Selection",
+    studioInstrumentRegionNote: "Only this part is generated; the new track is placed at its start.",
+    studioInstrumentNoSelection: "Nothing is selected in the editor: drag on the timeline first.",
+    studioInstrumentLoadingModel: "Loading the Base model…",
 
     // Tools
     toolsDescription: 'Utilities for model conversion and management',

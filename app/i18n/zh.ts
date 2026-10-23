@@ -27,6 +27,14 @@ export const zh = {
     studioInstrumentError: "无法生成该乐器。",
     studioInstrumentNoModel: "需要 Base 模型（Base 或 XL Base）。请从模型菜单安装。",
     studioInstrumentNoSource: "请先将歌曲添加到编辑器。",
+    studioInstrumentRegion: "歌曲片段（秒，留空＝整首）",
+    studioInstrumentFrom: "从",
+    studioInstrumentTo: "到",
+    studioInstrumentUseSelection: "使用编辑器中的选区",
+    studioInstrumentUseSelectionShort: "选区",
+    studioInstrumentRegionNote: "仅生成该片段；新音轨放在片段起点。",
+    studioInstrumentNoSelection: "编辑器中没有选区：请先在时间轴上拖动选择。",
+    studioInstrumentLoadingModel: "正在加载 Base 模型…",
 
     // Tools
     toolsDescription: '模型转换和管理工具',
