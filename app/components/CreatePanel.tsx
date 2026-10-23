@@ -720,6 +720,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       setInferenceSteps(8);
       setGuidanceScale(0.0);
       setUseAdg(false);
+      setShift(3.0); // the turbo schedule is built for shift 3 (8 steps)
       // Turbo: only euler + linear
       setSamplerMode('euler');
       setSchedulerType('linear');
@@ -727,6 +728,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       setInferenceSteps(50);
       setGuidanceScale(7.0);
       setUseAdg(true);
+      setShift(1.0); // base and SFT: even schedule (about 50 steps)
     }
     // LM backend: XL models (~19GB) don't fit with vLLM (~9GB) on 24GB
     if (selectedModel.includes('xl')) {
@@ -2665,8 +2667,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               label={t('shift')}
               value={shift}
               min={1}
-              max={5}
-              step={0.1}
+              max={isTurboModel(selectedModel) ? 3 : 5}
+              step={isTurboModel(selectedModel) ? 1 : 0.1}
               onChange={setShift}
               formatDisplay={(val) => val.toFixed(1)}
               helpText={t('timestepShiftForBase')}
