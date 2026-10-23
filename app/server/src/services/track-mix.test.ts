@@ -39,3 +39,13 @@ describe('track mix', () => {
     expect(trackCaptionFallback('cover', 'guitar')).toBe('');
   });
 });
+
+import { mixSkipReason } from './track-mix.js';
+describe('mixSkipReason', () => {
+  it('says why no mix is made, or null when one is', () => {
+    expect(mixSkipReason({ taskType: 'lego', mixWithSource: false }, 22)).toContain('option is off');
+    expect(mixSkipReason({ taskType: 'lego', mixWithSource: true, repaintingStart: 0, repaintingEnd: 8 }, 22)).toContain('does not cover the whole source');
+    expect(mixSkipReason({ taskType: 'extract', mixWithSource: true }, 22)).toContain('no mix');
+    expect(mixSkipReason({ taskType: 'lego', mixWithSource: true, repaintingStart: 0, repaintingEnd: -1 }, 22)).toBeNull();
+  });
+});

@@ -35,6 +35,7 @@
 - Lego and Complete: option "Also make a mix with the original" (on by default, level of the new track 80 % by default). The engine only returns the new track; the server now also builds a mix with the source audio (ffmpeg, no clipping) and saves both songs, "(stem)" and "(mix)". For Lego the mix is only made when the region covers the whole audio. Warnings in the AUDIO block when the Lego region is shorter than 3 s (the engine's minimum) and when Style is empty; the server now falls back on the requested track name (e.g. "guitar") instead of "pop music" as caption.
 - Server terminal: the `[Generate]` line now also shows the key, the guidance, the shift, the ADG and the seed that is really sent to the engine (`key=G major, guidance=7, shift=1, adg=on, seed=2900000000`, or `seed=random`), to compare a good generation with a bad one and to check that a fixed seed reaches the engine.
 - Region fields (Repaint / Lego): the arrows of the start and end fields no longer climb past the end of the audio; typed or stepped values are kept between 0 and the length of the loaded audio (and the end never goes before the start).
+- Server terminal: the `[Generate]` line shows the region of a Lego / Repaint (`region=0-end`), and a `[Mix] no mix made: ...` line says why no mix was built (option off, region that does not cover the whole source, ...).
 
 ## 2026-10-21
 

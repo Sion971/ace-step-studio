@@ -34,6 +34,16 @@ export const shouldMix = (p: MixParams, sourceDuration: number): boolean => {
   return isTrackTask(p.taskType);
 };
 
+/** Why no mix is made (for the terminal), or null when one will be made. */
+export const mixSkipReason = (p: MixParams, sourceDuration: number): string | null => {
+  if (!p.mixWithSource) return 'the "Mix with the original" option is off';
+  if (p.taskType !== 'lego' && p.taskType !== 'complete') return `task ${p.taskType ?? '?'} has no mix`;
+  if (p.taskType === 'lego' && !regionCoversWholeSource(p.repaintingStart, p.repaintingEnd, sourceDuration)) {
+    return `the Lego region (${p.repaintingStart ?? 0}-${p.repaintingEnd ?? -1}) does not cover the whole source (${sourceDuration} s)`;
+  }
+  return null;
+};
+
 export const buildMixFilter = (levelPercent: number): string => {
   const gain = (clampLevel(levelPercent) / 100).toFixed(3);
   const prep = 'aresample=48000,aformat=channel_layouts=stereo';

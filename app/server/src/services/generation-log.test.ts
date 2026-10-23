@@ -18,6 +18,12 @@ describe('describeGenerationArgs', () => {
     expect(describeGenerationArgs({ random_seed_checkbox: true, seed: '-1' })).toContain('seed=random');
   });
 
+  it('shows the region of a Lego or Repaint (end = whole audio when -1)', () => {
+    expect(describeGenerationArgs({ task_type: 'lego', repainting_start: 0, repainting_end: -1 })).toContain('region=0-end');
+    expect(describeGenerationArgs({ task_type: 'repaint', repainting_start: 2.5, repainting_end: 10 })).toContain('region=2.5-10');
+    expect(describeGenerationArgs({ task_type: 'text2music', repainting_start: 0, repainting_end: -1 })).not.toContain('region=');
+  });
+
   it('says so when the length is left to the engine or the language is empty', () => {
     const line = describeGenerationArgs({ vocal_language: '', audio_duration: -1, bpm: 0, lyrics: '', task_type: 'text2music', batch_size_input: 4 });
     expect(line).toContain('vocal_language=(empty)');

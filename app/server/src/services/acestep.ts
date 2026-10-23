@@ -9,7 +9,7 @@ import { getAudioDuration } from './audio-duration.js';
 import { estimateDurationFromLyrics } from './lyrics-duration.js';
 import { describeGenerationArgs } from './generation-log.js';
 import { buildTrackInstruction, isTrackTask, trackCaptionFallback, validateTrackTask } from './track-tasks.js';
-import { clampLevel, mixStemWithSource, shouldMix } from './track-mix.js';
+import { clampLevel, mixSkipReason, mixStemWithSource, shouldMix } from './track-mix.js';
 import { classifyGenerationFailure, friendlyTimeoutMessage, friendlyCudaRestartMessage, CudaFailureTracker } from './generation-errors.js';
 import { aiCover, waitForCoverBeforeGeneration } from './ai-cover.js';
 import { pipelineManager } from './pipeline-manager.js';
@@ -821,6 +821,8 @@ async function processGenerationViaGradio(
   if (params.sourceAudioUrl && isTrackTask(params.taskType)) {
     const sourcePath = resolveAudioPath(params.sourceAudioUrl);
     const sourceDuration = existsSync(sourcePath) ? getAudioDuration(sourcePath) : 0;
+    const skipReason = mixSkipReason(params, sourceDuration);
+    if (skipReason) console.log(`[Mix] no mix made: ${skipReason}`);
     if (shouldMix(params, sourceDuration)) {
       if (!existsSync(sourcePath)) {
         console.warn(`[Mix] source audio not found on disk (${params.sourceAudioUrl}), no mix made`);

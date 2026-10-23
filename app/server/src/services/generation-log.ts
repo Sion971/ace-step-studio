@@ -32,6 +32,11 @@ export function describeGenerationArgs(args: Record<string, unknown>): string {
   if (typeof args.random_seed_checkbox === 'boolean') {
     parts.push(`seed=${args.random_seed_checkbox ? 'random' : String(args.seed ?? '?')}`);
   }
+  if (args.task_type === 'lego' || args.task_type === 'repaint') {
+    const rs = asNumber(args.repainting_start);
+    const re = asNumber(args.repainting_end);
+    if (rs !== null || re !== null) parts.push(`region=${rs ?? 0}-${re !== null && re >= 0 ? re : 'end'}`);
+  }
   const batch = asNumber(args.batch_size_input);
   if (batch !== null && batch > 1) parts.push(`batch=${batch}`);
   return `[Generate] ${parts.join(', ')}`;
