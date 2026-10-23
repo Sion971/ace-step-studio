@@ -11,7 +11,12 @@ interface AudioPlayerPanelProps {
   activeAudioPlaying: boolean;
   activeAudioElRef: React.RefObject<HTMLAudioElement>;
   isReferenceTarget: boolean;
+  /** Zone de travail (barre de region et champs Region) : repaint et lego. */
   isRepaintMode: boolean;
+  /** Lego : region sans curseur de force. */
+  hideRepaintStrength?: boolean;
+  /** Lego, Extract, Complete : ni curseurs Reprise/Fidelite, qui ne servent qu'au cover. */
+  isTrackMode?: boolean;
   isDraggingFile: boolean;
   coverModeMissingSource: boolean;
 
@@ -60,6 +65,8 @@ export const AudioPlayerPanel: React.FC<AudioPlayerPanelProps> = ({
   activeAudioElRef,
   isReferenceTarget,
   isRepaintMode,
+  hideRepaintStrength = false,
+  isTrackMode = false,
   isDraggingFile,
   coverModeMissingSource,
   audioCoverStrength,
@@ -141,7 +148,7 @@ export const AudioPlayerPanel: React.FC<AudioPlayerPanelProps> = ({
                 masquer ici sans les neutraliser recreerait le bug
                 documente en TROUBLESHOOTING #23. Non documentes pour
                 Repaint, qui a son propre controle "Strength" plus bas. */}
-            {!isRepaintMode && (<>
+            {!isRepaintMode && !isTrackMode && (<>
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 w-14">{tf('audioCoverStrength', 'Reprise')}</span>
@@ -166,6 +173,7 @@ export const AudioPlayerPanel: React.FC<AudioPlayerPanelProps> = ({
             </>)}
 
             {isRepaintMode && (<>
+              {!hideRepaintStrength && (
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 w-10">{tf('strength', 'Strength')}</span>
@@ -174,6 +182,7 @@ export const AudioPlayerPanel: React.FC<AudioPlayerPanelProps> = ({
                 </div>
                 <p className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-12">{tf('hintRepaintStrength', '0% — stay close to the source, 100% — regenerate the region freely')}</p>
               </div>
+              )}
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 w-10">{tf('region', 'Region')}</span>
                 <div className="flex items-center gap-1 flex-1">

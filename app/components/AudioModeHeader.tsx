@@ -113,10 +113,10 @@ export const AudioModeHeader: React.FC<AudioModeHeaderProps> = ({
 
           {showAudioMenu && (
             <div className="absolute right-0 top-full mt-1 z-50 w-72 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#1f1f24] shadow-2xl overflow-hidden py-1">
-              {(['remix', 'edit'] as const).map((group) => (
+              {(['remix', 'edit', 'tracks'] as const).map((group) => (
                 <div key={group}>
                   <div className="px-3 pt-2 pb-1 text-[9px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                    {group === 'remix' ? (tf('remix', 'Remix')) : (tf('modification', 'Modification'))}
+                    {group === 'remix' ? (tf('remix', 'Remix')) : group === 'edit' ? (tf('modification', 'Modification')) : tf('tracksGroup', 'Tracks')}
                   </div>
                   {AUDIO_MODES.filter((m) => m.group === group).map((m) => {
                     const Icon = m.icon;

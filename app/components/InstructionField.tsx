@@ -12,7 +12,17 @@ export const LEGACY_INSTRUCTION_DEFAULT =
 
 // Instruction que le serveur appliquera si le champ est laisse vide.
 // Sert de placeholder informatif dans les reglages avances.
-export const defaultInstructionFor = (taskType: string): string =>
+export const defaultInstructionFor = (taskType: string, trackName = '', trackClasses = ''): string => {
+  // Taches par piste : meme phrase que cote serveur (track-tasks.ts), qui la fabrique a partir de la piste choisie.
+  const track = trackName.trim().toUpperCase();
+  const classes = trackClasses.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
+  if (taskType === 'lego') return track ? `Generate the ${track} track based on the audio context:` : 'Generate the track based on the audio context:';
+  if (taskType === 'extract') return track ? `Extract the ${track} track from the audio:` : 'Extract the track from the audio:';
+  if (taskType === 'complete') return classes.length ? `Complete the input track with ${classes.join(' | ')}:` : 'Complete the input track:';
+  return defaultInstructionForBasicTask(taskType);
+};
+
+const defaultInstructionForBasicTask = (taskType: string): string =>
   taskType === 'cover'
     ? 'Generate audio semantic tokens based on the given conditions:'
     : taskType === 'repaint'
@@ -23,6 +33,9 @@ interface InstructionFieldProps {
   instruction: string;
   onInstructionChange: (value: string) => void;
   taskType: string;
+  /** Piste choisie (Lego, Extract) et pistes a ajouter (Complete) : servent a calculer le texte de repli. */
+  trackName?: string;
+  trackClasses?: string;
   /** Vrai si le contenu a été tapé dans un mode audio différent de celui
    *  actif maintenant — signale un texte potentiellement incohérent avec
    *  l'opération en cours (voir CreatePanel.tsx, instructionMayBeStale). */
@@ -42,6 +55,8 @@ export const InstructionField: React.FC<InstructionFieldProps> = ({
   instruction,
   onInstructionChange,
   taskType,
+  trackName,
+  trackClasses,
   showStaleWarning,
   t,
   tf,
@@ -57,7 +72,7 @@ export const InstructionField: React.FC<InstructionFieldProps> = ({
       <textarea
         value={instruction}
         onChange={(e) => onInstructionChange(e.target.value)}
-        placeholder={defaultInstructionFor(taskType)}
+        placeholder={defaultInstructionFor(taskType, trackName, trackClasses)}
         className="w-full h-16 bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg p-2 text-xs text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none resize-none"
       />
       {showStaleWarning ? (

@@ -5,7 +5,7 @@ import { FlowEditSettings } from './FlowEditSettings';
 import { OutputSettings } from './OutputSettings';
 import { SamplingSettings } from './SamplingSettings';
 import { InstructionField, LEGACY_INSTRUCTION_DEFAULT } from './InstructionField';
-import { TrackSettings } from './TrackSettings';
+import { TrackPicker, type TrackMode } from './TrackPicker';
 import { GuidanceSettings } from './GuidanceSettings';
 import { CotDebugToggles, type CotDebugTogglesValues } from './CotDebugToggles';
 import { LmParametersPanel } from './LmParametersPanel';
@@ -15,9 +15,9 @@ import { AudioPlayerPanel } from './AudioPlayerPanel';
 import { VoiceRecorder } from './VoiceRecorder';
 import { LmSettings } from './LmSettings';
 import { ModelMenu } from './ModelMenu';
-import { isTurboModel } from '../utils/modelNames';
+import { isTurboModel, isPureBaseModel } from '../utils/modelNames';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Sparkles, ChevronDown, Settings2, Trash2, Music2, Sliders, Dices, RefreshCw, Plus, Upload, Play, Pause, Loader2, Disc3, Undo2, Wand2, Square, Scissors, Repeat, Gauge, Layers, ArrowRightToLine, Library } from 'lucide-react';
+import { Sparkles, ChevronDown, Settings2, Trash2, Music2, Sliders, Dices, RefreshCw, Plus, Upload, Play, Pause, Loader2, Disc3, Undo2, Wand2, Square, Scissors, Repeat, Gauge, Layers, ArrowRightToLine, Library, Blocks, Split, Puzzle } from 'lucide-react';
 import { AudioWaveform } from './AudioWaveform';
 import { GenerationParams, Song } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -63,11 +63,12 @@ interface ReferenceTrack {
 // ---------------------------------------------------------------------------
 export type AudioModeId =
   | 'cover' | 'inspiration' | 'mashup' | 'sample'
-  | 'extend' | 'repaint' | 'crop' | 'reverse' | 'speed';
+  | 'extend' | 'repaint' | 'crop' | 'reverse' | 'speed'
+  | 'lego' | 'extract' | 'complete';
 
 export interface AudioModeDef {
   id: AudioModeId;
-  group: 'remix' | 'edit';
+  group: 'remix' | 'edit' | 'tracks';
   field: 'reference' | 'source';
   taskType: string;
   // Textes affiches : des CLES de traduction (TranslationKey, donc verifiees a la compilation). Ils etaient ecrits en francais dans
@@ -111,7 +112,19 @@ export const AUDIO_MODES: AudioModeDef[] = [
   { id: 'speed',       group: 'edit',  field: 'source',    taskType: 'cover',
     labelKey: 'audioModeSpeed', shortKey: 'audioModeSpeed', descKey: 'audioModeSpeedDesc',
     icon: Gauge, available: false },
+  // --- PISTES (modele base pur uniquement : voir isPureBaseModel) ---------
+  { id: 'lego',        group: 'tracks', field: 'source',   taskType: 'lego',
+    labelKey: 'audioModeLego', shortKey: 'audioModeLego', descKey: 'audioModeLegoDesc',
+    icon: Blocks, available: true },
+  { id: 'extract',     group: 'tracks', field: 'source',   taskType: 'extract',
+    labelKey: 'audioModeExtract', shortKey: 'audioModeExtract', descKey: 'audioModeExtractDesc',
+    icon: Split, available: true },
+  { id: 'complete',    group: 'tracks', field: 'source',   taskType: 'complete',
+    labelKey: 'audioModeComplete', shortKey: 'audioModeComplete', descKey: 'audioModeCompleteDesc',
+    icon: Puzzle, available: true },
 ];
+
+const isTrackTask = (task: string) => task === 'lego' || task === 'extract' || task === 'complete';
 
 export const AUDIO_MODE_MAP = AUDIO_MODES.reduce((acc, m) => {
   acc[m.id] = m;
@@ -1539,6 +1552,16 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const activeAudioElRef = isReferenceTarget ? referenceAudioRef : sourceAudioRef;
   const activeAudioInputRef = isReferenceTarget ? referenceInputRef : sourceInputRef;
   const isRepaintMode = audioMode === 'repaint';
+  // Lego, Extract, Complete : taches par piste, reservees aux modeles base purs.
+  const isTrackMode = audioMode === 'lego' || audioMode === 'extract' || audioMode === 'complete';
+  const isLegoMode = audioMode === 'lego';
+  const modelIsBase = isPureBaseModel(selectedModel);
+  const trackModeBlock: string | null = !isTrackMode ? null
+    : !modelIsBase ? tf('trackNeedsBase', 'This mode needs a pure base model (for example XL Base), not a turbo or SFT one.')
+    : !sourceAudioUrl.trim() ? tf('trackNeedsAudio', 'Load a source audio first: without it this task cannot start.')
+    : (audioMode === 'complete' ? completeTrackClasses.trim() === '' : trackName.trim() === '')
+      ? tf('trackNeedsChoice', 'Choose at least one track.')
+      : null;
 
   const clearActiveAudio = () => {
     if (isReferenceTarget) clearReferenceSlot(); else clearSourceSlot();
@@ -1652,7 +1675,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     ? tf('errNothingToGenerate', 'Rien à envoyer au moteur : active OpenRouter pour développer la description, ou remplis Style ou Paroles.')
     : coverModeMissingSource
       ? tf('warnCoverNoSource', 'Sans audio chargé, Cover génère du texte-à-musique — dépose un fichier pour un vrai cover.')
-      : null;
+      : trackModeBlock;
 
   // Extrait du bloc JSX inline d'origine (bouton "Appliquer les reglages
   // LM") lors de l'extraction de LmSettings.tsx — logique metier, reste
@@ -1707,6 +1730,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     // contente de ne pas partir, pour eviter le 400 et la carte fantome.
     if (descriptionCannotBeUsed) return;
     if (coverModeMissingSource) return;
+    if (trackModeBlock) return;
 
     setPreflightFailed(false);
     const slotsClaimed = bulkCount;
@@ -1975,16 +1999,16 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         // coverNoiseStrength ci-dessous. Champs visibles en permanence dans
         // RepaintSettings (contrairement a Force/Fidelite masques), donc
         // risque moindre, mais meme incoherence de fond.
-        repaintingStart: taskType === 'repaint' ? repaintingStart : undefined,
-        repaintingEnd: taskType === 'repaint' ? repaintingEnd : undefined,
+        repaintingStart: taskType === 'repaint' || taskType === 'lego' ? repaintingStart : undefined,
+        repaintingEnd: taskType === 'repaint' || taskType === 'lego' ? repaintingEnd : undefined,
         instruction,
         // Non documentees pour Repaint (absentes de l'exemple de payload
         // repaint dans INFERENCE.md) et masquees dans l'UI pour ce mode —
         // voir TROUBLESHOOTING #23 : un controle masque doit aussi cesser
         // d'etre envoye, sinon sa valeur heritee d'un mode precedent
         // (Cover, Inspiration) reste active de facon invisible.
-        audioCoverStrength: taskType === 'repaint' ? undefined : audioCoverStrength,
-        coverNoiseStrength: taskType === 'repaint' ? undefined : coverNoiseStrength,
+        audioCoverStrength: taskType === 'repaint' || isTrackTask(taskType) ? undefined : audioCoverStrength,
+        coverNoiseStrength: taskType === 'repaint' || isTrackTask(taskType) ? undefined : coverNoiseStrength,
         taskType,
         useAdg,
         cfgIntervalStart,
@@ -2000,8 +2024,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         getLrc,
         scoreScale,
         lmBatchChunkSize,
-        trackName: trackName.trim() || undefined,
-        completeTrackClasses: (() => {
+        trackName: (taskType === 'lego' || taskType === 'extract') ? (trackName.trim() || undefined) : undefined,
+        completeTrackClasses: taskType !== 'complete' ? undefined : (() => {
           const parsed = completeTrackClasses
             .split(',')
             .map((item) => item.trim())
@@ -2278,7 +2302,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                 activeAudioPlaying={activeAudioPlaying}
                 activeAudioElRef={activeAudioElRef}
                 isReferenceTarget={isReferenceTarget}
-                isRepaintMode={isRepaintMode}
+                isRepaintMode={isRepaintMode || isLegoMode}
+                hideRepaintStrength={isLegoMode}
+                isTrackMode={isTrackMode}
                 isDraggingFile={isDraggingFile}
                 coverModeMissingSource={coverModeMissingSource}
                 audioCoverStrength={audioCoverStrength}
@@ -2299,6 +2325,19 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                 t={t}
                 tf={tf}
               />
+
+              {isTrackMode && (
+                <TrackPicker
+                  mode={audioMode as TrackMode}
+                  trackName={trackName}
+                  onTrackNameChange={setTrackName}
+                  completeTrackClasses={completeTrackClasses}
+                  onCompleteTrackClassesChange={setCompleteTrackClasses}
+                  hasAudio={!!sourceAudioUrl.trim()}
+                  modelIsBase={modelIsBase}
+                  tf={tf}
+                />
+              )}
             </div>
 
             {/* Lyrics Input */}
@@ -2851,17 +2890,11 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               instruction={instruction}
               onInstructionChange={handleInstructionChange}
               taskType={taskType}
+              trackName={trackName}
+              trackClasses={completeTrackClasses}
               showStaleWarning={instructionMayBeStale}
               t={t}
               tf={tf}
-            />
-
-            <TrackSettings
-              trackName={trackName}
-              onTrackNameChange={setTrackName}
-              completeTrackClasses={completeTrackClasses}
-              onCompleteTrackClassesChange={setCompleteTrackClasses}
-              t={t}
             />
 
             <CotDebugToggles
@@ -3214,6 +3247,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
           <p className="text-[11px] text-red-500 leading-snug">
             {tf('errNothingToGenerate', 'Rien à envoyer au moteur : active OpenRouter pour développer la description, ou remplis Style ou Paroles.')}
           </p>
+        )}
+        {!descriptionCannotBeUsed && !coverModeMissingSource && trackModeBlock && (
+          <p className="text-[11px] text-amber-500 leading-snug">{trackModeBlock}</p>
         )}
         {!descriptionCannotBeUsed && coverModeMissingSource && (
           <p className="text-[11px] text-amber-500 leading-snug">

@@ -130,3 +130,12 @@ export const isTurboModel = (modelId: string): boolean => {
  */
 export const getModelVramMin = (modelId: string): number | null =>
   MODEL_INFO[modelId]?.vramMin ?? null;
+
+/**
+ * Modèle base PUR : seul type de modèle pour lequel le moteur propose Lego, Extract et Complete (les turbo, SFT et fusions
+ * n'ont que text2music, repaint et cover). Même règle que `isPureBaseModel` côté serveur.
+ */
+export const isPureBaseModel = (modelId?: string): boolean => {
+  const id = (modelId || '').toLowerCase();
+  return id.includes('base') && !id.includes('turbo') && !id.includes('sft') && !id.includes('merge');
+};

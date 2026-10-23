@@ -8,6 +8,7 @@ import { config } from '../config/index.js';
 import { getAudioDuration } from './audio-duration.js';
 import { estimateDurationFromLyrics } from './lyrics-duration.js';
 import { describeGenerationArgs } from './generation-log.js';
+import { buildTrackInstruction, isTrackTask, validateTrackTask } from './track-tasks.js';
 import { classifyGenerationFailure, friendlyTimeoutMessage, friendlyCudaRestartMessage, CudaFailureTracker } from './generation-errors.js';
 import { aiCover, waitForCoverBeforeGeneration } from './ai-cover.js';
 import { pipelineManager } from './pipeline-manager.js';
@@ -151,7 +152,7 @@ async function buildGradioArgs(params: GenerationParams): Promise<Record<string,
   const referenceAudio = await prepareAudioFile(params.referenceAudioUrl);
   const sourceAudio = await prepareAudioFile(params.sourceAudioUrl);
 
-  const needsSource = params.taskType === 'cover' || params.taskType === 'audio2audio' || params.taskType === 'repaint';
+  const needsSource = params.taskType === 'cover' || params.taskType === 'audio2audio' || params.taskType === 'repaint' || isTrackTask(params.taskType);
   if (needsSource && params.sourceAudioUrl && sourceAudio === null) {
     throw new Error(`Source audio file could not be loaded from: ${params.sourceAudioUrl}. Make sure the file was uploaded successfully.`);
   }
@@ -160,7 +161,7 @@ async function buildGradioArgs(params: GenerationParams): Promise<Record<string,
   // Duration left on "auto": without the language model the engine falls back to 120 s, too short for long lyrics (it skips words). The
   // length is then estimated from the lyrics. A cover or a repaint takes the length of its source, and the language model chooses its own.
   const wantsAutoDuration = !(params.duration && params.duration > 0);
-  const isSourceTask = params.taskType === 'cover' || params.taskType === 'audio2audio' || params.taskType === 'repaint';
+  const isSourceTask = params.taskType === 'cover' || params.taskType === 'audio2audio' || params.taskType === 'repaint' || isTrackTask(params.taskType);
   let audioDuration = params.duration && params.duration > 0 ? params.duration : -1;
   if (wantsAutoDuration && !useCot && !isSourceTask && !params.instrumental && process.env.STUDIO_AUTO_DURATION !== 'off') {
     const limits = pipelineManager.getLimits();
@@ -191,7 +192,7 @@ async function buildGradioArgs(params: GenerationParams): Promise<Record<string,
     text2music_audio_code_string: params.audioCodes || '',
     repainting_start: params.repaintingStart ?? 0.0,
     repainting_end: params.repaintingEnd ?? -1,
-    instruction_display_gen: params.instruction || (
+    instruction_display_gen: params.instruction || buildTrackInstruction(taskType, params.trackName, params.completeTrackClasses) || (
       taskType === 'cover' ? 'Generate audio semantic tokens based on the given conditions:' :
       taskType === 'repaint' ? 'Repaint the mask area based on the given conditions:' :
       'Fill the audio semantic mask based on the given conditions:'
@@ -671,6 +672,14 @@ async function processGeneration(
   if ((params.taskType === 'cover' || params.taskType === 'audio2audio') && !params.sourceAudioUrl && !params.audioCodes) {
     job.status = 'failed';
     job.error = `task_type='${params.taskType}' requires a source audio or audio codes`;
+    return;
+  }
+
+  // Lego / Extract / Complete : base model, source audio and track are required by the engine
+  const trackError = validateTrackTask(params);
+  if (trackError) {
+    job.status = 'failed';
+    job.error = trackError;
     return;
   }
 
