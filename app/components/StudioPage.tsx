@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Plus, Check, Music } from 'lucide-react';
+import { Search, Plus, Check, Music, Trash2 } from 'lucide-react';
 import { Song } from '../types';
 import { useI18n } from '../context/I18nContext';
 import type { TranslationKey } from '../i18n/translations';
@@ -27,6 +27,8 @@ interface StudioPageProps {
   loadWorkspaceSongs?: (workspaceId: string) => Promise<Song[]>;
   /** Runs Lego on a song and resolves with the audio URL(s) of the new track. */
   onGenerateInstrument?: (req: StudioInstrumentRequest) => Promise<string[]>;
+  /** Deletes songs (asks for confirmation itself). */
+  onDeleteSongs?: (songs: Song[]) => void;
 }
 
 const STUDIO_PAGE = 100;
@@ -44,7 +46,7 @@ export function filterStudioSongs(songs: Song[], query: string): Song[] {
     .sort((a, b) => (new Date(b.createdAt).getTime() || 0) - (new Date(a.createdAt).getTime() || 0));
 }
 
-export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs, onGenerateInstrument }) => {
+export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs, onGenerateInstrument, onDeleteSongs }) => {
   const { t } = useI18n();
   const tf = useCallback((key: string, fallback: string): string => {
     const value = t(key as TranslationKey);
@@ -57,6 +59,9 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
   const [workspaceSongs, setWorkspaceSongs] = useState<Song[] | null>(null);
   const [entries, setEntries] = useState<(EditorEntry & { songId: string })[]>([]);
   const [loaded, setLoaded] = useState<Song[]>([]);
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,6 +89,24 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
   const [shown, setShown] = useState(STUDIO_PAGE);
   useEffect(() => { setShown(STUDIO_PAGE); }, [scope, query]);
   const list = useMemo(() => matches.slice(0, shown), [matches, shown]);
+
+  // Songs that are gone (deleted) leave the selection.
+  useEffect(() => {
+    setPicked((prev) => {
+      if (prev.size === 0) return prev;
+      const ids = new Set(songs.map((x) => x.id));
+      const next = new Set(Array.from(prev).filter((id) => ids.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [songs]);
+
+  const togglePicked = (id: string) =>
+    setPicked((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const stopSelecting = () => { setSelecting(false); setPicked(new Set()); };
+  const deletePicked = () => {
+    const chosen = songs.filter((x) => picked.has(x.id));
+    if (chosen.length > 0) onDeleteSongs?.(chosen);
+  };
 
   // Keep the green marks in step with what is really on the editor's timeline.
   useEffect(() => {
@@ -174,7 +197,29 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
           <p className="mt-2 text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
             {tf('studioHint', 'Pick a song to open it in the editor, then pick others to stack them as tracks.')}
           </p>
-          <p className="mt-1 text-[10px] text-zinc-400 tabular-nums">{matches.length} {tf('studioSongCount', 'songs')}</p>
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <p className="text-[10px] text-zinc-400 tabular-nums">{matches.length} {tf('studioSongCount', 'songs')}</p>
+            {onDeleteSongs && (
+              <button type="button" onClick={() => (selecting ? stopSelecting() : setSelecting(true))} className="text-[11px] text-pink-500 hover:underline">
+                {selecting ? tf('studioSelectDone', 'Done') : tf('studioSelect', 'Select')}
+              </button>
+            )}
+          </div>
+          {selecting && (
+            <div className="mt-1.5 flex items-center gap-2">
+              <button type="button" onClick={() => setPicked(new Set(list.map((x) => x.id)))} className="text-[11px] text-zinc-600 dark:text-zinc-300 hover:underline">
+                {tf('studioSelectAll', 'Select all shown')}
+              </button>
+              <button
+                type="button"
+                onClick={deletePicked}
+                disabled={picked.size === 0}
+                className="ml-auto flex items-center gap-1 px-2 py-1 text-[11px] rounded-lg bg-red-500 text-white hover:bg-red-600 disabled:opacity-40"
+              >
+                <Trash2 size={12} /> {tf('studioDeleteSelected', 'Delete')} ({picked.size})
+              </button>
+            </div>
+          )}
           {error && <p className="mt-2 text-[11px] text-red-500">{error}</p>}
         </div>
 
@@ -189,11 +234,14 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
               <li key={song.id}>
                 <button
                   type="button"
-                  onClick={() => addSong(song)}
-                  disabled={!!busyId}
+                  onClick={() => (selecting ? togglePicked(song.id) : addSong(song))}
+                  disabled={!selecting && !!busyId}
                   title={tf('studioAddTrack', 'Add to the editor as a new track')}
                   className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-white/5 disabled:opacity-60 disabled:cursor-wait"
                 >
+                  {selecting && (
+                    <input type="checkbox" readOnly checked={picked.has(song.id)} className="flex-shrink-0 accent-pink-500 pointer-events-none" aria-label={song.title} />
+                  )}
                   {song.coverUrl ? (
                     <img src={song.coverUrl} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0 bg-zinc-200 dark:bg-white/10" />
                   ) : (
@@ -204,7 +252,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
                     <span className="block text-[11px] text-zinc-500 dark:text-zinc-400 truncate">{song.ditModel ? `${getModelDisplayName(song.ditModel)} · ` : ''}{song.style}</span>
                   </span>
                   <span className="text-[10px] text-zinc-400 tabular-nums flex-shrink-0">{song.duration}</span>
-                  {busy ? (
+                  {selecting ? null : busy ? (
                     <span className="w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
                   ) : added ? (
                     <Check size={16} className="text-emerald-500 flex-shrink-0" aria-label={tf('studioInEditor', 'In the editor')} />

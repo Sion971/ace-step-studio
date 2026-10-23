@@ -4,7 +4,6 @@ import { SeedSettings } from './SeedSettings';
 import { FlowEditSettings } from './FlowEditSettings';
 import { OutputSettings } from './OutputSettings';
 import { SamplingSettings } from './SamplingSettings';
-import { InstructionField, LEGACY_INSTRUCTION_DEFAULT } from './InstructionField';
 import { TrackPicker, type TrackMode } from './TrackPicker';
 import { GuidanceSettings } from './GuidanceSettings';
 import { CotDebugToggles, type CotDebugTogglesValues } from './CotDebugToggles';
@@ -358,14 +357,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const [audioCodes, setAudioCodes] = useState('');
   const [repaintingStart, setRepaintingStart] = useState(0);
   const [repaintingEnd, setRepaintingEnd] = useState(-1);
-  // Vide par defaut : acestep.ts choisit alors l'instruction adaptee au taskType.
-  const [instruction, setInstruction] = useState('');
-  // Suivi du mode audio dans lequel Instruction a ete edite pour la
-  // derniere fois, pour detecter un contenu potentiellement laisse par un
-  // autre mode (ex: du texte pense pour Cover, encore present en Repaint).
-  // null tant que rien n'a ete tape manuellement, ou apres restauration de
-  // parametres — evite un faux avertissement au chargement.
-  const [instructionModeAtEdit, setInstructionModeAtEdit] = useState<AudioModeId | null>(null);
   // Defaut initial = valeurs du mode 'inspiration' (voir AUDIO_MODE_DEFAULTS
   // ci-dessous) : le mode par defaut du panneau est 'inspiration', donc
   // changeAudioMode n'est jamais appele avant un premier changement manuel
@@ -823,11 +814,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         if (data.audio_codes !== undefined) setAudioCodes(data.audio_codes);
         if (data.repainting_start !== undefined) setRepaintingStart(data.repainting_start);
         if (data.repainting_end !== undefined) setRepaintingEnd(data.repainting_end);
-        // Une valeur persistee egale a l'ancien defaut code en dur reintroduirait
-        // le bug : on la traite comme vide pour laisser le serveur decider.
-        if (data.instruction !== undefined) {
-          setInstruction(data.instruction === LEGACY_INSTRUCTION_DEFAULT ? '' : data.instruction);
-        }
         if (data.audio_cover_strength !== undefined) setAudioCoverStrength(data.audio_cover_strength);
         if (data.cover_noise_strength !== undefined) setCoverNoiseStrength(data.cover_noise_strength);
       } catch {
@@ -2032,7 +2018,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         // risque moindre, mais meme incoherence de fond.
         repaintingStart: taskType === 'repaint' || taskType === 'lego' ? repaintingStart : undefined,
         repaintingEnd: taskType === 'repaint' || taskType === 'lego' ? repaintingEnd : undefined,
-        instruction,
+        // L'instruction n'est plus un champ de l'interface : le serveur choisit celle qui convient a la tache (acestep.ts).
+        instruction: undefined,
         // Non documentees pour Repaint (absentes de l'exemple de payload
         // repaint dans INFERENCE.md) et masquees dans l'UI pour ce mode —
         // voir TROUBLESHOOTING #23 : un controle masque doit aussi cesser
@@ -2163,24 +2150,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     getLrc: () => setGetLrc(!getLrc),
   };
   const handleCotDebugToggle = (key: keyof CotDebugTogglesValues) => cotDebugSetters[key]();
-
-  // Marque l'instruction comme editee dans le mode ACTUEL a chaque frappe —
-  // sert de reference pour detecter, apres un changement de mode, un texte
-  // potentiellement ecrit pour une autre operation (voir instructionMayBeStale).
-  const handleInstructionChange = (value: string) => {
-    setInstruction(value);
-    setInstructionModeAtEdit(audioMode);
-  };
-  // Avertissement, pas d'effacement automatique (choix explicite) : un
-  // champ non vide, edite dans un mode different de celui actif maintenant,
-  // peut faire echouer silencieusement l'operation en cours — observe sur
-  // Repaint, dont le mecanisme de remplissage de region masquee semble
-  // particulierement sensible a une instruction incoherente (silence dans
-  // la region repaint plutot que des artefacts, contrairement a Cover).
-  const instructionMayBeStale =
-    instruction.trim() !== '' &&
-    instructionModeAtEdit !== null &&
-    instructionModeAtEdit !== audioMode;
 
   return (
     <div
@@ -2926,18 +2895,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             <AudioTransformPanel
               audioCodes={audioCodes}
               onAudioCodesChange={setAudioCodes}
-              sourceAudioUrl={sourceAudioUrl}
-              t={t}
-              tf={tf}
-            />
-
-            <InstructionField
-              instruction={instruction}
-              onInstructionChange={handleInstructionChange}
-              taskType={taskType}
-              trackName={trackName}
-              trackClasses={completeTrackClasses}
-              showStaleWarning={instructionMayBeStale}
               t={t}
               tf={tf}
             />

@@ -43,6 +43,8 @@
 - Studio tab, "Add an instrument": under the song list, pick a song that is in the editor, an instrument (keyboards, percussion, brass, guitar, bass, strings, synth…), a style, a Base model and the guidance (5 by default), then "Generate and add as a track". It runs Lego over the whole song with the settings measured best (50 steps, shift 1, ADG, FLAC, no mix, key / tempo / length taken from the song) and the new track alone comes back as a new track of the editor; the song list is refreshed too. Needs a Base or XL Base model.
 - Studio tab, "Add an instrument" fixes: the Base model is now loaded before the generation (the engine used to keep the model that was active, a Turbo one, which clamped the steps to 8 and the guidance to 1 whatever the panel said); a "part of the song" range (from / to in seconds, or the "Selection" button that takes the range selected in the editor) generates only that part, and the new track is cut to it and placed at its start in the editor.
 - Studio tab: the song list was cut at the 100 newest songs, so the older ones (made with earlier models) could only be reached by searching. It now shows how many songs match, a "Show more" button adds 100 at a time, and each row names the model the song was made with.
+- Studio tab: a "Select" button over the song list lets you tick several songs (or "Select all shown") and delete them at once, with the usual confirmation.
+- Removed from the advanced settings: the "Instruction" field (the server already picks the right instruction for each task, and a text left over from another mode could silently spoil a generation) and the "Convert to Codes" / "Transcribe" buttons (they only wrote to the browser console).
 
 ## 2026-10-21
 

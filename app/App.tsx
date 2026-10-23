@@ -2174,6 +2174,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
             songsInAnyWorkspace={songsInAnyWorkspace}
             loadWorkspaceSongs={loadStudioWorkspaceSongs}
             onGenerateInstrument={generateStudioInstrument}
+            onDeleteSongs={handleDeleteSongs}
           />
         );
 
