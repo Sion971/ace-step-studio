@@ -71,18 +71,19 @@ export const SamplingSettings: React.FC<SamplingSettingsProps> = ({
         {/* Audio Format, Inference Method, Sampler, Scheduler */}
         <div className="grid grid-cols-4 gap-3">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('audioFormat')}</label>
+            <label className="block text-center text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('audioFormat')}</label>
             <select
               value={audioFormat}
+              title={`${t('mp3Smaller')} / ${t('flacLossless')}`}
               onChange={(e) => onAudioFormatChange(e.target.value as 'mp3' | 'flac')}
-              className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 transition-colors cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800 [&>option]:text-zinc-900 [&>option]:dark:text-white"
+              className="w-full text-center [text-align-last:center] bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 transition-colors cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800 [&>option]:text-zinc-900 [&>option]:dark:text-white"
             >
-              <option value="mp3">{t('mp3Smaller')}</option>
-              <option value="flac">{t('flacLossless')}</option>
+              <option value="mp3" title={t('mp3Smaller')}>MP3</option>
+              <option value="flac" title={t('flacLossless')}>FLAC</option>
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('inferMethod')}</label>
+            <label className="block text-center text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('inferMethod')}</label>
             <select
               value={inferMethod}
               onChange={(e) => {
@@ -91,14 +92,14 @@ export const SamplingSettings: React.FC<SamplingSettingsProps> = ({
                 // SDE only works with Euler
                 if (val === 'sde' && samplerMode !== 'euler') onSamplerModeChange('euler');
               }}
-              className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 transition-colors cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800 [&>option]:text-zinc-900 [&>option]:dark:text-white"
+              className="w-full text-center [text-align-last:center] bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 transition-colors cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800 [&>option]:text-zinc-900 [&>option]:dark:text-white"
             >
               <option value="ode">{t('odeDeterministic')}</option>
               <option value="sde">{t('sdeStochastic')}</option>
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{tf('samplerMode', 'Sampler')}</label>
+            <label className="block text-center text-xs font-medium text-zinc-600 dark:text-zinc-400">{tf('samplerMode', 'Sampler')}</label>
             <select
               value={samplerMode}
               onChange={(e) => {
@@ -109,7 +110,7 @@ export const SamplingSettings: React.FC<SamplingSettingsProps> = ({
                 // Multistep samplers (deis/ipndm) need uniform steps → force linear scheduler
                 if ((val === 'deis' || val === 'ipndm') && schedulerType !== 'linear') onSchedulerTypeChange('linear');
               }}
-              className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 transition-colors cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800 [&>option]:text-zinc-900 [&>option]:dark:text-white"
+              className="w-full text-center [text-align-last:center] bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 transition-colors cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800 [&>option]:text-zinc-900 [&>option]:dark:text-white"
             >
               {(inferMethod === 'sde' || turboActive) ? (
                 <option value="euler">Euler</option>
@@ -130,7 +131,7 @@ export const SamplingSettings: React.FC<SamplingSettingsProps> = ({
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{tf('schedulerType', 'Scheduler')}</label>
+            <label className="block text-center text-xs font-medium text-zinc-600 dark:text-zinc-400">{tf('schedulerType', 'Scheduler')}</label>
             <select
               value={schedulerType}
               onChange={(e) => {
@@ -139,7 +140,7 @@ export const SamplingSettings: React.FC<SamplingSettingsProps> = ({
                 // Non-linear schedulers incompatible with multistep samplers
                 if (val !== 'linear' && (samplerMode === 'deis' || samplerMode === 'ipndm')) onSamplerModeChange('euler');
               }}
-              className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 transition-colors cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800 [&>option]:text-zinc-900 [&>option]:dark:text-white"
+              className="w-full text-center [text-align-last:center] bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-xl px-2 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500 dark:focus:border-pink-500 transition-colors cursor-pointer [&>option]:bg-white [&>option]:dark:bg-zinc-800 [&>option]:text-zinc-900 [&>option]:dark:text-white"
             >
               {(samplerMode === 'deis' || samplerMode === 'ipndm' || turboActive) ? (
                 <option value="linear">Linear</option>

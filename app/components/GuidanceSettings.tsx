@@ -61,7 +61,7 @@ export const GuidanceSettings: React.FC<GuidanceSettingsProps> = ({
         <h4 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">{t('guidance')}</h4>
         <p className="text-[11px] text-zinc-400 dark:text-zinc-500">{t('advancedCfgScheduling')}</p>
         {/* Presets */}
-        <div className="flex flex-wrap gap-1.5 pt-1">
+        <div className="grid grid-cols-3 gap-1.5 pt-1">
           {presets.map((p) => (
             <button
               key={p.label}
@@ -73,7 +73,7 @@ export const GuidanceSettings: React.FC<GuidanceSettingsProps> = ({
                 onScoreScaleChange(p.score);
                 onUseAdgChange(p.adg);
               }}
-              className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all border ${
+              className={`px-2 py-1 rounded-md text-[10px] font-medium text-center transition-all border ${
                 cfgIntervalStart === p.cfg[0] && cfgIntervalEnd === p.cfg[1] && (useAdg === p.adg)
                   ? 'bg-pink-500/20 text-pink-400 border-pink-500/30'
                   : 'bg-white/5 text-zinc-400 border-white/10 hover:border-white/20 hover:text-zinc-200'
