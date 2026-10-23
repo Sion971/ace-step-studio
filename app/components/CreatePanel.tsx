@@ -2660,6 +2660,19 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               title={tf('hintGuidanceScale', 'How strongly the model follows the prompt. Higher = stricter, lower = freer. 0 = no guidance (turbo).')}
             />
 
+            {/* Shift */}
+            <EditableSlider
+              label={t('shift')}
+              value={shift}
+              min={1}
+              max={5}
+              step={0.1}
+              onChange={setShift}
+              formatDisplay={(val) => val.toFixed(1)}
+              helpText={t('timestepShiftForBase')}
+              title={tf('hintShift', 'Spreads the denoising steps. Turbo models use 3 with 8 steps; base and SFT models use 1 with about 50 steps.')}
+            />
+
             {/* Échantillonnage, sampler/scheduler et DCW — voir
                 SamplingSettings.tsx. Les neuf états restent ici : ils sont
                 lus à la construction de la charge utile. */}
@@ -2771,19 +2784,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               onRetakeSeedChange={setRetakeSeed}
               t={t}
               tf={tf}
-            />
-
-            {/* Shift */}
-            <EditableSlider
-              label={t('shift')}
-              value={shift}
-              min={1}
-              max={5}
-              step={0.1}
-              onChange={setShift}
-              formatDisplay={(val) => val.toFixed(1)}
-              helpText={t('timestepShiftForBase')}
-              title={tf('hintShift', 'Adjusts the diffusion schedule. Only affects base model.')}
             />
 
             {/* Divider */}
