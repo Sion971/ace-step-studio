@@ -112,6 +112,7 @@ const EXPECTED_SIZES: Record<string, { bytes: number; approx: boolean }> = {
   'acestep-5Hz-lm-0.6B': { bytes: 1_200_000_000, approx: true }, // 0.6 G parameters on 2 bytes
   'acestep-v15-xl-turbo-bf16': { bytes: 9_300_000_000, approx: true }, // announced by download_model.sh
   'acestep-v15-xl-base-bf16': { bytes: 7_500_000_000, approx: true }, // size shown on the Hugging Face page
+  'acestep-v15-xl-base': { bytes: 18_800_000_000, approx: true }, // same size as the other full XL models
   'acestep-v15-xl-turbo': { bytes: 18_800_000_000, approx: true }, // announced by download_model.sh
   'acestep-v15-xl-sft': { bytes: 18_800_000_000, approx: true }, // announced by download_model.sh
 };

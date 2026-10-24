@@ -29,6 +29,7 @@ export interface ModelDownload {
 export const MODEL_DOWNLOADS: Record<string, ModelDownload> = {
   // XL (4B)
   'acestep-v15-xl-turbo': { repo: 'ACE-Step/acestep-v15-xl-turbo' },
+  'acestep-v15-xl-base': { repo: 'ACE-Step/acestep-v15-xl-base' },
   'acestep-v15-xl-sft': { repo: 'ACE-Step/acestep-v15-xl-sft' },
   // The "marcorez8/" prefix belongs to the VALUE (the real repository), never to the key (the folder name on disk).
   'acestep-v15-xl-turbo-bf16': { repo: 'marcorez8/acestep-v15-xl-turbo-bf16' },
@@ -56,6 +57,7 @@ export const isLmModel = (model: string): boolean => Object.prototype.hasOwnProp
 /** The models offered by the menu, in the order the server proposes them (the client has its own display order). Each one has a download source. */
 export const LISTED_DIT_MODELS: readonly string[] = [
   'acestep-v15-xl-turbo',
+  'acestep-v15-xl-base',
   'acestep-v15-xl-sft',
   'acestep-v15-xl-turbo-bf16',
   'acestep-v15-xl-base-bf16',

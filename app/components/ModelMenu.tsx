@@ -42,6 +42,7 @@ interface ModelMenuProps {
 /** Ordre d'affichage préféré ; sert aussi de repli si le backend est injoignable. */
 const FIXED_ORDER = [
   'acestep-v15-xl-turbo',
+  'acestep-v15-xl-base',
   'acestep-v15-xl-sft',
   // Sans le prefixe "marcorez8/" : le vrai nom de dossier sur le disque
   // (download_model.sh) et l'alias interne d'ACE-Step-1.5 lui-meme

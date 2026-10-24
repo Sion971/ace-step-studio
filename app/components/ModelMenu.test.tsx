@@ -7,7 +7,7 @@ import { ModelMenu, type FetchedModel } from './ModelMenu';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
-const XL = ['acestep-v15-xl-turbo', 'acestep-v15-xl-sft', 'acestep-v15-xl-turbo-bf16', 'acestep-v15-xl-base-bf16', 'acestep-v15-xl-merge-sft-turbo'];
+const XL = ['acestep-v15-xl-turbo', 'acestep-v15-xl-base', 'acestep-v15-xl-sft', 'acestep-v15-xl-turbo-bf16', 'acestep-v15-xl-base-bf16', 'acestep-v15-xl-merge-sft-turbo'];
 const TWO_B = ['acestep-v15-turbo', 'acestep-v15-sft', 'acestep-v15-base'];
 
 /** What the server answers: every offered model, with what is on the disk. */
@@ -86,7 +86,7 @@ describe('the model menu and the memory of the card', () => {
     await mount(served(['acestep-v15-xl-turbo-bf16'], 'acestep-v15-xl-turbo-bf16'));
     await click(trigger());
     expect(options()).toEqual(['acestep-v15-xl-turbo-bf16', 'acestep-v15-xl-base-bf16', 'acestep-v15-turbo', 'acestep-v15-sft', 'acestep-v15-base']);
-    expect(q('model-menu-toggle-more')!.textContent).toBe('Show models that need more VRAM (3)');
+    expect(q('model-menu-toggle-more')!.textContent).toBe('Show models that need more VRAM (4)');
     expect(document.body.querySelector('[data-testid^="model-vram-note-"]')).toBeNull(); // nothing shown is too big
   });
 
@@ -109,7 +109,7 @@ describe('the model menu and the memory of the card', () => {
     await mount(served(), 'acestep-v15-turbo'); // the compact XL is neither chosen nor on the disk: only the margin keeps it listed
     await click(trigger());
     expect(options()).toContain('acestep-v15-xl-turbo-bf16');
-    expect(q('model-menu-toggle-more')!.textContent).toBe('Show models that need more VRAM (3)');
+    expect(q('model-menu-toggle-more')!.textContent).toBe('Show models that need more VRAM (4)');
   });
 
   it('a model already on the disk stays listed even if the card is too small for it, with its note; it is not counted as folded', async () => {
@@ -117,7 +117,7 @@ describe('the model menu and the memory of the card', () => {
     await click(trigger());
     expect(options()).toContain('acestep-v15-xl-turbo');
     expect(q('model-vram-note-acestep-v15-xl-turbo')!.textContent).toBe('Needs 12 GB of VRAM (yours: 8 GB)');
-    expect(q('model-menu-toggle-more')!.textContent).toBe('Show models that need more VRAM (2)');
+    expect(q('model-menu-toggle-more')!.textContent).toBe('Show models that need more VRAM (3)');
   });
 
   it('the chosen model stays listed, whatever its size', async () => {
@@ -200,7 +200,7 @@ describe('the model menu and the memory of the card', () => {
     localStorage.setItem('language', 'fr');
     await mount(served(['acestep-v15-xl-turbo-bf16'], 'acestep-v15-xl-turbo-bf16'));
     await click(trigger());
-    expect(q('model-menu-toggle-more')!.textContent).toBe('Afficher les modèles qui demandent plus de VRAM (3)');
+    expect(q('model-menu-toggle-more')!.textContent).toBe('Afficher les modèles qui demandent plus de VRAM (4)');
     await click(q('model-menu-toggle-more'));
     expect(q('model-vram-note-acestep-v15-xl-turbo')!.textContent).toBe('Demande 12 Go de VRAM (vous en avez 8 Go)');
     expect(q('model-menu-toggle-more')!.textContent).toBe('Masquer les modèles qui demandent plus de VRAM');

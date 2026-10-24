@@ -508,6 +508,7 @@ async function getActiveModel(): Promise<string | null> {
 // n'apparait que dans la VALEUR, le vrai depot HuggingFace complet.
 const MODEL_HF_REPOS: Record<string, string> = {
   'acestep-v15-xl-turbo': 'ACE-Step/acestep-v15-xl-turbo',
+  'acestep-v15-xl-base': 'ACE-Step/acestep-v15-xl-base',
   'acestep-v15-xl-sft': 'ACE-Step/acestep-v15-xl-sft',
   'acestep-v15-xl-turbo-bf16': 'marcorez8/acestep-v15-xl-turbo-bf16',
   'acestep-v15-xl-base-bf16': 'marcorez8/acestep-v15-xl-base-bf16',

@@ -53,6 +53,7 @@
 - Cleanup: removed the empty `package-lock.json` at the repository root (no `package.json` there, it was added by mistake) and added it to `.gitignore`.
 - Models: added **XL Base BF16** (`acestep-v15-xl-base-bf16`, 4B, about 7.5 GB, from `marcorez8/acestep-v15-xl-base-bf16`) to the model menu with download on demand; it is a pure base model, so Lego, Extract and Complete accept it, and it fits an 8 GB card.
 - Create tab: the "Mix with the original" option of Lego and Complete is now off by default (the stem alone is returned; mixing is still one click away, and the Studio tab mixes on separate tracks).
+- Models: added **XL Base** (`acestep-v15-xl-base`, 4B, about 18.8 GB, from `ACE-Step/acestep-v15-xl-base`) to the model menu with download on demand (it needs 12 GB of VRAM, so it sits behind the "more VRAM" link on smaller cards).
 
 ## 2026-10-21
 
