@@ -385,7 +385,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const [trackName, setTrackName] = useState('');
   const [completeTrackClasses, setCompleteTrackClasses] = useState('');
   // Lego / Complete : le moteur ne rend que la nouvelle piste ; un mix avec l'audio source est fabrique en plus par le serveur.
-  const [mixWithSource, setMixWithSource] = useState(true);
+  const [mixWithSource, setMixWithSource] = useState(false);
   const [mixStemLevel, setMixStemLevel] = useState(80);
   const [isFormatCaption, setIsFormatCaption] = useState(false);
 

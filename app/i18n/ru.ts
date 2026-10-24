@@ -318,6 +318,7 @@ export const ru = {
     modelDescTurbo: '4B, быстрая',
     modelDescSft: '4B, макс. качество',
     modelDescBf16: '4B BF16, компактная',
+    modelDescXlBaseBf16: '4B BF16 базовая, компактная',
     modelDescMerge: '4B SFT+Turbo мерж, комьюнити',
     inQueue: 'в очереди',
     uploadForCover: 'Загрузить аудио для Cover / Remix',

@@ -314,6 +314,7 @@ export const zh = {
     modelDescTurbo: '4B，快速',
     modelDescSft: '4B，最高质量',
     modelDescBf16: '4B BF16，紧凑',
+    modelDescXlBaseBf16: '4B BF16 基础版，紧凑',
     modelDescMerge: '4B SFT+Turbo 合并, 社区',
     inQueue: '排队中',
     uploadForCover: '上传音频进行翻唱 / 混音',

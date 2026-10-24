@@ -314,6 +314,7 @@ export const ko = {
     modelDescTurbo: '4B, 빠른',
     modelDescSft: '4B, 최고 품질',
     modelDescBf16: '4B BF16, 컴팩트',
+    modelDescXlBaseBf16: '4B BF16 베이스, 컴팩트',
     modelDescMerge: '4B SFT+Turbo 병합, 커뮤니티',
     inQueue: '대기 중',
     uploadForCover: '커버 / 리믹스를 위해 오디오 업로드',

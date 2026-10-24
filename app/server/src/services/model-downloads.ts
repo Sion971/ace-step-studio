@@ -32,6 +32,7 @@ export const MODEL_DOWNLOADS: Record<string, ModelDownload> = {
   'acestep-v15-xl-sft': { repo: 'ACE-Step/acestep-v15-xl-sft' },
   // The "marcorez8/" prefix belongs to the VALUE (the real repository), never to the key (the folder name on disk).
   'acestep-v15-xl-turbo-bf16': { repo: 'marcorez8/acestep-v15-xl-turbo-bf16' },
+  'acestep-v15-xl-base-bf16': { repo: 'marcorez8/acestep-v15-xl-base-bf16' },
   'acestep-v15-xl-merge-sft-turbo': { repo: 'jeankassio/acestep_v1.5_merge_sft_turbo_xl' },
   // 2B
   'acestep-v15-turbo': { repo: 'ACE-Step/Ace-Step1.5', include: 'acestep-v15-turbo/*' },
@@ -57,6 +58,7 @@ export const LISTED_DIT_MODELS: readonly string[] = [
   'acestep-v15-xl-turbo',
   'acestep-v15-xl-sft',
   'acestep-v15-xl-turbo-bf16',
+  'acestep-v15-xl-base-bf16',
   'acestep-v15-xl-merge-sft-turbo',
   'acestep-v15-turbo',
   'acestep-v15-sft',

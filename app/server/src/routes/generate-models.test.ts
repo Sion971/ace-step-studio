@@ -63,7 +63,7 @@ describe('GET /api/generate/models', () => {
   it('offers the three 2B models next to the XL ones (they used to be missing: the list was XL only)', async () => {
     expect(names(await list())).toEqual([
       'acestep-v15-base', 'acestep-v15-sft', 'acestep-v15-turbo',
-      'acestep-v15-xl-merge-sft-turbo', 'acestep-v15-xl-sft', 'acestep-v15-xl-turbo', 'acestep-v15-xl-turbo-bf16',
+      'acestep-v15-xl-base-bf16', 'acestep-v15-xl-merge-sft-turbo', 'acestep-v15-xl-sft', 'acestep-v15-xl-turbo', 'acestep-v15-xl-turbo-bf16',
     ]);
   });
 
@@ -93,12 +93,12 @@ describe('GET /api/generate/models', () => {
     install('my-finetune');
     const models = await list();
     expect(models.find((m) => m.name === 'my-finetune')).toMatchObject({ is_preloaded: true, is_custom: true });
-    expect(models).toHaveLength(8);
+    expect(models).toHaveLength(9);
   });
 
   it('does not take the language models, the VAE and the text encoder for DiT models', async () => {
     install('acestep-5Hz-lm-0.6B', 'vae', 'Qwen3-Embedding-0.6B');
-    expect(names(await list())).toHaveLength(7);
+    expect(names(await list())).toHaveLength(8);
   });
 });
 

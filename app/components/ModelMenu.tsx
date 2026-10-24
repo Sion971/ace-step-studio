@@ -52,6 +52,7 @@ const FIXED_ORDER = [
   // rapprochement par egalite de chaine echouant silencieusement entre
   // les deux formes.
   'acestep-v15-xl-turbo-bf16',
+  'acestep-v15-xl-base-bf16',
   'acestep-v15-xl-merge-sft-turbo',
   // 2B : plus légers ; le menu ne les montre en premier que si la carte ne peut pas faire tourner les XL.
   'acestep-v15-turbo',

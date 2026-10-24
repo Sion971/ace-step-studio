@@ -7,7 +7,7 @@ import { ModelMenu, type FetchedModel } from './ModelMenu';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
-const XL = ['acestep-v15-xl-turbo', 'acestep-v15-xl-sft', 'acestep-v15-xl-turbo-bf16', 'acestep-v15-xl-merge-sft-turbo'];
+const XL = ['acestep-v15-xl-turbo', 'acestep-v15-xl-sft', 'acestep-v15-xl-turbo-bf16', 'acestep-v15-xl-base-bf16', 'acestep-v15-xl-merge-sft-turbo'];
 const TWO_B = ['acestep-v15-turbo', 'acestep-v15-sft', 'acestep-v15-base'];
 
 /** What the server answers: every offered model, with what is on the disk. */
@@ -85,7 +85,7 @@ describe('the model menu and the memory of the card', () => {
   it('on an 8 GB card: the 2B models and the compact XL are listed, the big XL are behind a link that counts them', async () => {
     await mount(served(['acestep-v15-xl-turbo-bf16'], 'acestep-v15-xl-turbo-bf16'));
     await click(trigger());
-    expect(options()).toEqual(['acestep-v15-xl-turbo-bf16', 'acestep-v15-turbo', 'acestep-v15-sft', 'acestep-v15-base']);
+    expect(options()).toEqual(['acestep-v15-xl-turbo-bf16', 'acestep-v15-xl-base-bf16', 'acestep-v15-turbo', 'acestep-v15-sft', 'acestep-v15-base']);
     expect(q('model-menu-toggle-more')!.textContent).toBe('Show models that need more VRAM (3)');
     expect(document.body.querySelector('[data-testid^="model-vram-note-"]')).toBeNull(); // nothing shown is too big
   });
@@ -101,7 +101,7 @@ describe('the model menu and the memory of the card', () => {
     expect(q('model-vram-note-acestep-v15-xl-turbo-bf16')).toBeNull(); // 8 asked, 8 had
     expect(q('model-menu-toggle-more')!.textContent).toBe('Hide models that need more VRAM');
     await click(q('model-menu-toggle-more'));
-    expect(options()).toEqual(['acestep-v15-xl-turbo-bf16', 'acestep-v15-turbo', 'acestep-v15-sft', 'acestep-v15-base']);
+    expect(options()).toEqual(['acestep-v15-xl-turbo-bf16', 'acestep-v15-xl-base-bf16', 'acestep-v15-turbo', 'acestep-v15-sft', 'acestep-v15-base']);
   });
 
   it('a "8 GB" card that reports 7.6 keeps the models made for 8', async () => {
@@ -154,7 +154,7 @@ describe('the model menu and the memory of the card', () => {
     expect(attempt).toBe(1);
     await click(trigger());
     expect(attempt).toBe(2);
-    expect(options()).toEqual(['acestep-v15-xl-turbo-bf16', 'acestep-v15-turbo', 'acestep-v15-sft', 'acestep-v15-base']);
+    expect(options()).toEqual(['acestep-v15-xl-turbo-bf16', 'acestep-v15-xl-base-bf16', 'acestep-v15-turbo', 'acestep-v15-sft', 'acestep-v15-base']);
     await click(trigger());
     await click(trigger());
     expect(attempt).toBe(2);

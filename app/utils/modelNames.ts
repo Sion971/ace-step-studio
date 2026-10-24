@@ -24,6 +24,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   'acestep-v15-xl-sft': 'XL SFT',
   'acestep-v15-xl-turbo': 'XL Turbo',
   'acestep-v15-xl-turbo-bf16': 'XL Turbo BF16',
+  'acestep-v15-xl-base-bf16': 'XL Base BF16',
   'acestep-v15-xl-merge-sft-turbo': 'XL Merge SFT+Turbo',
 };
 
@@ -107,6 +108,10 @@ export const MODEL_INFO: Record<string, ModelInfoEntry> = {
   'acestep-v15-xl-turbo-bf16': {
     size: '9.3 GB', steps: 8, vramMin: 8,
     descKey: 'modelDescBf16', descFallback: '4B BF16, compact',
+  },
+  'acestep-v15-xl-base-bf16': {
+    size: '7.5 GB', steps: 50, vramMin: 8,
+    descKey: 'modelDescXlBaseBf16', descFallback: '4B BF16 base, compact',
   },
   'acestep-v15-xl-merge-sft-turbo': {
     size: '19.9 GB', steps: 50, vramMin: 12,

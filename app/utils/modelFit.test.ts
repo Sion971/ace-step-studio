@@ -26,7 +26,7 @@ describe('which models a card can run', () => {
   });
 
   it('on a 6 GB card the compact XL goes too, on 12 GB nothing does', () => {
-    expect(hiddenAt(6)).toEqual(['acestep-v15-xl-base', 'acestep-v15-xl-merge-sft-turbo', 'acestep-v15-xl-sft', 'acestep-v15-xl-turbo', 'acestep-v15-xl-turbo-bf16']);
+    expect(hiddenAt(6)).toEqual(['acestep-v15-xl-base', 'acestep-v15-xl-base-bf16', 'acestep-v15-xl-merge-sft-turbo', 'acestep-v15-xl-sft', 'acestep-v15-xl-turbo', 'acestep-v15-xl-turbo-bf16']);
     expect(hiddenAt(12)).toEqual([]);
     expect(hiddenAt(24)).toEqual([]);
   });

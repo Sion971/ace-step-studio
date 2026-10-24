@@ -21,6 +21,7 @@ describe('track tasks', () => {
   it('accepts only pure base models', () => {
     expect(isPureBaseModel('acestep-v15-base')).toBe(true);
     expect(isPureBaseModel('acestep-v15-xl-base')).toBe(true);
+    expect(isPureBaseModel('acestep-v15-xl-base-bf16')).toBe(true);
     expect(isPureBaseModel('acestep-v15-xl-turbo-bf16')).toBe(false);
     expect(isPureBaseModel('acestep-v15-xl-sft')).toBe(false);
     expect(isPureBaseModel('acestep-v15-xl-merge-sft-turbo')).toBe(false);

@@ -1467,6 +1467,7 @@ router.get('/models', async (_req, res: Response) => {
       'acestep-v15-xl-sft',
       'acestep-v15-xl-turbo',
       'acestep-v15-xl-turbo-bf16',
+      'acestep-v15-xl-base-bf16',
       'acestep-v15-xl-merge-sft-turbo',
     ]);
 

@@ -510,6 +510,7 @@ const MODEL_HF_REPOS: Record<string, string> = {
   'acestep-v15-xl-turbo': 'ACE-Step/acestep-v15-xl-turbo',
   'acestep-v15-xl-sft': 'ACE-Step/acestep-v15-xl-sft',
   'acestep-v15-xl-turbo-bf16': 'marcorez8/acestep-v15-xl-turbo-bf16',
+  'acestep-v15-xl-base-bf16': 'marcorez8/acestep-v15-xl-base-bf16',
 };
 
 async function ensureModelDownloaded(ditModel: string): Promise<void> {

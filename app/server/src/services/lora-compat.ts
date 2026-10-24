@@ -30,6 +30,7 @@ export const STUDIO_MODELS: Record<string, ModelSpec & { vramMin: number }> = {
   'acestep-v15-sft': { family: 'sft', size: '2B', vramMin: 6 },
   'acestep-v15-turbo': { family: 'turbo', size: '2B', vramMin: 6 },
   'acestep-v15-xl-base': { family: 'base', size: 'XL', vramMin: 12 },
+  'acestep-v15-xl-base-bf16': { family: 'base', size: 'XL', vramMin: 8 },
   'acestep-v15-xl-sft': { family: 'sft', size: 'XL', vramMin: 12 },
   'acestep-v15-xl-turbo': { family: 'turbo', size: 'XL', vramMin: 12 },
   'acestep-v15-xl-turbo-bf16': { family: 'turbo', size: 'XL', vramMin: 8 },

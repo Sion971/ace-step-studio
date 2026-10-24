@@ -149,10 +149,10 @@ describe('checkCompatibility', () => {
     it('warns when the GPU is below what the model this LoRA calls for needs', () => {
       expect(vramNeeded({ family: 'turbo', size: '2B' })).toBe(6);
       expect(vramNeeded({ family: 'turbo', size: 'XL' })).toBe(8); // the bf16 build
-      expect(vramNeeded({ family: 'base', size: 'XL' })).toBe(12);
+      expect(vramNeeded({ family: 'base', size: 'XL' })).toBe(8); // the bf16 build, as for the turbo
       expect(vramNeeded({ family: null, size: 'XL' })).toBe(8);
-      const low = check(evidence({ baseModel: ['acestep-v15-xl-base'] }), 'acestep-v15-xl-base', 8);
-      expect(low.reasons.find((r) => r.code === 'vram_low')).toMatchObject({ severity: 'warning', params: { needed: 12, vramGb: 8, size: 'XL', family: 'base' } });
+      const low = check(evidence({ baseModel: ['acestep-v15-xl-base'] }), 'acestep-v15-xl-base', 6);
+      expect(low.reasons.find((r) => r.code === 'vram_low')).toMatchObject({ severity: 'warning', params: { needed: 8, vramGb: 6, size: 'XL', family: 'base' } });
       expect(low.verdict).toBe('warning');
       expect(check(evidence({ baseModel: ['acestep-v15-xl-base'] }), 'acestep-v15-xl-base', 12).verdict).toBe('compatible');
       expect(codes(check(LOFI, 'acestep-v15-turbo', 4))).toEqual(['vram_low']);
