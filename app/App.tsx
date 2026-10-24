@@ -59,7 +59,7 @@ function useResizablePanel(key: string, defaultWidth: number, min: number, max: 
 
   return { width, handle };
 }
-import { generateApi, songsApi, playlistsApi, getAudioUrl, getCoverUrl } from './services/api';
+import { generateApi, songsApi, playlistsApi, settingsApi, getAudioUrl, getCoverUrl } from './services/api';
 import { useAuth } from './context/AuthContext';
 import { useResponsive } from './context/ResponsiveContext';
 import { I18nProvider, useI18n } from './context/I18nContext';
@@ -1863,6 +1863,12 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     } catch (e) {
       throw e instanceof Error ? e : new Error(String(e));
     }
+    // Same defaults as the Create tab: its saved language and time signature (the engine would otherwise fall back to
+    // "en" and "N/A", which is what made the Studio runs differ from a Create run on the same song).
+    let saved: Record<string, unknown> = {};
+    try { saved = await settingsApi.get(token); } catch { /* defaults below */ }
+    const vocalLanguage = String(saved.vocalLanguage || 'en');
+    const timeSignature = song.timeSignature || String(saved.timeSignature || '') || '4';
     const job = await generateApi.startGeneration({
       customMode: true,
       taskType: 'lego',
@@ -1880,7 +1886,8 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
       duration: seconds > 0 ? seconds : undefined,
       bpm: req.bpm,
       keyScale: req.keyScale,
-      timeSignature: song.timeSignature || undefined,
+      timeSignature,
+      vocalLanguage,
       ditModel: req.model,
       inferenceSteps: 50,
       guidanceScale: req.guidance,
