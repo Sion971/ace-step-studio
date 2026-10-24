@@ -43,3 +43,4 @@ app/server/demucs-venv/
 .venv-basicpitch/
 .venv-demucs/
 sac_pending.txt
+/package-lock.json

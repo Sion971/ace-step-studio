@@ -50,6 +50,7 @@
 - Studio tab, "Add an instrument": any clip on the editor timeline can now be the source, not only the songs picked from the list: a file loaded with File > Load from computer, a stem, a mix. The clip is sent to the server as it plays (trimmed included) and used as the Lego source; its tempo and key are left empty to fill in.
 - Studio tab, "Add an instrument": the source follows the clip selected in the editor (the one with the yellow border) instead of staying on the last clip added, which made a generation start from the wrong stem; long clip names are shortened from the front in the menu, so stems of the same song (...-drums, ...-other) can be told apart.
 - Studio tab, "Add an instrument": sends the same vocal language and time signature as the Create tab (its saved settings, 4 by default) instead of leaving the engine defaults (en / N/A), so a Studio run matches a Create run on the same song.
+- Cleanup: removed the empty `package-lock.json` at the repository root (no `package.json` there, it was added by mistake) and added it to `.gitignore`.
 
 ## 2026-10-21
 
