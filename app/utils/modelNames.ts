@@ -110,7 +110,7 @@ export const MODEL_INFO: Record<string, ModelInfoEntry> = {
     descKey: 'modelDescBf16', descFallback: '4B BF16, compact',
   },
   'acestep-v15-xl-base-bf16': {
-    size: '7.5 GB', steps: 50, vramMin: 8,
+    size: '10 GB', steps: 50, vramMin: 8,
     descKey: 'modelDescXlBaseBf16', descFallback: '4B BF16 base, compact',
   },
   'acestep-v15-xl-merge-sft-turbo': {
