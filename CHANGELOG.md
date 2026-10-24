@@ -54,6 +54,7 @@
 - Models: added **XL Base BF16** (`acestep-v15-xl-base-bf16`, 4B, about 10 GB, from `marcorez8/acestep-v15-xl-base-bf16`) to the model menu with download on demand; it is a pure base model, so Lego, Extract and Complete accept it, and it fits an 8 GB card.
 - Create tab: the "Mix with the original" option of Lego and Complete is now off by default (the stem alone is returned; mixing is still one click away, and the Studio tab mixes on separate tracks).
 - Models: added **XL Base** (`acestep-v15-xl-base`, 4B, about 18.8 GB, from `ACE-Step/acestep-v15-xl-base`) to the model menu with download on demand (it needs 12 GB of VRAM, so it sits behind the "more VRAM" link on smaller cards).
+- Studio tab: the editor (AudioMass) can be shown in French. A new file, `app/server/audio-editor/i18n-fr.js`, replaces its English texts on screen (menus, toolbar, tracks, effect windows, messages, welcome window) from a dictionary of about 560 entries, so AudioMass's own files stay untouched and updating the program stays simple. It follows the application language (and switches without reloading the editor); a text that is not in the dictionary stays in English; clip names and what you type are never translated.
 
 ## 2026-10-21
 
