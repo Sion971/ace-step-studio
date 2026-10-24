@@ -31,6 +31,8 @@ interface Props {
   onResult: (song: Song, trackName: string, urls: string[], region?: { start: number; end: number }) => Promise<void>;
   /** The range selected in the editor, if any. */
   getEditorRegion?: () => { start: number; end: number } | null;
+  /** The source to select when it changes (the clip selected in the editor). */
+  preferredSourceId?: string;
 }
 
 /** Installed models that can run Lego (pure base models), the active one first. */
@@ -39,7 +41,12 @@ export function pickLegoModels(models: { name: string; is_active?: boolean; is_p
   return [...ok.filter((m) => m.is_active), ...ok.filter((m) => !m.is_active)].map((m) => m.name);
 }
 
-export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate, onResult, getEditorRegion }) => {
+/** Stems of one song share a long beginning: keep the end of the name, where they differ. */
+export function shortTitle(title: string, max = 32): string {
+  return title.length <= max ? title : `…${title.slice(-(max - 1))}`;
+}
+
+export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate, onResult, getEditorRegion, preferredSourceId }) => {
   const [models, setModels] = useState<string[] | null>(null);
   const [model, setModel] = useState('');
   const [sourceId, setSourceId] = useState('');
@@ -69,6 +76,11 @@ export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate
       .catch(() => { if (!cancelled) setModels([]); });
     return () => { cancelled = true; };
   }, []);
+
+  // Follow the clip selected in the editor.
+  useEffect(() => {
+    if (preferredSourceId) setSourceId(preferredSourceId);
+  }, [preferredSourceId]);
 
   const source = useMemo(() => sources.find((s) => s.id === sourceId) ?? sources[sources.length - 1], [sources, sourceId]);
 
@@ -133,7 +145,7 @@ export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate
         <>
           <label className={label}>{tf('studioInstrumentSource', 'Song')}</label>
           <select className={field} value={source?.id ?? ''} onChange={(e) => setSourceId(e.target.value)} disabled={busy}>
-            {sources.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+            {sources.map((s) => <option key={s.id} value={s.id} title={s.title}>{shortTitle(s.title)}</option>)}
           </select>
           <label className={label}>{tf('studioInstrument', 'Instrument')}</label>
           <select className={field} value={trackName} onChange={(e) => setTrackName(e.target.value)} disabled={busy}>

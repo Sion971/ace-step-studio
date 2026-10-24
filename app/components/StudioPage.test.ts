@@ -65,7 +65,7 @@ describe('syncEditorEntries', () => {
 });
 
 import { durationToSeconds } from './studioBridge';
-import { pickLegoModels } from './StudioInstrumentPanel';
+import { pickLegoModels, shortTitle } from './StudioInstrumentPanel';
 
 describe('durationToSeconds', () => {
   it('reads m:ss and returns 0 when unreadable', () => {
@@ -107,5 +107,16 @@ describe('encodeWavSlice', () => {
 describe('pickLegoModels not installed', () => {
   it('leaves out a Base model that is not on the disk', () => {
     expect(pickLegoModels([{ name: 'acestep-v15-xl-base', is_preloaded: false }, { name: 'acestep-v15-base', is_preloaded: true }])).toEqual(['acestep-v15-base']);
+  });
+});
+
+describe('shortTitle', () => {
+  it('keeps short names and cuts the beginning of long ones, where stems of a song do not differ', () => {
+    expect(shortTitle('Short')).toBe('Short');
+    const a = shortTitle("Poussière d'étoile (Par Thierry SELBONNE) (mix)-drums");
+    const b = shortTitle("Poussière d'étoile (Par Thierry SELBONNE) (mix)-other");
+    expect(a.endsWith('drums')).toBe(true);
+    expect(a).not.toBe(b);
+    expect(a.length).toBeLessThanOrEqual(32);
   });
 });

@@ -5307,7 +5307,7 @@
 		// Studio tab: the clips on the timeline, and the audio of one of them (so it can be used as the source of a generation).
 		q.ListClips = function () {
 			return clips.map ( function ( c ) {
-				return { id: c.id, name: c.name, start: c.start, duration: clipLen ( c ) };
+				return { id: c.id, name: c.name, start: c.start, duration: clipLen ( c ), selected: c.id === selected_clip };
 			});
 		};
 		q.GetClipBuffer = function ( id ) {

@@ -142,6 +142,14 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
     return [...fromList, ...others];
   }, [loaded, entries, editorClips]);
 
+  // The clip selected in the editor is the one the panel works on (the yellow border), whatever was picked before.
+  const preferredSourceId = useMemo(() => {
+    const sel = editorClips.find((c) => c.selected);
+    if (!sel) return undefined;
+    const entry = entries.find((e) => e.name === sel.name);
+    return entry ? entry.songId : `clip:${sel.id}`;
+  }, [editorClips, entries]);
+
   // A clip that is not a song of the library is sent to the server first, as the source of the generation.
   const generateInstrument = useCallback(async (req: StudioInstrumentRequest): Promise<string[]> => {
     if (!onGenerateInstrument) return [];
@@ -303,7 +311,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
           )}
         </ul>
         {onGenerateInstrument && (
-          <StudioInstrumentPanel sources={sources} tf={tf} onGenerate={generateInstrument} onResult={addGenerated} getEditorRegion={() => getEditorRegion(frameRef.current)} />
+          <StudioInstrumentPanel sources={sources} tf={tf} onGenerate={generateInstrument} onResult={addGenerated} getEditorRegion={() => getEditorRegion(frameRef.current)} preferredSourceId={preferredSourceId} />
         )}
       </aside>
 

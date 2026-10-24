@@ -4,7 +4,7 @@
 export interface EditorWindow extends Window {
   PKAudioEditor?: {
     multitrack?: {
-      ListClips?: () => { id: string; name: string; start: number; duration: number }[];
+      ListClips?: () => { id: string; name: string; start: number; duration: number; selected?: boolean }[];
       GetClipBuffer?: (id: string) => { buffer: PcmSource; from: number; to: number } | null;
       GetStudioRange?: () => { start: number; end: number; from: 'region' | 'clip' } | null;
     };
@@ -158,13 +158,14 @@ export interface EditorClip {
   id: string;
   name: string;
   duration: number;
+  selected?: boolean;
 }
 
 /** The clips on the editor's timeline, or null when it cannot be read. */
 export function listEditorClips(frame: HTMLIFrameElement | null): EditorClip[] | null {
   try {
     const list = getEditorApi(frame)?.multitrack?.ListClips?.();
-    return list ? list.map((c) => ({ id: c.id, name: c.name, duration: c.duration })) : null;
+    return list ? list.map((c) => ({ id: c.id, name: c.name, duration: c.duration, selected: !!c.selected })) : null;
   } catch {
     return null;
   }

@@ -48,6 +48,7 @@
 - Studio tab, "Add an instrument": the "Selection" button takes the selected range, or, when there is none, the span of the selected clip. Also puts back the editor's own `GetRegion` (a previous change had replaced it by a copy without the loop flag); the Studio uses a separate `GetStudioRange`.
 - Studio tab, "Add an instrument": BPM, key and seed fields. The tempo and key of the chosen song fill them and can be corrected (a wrong tempo or key stored with the song, e.g. 50 bpm for a track that is really around 85, made Lego produce noise); empty = left to the engine. A typed seed makes a run repeatable; empty = random.
 - Studio tab, "Add an instrument": any clip on the editor timeline can now be the source, not only the songs picked from the list: a file loaded with File > Load from computer, a stem, a mix. The clip is sent to the server as it plays (trimmed included) and used as the Lego source; its tempo and key are left empty to fill in.
+- Studio tab, "Add an instrument": the source follows the clip selected in the editor (the one with the yellow border) instead of staying on the last clip added, which made a generation start from the wrong stem; long clip names are shortened from the front in the menu, so stems of the same song (...-drums, ...-other) can be told apart.
 
 ## 2026-10-21
 
