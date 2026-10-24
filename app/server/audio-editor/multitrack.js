@@ -5304,6 +5304,16 @@
 		q.GetRegion = function () { return region; };
 		q.HasClips = hasClips;
 		q.Mixdown = Mixdown;
+		// Studio tab: the clips on the timeline, and the audio of one of them (so it can be used as the source of a generation).
+		q.ListClips = function () {
+			return clips.map ( function ( c ) {
+				return { id: c.id, name: c.name, start: c.start, duration: clipLen ( c ) };
+			});
+		};
+		q.GetClipBuffer = function ( id ) {
+			var c = findClip ( id );
+			return c ? { buffer: c.buffer, from: clipIn ( c ), to: clipOut ( c ) } : null;
+		};
 		// Studio tab: the time range to work on, {start, end, from} in seconds, or null. The selected range if there is one,
 		// else the span of the selected clip. (GetRegion above is used by other parts of the editor: it must stay as it is.)
 		q.GetStudioRange = function () {

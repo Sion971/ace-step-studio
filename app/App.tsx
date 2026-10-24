@@ -2176,6 +2176,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
             loadWorkspaceSongs={loadStudioWorkspaceSongs}
             onGenerateInstrument={generateStudioInstrument}
             onDeleteSongs={handleDeleteSongs}
+            uploadAudio={async (file: File) => (await generateApi.uploadAudio(file, token!)).url}
           />
         );
 

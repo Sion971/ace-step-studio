@@ -3,8 +3,8 @@ import { Search, Plus, Check, Music, Trash2 } from 'lucide-react';
 import { Song } from '../types';
 import { useI18n } from '../context/I18nContext';
 import type { TranslationKey } from '../i18n/translations';
-import { addTrackToEditor, editorFileName, getEditorRegion, listEditorClipNames, syncEditorEntries, trimAudioToWav, waitForEditor } from './studioBridge';
-import type { EditorEntry } from './studioBridge';
+import { addTrackToEditor, editorFileName, exportEditorClip, formatDuration, getEditorRegion, listEditorClipNames, listEditorClips, syncEditorEntries, trimAudioToWav, waitForEditor } from './studioBridge';
+import type { EditorClip, EditorEntry } from './studioBridge';
 import { StudioInstrumentPanel } from './StudioInstrumentPanel';
 import type { StudioInstrumentRequest } from './StudioInstrumentPanel';
 import { TRACK_LABELS } from './TrackPicker';
@@ -29,6 +29,8 @@ interface StudioPageProps {
   onGenerateInstrument?: (req: StudioInstrumentRequest) => Promise<string[]>;
   /** Deletes songs (asks for confirmation itself). */
   onDeleteSongs?: (songs: Song[]) => void;
+  /** Uploads an audio file and resolves with the URL the generation can use as a source. */
+  uploadAudio?: (file: File) => Promise<string>;
 }
 
 const STUDIO_PAGE = 100;
@@ -46,7 +48,7 @@ export function filterStudioSongs(songs: Song[], query: string): Song[] {
     .sort((a, b) => (new Date(b.createdAt).getTime() || 0) - (new Date(a.createdAt).getTime() || 0));
 }
 
-export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs, onGenerateInstrument, onDeleteSongs }) => {
+export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs, onGenerateInstrument, onDeleteSongs, uploadAudio }) => {
   const { t } = useI18n();
   const tf = useCallback((key: string, fallback: string): string => {
     const value = t(key as TranslationKey);
@@ -59,6 +61,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
   const [workspaceSongs, setWorkspaceSongs] = useState<Song[] | null>(null);
   const [entries, setEntries] = useState<(EditorEntry & { songId: string })[]>([]);
   const [loaded, setLoaded] = useState<Song[]>([]);
+  const [editorClips, setEditorClips] = useState<EditorClip[]>([]);
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
@@ -111,6 +114,8 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
   // Keep the green marks in step with what is really on the editor's timeline.
   useEffect(() => {
     const timer = setInterval(() => {
+      const clips = listEditorClips(frameRef.current);
+      if (clips) setEditorClips((prev) => (JSON.stringify(prev) === JSON.stringify(clips) ? prev : clips));
       const names = listEditorClipNames(frameRef.current);
       if (!names) return;
       setEntries((prev) => {
@@ -123,10 +128,32 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
     return () => clearInterval(timer);
   }, []);
 
-  const sources = useMemo(
-    () => loaded.filter((l) => entries.some((e) => e.songId === l.id)),
-    [loaded, entries],
-  );
+  // The songs added from the list, plus any other clip on the timeline (a file loaded with File > Load from computer, a stem...).
+  const sources = useMemo(() => {
+    const fromList = loaded.filter((l) => entries.some((e) => e.songId === l.id));
+    const known = new Set(entries.map((e) => e.name));
+    const others = editorClips
+      .filter((c) => !known.has(c.name))
+      .map((c): Song => ({
+        id: `clip:${c.id}`, title: c.name.replace(/\.[a-z0-9]{2,5}$/i, ''), lyrics: '', style: '', coverUrl: '',
+        duration: formatDuration(c.duration), createdAt: new Date(), tags: [], audioUrl: '',
+        ...({ clipId: c.id } as object),
+      }));
+    return [...fromList, ...others];
+  }, [loaded, entries, editorClips]);
+
+  // A clip that is not a song of the library is sent to the server first, as the source of the generation.
+  const generateInstrument = useCallback(async (req: StudioInstrumentRequest): Promise<string[]> => {
+    if (!onGenerateInstrument) return [];
+    const clipId = (req.song as Song & { clipId?: string }).clipId;
+    if (!clipId) return onGenerateInstrument(req);
+    if (!uploadAudio) throw new Error('upload not available');
+    const file = exportEditorClip(frameRef.current, clipId, `${req.song.title}.wav`);
+    if (!file) throw new Error('clip not found in the editor');
+    req.onProgress?.(undefined, 'upload');
+    const url = await uploadAudio(file);
+    return onGenerateInstrument({ ...req, song: { ...req.song, audioUrl: url } });
+  }, [onGenerateInstrument, uploadAudio]);
 
   // A generated track goes on the timeline like any file; its mark is not tied to a song of the list.
   const addGenerated = useCallback(async (song: Song, trackName: string, urls: string[], region?: { start: number; end: number }) => {
@@ -276,7 +303,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
           )}
         </ul>
         {onGenerateInstrument && (
-          <StudioInstrumentPanel sources={sources} tf={tf} onGenerate={onGenerateInstrument} onResult={addGenerated} getEditorRegion={() => getEditorRegion(frameRef.current)} />
+          <StudioInstrumentPanel sources={sources} tf={tf} onGenerate={generateInstrument} onResult={addGenerated} getEditorRegion={() => getEditorRegion(frameRef.current)} />
         )}
       </aside>
 

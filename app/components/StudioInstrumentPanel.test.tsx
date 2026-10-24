@@ -39,7 +39,7 @@ describe('StudioInstrumentPanel', () => {
 
   it('asks for a song first when the editor is empty', async () => {
     await mount([{ name: 'acestep-v15-xl-base', is_active: true }], { sources: [] });
-    expect(host!.textContent).toContain('Add a song to the editor first.');
+    expect(host!.textContent).toContain('Add a song or load an audio file in the editor first.');
   });
 
   it('runs Lego with the chosen instrument, guidance 5, and hands the result on', async () => {

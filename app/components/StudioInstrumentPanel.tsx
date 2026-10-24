@@ -128,7 +128,7 @@ export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate
       {models !== null && models.length === 0 ? (
         <p className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-400">{tf('studioInstrumentNoModel', 'This needs a Base model (Base or XL Base). Install one from the model menu.')}</p>
       ) : sources.length === 0 ? (
-        <p className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-400">{tf('studioInstrumentNoSource', 'Add a song to the editor first.')}</p>
+        <p className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-400">{tf('studioInstrumentNoSource', 'Add a song or load an audio file in the editor first.')}</p>
       ) : (
         <>
           <label className={label}>{tf('studioInstrumentSource', 'Song')}</label>
@@ -200,7 +200,9 @@ export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate
             className="mt-3 w-full py-2 text-xs font-semibold rounded-lg bg-pink-500 hover:bg-pink-600 text-white disabled:opacity-60 disabled:cursor-wait"
           >
             {busy
-              ? (phase === 'model'
+              ? (phase === 'upload'
+                ? tf('studioInstrumentUploading', 'Sending the clip…')
+                : phase === 'model'
                 ? tf('studioInstrumentLoadingModel', 'Loading the Base model…')
                 : `${tf('studioInstrumentRunning', 'Generating…')}${progress != null ? ` ${Math.round(progress * 100)} %` : ''}`)
               : tf('studioInstrumentGenerate', 'Generate and add as a track')}

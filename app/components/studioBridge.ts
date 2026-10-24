@@ -3,7 +3,11 @@
 
 export interface EditorWindow extends Window {
   PKAudioEditor?: {
-    multitrack?: { GetStudioRange?: () => { start: number; end: number; from: 'region' | 'clip' } | null };
+    multitrack?: {
+      ListClips?: () => { id: string; name: string; start: number; duration: number }[];
+      GetClipBuffer?: (id: string) => { buffer: PcmSource; from: number; to: number } | null;
+      GetStudioRange?: () => { start: number; end: number; from: 'region' | 'clip' } | null;
+    };
     fireEvent: (name: string, ...args: unknown[]) => unknown;
   };
 }
@@ -148,4 +152,37 @@ export async function trimAudioToWav(blob: Blob, startSec: number, endSec: numbe
   } finally {
     ctx.close().catch(() => {});
   }
+}
+
+export interface EditorClip {
+  id: string;
+  name: string;
+  duration: number;
+}
+
+/** The clips on the editor's timeline, or null when it cannot be read. */
+export function listEditorClips(frame: HTMLIFrameElement | null): EditorClip[] | null {
+  try {
+    const list = getEditorApi(frame)?.multitrack?.ListClips?.();
+    return list ? list.map((c) => ({ id: c.id, name: c.name, duration: c.duration })) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The audio of one clip of the timeline (as the clip plays: trimmed), as a WAV file. Null if the clip is gone. */
+export function exportEditorClip(frame: HTMLIFrameElement | null, clipId: string, fileName: string): File | null {
+  try {
+    const got = getEditorApi(frame)?.multitrack?.GetClipBuffer?.(clipId);
+    if (!got) return null;
+    return new File([encodeWavSlice(got.buffer, got.from, got.to)], fileName, { type: 'audio/wav' });
+  } catch {
+    return null;
+  }
+}
+
+/** 22 -> "0:22" */
+export function formatDuration(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
