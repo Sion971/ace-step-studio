@@ -12,6 +12,19 @@
 'use strict';
 
 var FR = {
+	/* ---- Fenêtres d'analyse et mixeur ---- */
+	'AudioMass - Audio Editor': 'AudioMass - Éditeur audio',
+	'AudioMass - Frequency Analysis': 'AudioMass - Analyse de fréquences',
+	'AudioMass - Spectrum Analyzer': 'AudioMass - Analyseur de spectre',
+	'AudioMass - Multitrack Mixer': 'AudioMass - Mixeur multipiste',
+	'FREQUENCY ANALYSER': 'ANALYSEUR DE FRÉQUENCES',
+	'SPECTRUM ANALYSER': 'ANALYSEUR DE SPECTRE',
+	'MULTITRACK MIXER': 'MIXEUR MULTIPISTE',
+	'OPEN MULTITRACK': 'OUVRIR LE MULTIPISTE',
+	'DOCK': 'ANCRER',
+	'UNDOCK': 'DÉSANCRER',
+	'level': 'niveau',
+
 	/* ---- Menus ---- */
 	'File': 'Fichier',
 	'Export / Download': 'Exporter / Télécharger',
@@ -616,6 +629,7 @@ var RULES = [
 ];
 
 var lang = 'en';
+var title0 = null;
 var originals = new WeakMap();      // nœud texte -> texte d'origine
 var attrOriginals = new WeakMap();  // élément -> { attribut: valeur d'origine }
 var ATTRS = ['title', 'placeholder', 'alt', 'aria-label'];
@@ -758,13 +772,14 @@ function setLang (l) {
 	if (lang === 'fr') {
 		d.documentElement.lang = 'fr';
 		setCss (true);
-		if (d.title && translate (d.title)) { d.title = 'AudioMass - Éditeur audio'; }
+		if (title0 === null) title0 = d.title;
+		var tt = translate (title0); if (tt) d.title = tt;
 		startObserver ();
 		walk (d.body || d.documentElement);
 	} else {
 		d.documentElement.lang = 'en';
 		setCss (false);
-		d.title = 'AudioMass - Audio Editor';
+		if (title0 !== null) d.title = title0;
 		restore (d.body || d.documentElement);
 	}
 }

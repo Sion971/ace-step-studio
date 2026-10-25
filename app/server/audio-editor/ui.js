@@ -1495,7 +1495,7 @@
 									{
 										title:'OPEN',
 										callback: function( q ) {
-											window.open ('/index-cache.html');
+											window.open ((window.location.pathname.replace(/[^\/]*$/, '')) + 'index-cache.html');
 											q.Destroy ();
 										}
 									}
@@ -1528,7 +1528,7 @@
 					{
 						name   : 'About',
 						action : function () {
-							window.open ('/about.html');
+							window.open ((window.location.pathname.replace(/[^\/]*$/, '')) + 'about.html');
 						}
 					},
 
@@ -1541,7 +1541,7 @@
 					// {
 					// 	name   : 'About AudioMass',
 					// 	action : function () {
-					// 		window.open ('/about.html');
+					// 		window.open ('/editor/about.html');
 					// 	}
 					// },
 
