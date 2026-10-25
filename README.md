@@ -62,7 +62,7 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
 </p>
 
 <p align="center">
-  <em>All six Demucs stems, opened together as separate tracks in the AudioMass editor.</em>
+  <em>All six Demucs stems, opened together as separate tracks in the AudioMass editor (Studio tab).</em>
 </p>
 
 ### Stems, MIDI, mastering and loudness

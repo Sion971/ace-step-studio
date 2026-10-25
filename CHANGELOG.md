@@ -62,6 +62,7 @@
 - Studio: new "Export the mix to the library" block under the song list. It mixes the editor timeline as it sounds (volumes, pans, mutes, solos), or only the selected range, and saves it as a new song of the library (WAV, tagged `studio`, `mix`; title optional, dated by default). The editor's own File > Export only downloads a file to the browser.
 - Studio: new "Projects" block. The editor session (tracks, clips, volumes, pans, fades, markers, tempo) is saved on the server for the signed-in user (`app/server/data/studio-projects/`, not versioned) and can be reopened, replaced or deleted from the Studio tab, instead of the editor's own "save session" that only downloads a file. New route `/api/studio-projects`. Also: two files added to the editor in quick succession no longer land on the same empty channel (the second renamed the first).
 - Studio: the three blocks under the song list (Projects, Export, Instrument) are now tabs, folded by default, so the song list keeps the room (it was squeezed to one or two rows). A click opens a block, a second click folds it; each block stays alive while folded (typed text, running generation), the tab shows the open project and a dot while a job runs, and the open tab is remembered.
+- README: the multitrack editor screenshot now shows the Studio tab (song list, projects / export / instrument tabs), and its caption says so.
 
 ## 2026-10-21
 
