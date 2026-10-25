@@ -9,6 +9,7 @@ import { ShareModal } from './ShareModal';
 import { StemSeparationModal } from './StemSeparationModal';
 import { AlbumCover } from './AlbumCover';
 import { formatTimeSignature } from '../services/timeSignature';
+import { openInStudio, songItem } from './openInStudio';
 
 interface RightSidebarProps {
     song: Song | null;
@@ -312,9 +313,8 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
                         )}
                         <button
                             onClick={() => {
-                                if (!song?.audioUrl) return;
-                                const audioUrl = song.audioUrl.startsWith('http') ? song.audioUrl : `${window.location.origin}${song.audioUrl}`;
-                                window.open(`/editor?audioUrl=${encodeURIComponent(audioUrl)}`, '_blank');
+                                const item = song ? songItem(song) : null;
+                                if (item) openInStudio([item]);
                             }}
                             title={t('openInEditor')}
                             className="p-3 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white hover:bg-zinc-300/50 dark:hover:bg-white/10 rounded-xl transition-all duration-200"

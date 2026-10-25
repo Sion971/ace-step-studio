@@ -9,6 +9,7 @@ import { StudioInstrumentPanel } from './StudioInstrumentPanel';
 import type { StudioInstrumentRequest } from './StudioInstrumentPanel';
 import { TRACK_LABELS } from './TrackPicker';
 import { getModelDisplayName } from '../utils/modelNames';
+import type { StudioIncoming } from './openInStudio';
 
 export type { StudioInstrumentRequest };
 
@@ -31,6 +32,10 @@ interface StudioPageProps {
   onDeleteSongs?: (songs: Song[]) => void;
   /** Uploads an audio file and resolves with the URL the generation can use as a source. */
   uploadAudio?: (file: File) => Promise<string>;
+  /** Audio sent from elsewhere ("Edit the audio", "Open all in the editor"): put on the timeline once the editor is ready. */
+  incoming?: StudioIncoming | null;
+  /** Called when the incoming audio has been handled, so the request is not replayed. */
+  onIncomingDone?: () => void;
 }
 
 const STUDIO_PAGE = 100;
@@ -48,7 +53,7 @@ export function filterStudioSongs(songs: Song[], query: string): Song[] {
     .sort((a, b) => (new Date(b.createdAt).getTime() || 0) - (new Date(a.createdAt).getTime() || 0));
 }
 
-export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs, onGenerateInstrument, onDeleteSongs, uploadAudio }) => {
+export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs, onGenerateInstrument, onDeleteSongs, uploadAudio, incoming, onIncomingDone }) => {
   const { t } = useI18n();
   const tf = useCallback((key: string, fallback: string): string => {
     const value = t(key as TranslationKey);
@@ -203,6 +208,46 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
       setBusyId(null);
     }
   }, [busyId, tf]);
+
+  // Audio sent from another page: one track each, in order (the editor takes one file at a time). The request is replayed
+  // neither on a re-render (handled id) nor cut short by one (callbacks go through refs); only leaving the tab stops it.
+  const handledIncoming = useRef<number | null>(null);
+  const incomingDoneRef = useRef(onIncomingDone);
+  incomingDoneRef.current = onIncomingDone;
+  const tfRef = useRef(tf);
+  tfRef.current = tf;
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  useEffect(() => {
+    if (!incoming || handledIncoming.current === incoming.id) return;
+    handledIncoming.current = incoming.id;
+    (async () => {
+      setError(null);
+      try {
+        const api = await waitForEditor(frameRef.current);
+        if (!api) throw new Error('editor not ready');
+        for (const item of incoming.items) {
+          if (!alive.current) return;
+          const res = await fetch(item.url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const blob = await res.blob();
+          const file = new File([blob], editorFileName(item.name, item.url), { type: blob.type });
+          if (!addTrackToEditor(frameRef.current, file)) throw new Error('editor not ready');
+          if (item.song) {
+            const song = item.song;
+            setEntries((prev) => [...prev, { id: `${song.id}:${Date.now()}`, songId: song.id, name: file.name, addedAt: Date.now(), seen: false }]);
+            setLoaded((prev) => (prev.some((x) => x.id === song.id) ? prev : [...prev, song]));
+          }
+          await new Promise((r) => setTimeout(r, 600));
+        }
+      } catch (e) {
+        console.error('[Studio] could not open the audio in the editor', e);
+        if (alive.current) setError(tfRef.current('studioLoadError', 'Could not load this song into the editor.'));
+      } finally {
+        incomingDoneRef.current?.();
+      }
+    })();
+  }, [incoming]);
 
   return (
     <div className="flex flex-col md:flex-row h-full min-h-0 w-full bg-white dark:bg-suno-panel">

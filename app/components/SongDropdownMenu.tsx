@@ -15,6 +15,7 @@ import {
     Trash2,
     Share2
 } from 'lucide-react';
+import { openInStudio, songItem } from './openInStudio';
 
 interface SongDropdownMenuProps {
     song: Song;
@@ -129,11 +130,9 @@ export const SongDropdownMenu: React.FC<SongDropdownMenuProps> = ({
     };
 
     const handleEditAudio = () => {
-        if (!song.audioUrl) return;
-        const audioUrl = song.audioUrl.startsWith('http')
-            ? song.audioUrl
-            : `${window.location.origin}${song.audioUrl}`;
-        window.open(`/editor?audioUrl=${encodeURIComponent(audioUrl)}`, '_blank');
+        const item = songItem(song);
+        if (!item) return;
+        openInStudio([item]);
         onClose();
     };
 

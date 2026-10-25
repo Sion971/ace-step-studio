@@ -8,6 +8,7 @@ import { ShareModal } from './ShareModal';
 import { SongDropdownMenu } from './SongDropdownMenu';
 
 import { parseServerDate } from '../utils/serverDate';
+import { openInStudio, songItem } from './openInStudio';
 interface SongProfileProps {
     songId: string;
     onBack: () => void;
@@ -271,9 +272,8 @@ export const SongProfile: React.FC<SongProfileProps> = ({ songId, onBack, onPlay
                             {user?.id === song.userId && (
                                 <button
                                     onClick={() => {
-                                        if (!song.audioUrl) return;
-                                        const audioUrl = song.audioUrl.startsWith('http') ? song.audioUrl : `${window.location.origin}${song.audioUrl}`;
-                                        window.open(`/editor?audioUrl=${encodeURIComponent(audioUrl)}`, '_blank');
+                                        const item = songItem(song);
+                                        if (item) openInStudio([item]);
                                     }}
                                     className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 px-3 py-2 rounded-full text-sm font-semibold transition-colors text-white"
                                 >

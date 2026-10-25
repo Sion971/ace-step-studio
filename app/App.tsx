@@ -74,6 +74,8 @@ import { NewsPage } from './components/NewsPage';
 import { StudioPage } from './components/StudioPage';
 import type { StudioInstrumentRequest } from './components/StudioPage';
 import { durationToSeconds } from './components/studioBridge';
+import { STUDIO_OPEN_EVENT } from './components/openInStudio';
+import type { StudioIncoming, StudioIncomingItem } from './components/openInStudio';
 import { ConfirmDialog } from './components/ConfirmDialog';
 
 
@@ -194,6 +196,20 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
 
   // Navigation State - default to create view
   const [currentView, setCurrentView] = useState<View>('create');
+  // "Edit the audio" / "Open all in the editor" (song menus, stems window): the Studio tab is the editor, it receives the audio.
+  const [studioIncoming, setStudioIncoming] = useState<StudioIncoming | null>(null);
+  useEffect(() => {
+    let seq = 0;
+    const onOpen = (e: Event) => {
+      const items = (e as CustomEvent<{ items: StudioIncomingItem[] }>).detail?.items;
+      if (!items || items.length === 0) return;
+      setStudioIncoming({ id: Date.now() + (seq += 1), items });
+      setCurrentView('studio');
+      window.history.pushState({}, '', '/studio');
+    };
+    window.addEventListener(STUDIO_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(STUDIO_OPEN_EVENT, onOpen);
+  }, []);
 
   // Content State
   const [songs, setSongs] = useState<Song[]>([]);
@@ -2184,6 +2200,8 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
             onGenerateInstrument={generateStudioInstrument}
             onDeleteSongs={handleDeleteSongs}
             uploadAudio={async (file: File) => (await generateApi.uploadAudio(file, token!)).url}
+            incoming={studioIncoming}
+            onIncomingDone={() => setStudioIncoming(null)}
           />
         );
 

@@ -8,12 +8,14 @@ const read = (f: string) => readFileSync(path.join(dir, f), 'utf8');
 // The editor is served under /editor/. A window opened from "/sp.html" reaches the server's catch-all, which answers with the
 // whole application (the small analyser windows then showed the Studio itself).
 describe('the pages the editor opens', () => {
-  it('are reached under /editor/, never from the site root', () => {
-    expect(read('ui-fx.js')).not.toMatch(/'\/'\s*\+\s*url\s*\+\s*'\.html/);
-    expect(read('ui-fx.js')).toMatch(/'\/editor\/'\s*\+\s*url\s*\+\s*'\.html/);
+  // Either form is right: "/editor/" written out, or the folder of the current page (which works wherever the editor is served).
+  it('are reached under /editor/ (or the folder of the page), never from the site root', () => {
+    const fx = read('ui-fx.js');
+    expect(fx).not.toMatch(/'\/'\s*\+\s*url\s*\+\s*'\.html/);
+    expect(fx).toMatch(/(?:'\/editor\/'|window\.location\.pathname\.replace\([^)]*\)\))\s*\+\s*url\s*\+\s*'\.html/);
     const ui = read('ui.js');
     expect(ui).not.toMatch(/window\.open \('\/(about|index-cache)\.html'\)/);
-    expect(ui).toMatch(/window\.open \('\/editor\/about\.html'\)/);
+    expect(ui).toMatch(/window\.open \((?:'\/editor\/about\.html'|\(window\.location\.pathname\.replace\([^)]*\)\)\s*\+\s*'about\.html')\)/);
   });
 
   it('exist, and the three analysis windows load the French dictionary', () => {

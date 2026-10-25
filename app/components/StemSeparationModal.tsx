@@ -13,6 +13,7 @@ import { useI18n } from '../context/I18nContext';
 import { fillTemplate } from '../utils/fillTemplate';
 import { AudioWaveform } from './AudioWaveform';
 import { MidiPianoRoll } from './MidiPianoRoll';
+import { openInStudio } from './openInStudio';
 
 interface StemSeparationModalProps {
   audioUrl: string;
@@ -172,7 +173,7 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
     document.body.removeChild(link);
   };
 
-  // Ouvre toutes les pistes dans l'editeur AudioMass multipiste (page
+  // Ouvre toutes les pistes dans l'editeur multipiste integre (onglet Studio ; avant : page
   // SEPAREE, /editor), meme convention deja etablie par l'ancienne
   // version navigateur (voir demucs-web/app.js, "Open all in editor") :
   // listes separees par des virgules, chaque valeur encodee
@@ -183,10 +184,11 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
   // fichier serveur reel.
   const handleOpenAllInEditor = () => {
     if (!result?.stems) return;
-    const entries = Object.entries(result.stems);
-    const audioUrls = entries.map(([, url]) => encodeURIComponent(url)).join(',');
-    const audioNames = entries.map(([name]) => encodeURIComponent(STEM_LABELS[name] || name)).join(',');
-    window.open(`/editor?audioUrls=${audioUrls}&audioNames=${audioNames}`, '_blank');
+    // Sent to the Studio tab (the integrated editor), one track per stem, named after the song.
+    openInStudio(Object.entries(result.stems).map(([name, url]) => ({
+      url,
+      name: `${songTitle || 'Stems'} - ${STEM_LABELS[name] || name}`,
+    })));
   };
 
   return (
