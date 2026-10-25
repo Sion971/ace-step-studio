@@ -196,6 +196,9 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
 
   // Navigation State - default to create view
   const [currentView, setCurrentView] = useState<View>('create');
+  // The Studio, once opened, stays alive behind the other pages: its editor lives in a frame, and leaving the page would empty it.
+  const [studioOpened, setStudioOpened] = useState(false);
+  useEffect(() => { if (currentView === 'studio') setStudioOpened(true); }, [currentView]);
   // "Edit the audio" / "Open all in the editor" (song menus, stems window): the Studio tab is the editor, it receives the audio.
   const [studioIncoming, setStudioIncoming] = useState<StudioIncoming | null>(null);
   useEffect(() => {
@@ -2214,21 +2217,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         return <NewsPage />;
 
       case 'studio':
-        return (
-          <StudioPage
-            songs={songs}
-            workspaces={workspaces.map(w => ({ id: w.id, name: w.name }))}
-            songsInAnyWorkspace={songsInAnyWorkspace}
-            loadWorkspaceSongs={loadStudioWorkspaceSongs}
-            onGenerateInstrument={generateStudioInstrument}
-            onDeleteSongs={handleDeleteSongs}
-            uploadAudio={async (file: File) => (await generateApi.uploadAudio(file, token!)).url}
-            onExportMix={exportStudioMix}
-            projectsApi={studioProjects}
-            incoming={studioIncoming}
-            onIncomingDone={() => setStudioIncoming(null)}
-          />
-        );
+        return null; // kept alive apart (see studioPage), so that the editor keeps its work when another page is shown
 
       case 'create':
       default:
@@ -2436,6 +2425,24 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
 
         <main className="flex-1 flex overflow-hidden relative">
           {renderContent()}
+          {(studioOpened || currentView === 'studio') && (
+            <div className={currentView === 'studio' ? 'contents' : 'hidden'} data-testid="studio-host">
+              <StudioPage
+                songs={songs}
+                workspaces={workspaces.map(w => ({ id: w.id, name: w.name }))}
+                songsInAnyWorkspace={songsInAnyWorkspace}
+                loadWorkspaceSongs={loadStudioWorkspaceSongs}
+                onGenerateInstrument={generateStudioInstrument}
+                onDeleteSongs={handleDeleteSongs}
+                uploadAudio={async (file: File) => (await generateApi.uploadAudio(file, token!)).url}
+                onExportMix={exportStudioMix}
+                projectsApi={studioProjects}
+                active={currentView === 'studio'}
+                incoming={studioIncoming}
+                onIncomingDone={() => setStudioIncoming(null)}
+              />
+            </div>
+          )}
         </main>
       </div>
 

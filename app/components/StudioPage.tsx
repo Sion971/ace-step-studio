@@ -3,7 +3,7 @@ import { Search, Plus, Check, Music, Trash2 } from 'lucide-react';
 import { Song } from '../types';
 import { useI18n } from '../context/I18nContext';
 import type { TranslationKey } from '../i18n/translations';
-import { addTrackToEditor, applySongTempoToEditor, editorFileName, exportEditorClip, formatDuration, getEditorRegion, listEditorClipNames, listEditorClips, syncEditorEntries, trimAudioToWav, waitForEditor } from './studioBridge';
+import { addTrackToEditor, applySongTempoToEditor, editorFileName, editorSignature, getEditorApi, hasUnsavedWork, pauseEditor, exportEditorClip, formatDuration, getEditorRegion, listEditorClipNames, listEditorClips, syncEditorEntries, trimAudioToWav, waitForEditor } from './studioBridge';
 import type { EditorClip, EditorEntry } from './studioBridge';
 import { StudioInstrumentPanel } from './StudioInstrumentPanel';
 import { StudioExportPanel } from './StudioExportPanel';
@@ -40,6 +40,8 @@ interface StudioPageProps {
   onExportMix?: (file: File, title: string, duration: number) => Promise<void>;
   /** Projects (the editor's session) stored by the server. */
   projectsApi?: StudioProjectsApi;
+  /** False while another page of the application is shown: the Studio stays alive behind it (the editor keeps its work). Default true. */
+  active?: boolean;
   /** Audio sent from elsewhere ("Edit the audio", "Open all in the editor"): put on the timeline once the editor is ready. */
   incoming?: StudioIncoming | null;
   /** Called when the incoming audio has been handled, so the request is not replayed. */
@@ -61,7 +63,7 @@ export function filterStudioSongs(songs: Song[], query: string): Song[] {
     .sort((a, b) => (new Date(b.createdAt).getTime() || 0) - (new Date(a.createdAt).getTime() || 0));
 }
 
-export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs, onGenerateInstrument, onDeleteSongs, uploadAudio, onExportMix, projectsApi, incoming, onIncomingDone }) => {
+export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs, onGenerateInstrument, onDeleteSongs, uploadAudio, onExportMix, projectsApi, active = true, incoming, onIncomingDone }) => {
   const { t } = useI18n();
   const tf = useCallback((key: string, fallback: string): string => {
     const value = t(key as TranslationKey);
@@ -69,6 +71,33 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
   }, [t]);
 
   const frameRef = useRef<HTMLIFrameElement | null>(null);
+
+  // What the editor looked like when it was last saved or opened as a project: leaving the page with something else on the timeline
+  // asks for a confirmation (closing the tab or reloading would lose it).
+  const savedSignatureRef = useRef('');
+  const markSaved = useCallback(() => { savedSignatureRef.current = editorSignature(frameRef.current); }, []);
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => {
+      if (!hasUnsavedWork(frameRef.current, savedSignatureRef.current)) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, []);
+
+  // Another page is shown: stop the sound. Back on the Studio: let the editor measure itself again (it was hidden, with no size).
+  const wasActive = useRef(active);
+  useEffect(() => {
+    if (wasActive.current && !active) pauseEditor(frameRef.current);
+    if (!wasActive.current && active) {
+      const timer = setTimeout(() => { try { getEditorApi(frameRef.current)?.fireEvent('RequestResize'); } catch { /* not ready */ } }, 50);
+      wasActive.current = active;
+      return () => clearTimeout(timer);
+    }
+    wasActive.current = active;
+    return undefined;
+  }, [active]);
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<string>(SCOPE_ALL);
   const [workspaceSongs, setWorkspaceSongs] = useState<Song[] | null>(null);
@@ -268,7 +297,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
   if (projectsApi) {
     dockItems.push({
       id: 'projects', label: tf('studioProjectsTitle', 'Projects'), detail: projectName, busy: projectsBusy,
-      content: <StudioProjectsPanel tf={tf} api={projectsApi} getFrame={() => frameRef.current} onBusyChange={setProjectsBusy} onCurrentChange={setProjectName} />,
+      content: <StudioProjectsPanel tf={tf} api={projectsApi} getFrame={() => frameRef.current} onBusyChange={setProjectsBusy} onCurrentChange={setProjectName} onSynced={markSaved} />,
     });
   }
   if (onExportMix) {

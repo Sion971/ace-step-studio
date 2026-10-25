@@ -66,6 +66,7 @@
 - Studio: the first song put in an empty editor gives its tempo and time signature to the editor's beat grid (the BEAT / TEMPS button, 120 BPM and 4/4 until then); the next songs do not change it, and the grid is not switched on. A signature the grid does not have (2/4) or a missing tempo leaves that setting as it was.
 - Studio / editor mixer: the Master strip stays pinned at the right edge of the mixer window when there are more channels than the window shows (it was pushed out of view); the channels scroll underneath it.
 - Studio / editor mixer: the strips narrow (92 px down to 76 px) so that all the channels and the master fit in the window, e.g. 6 channels + master; beyond that the row scrolls sideways (the mouse wheel too) with the master pinned at the right edge.
+- Studio: the editor no longer loses its work when another page of the application is shown (the Studio is kept alive behind it, and stops its sound), and closing or reloading the browser tab while the timeline holds work that was not saved as a project now asks for a confirmation.
 
 ## 2026-10-21
 

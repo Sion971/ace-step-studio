@@ -8,6 +8,9 @@ export interface EditorWindow extends Window {
       ListClips?: () => { id: string; name: string; start: number; duration: number; selected?: boolean }[];
       GetClipBuffer?: (id: string) => { buffer: PcmSource; from: number; to: number } | null;
       GetStudioRange?: () => { start: number; end: number; from: 'region' | 'clip' } | null;
+      IsPlaying?: () => boolean;
+      Pause?: () => void;
+      getState?: () => { tracks?: { id: string; name?: string; vol?: number; pan?: number; mute?: boolean; solo?: boolean }[]; clips?: { id: string; track: string; start?: number; in?: number; out?: number; fi?: number; fo?: number; name?: string }[]; master_vol?: number; xfades?: unknown } | null;
       SetBeat?: (bpm: number | null, sig: string | null) => { bpm: number; sig: string };
       GetSessionBlob?: () => Blob | null;
       LoadSessionBuffer?: (buf: ArrayBuffer, name?: string) => boolean;
@@ -234,6 +237,39 @@ export function applySongTempoToEditor(frame: HTMLIFrameElement | null, song: { 
   } catch {
     return false;
   }
+}
+
+/**
+ * A short text that changes whenever the work in the editor changes (clips and where they sit, names, volumes, pans, mutes, solos...),
+ * and is empty while the timeline holds no clip. The audio itself is not part of it.
+ */
+export function editorSignature(frame: HTMLIFrameElement | null): string {
+  try {
+    const st = getEditorApi(frame)?.multitrack?.getState?.();
+    if (!st || !st.clips || st.clips.length === 0) return '';
+    return JSON.stringify({
+      t: (st.tracks || []).map((t) => [t.id, t.name, t.vol, t.pan, !!t.mute, !!t.solo]),
+      c: st.clips.map((c) => [c.id, c.track, c.start, c.in, c.out, c.fi, c.fo, c.name]),
+      m: st.master_vol,
+      x: st.xfades,
+    });
+  } catch {
+    return '';
+  }
+}
+
+/** True when the editor holds work that is not what was last saved as a project (`savedSignature`, from editorSignature). */
+export function hasUnsavedWork(frame: HTMLIFrameElement | null, savedSignature: string): boolean {
+  const now = editorSignature(frame);
+  return now !== '' && now !== savedSignature;
+}
+
+/** Stops the editor's playback if it is playing (the Studio tab is left, the sound must not go on under another page). */
+export function pauseEditor(frame: HTMLIFrameElement | null): void {
+  try {
+    const mt = getEditorApi(frame)?.multitrack;
+    if (mt?.IsPlaying?.()) mt.Pause?.();
+  } catch { /* the editor is gone: nothing to stop */ }
 }
 
 /** The editor's session (tracks, clips, volumes, pans, fades, markers) as a file, or null when the timeline is empty. */

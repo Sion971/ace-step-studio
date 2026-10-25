@@ -24,6 +24,8 @@ interface StudioProjectsPanelProps {
   onBusyChange?: (busy: boolean) => void;
   /** Told the name of the project that is open in the editor (null when none). */
   onCurrentChange?: (name: string | null) => void;
+  /** Told when the editor and a stored project hold the same work (just saved, or just opened). */
+  onSynced?: () => void;
 }
 
 const sizeLabel = (bytes: number): string => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(bytes >= 100 * 1024 * 1024 ? 0 : 1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
@@ -36,7 +38,7 @@ const dateLabel = (iso: string): string => {
  * Projects of the Studio tab: the session of the editor (tracks, clips, volumes, pans, fades, markers) is stored by the
  * server, and can be reopened, replaced or deleted from here. The editor's own "save session" only downloads a file.
  */
-export const StudioProjectsPanel: React.FC<StudioProjectsPanelProps> = ({ tf, api, getFrame, onBusyChange, onCurrentChange }) => {
+export const StudioProjectsPanel: React.FC<StudioProjectsPanelProps> = ({ tf, api, getFrame, onBusyChange, onCurrentChange, onSynced }) => {
   const [projects, setProjects] = useState<StudioProjectItem[]>([]);
   const [name, setName] = useState('');
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -80,6 +82,7 @@ export const StudioProjectsPanel: React.FC<StudioProjectsPanelProps> = ({ tf, ap
     const typed = name.trim();
     const saved = await api.save(file, id ? undefined : typed || undefined, id);
     setCurrentId(saved.id);
+    onSynced?.();
     if (!id) setName('');
     await refresh();
     return tf('studioProjectSaved', 'Project saved:') + ' ' + saved.name;
@@ -93,6 +96,7 @@ export const StudioProjectsPanel: React.FC<StudioProjectsPanelProps> = ({ tf, ap
       return;
     }
     setCurrentId(p.id);
+    onSynced?.();
     return tf('studioProjectOpened', 'Project opened:') + ' ' + p.name;
   });
 
