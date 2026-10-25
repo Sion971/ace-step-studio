@@ -13,7 +13,8 @@
 	#m::-webkit-scrollbar-thumb:hover,#m::-webkit-scrollbar-thumb:active{background:#6a7380}
 	.s{display:inline-block;position:relative;box-sizing:border-box;width:92px;height:268px;margin-right:8px;padding:8px 7px;vertical-align:top;background:linear-gradient(#182023,#101416);border:1px solid #263338;border-radius:5px;box-shadow:inset 0 1px rgba(255,255,255,.05),0 2px 8px #000}
 	.s.sel{border-color:#56dbe3;box-shadow:0 0 12px rgba(80,220,225,.35),inset 0 1px rgba(255,255,255,.05)}
-	.s.master{border-color:#4b493c;background:linear-gradient(#1f211d,#121310)}
+	/* The master stays in view at the right edge when there are more channels than the window shows: they scroll underneath it. */
+	.s.master{position:sticky;right:0;z-index:3;margin-right:0;border-color:#4b493c;background:linear-gradient(#1f211d,#121310);box-shadow:inset 0 1px rgba(255,255,255,.05),10px 0 0 #090d0e,-12px 0 10px -6px #000,0 2px 8px #000}
 	strong{display:block;height:26px;overflow:hidden;color:#f3f6f6;font:bold 13px/13px Arial,sans-serif}
 	.meter{height:7px;margin:5px 0 8px;background:#050708;border:1px solid #222c30;box-shadow:inset 0 1px 3px #000;overflow:hidden}
 	.meter i{display:block;height:100%;transform:scaleX(0);transform-origin:0 0;background:linear-gradient(90deg,#56dbe3,#77d26d 62%,#d4bd54 84%,#d45b57)}
