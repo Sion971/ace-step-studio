@@ -6,6 +6,7 @@ import type { TranslationKey } from '../i18n/translations';
 import { addTrackToEditor, editorFileName, exportEditorClip, formatDuration, getEditorRegion, listEditorClipNames, listEditorClips, syncEditorEntries, trimAudioToWav, waitForEditor } from './studioBridge';
 import type { EditorClip, EditorEntry } from './studioBridge';
 import { StudioInstrumentPanel } from './StudioInstrumentPanel';
+import { StudioExportPanel } from './StudioExportPanel';
 import type { StudioInstrumentRequest } from './StudioInstrumentPanel';
 import { TRACK_LABELS } from './TrackPicker';
 import { getModelDisplayName } from '../utils/modelNames';
@@ -32,6 +33,8 @@ interface StudioPageProps {
   onDeleteSongs?: (songs: Song[]) => void;
   /** Uploads an audio file and resolves with the URL the generation can use as a source. */
   uploadAudio?: (file: File) => Promise<string>;
+  /** Saves the mix of the editor as a song of the library (file, title, duration in seconds). */
+  onExportMix?: (file: File, title: string, duration: number) => Promise<void>;
   /** Audio sent from elsewhere ("Edit the audio", "Open all in the editor"): put on the timeline once the editor is ready. */
   incoming?: StudioIncoming | null;
   /** Called when the incoming audio has been handled, so the request is not replayed. */
@@ -53,7 +56,7 @@ export function filterStudioSongs(songs: Song[], query: string): Song[] {
     .sort((a, b) => (new Date(b.createdAt).getTime() || 0) - (new Date(a.createdAt).getTime() || 0));
 }
 
-export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs, onGenerateInstrument, onDeleteSongs, uploadAudio, incoming, onIncomingDone }) => {
+export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs, onGenerateInstrument, onDeleteSongs, uploadAudio, onExportMix, incoming, onIncomingDone }) => {
   const { t } = useI18n();
   const tf = useCallback((key: string, fallback: string): string => {
     const value = t(key as TranslationKey);
@@ -355,6 +358,9 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
             </li>
           )}
         </ul>
+        {onExportMix && (
+          <StudioExportPanel tf={tf} onExport={onExportMix} getFrame={() => frameRef.current} getRegion={() => getEditorRegion(frameRef.current)} />
+        )}
         {onGenerateInstrument && (
           <StudioInstrumentPanel sources={sources} tf={tf} onGenerate={generateInstrument} onResult={addGenerated} getEditorRegion={() => getEditorRegion(frameRef.current)} preferredSourceId={preferredSourceId} />
         )}

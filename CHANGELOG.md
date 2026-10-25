@@ -59,6 +59,7 @@
 - "Edit the audio" (song menu, song page, side panel) and "Open all in the editor" (stems window) now open the Studio tab, the integrated editor, and put the audio on its timeline (one track per stem, named after the song), instead of opening a separate AudioMass page.
 - Fixed a test that checked the editor window paths in one exact form: it now accepts the folder of the current page as well as `/editor/`.
 - Studio / editor: a track added from the stems window ("Open all in the editor") or generated with "Add an instrument" now gets a channel named after it ("Drums", "Bass"... instead of "Channel 3"); a second one with the same name becomes "Drums 2". Songs and loaded files keep the editor's own "Channel N".
+- Studio: new "Export the mix to the library" block under the song list. It mixes the editor timeline as it sounds (volumes, pans, mutes, solos), or only the selected range, and saves it as a new song of the library (WAV, tagged `studio`, `mix`; title optional, dated by default). The editor's own File > Export only downloads a file to the browser.
 
 ## 2026-10-21
 

@@ -7,6 +7,7 @@ export interface EditorWindow extends Window {
       ListClips?: () => { id: string; name: string; start: number; duration: number; selected?: boolean }[];
       GetClipBuffer?: (id: string) => { buffer: PcmSource; from: number; to: number } | null;
       GetStudioRange?: () => { start: number; end: number; from: 'region' | 'clip' } | null;
+      MixdownAsync?: (selection: [number, number] | null, done: (buffer: PcmSource | null) => void) => void;
     };
     fireEvent: (name: string, ...args: unknown[]) => unknown;
   };
@@ -182,6 +183,29 @@ export function exportEditorClip(frame: HTMLIFrameElement | null, clipId: string
   } catch {
     return null;
   }
+}
+
+/**
+ * The whole mix of the timeline (volumes, pans, mutes and solos applied, as heard), or only `range` seconds of it, as a WAV file.
+ * Resolves with null when there is nothing to mix, or the editor does not answer.
+ */
+export function exportEditorMix(frame: HTMLIFrameElement | null, fileName: string, range?: { start: number; end: number }): Promise<{ file: File; duration: number } | null> {
+  const mix = getEditorApi(frame)?.multitrack?.MixdownAsync;
+  if (!mix) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 120_000);
+    try {
+      mix(range ? [range.start, range.end] : null, (buffer) => {
+        clearTimeout(timer);
+        if (!buffer || buffer.length === 0) { resolve(null); return; }
+        const duration = buffer.length / buffer.sampleRate;
+        resolve({ file: new File([encodeWavSlice(buffer, 0, duration)], fileName, { type: 'audio/wav' }), duration });
+      });
+    } catch {
+      clearTimeout(timer);
+      resolve(null);
+    }
+  });
 }
 
 /** 22 -> "0:22" */

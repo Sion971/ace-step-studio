@@ -270,6 +270,22 @@ export const songsApi = {
     };
   },
 
+  /** Stores an audio file for a song of the library; resolves with the URL to give to createSong. */
+  uploadSongAudio: async (file: File, token: string): Promise<{ audioUrl: string }> => {
+    const formData = new FormData();
+    formData.append('audio', file);
+    const response = await fetch(`${API_BASE}/api/songs/upload-audio`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Upload failed' }));
+      throw new Error(error.details || error.error || 'Upload failed');
+    }
+    return response.json();
+  },
+
   createSong: (song: Partial<Song>, token: string): Promise<{ song: Song }> =>
     api('/api/songs', { method: 'POST', body: song, token }),
 

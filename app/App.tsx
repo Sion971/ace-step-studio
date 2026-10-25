@@ -1943,6 +1943,21 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     });
   }, [token, refreshSongsList]);
 
+  // Studio tab, "Export to the library": the mix made in the editor becomes a song of the library.
+  const exportStudioMix = useCallback(async (file: File, title: string, duration: number): Promise<void> => {
+    if (!token) throw new Error('not signed in');
+    const { audioUrl } = await songsApi.uploadSongAudio(file, token);
+    await songsApi.createSong({
+      title,
+      audioUrl,
+      duration: Math.max(1, Math.round(duration)),
+      lyrics: '',
+      style: 'studio mix',
+      tags: ['studio', 'mix'],
+    }, token);
+    await refreshSongsList();
+  }, [token, refreshSongsList]);
+
   const handleSelectWorkspace = async (workspace: Playlist) => {
     setActiveWorkspaceFilter(workspace);
     setActiveWorkspaceSongIds(null); // vide pendant le chargement
@@ -2200,6 +2215,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
             onGenerateInstrument={generateStudioInstrument}
             onDeleteSongs={handleDeleteSongs}
             uploadAudio={async (file: File) => (await generateApi.uploadAudio(file, token!)).url}
+            onExportMix={exportStudioMix}
             incoming={studioIncoming}
             onIncomingDone={() => setStudioIncoming(null)}
           />
