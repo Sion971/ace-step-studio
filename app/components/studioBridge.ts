@@ -44,11 +44,13 @@ export function editorFileName(title: string, url: string): string {
   return `${clean}.${ext}`;
 }
 
-/** Puts an audio file on a new track of the editor. Returns false if the editor is not ready. */
-export function addTrackToEditor(frame: HTMLIFrameElement | null, file: File, startSeconds = 0): boolean {
+/** Puts an audio file on a new track of the editor, named `trackName` when given. Returns false if the editor is not ready. */
+export function addTrackToEditor(frame: HTMLIFrameElement | null, file: File, startSeconds = 0, trackName?: string): boolean {
   const api = getEditorApi(frame);
   if (!api) return false;
-  api.fireEvent('RequestAddTrackFile', file, startSeconds);
+  const name = trackName?.trim();
+  // With a name the channel is called that ("Drums" instead of "Channel 3"); without one, the editor's own numbering stays.
+  api.fireEvent('RequestAddTrackFile', file, name ? { start: startSeconds, name } : startSeconds);
   return true;
 }
 

@@ -188,6 +188,7 @@ export const StemSeparationModal: React.FC<StemSeparationModalProps> = ({
     openInStudio(Object.entries(result.stems).map(([name, url]) => ({
       url,
       name: `${songTitle || 'Stems'} - ${STEM_LABELS[name] || name}`,
+      track: STEM_LABELS[name] || name,
     })));
   };
 

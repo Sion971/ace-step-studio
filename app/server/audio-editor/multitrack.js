@@ -693,6 +693,16 @@
 			head.appendChild ( btn_clear_solo );
 		}
 
+		// A channel name nobody else has: "Drums", then "Drums 2", "Drums 3"...
+		function uniqueTrackName ( base, except ) {
+			var taken = {};
+			for (var ni = 0; ni < tracks.length; ++ni) if (tracks[ni] !== except) taken[tracks[ni].name] = true;
+			if (!taken[base]) return base;
+			var n = 2;
+			while (taken[base + ' ' + n]) ++n;
+			return base + ' ' + n;
+		}
+
 		function addTrack ( index ) {
 			var prev = cloneState ();
 			var tr = makeTrack ();
@@ -5412,7 +5422,14 @@
 				}
 				if (empty_track) selected_track = empty_track.id;
 				else addTrack ();
-				addFiles ( [ arg1 ], selected_track, Math.max (0, Number ( arg2 ) || 0) );
+				// arg2 is the start in seconds, or { start, name }: the name the channel takes ("Drums" instead of "Channel 3").
+				var add_opts = (arg2 && typeof arg2 === 'object') ? arg2 : { start: arg2 };
+				var add_name = add_opts.name == null ? '' : String ( add_opts.name ).trim ();
+				if (add_name) {
+					var named = findTrack ( selected_track );
+					if (named) named.name = uniqueTrackName ( add_name, named );
+				}
+				addFiles ( [ arg1 ], selected_track, Math.max (0, Number ( add_opts.start ) || 0) );
 				return true;
 			}
 			if (id === 'RequestLoadURL') {

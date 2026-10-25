@@ -7,11 +7,11 @@ import path from 'node:path';
 import type { Song } from '../types';
 import { STUDIO_OPEN_EVENT, openInStudio, songItem } from './openInStudio';
 
-const bridge = vi.hoisted(() => ({ added: [] as Array<{ name: string; start: number }>, ready: true }));
+const bridge = vi.hoisted(() => ({ added: [] as Array<{ name: string; start: number; track?: string }>, ready: true }));
 vi.mock('./studioBridge', async (orig) => ({
   ...(await orig<typeof import('./studioBridge')>()),
   waitForEditor: vi.fn(async () => (bridge.ready ? { fireEvent: () => {} } : null)),
-  addTrackToEditor: vi.fn((_f: unknown, file: File, start = 0) => { bridge.added.push({ name: file.name, start }); return true; }),
+  addTrackToEditor: vi.fn((_f: unknown, file: File, start = 0, track?: string) => { bridge.added.push({ name: file.name, start, track }); return true; }),
   listEditorClipNames: vi.fn(() => []),
   listEditorClips: vi.fn(() => []),
 }));
@@ -62,10 +62,11 @@ describe('opening audio in the Studio instead of a separate page', () => {
 
   it('puts each incoming audio on its own track, in order, then says it is done (once)', async () => {
     const done = vi.fn();
-    const incoming = { id: 1, items: [{ url: '/s/drums.wav', name: 'Mix - Drums' }, { url: '/s/bass.wav', name: 'Mix - Bass' }, { url: '/audio/a.flac', name: 'Funk', song }] };
+    const incoming = { id: 1, items: [{ url: '/s/drums.wav', name: 'Mix - Drums', track: 'Batterie' }, { url: '/s/bass.wav', name: 'Mix - Bass', track: 'Basse' }, { url: '/audio/a.flac', name: 'Funk', song }] };
     await mount({ incoming, onIncomingDone: done });
     await settle(2200);
     expect(bridge.added.map((a) => a.name)).toEqual(['Mix - Drums.wav', 'Mix - Bass.wav', 'Funk.flac']);
+    expect(bridge.added.map((a) => a.track)).toEqual(['Batterie', 'Basse', undefined]); // a song keeps the editor's own channel name
     expect(done).toHaveBeenCalledTimes(1);
     // the same request, seen again after a re-render with a new callback, is not replayed
     await act(async () => { root!.render(<I18nProvider><StudioPage songs={[]} incoming={incoming} onIncomingDone={vi.fn()} /></I18nProvider>); });

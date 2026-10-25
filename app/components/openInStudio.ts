@@ -4,6 +4,8 @@ import type { Song } from '../types';
 export interface StudioIncomingItem {
   url: string;
   name: string;
+  /** Name of the channel the audio goes on ("Drums"); the editor's own "Channel N" when absent. */
+  track?: string;
   song?: Song;
 }
 

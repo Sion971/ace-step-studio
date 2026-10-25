@@ -183,7 +183,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
         fileName = editorFileName(`${song.title} - ${name} (${Math.round(region.start)}-${Math.round(region.end)} s)`, '.wav');
       }
       const file = new File([blob], fileName, { type: blob.type });
-      if (!api || !addTrackToEditor(frameRef.current, file, region?.start ?? 0)) throw new Error('editor not ready');
+      if (!api || !addTrackToEditor(frameRef.current, file, region?.start ?? 0, name)) throw new Error('editor not ready');
       await new Promise((r) => setTimeout(r, 600));
     }
   }, [tf]);
@@ -232,7 +232,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const blob = await res.blob();
           const file = new File([blob], editorFileName(item.name, item.url), { type: blob.type });
-          if (!addTrackToEditor(frameRef.current, file)) throw new Error('editor not ready');
+          if (!addTrackToEditor(frameRef.current, file, 0, item.track)) throw new Error('editor not ready');
           if (item.song) {
             const song = item.song;
             setEntries((prev) => [...prev, { id: `${song.id}:${Date.now()}`, songId: song.id, name: file.name, addedAt: Date.now(), seen: false }]);
