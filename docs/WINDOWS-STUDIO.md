@@ -18,6 +18,7 @@
 - [ ] Premier morceau ajouté à l'éditeur vide : BPM et signature du morceau affichés (pas 120 et 4/4).
 - [ ] Deuxième morceau d'un autre tempo, case « Caler sur le tempo du projet » cochée : la piste arrive nommée « Titre (N BPM) », la note « X → N BPM » s'affiche, la durée de la piste a changé, la hauteur non.
 - [ ] Même chose case décochée : le morceau arrive tel quel.
+- [ ] Avec ffmpeg bloqué : le morceau est ajouté tel quel et la note « Impossible de caler le tempo » s'affiche (pas de repli Python pour l'étirement).
 - [ ] Un morceau sans tempo connu ou à plus du double / moins de la moitié : ajouté tel quel, sans erreur.
 
 ## 3. Export vers la bibliothèque
@@ -26,6 +27,7 @@
 - [ ] WAV : idem avec un `.wav`.
 - [ ] « Plage sélectionnée uniquement » exporte bien la plage.
 - [ ] Un mix de plus de 5 minutes passe (limite à 200 Mo).
+- [ ] Si Windows bloque `ffmpeg.exe` (Smart App Control, fenêtre « une partie de cette application a été bloquée ») : l'export FLAC / MP3 doit quand même aboutir, le terminal affichant `[audio] ffmpeg could not convert ... using the engine's Python`.
 - [ ] Si ça échoue : le message d'erreur et la ligne `Upload song audio: conversion failed` du terminal.
 
 ## 4. Projets et sauvegarde automatique

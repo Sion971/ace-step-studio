@@ -1,5 +1,6 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { parseExportFormat, transcodeAudio } from './audio-transcode.js';
 
@@ -72,5 +73,48 @@ describe.skipIf(!hasFfmpeg)('stretchAudio', () => {
     const slow = await stretchAudio(src, 'a.wav', 0.5);
     expect(seconds(slow)).toBeGreaterThan(3.8);
     expect(seconds(slow)).toBeLessThan(4.3);
+  });
+});
+
+import type { TranscodeDeps } from './audio-transcode.js';
+const hasSoundfile = spawnSync('python3', ['-c', 'import soundfile']).status === 0;
+describe('when ffmpeg cannot be run (Smart App Control)', () => {
+  const blocked = async () => { throw new Error('ffmpeg failed (code 3236495362): '); };
+  it('uses the engine Python instead, and says so', async () => {
+    const python = vi.fn(async (_i: string, o: string, f: string) => { await writeFile(o, Buffer.from(`${f}-data`)); });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const out = await transcodeAudio(wav(), 'mix.wav', 'mp3', { ffmpeg: blocked, python } as TranscodeDeps);
+    expect(python).toHaveBeenCalledTimes(1);
+    expect(python.mock.calls[0][2]).toBe('mp3');
+    expect(out).toMatchObject({ ext: '.mp3', mime: 'audio/mpeg' });
+    expect(out.data.toString()).toBe('mp3-data');
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+  it('reports both failures when neither can convert', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await expect(transcodeAudio(wav(), 'mix.wav', 'flac', { ffmpeg: blocked, python: async () => { throw new Error('Python failed (code 1)'); } }))
+      .rejects.toThrow(/ffmpeg failed.*Python failed/);
+  });
+  it('does not try Python for a WAV (nothing to convert to)', async () => {
+    const python = vi.fn();
+    await expect(transcodeAudio(wav(), 'mix.flac', 'wav', { ffmpeg: blocked, python })).rejects.toThrow(/ffmpeg failed/);
+    expect(python).not.toHaveBeenCalled();
+  });
+  it.skipIf(!hasSoundfile)('really writes FLAC and MP3 with the Python snippet', async () => {
+    const { spawn } = await import('node:child_process');
+    const { PYTHON_ENCODE } = await import('./audio-transcode.js');
+    const py = (input: string, output: string, f: 'flac' | 'mp3') => new Promise<void>((resolve, reject) => {
+      const p = spawn('python3', ['-c', PYTHON_ENCODE, input, output, f.toUpperCase()]);
+      let err = ''; p.stderr.on('data', (d) => { err += d; });
+      p.on('close', (c) => (c === 0 ? resolve() : reject(new Error(`code ${c}: ${err}`))));
+    });
+    const src = wav(2);
+    const flac = await transcodeAudio(src, 'mix.wav', 'flac', { ffmpeg: blocked, python: py });
+    expect(flac.data.subarray(0, 4).toString('latin1')).toBe('fLaC');
+    const mp3 = await transcodeAudio(src, 'mix.wav', 'mp3', { ffmpeg: blocked, python: py });
+    const head = mp3.data.subarray(0, 3);
+    expect(head.toString('latin1') === 'ID3' || (head[0] === 0xff && (head[1] & 0xe0) === 0xe0)).toBe(true);
+    expect(mp3.data.length).toBeLessThan(src.length / 4);
   });
 });
