@@ -49,3 +49,28 @@ describe.skipIf(!hasFfmpeg)('transcodeAudio', () => {
     await expect(transcodeAudio(Buffer.from('not audio at all'), 'x.wav', 'flac')).rejects.toThrow(/ffmpeg failed/);
   });
 });
+
+import { atempoChain, stretchAudio } from './audio-transcode.js';
+describe('atempoChain', () => {
+  it('uses one filter within 0.5 to 2 and chains beyond', () => {
+    expect(atempoChain(1.2)).toBe('atempo=1.200000');
+    expect(atempoChain(3)).toBe('atempo=2.000000,atempo=1.500000');
+    expect(atempoChain(0.3)).toBe('atempo=0.500000,atempo=0.600000');
+  });
+  it('refuses absurd ratios', () => {
+    for (const r of [0, -1, 0.1, 5, NaN]) expect(() => atempoChain(r)).toThrow(/between 0.25 and 4/);
+  });
+});
+describe.skipIf(!hasFfmpeg)('stretchAudio', () => {
+  const seconds = (b: Buffer) => (b.length - 44) / (22050 * 4);
+  it('makes a faster tempo shorter and a slower one longer, as a WAV', async () => {
+    const src = wav(2);
+    const fast = await stretchAudio(src, 'a.wav', 2);
+    expect(fast.subarray(0, 4).toString('latin1')).toBe('RIFF');
+    expect(seconds(fast)).toBeGreaterThan(0.9);
+    expect(seconds(fast)).toBeLessThan(1.15);
+    const slow = await stretchAudio(src, 'a.wav', 0.5);
+    expect(seconds(slow)).toBeGreaterThan(3.8);
+    expect(seconds(slow)).toBeLessThan(4.3);
+  });
+});

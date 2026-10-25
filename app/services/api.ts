@@ -287,6 +287,23 @@ export const songsApi = {
     return response.json();
   },
 
+  /** The audio played `ratio` times faster or slower (same pitch), as a WAV: brings a song to the tempo of a Studio project. */
+  stretchSongAudio: async (file: File, ratio: number, token: string): Promise<Blob> => {
+    const formData = new FormData();
+    formData.append('ratio', String(ratio));
+    formData.append('audio', file);
+    const response = await fetch(`${API_BASE}/api/songs/stretch-audio`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Stretch failed' }));
+      throw new Error(error.details || error.error || 'Stretch failed');
+    }
+    return response.blob();
+  },
+
   createSong: (song: Partial<Song>, token: string): Promise<{ song: Song }> =>
     api('/api/songs', { method: 'POST', body: song, token }),
 

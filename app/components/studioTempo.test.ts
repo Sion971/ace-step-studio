@@ -41,3 +41,30 @@ describe('applySongTempoToEditor', () => {
     expect(applySongTempoToEditor(frameWith(0, null), { bpm: 85 })).toBe(false);
   });
 });
+
+import { tempoRatioForSong } from './studioBridge';
+describe('tempoRatioForSong', () => {
+  const frame = (clips: number, bpm: number | null) => {
+    const multitrack: Record<string, unknown> = { ListClips: () => Array.from({ length: clips }, (_, i) => ({ id: `c${i}` })) };
+    if (bpm !== null) multitrack.GetBeat = () => ({ bpm, sig: '4/4' });
+    return { contentWindow: { PKAudioEditor: { multitrack, fireEvent: vi.fn() } } } as unknown as HTMLIFrameElement;
+  };
+  it('is project bpm / song bpm', () => {
+    expect(tempoRatioForSong(frame(1, 120), { bpm: 100 })).toBeCloseTo(1.2);
+    expect(tempoRatioForSong(frame(1, 90), { bpm: 120 })).toBeCloseTo(0.75);
+  });
+  it('is null on an empty editor (the first song sets the pace)', () => {
+    expect(tempoRatioForSong(frame(0, 120), { bpm: 100 })).toBeNull();
+  });
+  it('is null when a tempo is unknown, matches within 2 %, or the stretch would pass half / double time', () => {
+    expect(tempoRatioForSong(frame(1, 120), { bpm: undefined })).toBeNull();
+    expect(tempoRatioForSong(frame(1, 120), { bpm: 0 })).toBeNull();
+    expect(tempoRatioForSong(frame(1, 120), { bpm: 119 })).toBeNull();
+    expect(tempoRatioForSong(frame(1, 120), { bpm: 50 })).toBeNull();
+    expect(tempoRatioForSong(frame(1, 50), { bpm: 120 })).toBeNull();
+  });
+  it('is null with an editor too old to say its tempo, or none', () => {
+    expect(tempoRatioForSong(frame(1, null), { bpm: 100 })).toBeNull();
+    expect(tempoRatioForSong(null, { bpm: 100 })).toBeNull();
+  });
+});

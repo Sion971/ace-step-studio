@@ -3,7 +3,7 @@ import { Search, Plus, Check, Music, Trash2 } from 'lucide-react';
 import { Song } from '../types';
 import { useI18n } from '../context/I18nContext';
 import type { TranslationKey } from '../i18n/translations';
-import { addTrackToEditor, applySongTempoToEditor, editorFileName, editorSignature, getEditorSession, loadEditorSession, getEditorApi, hasUnsavedWork, pauseEditor, exportEditorClip, formatDuration, getEditorRegion, listEditorClipNames, listEditorClips, syncEditorEntries, trimAudioToWav, waitForEditor } from './studioBridge';
+import { addTrackToEditor, applySongTempoToEditor, tempoRatioForSong, editorFileName, editorSignature, getEditorSession, loadEditorSession, getEditorApi, hasUnsavedWork, pauseEditor, exportEditorClip, formatDuration, getEditorRegion, listEditorClipNames, listEditorClips, syncEditorEntries, trimAudioToWav, waitForEditor } from './studioBridge';
 import type { EditorClip, EditorEntry } from './studioBridge';
 import { StudioInstrumentPanel } from './StudioInstrumentPanel';
 import { StudioExportPanel } from './StudioExportPanel';
@@ -37,6 +37,8 @@ interface StudioPageProps {
   /** Uploads an audio file and resolves with the URL the generation can use as a source. */
   uploadAudio?: (file: File) => Promise<string>;
   /** Saves the mix of the editor as a song of the library (file, title, duration in seconds). */
+  /** Brings a file to another speed without changing its pitch (ratio = new speed / old speed). */
+  onStretch?: (file: File, ratio: number) => Promise<Blob>;
   onExportMix?: (file: File, title: string, duration: number, format?: 'wav' | 'flac' | 'mp3') => Promise<void>;
   /** Projects (the editor's session) stored by the server. */
   projectsApi?: StudioProjectsApi;
@@ -66,7 +68,7 @@ export function filterStudioSongs(songs: Song[], query: string): Song[] {
 /** How often the editor is looked at for the automatic backup: a change is stored the second time it is seen unchanged. */
 export const AUTOSAVE_MS = 15000;
 
-export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs, onGenerateInstrument, onDeleteSongs, uploadAudio, onExportMix, projectsApi, active = true, incoming, onIncomingDone }) => {
+export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs, onGenerateInstrument, onDeleteSongs, uploadAudio, onExportMix, onStretch, projectsApi, active = true, incoming, onIncomingDone }) => {
   const { t } = useI18n();
   const tf = useCallback((key: string, fallback: string): string => {
     const value = t(key as TranslationKey);
@@ -191,6 +193,31 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  // "Match the tempo of the project": a song of another tempo is stretched to the project's before it becomes a track.
+  const [alignTempo, setAlignTempo] = useState<boolean>(() => { try { return localStorage.getItem('studio.alignTempo') !== '0'; } catch { return true; } });
+  const alignRef = useRef(alignTempo);
+  alignRef.current = alignTempo;
+  const pickAlign = (v: boolean) => { setAlignTempo(v); try { localStorage.setItem('studio.alignTempo', v ? '1' : '0'); } catch { /* storage unavailable */ } };
+  const onStretchRef = useRef(onStretch);
+  onStretchRef.current = onStretch;
+  /** The file, brought to the tempo of the project when that applies; the file as it is when the stretch fails. */
+  const alignedFile = async (file: File, song: { title?: string; bpm?: number | null }): Promise<File> => {
+    const stretch = onStretchRef.current;
+    if (!stretch || !alignRef.current) return file;
+    const ratio = tempoRatioForSong(frameRef.current, song);
+    if (!ratio) return file;
+    try {
+      const project = Math.round(Number(getEditorApi(frameRef.current)?.multitrack.GetBeat?.().bpm));
+      const out = await stretch(file, ratio);
+      setNotice(`${tfRef.current('studioAlignDone', 'Stretched to the tempo of the project:')} ${Math.round(Number(song.bpm))} → ${project} BPM`);
+      return new File([out], editorFileName(`${song.title ?? file.name} (${project} BPM)`, '.wav'), { type: 'audio/wav' });
+    } catch (e) {
+      console.warn('[Studio] could not match the tempo, the song is added as it is', e);
+      setNotice(tfRef.current('studioAlignFailed', 'Could not match the tempo; the song was added as it is.'));
+      return file;
+    }
+  };
 
   useEffect(() => {
     if (scope === SCOPE_ALL || scope === SCOPE_DEFAULT || !loadWorkspaceSongs) {
@@ -310,14 +337,15 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
   const addSong = useCallback(async (song: Song) => {
     if (!song.audioUrl || busyId) return;
     setError(null);
+    setNotice(null);
     setBusyId(song.id);
     try {
       const res = await fetch(song.audioUrl);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
-      const file = new File([blob], editorFileName(song.title, song.audioUrl), { type: blob.type });
+      let file = new File([blob], editorFileName(song.title, song.audioUrl), { type: blob.type });
       const api = await waitForEditor(frameRef.current);
-      if (api) applySongTempoToEditor(frameRef.current, song);
+      if (api) { applySongTempoToEditor(frameRef.current, song); file = await alignedFile(file, song); }
       if (!api || !addTrackToEditor(frameRef.current, file)) throw new Error('editor not ready');
       setEntries((prev) => [...prev, { id: `${song.id}:${Date.now()}`, songId: song.id, name: file.name, addedAt: Date.now(), seen: false }]);
       setLoaded((prev) => (prev.some((x) => x.id === song.id) ? prev : [...prev, song]));
@@ -351,8 +379,8 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
           const res = await fetch(item.url);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const blob = await res.blob();
-          const file = new File([blob], editorFileName(item.name, item.url), { type: blob.type });
-          if (item.song) applySongTempoToEditor(frameRef.current, item.song);
+          let file = new File([blob], editorFileName(item.name, item.url), { type: blob.type });
+          if (item.song) { applySongTempoToEditor(frameRef.current, item.song); file = await alignedFile(file, item.song); }
           if (!addTrackToEditor(frameRef.current, file, 0, item.track)) throw new Error('editor not ready');
           if (item.song) {
             const song = item.song;
@@ -423,6 +451,12 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
           <p className="mt-2 text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
             {tf('studioHint', 'Pick a song to open it in the editor, then pick others to stack them as tracks.')}
           </p>
+          {onStretch && (
+            <label className="mt-2 flex items-start gap-2 text-[11px] leading-snug text-zinc-600 dark:text-zinc-300" title={tf('studioAlignHelp', 'A song whose tempo differs from the project is sped up or slowed down (pitch unchanged) when added. Needs the tempo of both; stays within half and double speed.')}>
+              <input type="checkbox" className="mt-0.5" checked={alignTempo} onChange={(e) => pickAlign(e.target.checked)} data-testid="studio-align-tempo" />
+              {tf('studioAlign', 'Match the tempo of the project')}
+            </label>
+          )}
           <div className="mt-1 flex items-center justify-between gap-2">
             <p className="text-[10px] text-zinc-400 tabular-nums">{matches.length} {tf('studioSongCount', 'songs')}</p>
             {onDeleteSongs && (
@@ -447,6 +481,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
             </div>
           )}
           {error && <p className="mt-2 text-[11px] text-red-500">{error}</p>}
+          {notice && <p className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-400" data-testid="studio-align-notice">{notice}</p>}
         </div>
 
         <ul className="flex-1 overflow-y-auto min-h-0 divide-y divide-zinc-100 dark:divide-white/5">

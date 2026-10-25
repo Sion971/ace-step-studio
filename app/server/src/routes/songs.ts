@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import multer from 'multer';
 import { pool } from '../db/pool.js';
 import { authMiddleware, optionalAuthMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
-import { parseExportFormat, transcodeAudio } from '../services/audio-transcode.js';
+import { parseExportFormat, stretchAudio, transcodeAudio } from '../services/audio-transcode.js';
 import { getStorageProvider } from '../services/storage/factory.js';
 import { updateMp3Cover } from '../services/id3-tagger.js';
 import { aiCover, AiCoverError } from '../services/ai-cover.js';
@@ -377,6 +377,20 @@ const audioUploadOnly = multer({
     } else {
       cb(new Error('Invalid file type. Only MP3, WAV, FLAC, M4A, MP4, and WEBM are allowed.'));
     }
+  }
+});
+
+// The Studio brings a song to the tempo of its project: the audio comes back faster or slower, same pitch, as a WAV.
+router.post('/stretch-audio', authMiddleware, audioUploadOnly.single('audio'), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.file) { res.status(400).json({ error: 'Audio file required' }); return; }
+    const ratio = Number(req.body?.ratio);
+    if (!(ratio >= 0.25 && ratio <= 4)) { res.status(400).json({ error: 'ratio must be a number between 0.25 and 4' }); return; }
+    const wav = await stretchAudio(req.file.buffer, req.file.originalname, ratio);
+    res.set('Content-Type', 'audio/wav').send(wav);
+  } catch (e) {
+    console.error('Stretch audio failed:', e);
+    res.status(422).json({ error: 'The audio could not be stretched', details: e instanceof Error ? e.message : String(e) });
   }
 });
 

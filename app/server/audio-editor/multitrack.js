@@ -5289,6 +5289,8 @@
 			}
 			return { bpm: beat_bpm, sig: beat_sig };
 		};
+		// Studio tab: the tempo and time signature of the grid now.
+		q.GetBeat = function () { return { bpm: beat_bpm, sig: beat_sig }; };
 		// Studio tab: the session (tracks, clips, volumes, pans, fades, markers...) as a Blob, to store it in the app instead of downloading it.
 		q.GetSessionBlob = function () {
 			if (!tracks.length || !clips.length || !app.amss || !app.amss.BuildMultitrack) return null;

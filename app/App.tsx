@@ -2442,6 +2442,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
                 onDeleteSongs={handleDeleteSongs}
                 uploadAudio={async (file: File) => (await generateApi.uploadAudio(file, token!)).url}
                 onExportMix={exportStudioMix}
+                onStretch={(file: File, ratio: number) => songsApi.stretchSongAudio(file, ratio, token!)}
                 projectsApi={studioProjects}
                 active={currentView === 'studio'}
                 incoming={studioIncoming}

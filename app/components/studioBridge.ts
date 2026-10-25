@@ -12,6 +12,7 @@ export interface EditorWindow extends Window {
       Pause?: () => void;
       getState?: () => { tracks?: { id: string; name?: string; vol?: number; pan?: number; mute?: boolean; solo?: boolean }[]; clips?: { id: string; track: string; start?: number; in?: number; out?: number; fi?: number; fo?: number; name?: string; buffer?: object | null }[]; master_vol?: number; xfades?: unknown } | null;
       SetBeat?: (bpm: number | null, sig: string | null) => { bpm: number; sig: string };
+      GetBeat?: () => { bpm: number; sig: string };
       GetSessionBlob?: () => Blob | null;
       LoadSessionBuffer?: (buf: ArrayBuffer, name?: string) => boolean;
       MixdownAsync?: (selection: [number, number] | null, done: (buffer: PcmSource | null) => void) => void;
@@ -236,6 +237,26 @@ export function applySongTempoToEditor(frame: HTMLIFrameElement | null, song: { 
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * The speed factor that brings a song to the tempo of the project (project bpm / song bpm), or null when nothing is to be done:
+ * the editor is empty (the first song sets the pace), the tempo of one of them is unknown, they match within 2 %, or the
+ * factor is beyond half / double time (such a stretch sounds bad, and usually means a half-time reading of the tempo).
+ */
+export function tempoRatioForSong(frame: HTMLIFrameElement | null, song: { bpm?: number | null }): number | null {
+  try {
+    const mt = getEditorApi(frame)?.multitrack;
+    if (!mt?.GetBeat || !editorHasClips(frame)) return null;
+    const project = Number(mt.GetBeat().bpm);
+    const own = Number(song.bpm);
+    if (!(project > 0) || !(own > 0)) return null;
+    const ratio = project / own;
+    if (Math.abs(ratio - 1) < 0.02 || ratio < 0.5 || ratio > 2) return null;
+    return ratio;
+  } catch {
+    return null;
   }
 }
 

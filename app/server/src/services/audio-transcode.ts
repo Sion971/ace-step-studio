@@ -37,6 +37,35 @@ function run(args: string[]): Promise<void> {
   });
 }
 
+/** ffmpeg `atempo` filters for a speed factor: each one takes 0.5 to 2, so a bigger change is chained. */
+export function atempoChain(ratio: number): string {
+  if (!(ratio >= 0.25 && ratio <= 4)) throw new Error('The tempo ratio must be between 0.25 and 4');
+  const parts: number[] = [];
+  let r = ratio;
+  while (r > 2) { parts.push(2); r /= 2; }
+  while (r < 0.5) { parts.push(0.5); r /= 0.5; }
+  parts.push(r);
+  return parts.map((p) => `atempo=${p.toFixed(6)}`).join(',');
+}
+
+/**
+ * The file played `ratio` times faster (2 = twice as fast, half as long) without changing its pitch, as a 16-bit WAV.
+ * Used by the Studio to bring a song to the tempo of the project: ratio = project bpm / song bpm.
+ */
+export async function stretchAudio(data: Buffer, inputName: string, ratio: number): Promise<Buffer> {
+  const filter = atempoChain(ratio);
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'studio-stretch-'));
+  try {
+    const input = path.join(dir, `in${path.extname(inputName).replace(/[^.\w]/g, '') || '.wav'}`);
+    const output = path.join(dir, 'out.wav');
+    await writeFile(input, data);
+    await run(['-y', '-hide_banner', '-loglevel', 'error', '-i', input, '-vn', '-filter:a', filter, '-c:a', 'pcm_s16le', output]);
+    return await readFile(output);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 /**
  * The file as `format`: unchanged when it already is one (a WAV asked as WAV), converted otherwise.
  * Throws with ffmpeg's last lines when the conversion fails.
