@@ -77,6 +77,23 @@ describe('StudioExportPanel', () => {
     expect(duration).toBeCloseTo(3);
     expect(msg()).toContain('Mon mix');
   });
+  it('hands over the chosen format (FLAC by default) and remembers it', async () => {
+    try { localStorage.removeItem('studio.exportFormat'); } catch { /* ignore */ }
+    const onExport = await setup();
+    expect((q('studio-export-format') as HTMLSelectElement).value).toBe('flac');
+    await click(q('studio-export-button'));
+    expect(onExport.mock.calls[0][3]).toBe('flac');
+    const sel = q('studio-export-format') as HTMLSelectElement;
+    await act(async () => {
+      const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!;
+      set.call(sel, 'mp3');
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await click(q('studio-export-button'));
+    expect(onExport.mock.calls[1][3]).toBe('mp3');
+    expect(localStorage.getItem('studio.exportFormat')).toBe('mp3');
+    localStorage.removeItem('studio.exportFormat');
+  });
   it('uses a dated title when none is typed', async () => {
     const onExport = await setup();
     await click(q('studio-export-button'));

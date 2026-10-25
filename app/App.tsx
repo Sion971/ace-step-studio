@@ -1947,9 +1947,9 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
   }, [token, refreshSongsList]);
 
   // Studio tab, "Export to the library": the mix made in the editor becomes a song of the library.
-  const exportStudioMix = useCallback(async (file: File, title: string, duration: number): Promise<void> => {
+  const exportStudioMix = useCallback(async (file: File, title: string, duration: number, format?: 'wav' | 'flac' | 'mp3'): Promise<void> => {
     if (!token) throw new Error('not signed in');
-    const { audioUrl } = await songsApi.uploadSongAudio(file, token);
+    const { audioUrl } = await songsApi.uploadSongAudio(file, token, format);
     await songsApi.createSong({
       title,
       audioUrl,

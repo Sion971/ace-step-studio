@@ -37,7 +37,7 @@ interface StudioPageProps {
   /** Uploads an audio file and resolves with the URL the generation can use as a source. */
   uploadAudio?: (file: File) => Promise<string>;
   /** Saves the mix of the editor as a song of the library (file, title, duration in seconds). */
-  onExportMix?: (file: File, title: string, duration: number) => Promise<void>;
+  onExportMix?: (file: File, title: string, duration: number, format?: 'wav' | 'flac' | 'mp3') => Promise<void>;
   /** Projects (the editor's session) stored by the server. */
   projectsApi?: StudioProjectsApi;
   /** False while another page of the application is shown: the Studio stays alive behind it (the editor keeps its work). Default true. */

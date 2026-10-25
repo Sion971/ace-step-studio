@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import multer from 'multer';
 import { pool } from '../db/pool.js';
 import { authMiddleware, optionalAuthMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
+import { parseExportFormat, transcodeAudio } from '../services/audio-transcode.js';
 import { getStorageProvider } from '../services/storage/factory.js';
 import { updateMp3Cover } from '../services/id3-tagger.js';
 import { aiCover, AiCoverError } from '../services/ai-cover.js';
@@ -364,7 +365,7 @@ router.get('/:id/full', optionalAuthMiddleware, async (req: AuthenticatedRequest
 // la racine plutot que de le contourner.
 const audioUploadOnly = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB max: the Studio hands over the mix of an editor as a WAV, about 10 MB per minute
   fileFilter: (_req, file, cb) => {
     const allowedTypes = [
       'audio/mpeg', 'audio/wav', 'audio/flac', 'audio/mp3',
@@ -386,11 +387,25 @@ router.post('/upload-audio', authMiddleware, audioUploadOnly.single('audio'), as
       return;
     }
     const userId = req.user!.id;
-    const ext = req.file.originalname.match(/\.\w+$/)?.[0] || '.webm';
+    let data = req.file.buffer;
+    let ext = req.file.originalname.match(/\.\w+$/)?.[0] || '.webm';
+    let mime = req.file.mimetype;
+    // The Studio asks for the format of its mix ("flac", "mp3", "wav"): the WAV it sends is converted here.
+    const wanted = parseExportFormat(req.body?.format);
+    if (wanted) {
+      try {
+        const out = await transcodeAudio(data, req.file.originalname, wanted);
+        data = out.data; ext = out.ext; mime = out.mime;
+      } catch (e) {
+        console.error('Upload song audio: conversion failed:', e);
+        res.status(422).json({ error: 'The audio could not be converted', details: e instanceof Error ? e.message : String(e) });
+        return;
+      }
+    }
     const key = `song-uploads/${userId}/${Date.now()}${ext}`;
 
     const storage = getStorageProvider();
-    await storage.upload(key, req.file.buffer, req.file.mimetype);
+    await storage.upload(key, data, mime);
     const audioUrl = storage.getPublicUrl(key);
 
     res.status(201).json({ audioUrl });

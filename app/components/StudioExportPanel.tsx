@@ -1,10 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { exportEditorMix } from './studioBridge';
 
+export type ExportFormat = 'wav' | 'flac' | 'mp3';
+const FORMAT_KEY = 'studio.exportFormat';
+const readFormat = (): ExportFormat => {
+  try { const v = localStorage.getItem(FORMAT_KEY); if (v === 'wav' || v === 'flac' || v === 'mp3') return v; } catch { /* storage unavailable */ }
+  return 'flac';
+};
+
 interface StudioExportPanelProps {
   tf: (key: string, fallback: string) => string;
   /** Saves the mix as a song of the library. */
-  onExport: (file: File, title: string, duration: number) => Promise<void>;
+  onExport: (file: File, title: string, duration: number, format: ExportFormat) => Promise<void>;
   /** The iframe of the editor. */
   getFrame: () => HTMLIFrameElement | null;
   /** The range selected in the editor (a dragged region, or the selected clip), or null. */
@@ -26,6 +33,8 @@ const defaultTitle = (): string => {
 export const StudioExportPanel: React.FC<StudioExportPanelProps> = ({ tf, onExport, getFrame, getRegion, onBusyChange }) => {
   const [title, setTitle] = useState('');
   const [rangeOnly, setRangeOnly] = useState(false);
+  const [format, setFormat] = useState<ExportFormat>(readFormat);
+  const pickFormat = (f: ExportFormat) => { setFormat(f); try { localStorage.setItem(FORMAT_KEY, f); } catch { /* storage unavailable */ } };
   const [busy, setBusy] = useState(false);
   useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
@@ -43,7 +52,7 @@ export const StudioExportPanel: React.FC<StudioExportPanelProps> = ({ tf, onExpo
     try {
       const mix = await exportEditorMix(getFrame(), `${name}.wav`, range);
       if (!mix) { setMessage({ kind: 'error', text: tf('studioExportEmpty', 'Nothing to export: add a track to the editor first.') }); return; }
-      await onExport(mix.file, name, mix.duration);
+      await onExport(mix.file, name, mix.duration, format);
       setTitle('');
       setMessage({ kind: 'ok', text: tf('studioExportDone', 'Added to your library:') + ' ' + name });
     } catch (e) {
@@ -70,6 +79,14 @@ export const StudioExportPanel: React.FC<StudioExportPanelProps> = ({ tf, onExpo
       <label className="mt-2 flex items-center gap-2 text-[11px] text-zinc-600 dark:text-zinc-300">
         <input type="checkbox" checked={rangeOnly} onChange={(e) => setRangeOnly(e.target.checked)} disabled={busy} />
         {tf('studioExportRange', 'Selected range only')}
+      </label>
+      <label className="mt-2 flex items-center gap-2 text-[11px] text-zinc-600 dark:text-zinc-300">
+        {tf('studioExportFormat', 'Format')}
+        <select value={format} onChange={(e) => pickFormat(e.target.value as ExportFormat)} disabled={busy} className={`flex-1 ${field}`} data-testid="studio-export-format">
+          <option value="flac">{tf('studioExportFormatFlac', 'FLAC (lossless, smaller)')}</option>
+          <option value="mp3">{tf('studioExportFormatMp3', 'MP3 (small)')}</option>
+          <option value="wav">{tf('studioExportFormatWav', 'WAV (lossless, large)')}</option>
+        </select>
       </label>
       <button
         type="button"

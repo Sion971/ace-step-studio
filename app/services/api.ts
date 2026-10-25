@@ -270,9 +270,10 @@ export const songsApi = {
     };
   },
 
-  /** Stores an audio file for a song of the library; resolves with the URL to give to createSong. */
-  uploadSongAudio: async (file: File, token: string): Promise<{ audioUrl: string }> => {
+  /** Stores an audio file for a song of the library (converted to `format` by the server when given); resolves with the URL to give to createSong. */
+  uploadSongAudio: async (file: File, token: string, format?: 'wav' | 'flac' | 'mp3'): Promise<{ audioUrl: string }> => {
     const formData = new FormData();
+    if (format) formData.append('format', format); // a text field must come before the file for the server to see it
     formData.append('audio', file);
     const response = await fetch(`${API_BASE}/api/songs/upload-audio`, {
       method: 'POST',
