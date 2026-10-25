@@ -14,6 +14,13 @@ export interface StudioProjectsApi {
   save: (file: Blob, name: string | undefined, id?: string) => Promise<StudioProjectItem>;
   load: (id: string) => Promise<ArrayBuffer>;
   remove: (id: string) => Promise<void>;
+  /** The automatic backup of the editor (one, overwritten each time). */
+  draft?: {
+    get: () => Promise<{ updatedAt: string; size: number } | null>;
+    save: (file: Blob) => Promise<void>;
+    load: () => Promise<ArrayBuffer>;
+    remove: () => Promise<void>;
+  };
 }
 
 interface StudioProjectsPanelProps {
@@ -26,6 +33,8 @@ interface StudioProjectsPanelProps {
   onCurrentChange?: (name: string | null) => void;
   /** Told when the editor and a stored project hold the same work (just saved, or just opened). */
   onSynced?: () => void;
+  /** When the last automatic backup was made, for display. */
+  autosavedAt?: string | null;
 }
 
 const sizeLabel = (bytes: number): string => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(bytes >= 100 * 1024 * 1024 ? 0 : 1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
@@ -38,7 +47,7 @@ const dateLabel = (iso: string): string => {
  * Projects of the Studio tab: the session of the editor (tracks, clips, volumes, pans, fades, markers) is stored by the
  * server, and can be reopened, replaced or deleted from here. The editor's own "save session" only downloads a file.
  */
-export const StudioProjectsPanel: React.FC<StudioProjectsPanelProps> = ({ tf, api, getFrame, onBusyChange, onCurrentChange, onSynced }) => {
+export const StudioProjectsPanel: React.FC<StudioProjectsPanelProps> = ({ tf, api, getFrame, onBusyChange, onCurrentChange, onSynced, autosavedAt }) => {
   const [projects, setProjects] = useState<StudioProjectItem[]>([]);
   const [name, setName] = useState('');
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -149,6 +158,9 @@ export const StudioProjectsPanel: React.FC<StudioProjectsPanelProps> = ({ tf, ap
           </button>
         )}
       </div>
+      {autosavedAt && (
+        <p className="mt-2 text-[10px] text-zinc-500 dark:text-zinc-400" data-testid="studio-autosaved">{tf('studioAutosaved', 'Automatic backup:')} {autosavedAt}</p>
+      )}
       {message && (
         <p className={`mt-2 text-[11px] ${message.kind === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`} data-testid="studio-project-message">{message.text}</p>
       )}

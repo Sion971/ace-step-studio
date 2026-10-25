@@ -1221,4 +1221,31 @@ export const studioProjectsApi = {
 
   remove: (id: string, token: string): Promise<{ success: boolean }> =>
     api(`/api/studio-projects/${encodeURIComponent(id)}`, { method: 'DELETE', token }),
+
+  // The automatic backup of the editor: one per user, overwritten each time.
+  getDraft: async (token: string): Promise<{ updatedAt: string; size: number } | null> =>
+    (await api<{ draft: { updatedAt: string; size: number } | null }>('/api/studio-projects/draft', { token })).draft,
+
+  saveDraft: async (file: Blob, token: string): Promise<void> => {
+    const formData = new FormData();
+    formData.append('project', file, 'draft.amss');
+    const response = await fetch(`${API_BASE}/api/studio-projects/draft`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData,
+    });
+    if (!response.ok) throw new Error('Backup failed');
+  },
+
+  loadDraft: async (token: string): Promise<ArrayBuffer> => {
+    const response = await fetch(`${API_BASE}/api/studio-projects/draft/file`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error('No backup');
+    return response.arrayBuffer();
+  },
+
+  removeDraft: async (token: string): Promise<void> => {
+    await api<{ success: boolean }>('/api/studio-projects/draft', { method: 'DELETE', token });
+  },
 };

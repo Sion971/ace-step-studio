@@ -67,6 +67,7 @@
 - Studio / editor mixer: the Master strip stays pinned at the right edge of the mixer window when there are more channels than the window shows (it was pushed out of view); the channels scroll underneath it.
 - Studio / editor mixer: the strips narrow (92 px down to 76 px) so that all the channels and the master fit in the window, e.g. 6 channels + master; beyond that the row scrolls sideways (the mouse wheel too) with the master pinned at the right edge.
 - Studio: the editor no longer loses its work when another page of the application is shown (the Studio is kept alive behind it, and stops its sound), and closing or reloading the browser tab while the timeline holds work that was not saved as a project now asks for a confirmation.
+- Studio: automatic backup of the editor. About every 30 seconds, once a change has stopped (not in the middle of a drag), the session is stored as the user's backup (`app/server/data/studio-projects/<user>/draft.amss`, one per user, overwritten each time, not listed with the projects); the projects block shows the time of the last one. After a crash, or if the page was closed, the Studio offers to restore it (or discard it) when the editor is empty. Saving or opening a project, or emptying the timeline on purpose, drops the backup. New routes `GET/PUT/DELETE /api/studio-projects/draft` and `GET /api/studio-projects/draft/file`. The "unsaved work" check also notices a clip that got new audio (an effect, a cut).
 
 ## 2026-10-21
 

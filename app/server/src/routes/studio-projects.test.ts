@@ -88,6 +88,32 @@ describe('/api/studio-projects', () => {
     expect((await fetch(base, { method: 'POST', headers: as('u1'), body: f })).status).toBe(400);
   });
 
+  it('keeps one automatic backup per user, apart from the projects', async () => {
+    expect((await (await fetch(`${base}/draft`, { headers: as('d1') })).json()).draft).toBeNull();
+    expect((await fetch(`${base}/draft/file`, { headers: as('d1') })).status).toBe(404);
+    const put = await fetch(`${base}/draft`, { method: 'PUT', headers: as('d1'), body: form([7, 7, 7]) });
+    expect(put.status).toBe(200);
+    expect((await put.json()).draft.size).toBe(3);
+    // the next one replaces it
+    await fetch(`${base}/draft`, { method: 'PUT', headers: as('d1'), body: form([1, 2, 3, 4, 5]) });
+    const meta = (await (await fetch(`${base}/draft`, { headers: as('d1') })).json()).draft;
+    expect(meta.size).toBe(5);
+    expect(Number.isNaN(Date.parse(meta.updatedAt))).toBe(false);
+    expect(new Uint8Array(await (await fetch(`${base}/draft/file`, { headers: as('d1') })).arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4, 5]));
+    // not a project, and private to its user
+    expect((await (await fetch(base, { headers: as('d1') })).json()).projects).toEqual([]);
+    expect((await (await fetch(`${base}/draft`, { headers: as('d2') })).json()).draft).toBeNull();
+    expect((await fetch(`${base}/draft`, { method: 'PUT', headers: { }, body: form([1]) })).status).toBe(401);
+    expect((await fetch(`${base}/draft`, { method: 'DELETE', headers: as('d1') })).status).toBe(200);
+    expect((await (await fetch(`${base}/draft`, { headers: as('d1') })).json()).draft).toBeNull();
+    expect((await fetch(`${base}/draft`, { method: 'DELETE', headers: as('d1') })).status).toBe(200); // nothing left: still fine
+  });
+
+  it('refuses a backup without a file', async () => {
+    const f = new FormData(); f.append('name', 'x');
+    expect((await fetch(`${base}/draft`, { method: 'PUT', headers: as('d1'), body: f })).status).toBe(400);
+  });
+
   it('leaves no temporary file behind', async () => {
     for (const sub of readdirSync(dir)) {
       expect(readdirSync(path.join(dir, sub)).filter((f) => f.endsWith('.tmp'))).toEqual([]);

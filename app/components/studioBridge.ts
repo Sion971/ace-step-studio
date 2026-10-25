@@ -10,7 +10,7 @@ export interface EditorWindow extends Window {
       GetStudioRange?: () => { start: number; end: number; from: 'region' | 'clip' } | null;
       IsPlaying?: () => boolean;
       Pause?: () => void;
-      getState?: () => { tracks?: { id: string; name?: string; vol?: number; pan?: number; mute?: boolean; solo?: boolean }[]; clips?: { id: string; track: string; start?: number; in?: number; out?: number; fi?: number; fo?: number; name?: string }[]; master_vol?: number; xfades?: unknown } | null;
+      getState?: () => { tracks?: { id: string; name?: string; vol?: number; pan?: number; mute?: boolean; solo?: boolean }[]; clips?: { id: string; track: string; start?: number; in?: number; out?: number; fi?: number; fo?: number; name?: string; buffer?: object | null }[]; master_vol?: number; xfades?: unknown } | null;
       SetBeat?: (bpm: number | null, sig: string | null) => { bpm: number; sig: string };
       GetSessionBlob?: () => Blob | null;
       LoadSessionBuffer?: (buf: ArrayBuffer, name?: string) => boolean;
@@ -239,9 +239,19 @@ export function applySongTempoToEditor(frame: HTMLIFrameElement | null, song: { 
   }
 }
 
+const bufferIds = new WeakMap<object, number>();
+let nextBufferId = 1;
+/** A number that stands for one audio buffer: it changes when an effect or a cut gives a clip a new one. */
+function bufferId(buffer: object | null | undefined): number {
+  if (!buffer) return 0;
+  let id = bufferIds.get(buffer);
+  if (id === undefined) { id = nextBufferId++; bufferIds.set(buffer, id); }
+  return id;
+}
+
 /**
  * A short text that changes whenever the work in the editor changes (clips and where they sit, names, volumes, pans, mutes, solos...),
- * and is empty while the timeline holds no clip. The audio itself is not part of it.
+ * and is empty while the timeline holds no clip. The audio is not in it, only which buffer each clip uses.
  */
 export function editorSignature(frame: HTMLIFrameElement | null): string {
   try {
@@ -249,7 +259,7 @@ export function editorSignature(frame: HTMLIFrameElement | null): string {
     if (!st || !st.clips || st.clips.length === 0) return '';
     return JSON.stringify({
       t: (st.tracks || []).map((t) => [t.id, t.name, t.vol, t.pan, !!t.mute, !!t.solo]),
-      c: st.clips.map((c) => [c.id, c.track, c.start, c.in, c.out, c.fi, c.fo, c.name]),
+      c: st.clips.map((c) => [c.id, c.track, c.start, c.in, c.out, c.fi, c.fo, c.name, bufferId(c.buffer)]),
       m: st.master_vol,
       x: st.xfades,
     });

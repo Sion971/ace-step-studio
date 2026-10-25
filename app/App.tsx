@@ -1967,6 +1967,12 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     save: (file: Blob, name: string | undefined, id?: string) => studioProjectsApi.save(file, name, token, id),
     load: (id: string) => studioProjectsApi.load(id, token),
     remove: async (id: string) => { await studioProjectsApi.remove(id, token); },
+    draft: {
+      get: () => studioProjectsApi.getDraft(token),
+      save: (file: Blob) => studioProjectsApi.saveDraft(file, token),
+      load: () => studioProjectsApi.loadDraft(token),
+      remove: () => studioProjectsApi.removeDraft(token),
+    },
   } : undefined, [token]);
 
   const handleSelectWorkspace = async (workspace: Playlist) => {

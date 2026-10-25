@@ -3,7 +3,7 @@ import { Search, Plus, Check, Music, Trash2 } from 'lucide-react';
 import { Song } from '../types';
 import { useI18n } from '../context/I18nContext';
 import type { TranslationKey } from '../i18n/translations';
-import { addTrackToEditor, applySongTempoToEditor, editorFileName, editorSignature, getEditorApi, hasUnsavedWork, pauseEditor, exportEditorClip, formatDuration, getEditorRegion, listEditorClipNames, listEditorClips, syncEditorEntries, trimAudioToWav, waitForEditor } from './studioBridge';
+import { addTrackToEditor, applySongTempoToEditor, editorFileName, editorSignature, getEditorSession, loadEditorSession, getEditorApi, hasUnsavedWork, pauseEditor, exportEditorClip, formatDuration, getEditorRegion, listEditorClipNames, listEditorClips, syncEditorEntries, trimAudioToWav, waitForEditor } from './studioBridge';
 import type { EditorClip, EditorEntry } from './studioBridge';
 import { StudioInstrumentPanel } from './StudioInstrumentPanel';
 import { StudioExportPanel } from './StudioExportPanel';
@@ -63,6 +63,9 @@ export function filterStudioSongs(songs: Song[], query: string): Song[] {
     .sort((a, b) => (new Date(b.createdAt).getTime() || 0) - (new Date(a.createdAt).getTime() || 0));
 }
 
+/** How often the editor is looked at for the automatic backup: a change is stored the second time it is seen unchanged. */
+export const AUTOSAVE_MS = 15000;
+
 export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs, onGenerateInstrument, onDeleteSongs, uploadAudio, onExportMix, projectsApi, active = true, incoming, onIncomingDone }) => {
   const { t } = useI18n();
   const tf = useCallback((key: string, fallback: string): string => {
@@ -75,7 +78,17 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
   // What the editor looked like when it was last saved or opened as a project: leaving the page with something else on the timeline
   // asks for a confirmation (closing the tab or reloading would lose it).
   const savedSignatureRef = useRef('');
-  const markSaved = useCallback(() => { savedSignatureRef.current = editorSignature(frameRef.current); }, []);
+  // The automatic backup (see projectsApi.draft): what it holds, and what is waiting to be proposed again after a crash.
+  const draftApi = projectsApi?.draft;
+  const draftSigRef = useRef('');
+  const [draft, setDraft] = useState<{ updatedAt: string } | null>(null);
+  const [autosavedAt, setAutosavedAt] = useState<string | null>(null);
+  const draftRef = useRef(draft); draftRef.current = draft;
+  const markSaved = useCallback(() => {
+    savedSignatureRef.current = editorSignature(frameRef.current);
+    // everything is in a project now: the backup is of no use any more
+    if (draftApi && draftSigRef.current !== '') { draftSigRef.current = ''; setAutosavedAt(null); draftApi.remove().catch(() => {}); }
+  }, [draftApi]);
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
       if (!hasUnsavedWork(frameRef.current, savedSignatureRef.current)) return;
@@ -85,6 +98,75 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, []);
+
+  // A backup left by a previous session (the page was closed or crashed with work on the timeline): offered once the editor is ready and empty.
+  useEffect(() => {
+    if (!draftApi) return undefined;
+    let cancelled = false;
+    (async () => {
+      const api = await waitForEditor(frameRef.current);
+      if (!api || cancelled) return;
+      const found = await draftApi.get().catch(() => null);
+      if (!cancelled && found && editorSignature(frameRef.current) === '') setDraft({ updatedAt: found.updatedAt });
+    })();
+    return () => { cancelled = true; };
+  }, [draftApi]);
+
+  // The automatic backup: every few seconds, when the work has changed and has stopped changing (so not in the middle of a drag), it is
+  // stored as the user's backup. Not while a backup is waiting to be restored or ignored (it would be overwritten), nor when the same
+  // work was just saved as a project.
+  useEffect(() => {
+    if (!draftApi) return undefined;
+    let seen = '';
+    let saving = false;
+    let alive = true;
+    const tick = async () => {
+      if (saving || draftRef.current) return;
+      const frame = frameRef.current;
+      const sig = editorSignature(frame);
+      if (sig === '') {
+        seen = '';
+        if (draftSigRef.current !== '') { draftSigRef.current = ''; setAutosavedAt(null); draftApi.remove().catch(() => {}); } // emptied on purpose
+        return;
+      }
+      if (sig === draftSigRef.current || sig === savedSignatureRef.current) { seen = sig; return; }
+      if (sig !== seen) { seen = sig; return; } // still changing: wait for the next round
+      const file = getEditorSession(frame);
+      if (!file) return;
+      saving = true;
+      try {
+        await draftApi.save(file);
+        if (!alive) return;
+        draftSigRef.current = sig;
+        setAutosavedAt(new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }));
+      } catch (e) {
+        console.error('[Studio] automatic backup failed', e);
+      } finally {
+        saving = false;
+      }
+    };
+    const timer = setInterval(() => { void tick(); }, AUTOSAVE_MS);
+    return () => { alive = false; clearInterval(timer); };
+  }, [draftApi]);
+
+  const restoreDraft = useCallback(async () => {
+    if (!draftApi) return;
+    try {
+      if (editorSignature(frameRef.current) !== '' && !window.confirm(tf('studioDraftReplace', 'Restoring the backup replaces what is in the editor. Continue?'))) return;
+      const data = await draftApi.load();
+      if (!loadEditorSession(frameRef.current, data, tf('studioDraftName', 'Backup'))) throw new Error('the editor refused the backup');
+      draftSigRef.current = editorSignature(frameRef.current); // the editor and the backup hold the same work
+      setDraft(null);
+    } catch (e) {
+      console.error('[Studio] could not restore the backup', e);
+      setError(tf('studioDraftError', 'The backup could not be restored.'));
+    }
+  }, [draftApi, tf]);
+
+  const dropDraft = useCallback(async () => {
+    setDraft(null);
+    try { await draftApi?.remove(); } catch { /* it will be offered again, nothing is lost */ }
+  }, [draftApi]);
 
   // Another page is shown: stop the sound. Back on the Studio: let the editor measure itself again (it was hidden, with no size).
   const wasActive = useRef(active);
@@ -297,7 +379,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
   if (projectsApi) {
     dockItems.push({
       id: 'projects', label: tf('studioProjectsTitle', 'Projects'), detail: projectName, busy: projectsBusy,
-      content: <StudioProjectsPanel tf={tf} api={projectsApi} getFrame={() => frameRef.current} onBusyChange={setProjectsBusy} onCurrentChange={setProjectName} onSynced={markSaved} />,
+      content: <StudioProjectsPanel tf={tf} api={projectsApi} getFrame={() => frameRef.current} onBusyChange={setProjectsBusy} onCurrentChange={setProjectName} onSynced={markSaved} autosavedAt={autosavedAt} />,
     });
   }
   if (onExportMix) {
@@ -419,6 +501,18 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
             </li>
           )}
         </ul>
+        {draft && (
+          <div className="flex-shrink-0 p-3 border-t border-pink-500/40 bg-pink-500/5" data-testid="studio-draft-banner">
+            <p className="text-[11px] font-semibold text-zinc-800 dark:text-zinc-100">{tf('studioDraftTitle', 'Unsaved work found')}</p>
+            <p className="mt-1 text-[11px] text-zinc-600 dark:text-zinc-300">
+              {tf('studioDraftText', 'An automatic backup of the editor was made on')} {new Date(draft.updatedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}.
+            </p>
+            <div className="mt-2 flex gap-2">
+              <button type="button" onClick={restoreDraft} data-testid="studio-draft-restore" className="flex-1 py-1.5 text-xs font-semibold rounded-lg bg-pink-500 hover:bg-pink-600 text-white">{tf('studioDraftRestore', 'Restore')}</button>
+              <button type="button" onClick={dropDraft} data-testid="studio-draft-ignore" className="flex-1 py-1.5 text-xs rounded-lg border border-zinc-300 dark:border-white/15 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-white/10">{tf('studioDraftIgnore', 'Discard')}</button>
+            </div>
+          </div>
+        )}
         <StudioDock items={dockItems} />
       </aside>
 

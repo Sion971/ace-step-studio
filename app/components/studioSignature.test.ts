@@ -4,9 +4,10 @@ import { editorSignature, hasUnsavedWork, pauseEditor } from './studioBridge';
 
 type State = { tracks: object[]; clips: object[]; master_vol?: number };
 const frame = (mt: Record<string, unknown>) => ({ contentWindow: { PKAudioEditor: { multitrack: mt, fireEvent: vi.fn() } } }) as unknown as HTMLIFrameElement;
+const sharedBuffer = { big: true };
 const state = (over: Partial<{ vol: number; start: number; name: string }> = {}): State => ({
   tracks: [{ id: 'mt1', name: over.name ?? 'Batterie', vol: over.vol ?? 1, pan: 0 }],
-  clips: [{ id: 'mc1', track: 'mt1', start: over.start ?? 0, in: 0, out: 2, name: 'a.wav', buffer: { big: true } }],
+  clips: [{ id: 'mc1', track: 'mt1', start: over.start ?? 0, in: 0, out: 2, name: 'a.wav', buffer: sharedBuffer }],
   master_vol: 1,
 });
 
@@ -44,5 +45,15 @@ describe('pauseEditor', () => {
     pauseEditor(frame({ IsPlaying: () => true, Pause: pause }));
     expect(pause).toHaveBeenCalledTimes(1);
     expect(() => pauseEditor(null)).not.toThrow();
+  });
+});
+
+describe('editorSignature and replaced audio', () => {
+  it('changes when an effect or a cut gives a clip another buffer, and not otherwise', () => {
+    const buf1 = {}; const buf2 = {};
+    const st = (buffer: object) => ({ tracks: [{ id: 'mt1', name: 'A', vol: 1, pan: 0 }], clips: [{ id: 'mc1', track: 'mt1', start: 0, in: 0, out: 2, name: 'a.wav', buffer }], master_vol: 1 });
+    const a = editorSignature(frame({ getState: () => st(buf1) }));
+    expect(editorSignature(frame({ getState: () => st(buf1) }))).toBe(a);
+    expect(editorSignature(frame({ getState: () => st(buf2) }))).not.toBe(a);
   });
 });

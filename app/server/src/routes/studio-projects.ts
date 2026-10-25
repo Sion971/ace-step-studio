@@ -120,6 +120,60 @@ router.post('/', authMiddleware, upload.single('project'), async (req: Authentic
   }
 });
 
+// Automatic backup ("draft"): one per user, overwritten each time, never listed with the projects. Registered before the /:id routes.
+router.get('/draft', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const dir = userDir(req.user!.id);
+    const st = await stat(path.join(dir, 'draft.amss')).catch(() => null);
+    if (!st) { res.json({ draft: null }); return; }
+    let updatedAt = st.mtime.toISOString();
+    try { updatedAt = String(JSON.parse(await readFile(path.join(dir, 'draft.json'), 'utf-8')).updatedAt || updatedAt); } catch { /* the file date will do */ }
+    res.json({ draft: { updatedAt, size: st.size } });
+  } catch (error) {
+    console.error('Read studio draft error:', error);
+    res.status(500).json({ error: 'Failed to read the backup' });
+  }
+});
+
+router.get('/draft/file', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const file = path.join(userDir(req.user!.id), 'draft.amss');
+    if (!existsSync(file)) { res.status(404).json({ error: 'No backup' }); return; }
+    res.type('application/octet-stream').sendFile(file);
+  } catch (error) {
+    console.error('Read studio draft error:', error);
+    res.status(500).json({ error: 'Failed to read the backup' });
+  }
+});
+
+router.put('/draft', authMiddleware, upload.single('project'), async (req: AuthenticatedRequest, res: Response) => {
+  const tmp = req.file?.path;
+  try {
+    if (!req.file || !tmp) { res.status(400).json({ error: 'No project file received (field "project" expected).' }); return; }
+    const dir = userDir(req.user!.id);
+    await rename(tmp, path.join(dir, 'draft.amss'));
+    const updatedAt = new Date().toISOString();
+    await writeFile(path.join(dir, 'draft.json'), JSON.stringify({ updatedAt }), 'utf-8');
+    res.json({ draft: { updatedAt, size: req.file.size } });
+  } catch (error) {
+    if (tmp) await unlink(tmp).catch(() => {});
+    console.error('Save studio draft error:', error);
+    res.status(500).json({ error: 'Failed to save the backup' });
+  }
+});
+
+router.delete('/draft', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const dir = userDir(req.user!.id);
+    await unlink(path.join(dir, 'draft.amss')).catch(() => {});
+    await unlink(path.join(dir, 'draft.json')).catch(() => {});
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete studio draft error:', error);
+    res.status(500).json({ error: 'Failed to delete the backup' });
+  }
+});
+
 router.get('/:id/file', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const id = String(req.params.id);
