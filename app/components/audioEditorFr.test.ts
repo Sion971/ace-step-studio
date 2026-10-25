@@ -86,4 +86,25 @@ describe('the French of the editor', () => {
     expect(keys.length).toBeGreaterThan(400);
     expect(new Set(keys).size).toBe(keys.length);
   });
+
+  it('follows a French browser while no language was picked in the application', () => {
+    localStorage.clear();
+    const set = (v: string) => Object.defineProperty(window.navigator, 'language', { value: v, configurable: true });
+    const original = window.navigator.language;
+    try {
+      set('fr-FR');
+      delete (window as any).PKAudioEditorI18n;
+      new Function('window', 'document', SOURCE)(window, document);
+      expect((window as any).PKAudioEditorI18n.lang).toBe('fr');
+      set('en-US');
+      delete (window as any).PKAudioEditorI18n;
+      new Function('window', 'document', SOURCE)(window, document);
+      expect((window as any).PKAudioEditorI18n.lang).toBe('en');
+      // a language picked by hand wins over the browser's
+      set('fr-FR'); localStorage.setItem('language', 'en');
+      delete (window as any).PKAudioEditorI18n;
+      new Function('window', 'document', SOURCE)(window, document);
+      expect((window as any).PKAudioEditorI18n.lang).toBe('en');
+    } finally { set(original); }
+  });
 });

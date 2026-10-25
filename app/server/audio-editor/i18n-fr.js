@@ -5,7 +5,8 @@
  * mise à jour du programme), ce fichier remplace à l'écran les textes anglais par leur version française, y compris
  * ceux des fenêtres et des messages créés plus tard. Un texte absent du dictionnaire reste en anglais.
  *
- * Langue : paramètre ?lang=fr de l'adresse, sinon la langue de l'application (localStorage "language", même origine).
+ * Langue : paramètre ?lang=fr de l'adresse, sinon la langue de l'application (localStorage "language", même origine),
+ * sinon celle du navigateur (l'application la suit tant qu'aucune langue n'a été choisie à la main).
  * Un changement de langue dans l'application est suivi sans recharger l'éditeur (événement "storage").
  */
 (function (w, d) {
@@ -787,7 +788,11 @@ function setLang (l) {
 function wanted () {
 	var m = /[?&]lang=([a-z]{2})/.exec (w.location.search);
 	if (m) return m[1];
-	try { return w.localStorage.getItem ('language') || 'en'; } catch (e) { return 'en'; }
+	var saved = null;
+	try { saved = w.localStorage.getItem ('language'); } catch (e) { /* storage unavailable */ }
+	if (saved) return saved;
+	// The application only writes "language" once the language is picked by hand; until then it follows the browser's (French browser = French app).
+	return /^fr/i.test (w.navigator && w.navigator.language || '') ? 'fr' : 'en';
 }
 
 w.PKAudioEditorI18n = { setLang: setLang, translate: translate, get lang () { return lang; } };
