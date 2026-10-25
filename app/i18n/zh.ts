@@ -57,6 +57,8 @@ export const zh = {
     studioProjectDeleteAsk: "永久删除此项目?",
     studioProjectNotLoaded: "编辑器无法打开此项目。",
     studioProjectError: "操作失败。",
+    studioTabExport: "导出",
+    studioTabInstrument: "乐器",
     studioInstrumentUploading: "正在发送片段…",
     studioInstrumentBpm: "BPM",
     studioInstrumentKey: "调性",

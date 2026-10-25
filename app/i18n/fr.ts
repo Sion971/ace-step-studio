@@ -57,6 +57,8 @@ export const fr = {
     studioProjectDeleteAsk: "Supprimer définitivement ce projet ?",
     studioProjectNotLoaded: "L'éditeur n'a pas pu ouvrir ce projet.",
     studioProjectError: "L'action a échoué.",
+    studioTabExport: "Export",
+    studioTabInstrument: "Instrument",
     studioInstrumentUploading: "Envoi du clip…",
     studioInstrumentBpm: "BPM",
     studioInstrumentKey: "Tonalité",

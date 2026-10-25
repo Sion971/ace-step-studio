@@ -8,6 +8,8 @@ import type { EditorClip, EditorEntry } from './studioBridge';
 import { StudioInstrumentPanel } from './StudioInstrumentPanel';
 import { StudioExportPanel } from './StudioExportPanel';
 import { StudioProjectsPanel, StudioProjectsApi } from './StudioProjectsPanel';
+import { StudioDock } from './StudioDock';
+import type { StudioDockItem } from './StudioDock';
 import type { StudioInstrumentRequest } from './StudioInstrumentPanel';
 import { TRACK_LABELS } from './TrackPicker';
 import { getModelDisplayName } from '../utils/modelNames';
@@ -255,6 +257,31 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
     })();
   }, [incoming]);
 
+  // The blocks under the song list, as tabs (see StudioDock). Each reports a running job so the tab can show it while folded.
+  const [projectsBusy, setProjectsBusy] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [instrumentBusy, setInstrumentBusy] = useState(false);
+  const [projectName, setProjectName] = useState<string | null>(null);
+  const dockItems: StudioDockItem[] = [];
+  if (projectsApi) {
+    dockItems.push({
+      id: 'projects', label: tf('studioProjectsTitle', 'Projects'), detail: projectName, busy: projectsBusy,
+      content: <StudioProjectsPanel tf={tf} api={projectsApi} getFrame={() => frameRef.current} onBusyChange={setProjectsBusy} onCurrentChange={setProjectName} />,
+    });
+  }
+  if (onExportMix) {
+    dockItems.push({
+      id: 'export', label: tf('studioTabExport', 'Export'), busy: exportBusy,
+      content: <StudioExportPanel tf={tf} onExport={onExportMix} getFrame={() => frameRef.current} getRegion={() => getEditorRegion(frameRef.current)} onBusyChange={setExportBusy} />,
+    });
+  }
+  if (onGenerateInstrument) {
+    dockItems.push({
+      id: 'instrument', label: tf('studioTabInstrument', 'Instrument'), busy: instrumentBusy,
+      content: <StudioInstrumentPanel sources={sources} tf={tf} onGenerate={generateInstrument} onResult={addGenerated} getEditorRegion={() => getEditorRegion(frameRef.current)} preferredSourceId={preferredSourceId} onBusyChange={setInstrumentBusy} />,
+    });
+  }
+
   return (
     <div className="flex flex-col md:flex-row h-full min-h-0 w-full bg-white dark:bg-suno-panel">
       <aside className="md:w-80 md:flex-shrink-0 max-h-72 md:max-h-none flex flex-col border-b md:border-b-0 md:border-r border-zinc-200 dark:border-white/5 min-h-0">
@@ -361,15 +388,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
             </li>
           )}
         </ul>
-        {projectsApi && (
-          <StudioProjectsPanel tf={tf} api={projectsApi} getFrame={() => frameRef.current} />
-        )}
-        {onExportMix && (
-          <StudioExportPanel tf={tf} onExport={onExportMix} getFrame={() => frameRef.current} getRegion={() => getEditorRegion(frameRef.current)} />
-        )}
-        {onGenerateInstrument && (
-          <StudioInstrumentPanel sources={sources} tf={tf} onGenerate={generateInstrument} onResult={addGenerated} getEditorRegion={() => getEditorRegion(frameRef.current)} preferredSourceId={preferredSourceId} />
-        )}
+        <StudioDock items={dockItems} />
       </aside>
 
       <section className="flex-1 min-w-0 min-h-[420px] md:min-h-0">

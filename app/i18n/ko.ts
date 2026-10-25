@@ -57,6 +57,8 @@ export const ko = {
     studioProjectDeleteAsk: "이 프로젝트를 완전히 삭제할까요?",
     studioProjectNotLoaded: "편집기에서 이 프로젝트를 열지 못했습니다.",
     studioProjectError: "작업에 실패했습니다.",
+    studioTabExport: "내보내기",
+    studioTabInstrument: "악기",
     studioInstrumentUploading: "클립 전송 중…",
     studioInstrumentBpm: "BPM",
     studioInstrumentKey: "키",

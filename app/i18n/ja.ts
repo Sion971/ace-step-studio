@@ -57,6 +57,8 @@ export const ja = {
   studioProjectDeleteAsk: "このプロジェクトを完全に削除しますか?",
   studioProjectNotLoaded: "エディターでこのプロジェクトを開けませんでした。",
   studioProjectError: "操作に失敗しました。",
+  studioTabExport: "書き出し",
+  studioTabInstrument: "楽器",
   studioInstrumentUploading: "クリップを送信中…",
   studioInstrumentBpm: "BPM",
   studioInstrumentKey: "キー",

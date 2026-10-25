@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { exportEditorMix } from './studioBridge';
 
 interface StudioExportPanelProps {
@@ -9,6 +9,8 @@ interface StudioExportPanelProps {
   getFrame: () => HTMLIFrameElement | null;
   /** The range selected in the editor (a dragged region, or the selected clip), or null. */
   getRegion: () => { start: number; end: number; from?: string } | null;
+  /** Told whenever an export starts or ends. */
+  onBusyChange?: (busy: boolean) => void;
 }
 
 const defaultTitle = (): string => {
@@ -21,10 +23,11 @@ const defaultTitle = (): string => {
  * "Export to the library": mixes the timeline of the editor as it sounds (volumes, pans, mutes, solos) and saves it as a new
  * song, found afterwards in the song list like any other. The editor's own File > Export only downloads a file.
  */
-export const StudioExportPanel: React.FC<StudioExportPanelProps> = ({ tf, onExport, getFrame, getRegion }) => {
+export const StudioExportPanel: React.FC<StudioExportPanelProps> = ({ tf, onExport, getFrame, getRegion, onBusyChange }) => {
   const [title, setTitle] = useState('');
   const [rangeOnly, setRangeOnly] = useState(false);
   const [busy, setBusy] = useState(false);
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
 
   const run = async () => {
@@ -53,7 +56,7 @@ export const StudioExportPanel: React.FC<StudioExportPanelProps> = ({ tf, onExpo
 
   const field = 'w-full px-2 py-1.5 text-xs rounded-lg bg-zinc-100 dark:bg-black/30 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500';
   return (
-    <div className="p-3 border-t border-zinc-200 dark:border-white/5" data-testid="studio-export-panel">
+    <div className="p-3" data-testid="studio-export-panel">
       <p className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-200">{tf('studioExportTitle', 'Export the mix to the library')}</p>
       <input
         type="text"

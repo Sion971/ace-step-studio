@@ -20,6 +20,10 @@ interface StudioProjectsPanelProps {
   tf: (key: string, fallback: string) => string;
   api: StudioProjectsApi;
   getFrame: () => HTMLIFrameElement | null;
+  /** Told whenever a save, an opening or a deletion starts or ends. */
+  onBusyChange?: (busy: boolean) => void;
+  /** Told the name of the project that is open in the editor (null when none). */
+  onCurrentChange?: (name: string | null) => void;
 }
 
 const sizeLabel = (bytes: number): string => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(bytes >= 100 * 1024 * 1024 ? 0 : 1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
@@ -32,7 +36,7 @@ const dateLabel = (iso: string): string => {
  * Projects of the Studio tab: the session of the editor (tracks, clips, volumes, pans, fades, markers) is stored by the
  * server, and can be reopened, replaced or deleted from here. The editor's own "save session" only downloads a file.
  */
-export const StudioProjectsPanel: React.FC<StudioProjectsPanelProps> = ({ tf, api, getFrame }) => {
+export const StudioProjectsPanel: React.FC<StudioProjectsPanelProps> = ({ tf, api, getFrame, onBusyChange, onCurrentChange }) => {
   const [projects, setProjects] = useState<StudioProjectItem[]>([]);
   const [name, setName] = useState('');
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -100,11 +104,14 @@ export const StudioProjectsPanel: React.FC<StudioProjectsPanelProps> = ({ tf, ap
   });
 
   const current = projects.find((p) => p.id === currentId) || null;
+  const currentName = current ? current.name : null;
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
+  useEffect(() => { onCurrentChange?.(currentName); }, [currentName, onCurrentChange]);
   const field = 'w-full px-2 py-1.5 text-xs rounded-lg bg-zinc-100 dark:bg-black/30 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white focus:outline-none focus:border-pink-500';
   const small = 'px-1.5 py-0.5 text-[10px] rounded border border-zinc-300 dark:border-white/15 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-white/10 disabled:opacity-50';
 
   return (
-    <div className="p-3 border-t border-zinc-200 dark:border-white/5" data-testid="studio-projects-panel">
+    <div className="p-3" data-testid="studio-projects-panel">
       <p className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-200">{tf('studioProjectsTitle', 'Projects')}</p>
       <input
         type="text"

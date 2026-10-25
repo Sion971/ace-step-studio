@@ -33,6 +33,8 @@ interface Props {
   getEditorRegion?: () => { start: number; end: number } | null;
   /** The source to select when it changes (the clip selected in the editor). */
   preferredSourceId?: string;
+  /** Told whenever a generation starts or ends (so the tab can show it while folded). */
+  onBusyChange?: (busy: boolean) => void;
 }
 
 /** Installed models that can run Lego (pure base models), the active one first. */
@@ -46,7 +48,7 @@ export function shortTitle(title: string, max = 32): string {
   return title.length <= max ? title : `…${title.slice(-(max - 1))}`;
 }
 
-export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate, onResult, getEditorRegion, preferredSourceId }) => {
+export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate, onResult, getEditorRegion, preferredSourceId, onBusyChange }) => {
   const [models, setModels] = useState<string[] | null>(null);
   const [model, setModel] = useState('');
   const [sourceId, setSourceId] = useState('');
@@ -57,6 +59,7 @@ export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate
   const [keyScale, setKeyScale] = useState('');
   const [seed, setSeed] = useState('');
   const [busy, setBusy] = useState(false);
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
   const [progress, setProgress] = useState<number | undefined>(undefined);
   const [phase, setPhase] = useState<string | undefined>(undefined);
   const [regionStart, setRegionStart] = useState('');
@@ -132,7 +135,7 @@ export const StudioInstrumentPanel: React.FC<Props> = ({ sources, tf, onGenerate
   const label = 'block mt-2 mb-0.5 text-[10px] font-medium text-zinc-500 dark:text-zinc-400';
 
   return (
-    <div className="p-3 border-t border-zinc-200 dark:border-white/5 overflow-y-auto max-h-[45%]" data-testid="studio-instrument-panel">
+    <div className="p-3" data-testid="studio-instrument-panel">
       <h3 className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900 dark:text-white">
         <Wand2 size={13} className="text-pink-500" />
         {tf('studioAddInstrument', 'Add an instrument')}

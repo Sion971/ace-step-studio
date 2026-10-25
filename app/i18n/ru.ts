@@ -57,6 +57,8 @@ export const ru = {
     studioProjectDeleteAsk: "Удалить этот проект навсегда?",
     studioProjectNotLoaded: "Редактор не смог открыть этот проект.",
     studioProjectError: "Не удалось выполнить действие.",
+    studioTabExport: "Экспорт",
+    studioTabInstrument: "Инструмент",
     studioInstrumentUploading: "Отправка клипа…",
     studioInstrumentBpm: "BPM",
     studioInstrumentKey: "Тональность",
