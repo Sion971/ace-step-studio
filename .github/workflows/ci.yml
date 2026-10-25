@@ -1,0 +1,57 @@
+name: Tests
+
+# Type check and unit tests of the app and the server, then an end-to-end test of the Studio's editor in a real browser.
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Type check and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            app/package-lock.json
+            app/server/package-lock.json
+      - name: ffmpeg (the audio conversion tests use it)
+        run: |
+          if ! command -v ffmpeg >/dev/null; then sudo apt-get update && sudo apt-get install -y ffmpeg; fi
+          ffmpeg -version | head -1
+      - name: Install
+        working-directory: app
+        run: |
+          npm ci
+          npm ci --prefix server
+      - name: Type check
+        working-directory: app
+        run: npm run typecheck
+      - name: Unit tests (app and server)
+        working-directory: app
+        run: npm test
+
+  studio-e2e:
+    name: Studio editor, end to end
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Playwright and Chromium
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+      - name: Add tracks, set the tempo, mix down, save and reopen a project
+        run: python3 app/e2e/studio_editor_e2e.py
