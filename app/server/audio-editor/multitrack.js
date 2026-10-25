@@ -5277,6 +5277,13 @@
 
 		q.IsOn = IsOn;
 		q.ExportSession = ExportSession;
+		// Studio tab: the session (tracks, clips, volumes, pans, fades, markers...) as a Blob, to store it in the app instead of downloading it.
+		q.GetSessionBlob = function () {
+			if (!tracks.length || !clips.length || !app.amss || !app.amss.BuildMultitrack) return null;
+			var st = cloneState ();
+			if (app.mrk) st.markers = app.mrk.serMt ();
+			return app.amss.BuildMultitrack ( st ) || null;
+		};
 		q.LoadSessionBuffer = LoadSessionBuffer;
 		q.LoadSessionFiles = LoadSessionFiles;
 		q.AddFilesAuto = function ( file_list ) {
@@ -5418,10 +5425,13 @@
 					var used = false;
 					for (var ci = 0; ci < clips.length && !used; ++ci)
 						if (clips[ci].track === tracks[ti].id) used = true;
-					if (!used) empty_track = tracks[ti];
+					// a track already chosen for a file still being decoded has no clip yet: it is not free for a second file
+					if (!used && !(tracks[ti].pending_file && Date.now () - tracks[ti].pending_file < 20000)) empty_track = tracks[ti];
 				}
 				if (empty_track) selected_track = empty_track.id;
 				else addTrack ();
+				var chosen = findTrack ( selected_track );
+				if (chosen) chosen.pending_file = Date.now ();
 				// arg2 is the start in seconds, or { start, name }: the name the channel takes ("Drums" instead of "Channel 3").
 				var add_opts = (arg2 && typeof arg2 === 'object') ? arg2 : { start: arg2 };
 				var add_name = add_opts.name == null ? '' : String ( add_opts.name ).trim ();

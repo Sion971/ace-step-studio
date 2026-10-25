@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 // Vue affichée au lancement, quand aucune route n'est demandée.
 // `true` : le profil de l'utilisateur. `false` : le panneau Créer.
@@ -59,7 +59,7 @@ function useResizablePanel(key: string, defaultWidth: number, min: number, max: 
 
   return { width, handle };
 }
-import { generateApi, songsApi, playlistsApi, settingsApi, getAudioUrl, getCoverUrl } from './services/api';
+import { generateApi, songsApi, playlistsApi, settingsApi, studioProjectsApi, getAudioUrl, getCoverUrl } from './services/api';
 import { useAuth } from './context/AuthContext';
 import { useResponsive } from './context/ResponsiveContext';
 import { I18nProvider, useI18n } from './context/I18nContext';
@@ -1958,6 +1958,14 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     await refreshSongsList();
   }, [token, refreshSongsList]);
 
+  // Studio tab, projects: the editor's session stored by the server, bound to the signed-in user.
+  const studioProjects = useMemo(() => token ? {
+    list: () => studioProjectsApi.list(token),
+    save: (file: Blob, name: string | undefined, id?: string) => studioProjectsApi.save(file, name, token, id),
+    load: (id: string) => studioProjectsApi.load(id, token),
+    remove: async (id: string) => { await studioProjectsApi.remove(id, token); },
+  } : undefined, [token]);
+
   const handleSelectWorkspace = async (workspace: Playlist) => {
     setActiveWorkspaceFilter(workspace);
     setActiveWorkspaceSongIds(null); // vide pendant le chargement
@@ -2216,6 +2224,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
             onDeleteSongs={handleDeleteSongs}
             uploadAudio={async (file: File) => (await generateApi.uploadAudio(file, token!)).url}
             onExportMix={exportStudioMix}
+            projectsApi={studioProjects}
             incoming={studioIncoming}
             onIncomingDone={() => setStudioIncoming(null)}
           />

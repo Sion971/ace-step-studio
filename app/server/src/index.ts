@@ -38,6 +38,7 @@ import midiRoutes from './routes/midi.js';
 import demucsRoutes from './routes/demucs.js';
 import loudnormRoutes from './routes/loudnorm.js';
 import audioEditorRoutes from './routes/audio-editor.js';
+import studioProjectsRoutes from './routes/studio-projects.js';
 import { pipelineManager } from './services/pipeline-manager.js';
 import { maybeOpenBrowser } from './services/open-browser.js';
 import { pool } from './db/pool.js';
@@ -568,6 +569,7 @@ app.use('/api/midi', midiRoutes);
 app.use('/api/demucs', demucsRoutes);
 app.use('/api/loudnorm', loudnormRoutes);
 app.use('/api/audio-editor', audioEditorRoutes);
+app.use('/api/studio-projects', studioProjectsRoutes);
 
 // GET /api/changelog — serve CHANGELOG.md as plain text
 app.get('/api/changelog', (_req, res) => {

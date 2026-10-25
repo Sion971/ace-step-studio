@@ -7,6 +7,8 @@ export interface EditorWindow extends Window {
       ListClips?: () => { id: string; name: string; start: number; duration: number; selected?: boolean }[];
       GetClipBuffer?: (id: string) => { buffer: PcmSource; from: number; to: number } | null;
       GetStudioRange?: () => { start: number; end: number; from: 'region' | 'clip' } | null;
+      GetSessionBlob?: () => Blob | null;
+      LoadSessionBuffer?: (buf: ArrayBuffer, name?: string) => boolean;
       MixdownAsync?: (selection: [number, number] | null, done: (buffer: PcmSource | null) => void) => void;
     };
     fireEvent: (name: string, ...args: unknown[]) => unknown;
@@ -206,6 +208,33 @@ export function exportEditorMix(frame: HTMLIFrameElement | null, fileName: strin
       resolve(null);
     }
   });
+}
+
+/** The editor's session (tracks, clips, volumes, pans, fades, markers) as a file, or null when the timeline is empty. */
+export function getEditorSession(frame: HTMLIFrameElement | null): Blob | null {
+  try {
+    return getEditorApi(frame)?.multitrack?.GetSessionBlob?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Replaces what is in the editor with a session got from getEditorSession. False when the editor is not ready or refuses the file. */
+export function loadEditorSession(frame: HTMLIFrameElement | null, data: ArrayBuffer, name?: string): boolean {
+  try {
+    return !!getEditorApi(frame)?.multitrack?.LoadSessionBuffer?.(data, name);
+  } catch {
+    return false;
+  }
+}
+
+/** True when the timeline holds at least one clip (so that loading a project would replace something). */
+export function editorHasClips(frame: HTMLIFrameElement | null): boolean {
+  try {
+    return (getEditorApi(frame)?.multitrack?.ListClips?.().length ?? 0) > 0;
+  } catch {
+    return false;
+  }
 }
 
 /** 22 -> "0:22" */

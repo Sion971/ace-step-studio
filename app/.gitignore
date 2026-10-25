@@ -19,6 +19,7 @@ server/.env
 server/data/*.db
 server/data/*.db-shm
 server/data/*.db-wal
+server/data/studio-projects/
 !server/data/.gitkeep
 
 # Generated audio files

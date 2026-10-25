@@ -7,6 +7,7 @@ import { addTrackToEditor, editorFileName, exportEditorClip, formatDuration, get
 import type { EditorClip, EditorEntry } from './studioBridge';
 import { StudioInstrumentPanel } from './StudioInstrumentPanel';
 import { StudioExportPanel } from './StudioExportPanel';
+import { StudioProjectsPanel, StudioProjectsApi } from './StudioProjectsPanel';
 import type { StudioInstrumentRequest } from './StudioInstrumentPanel';
 import { TRACK_LABELS } from './TrackPicker';
 import { getModelDisplayName } from '../utils/modelNames';
@@ -35,6 +36,8 @@ interface StudioPageProps {
   uploadAudio?: (file: File) => Promise<string>;
   /** Saves the mix of the editor as a song of the library (file, title, duration in seconds). */
   onExportMix?: (file: File, title: string, duration: number) => Promise<void>;
+  /** Projects (the editor's session) stored by the server. */
+  projectsApi?: StudioProjectsApi;
   /** Audio sent from elsewhere ("Edit the audio", "Open all in the editor"): put on the timeline once the editor is ready. */
   incoming?: StudioIncoming | null;
   /** Called when the incoming audio has been handled, so the request is not replayed. */
@@ -56,7 +59,7 @@ export function filterStudioSongs(songs: Song[], query: string): Song[] {
     .sort((a, b) => (new Date(b.createdAt).getTime() || 0) - (new Date(a.createdAt).getTime() || 0));
 }
 
-export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs, onGenerateInstrument, onDeleteSongs, uploadAudio, onExportMix, incoming, onIncomingDone }) => {
+export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], songsInAnyWorkspace, loadWorkspaceSongs, onGenerateInstrument, onDeleteSongs, uploadAudio, onExportMix, projectsApi, incoming, onIncomingDone }) => {
   const { t } = useI18n();
   const tf = useCallback((key: string, fallback: string): string => {
     const value = t(key as TranslationKey);
@@ -358,6 +361,9 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
             </li>
           )}
         </ul>
+        {projectsApi && (
+          <StudioProjectsPanel tf={tf} api={projectsApi} getFrame={() => frameRef.current} />
+        )}
         {onExportMix && (
           <StudioExportPanel tf={tf} onExport={onExportMix} getFrame={() => frameRef.current} getRegion={() => getEditorRegion(frameRef.current)} />
         )}

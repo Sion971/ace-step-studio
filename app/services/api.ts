@@ -1177,3 +1177,48 @@ export const trainingApi = {
   importDataset: (datasetType: string, token: string): Promise<{ status: string }> =>
     api('/api/training/import-dataset', { method: 'POST', body: { datasetType }, token }),
 };
+
+
+// Studio tab: projects (the editor's session, stored by the server for the signed-in user).
+export interface StudioProject {
+  id: string;
+  name: string;
+  size: number;
+  updatedAt: string;
+}
+
+export const studioProjectsApi = {
+  list: async (token: string): Promise<StudioProject[]> => {
+    const r = await api<{ projects: StudioProject[] }>('/api/studio-projects', { token });
+    return r.projects;
+  },
+
+  /** Creates a project, or replaces the one `id`. */
+  save: async (file: Blob, name: string | undefined, token: string, id?: string): Promise<StudioProject> => {
+    const formData = new FormData();
+    if (name) formData.append('name', name);
+    if (id) formData.append('id', id);
+    formData.append('project', file, 'project.amss');
+    const response = await fetch(`${API_BASE}/api/studio-projects`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Save failed' }));
+      throw new Error(error.error || 'Save failed');
+    }
+    return (await response.json()).project;
+  },
+
+  load: async (id: string, token: string): Promise<ArrayBuffer> => {
+    const response = await fetch(`${API_BASE}/api/studio-projects/${encodeURIComponent(id)}/file`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error('Project not found');
+    return response.arrayBuffer();
+  },
+
+  remove: (id: string, token: string): Promise<{ success: boolean }> =>
+    api(`/api/studio-projects/${encodeURIComponent(id)}`, { method: 'DELETE', token }),
+};

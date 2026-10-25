@@ -58,7 +58,8 @@
 			return true;
 		};
 
-		q.ExportMultitrack = function ( name, st ) {
+		// The session as a Blob (null if it cannot be written); ExportMultitrack downloads it, the Studio tab stores it in the app.
+		q.BuildMultitrack = function ( st ) {
 			var wtr = writer ();
 			var parts = [];
 			var audio = [];
@@ -172,7 +173,12 @@
 				if (mb.length & 3) parts.push (new Uint8Array (4 - (mb.length & 3)));
 			}
 
-			var blob = new Blob (parts, {type:'application/x-audiomass-session'});
+			return new Blob (parts, {type:'application/x-audiomass-session'});
+		};
+
+		q.ExportMultitrack = function ( name, st ) {
+			var blob = q.BuildMultitrack ( st );
+			if (!blob) return false;
 			var url = (w.URL || w.webkitURL).createObjectURL ( blob );
 			var a = d.createElement ('a');
 			a.href = url;
