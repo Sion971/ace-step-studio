@@ -11,9 +11,12 @@
 	#m::-webkit-scrollbar-track{background:#0e1013}
 	#m::-webkit-scrollbar-thumb{background:#1c2026;border:2px solid #0e1013;border-radius:4px}
 	#m::-webkit-scrollbar-thumb:hover,#m::-webkit-scrollbar-thumb:active{background:#6a7380}
-	.s{display:inline-block;position:relative;box-sizing:border-box;width:92px;height:268px;margin-right:8px;padding:8px 7px;vertical-align:top;background:linear-gradient(#182023,#101416);border:1px solid #263338;border-radius:5px;box-shadow:inset 0 1px rgba(255,255,255,.05),0 2px 8px #000}
+	.s{display:inline-block;position:relative;box-sizing:border-box;width:var(--sw,92px);height:268px;margin-right:var(--sg,8px);padding:8px 7px;vertical-align:top;background:linear-gradient(#182023,#101416);border:1px solid #263338;border-radius:5px;box-shadow:inset 0 1px rgba(255,255,255,.05),0 2px 8px #000}
 	.s.sel{border-color:#56dbe3;box-shadow:0 0 12px rgba(80,220,225,.35),inset 0 1px rgba(255,255,255,.05)}
 	/* The master stays in view at the right edge when there are more channels than the window shows: they scroll underneath it. */
+	/* Narrow strips (see fit()): the pan row and the buttons are made smaller so that they still fit. */
+	.n .pn label{width:20px;font-size:8px}.n .pn em{width:20px;font-size:9px}.n .pn{gap:2px}
+	.n button{width:18px;height:22px}
 	.s.master{position:sticky;right:0;z-index:3;margin-right:0;border-color:#4b493c;background:linear-gradient(#1f211d,#121310);box-shadow:inset 0 1px rgba(255,255,255,.05),10px 0 0 #090d0e,-12px 0 10px -6px #000,0 2px 8px #000}
 	strong{display:block;height:26px;overflow:hidden;color:#f3f6f6;font:bold 13px/13px Arial,sans-serif}
 	.meter{height:7px;margin:5px 0 8px;background:#050708;border:1px solid #222c30;box-shadow:inset 0 1px 3px #000;overflow:hidden}
@@ -177,7 +180,31 @@
 			box.innerHTML = '';
 			els = {};
 			for (var i = 0; i < list.length; ++i) box.appendChild ( make ( list[i] ) );
+			fit ();
 		}
+
+		// All the strips (the channels and the master) in the window when they can fit by narrowing them a little, from 92 px to 76 px at the
+		// narrowest; beyond that the row scrolls sideways (the wheel too) and the master stays pinned at the right edge.
+		var fit_key = '';
+		function fit () {
+			var n = d.getElementsByClassName ('s').length;
+			var avail = box.clientWidth - 20;
+			if (!n || avail <= 0) return ;
+			var key = n + ':' + avail;
+			if (key === fit_key) return ;
+			fit_key = key;
+			var gap = 6;
+			var wd = Math.max (76, Math.min (92, Math.floor (avail / n) - gap));
+			box.style.setProperty ('--sw', wd + 'px');
+			box.style.setProperty ('--sg', (wd < 92 ? gap : 8) + 'px');
+			box.className = wd < 86 ? 'n' : '';
+		}
+		w.addEventListener ('resize', fit);
+		box.addEventListener ('wheel', function ( ev ) {
+			if (box.scrollWidth <= box.clientWidth || Math.abs (ev.deltaX) > Math.abs (ev.deltaY)) return ;
+			box.scrollLeft += ev.deltaY;
+			ev.preventDefault ();
+		}, { passive: false });
 
 		function panText ( v ) {
 			return v < -0.01 ? 'L' + ((-v * 100) >> 0) : v > 0.01 ? 'R' + ((v * 100) >> 0) : 'C';
@@ -240,6 +267,7 @@
 				build ( list );
 			}
 			for (var i = 0; i < list.length; ++i) paint ( list[i] );
+			fit ();
 		}
 
 		function loop ( t ) {

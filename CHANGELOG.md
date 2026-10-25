@@ -65,6 +65,7 @@
 - README: the multitrack editor screenshot now shows the Studio tab (song list, projects / export / instrument tabs), and its caption says so.
 - Studio: the first song put in an empty editor gives its tempo and time signature to the editor's beat grid (the BEAT / TEMPS button, 120 BPM and 4/4 until then); the next songs do not change it, and the grid is not switched on. A signature the grid does not have (2/4) or a missing tempo leaves that setting as it was.
 - Studio / editor mixer: the Master strip stays pinned at the right edge of the mixer window when there are more channels than the window shows (it was pushed out of view); the channels scroll underneath it.
+- Studio / editor mixer: the strips narrow (92 px down to 76 px) so that all the channels and the master fit in the window, e.g. 6 channels + master; beyond that the row scrolls sideways (the mouse wheel too) with the master pinned at the right edge.
 
 ## 2026-10-21
 

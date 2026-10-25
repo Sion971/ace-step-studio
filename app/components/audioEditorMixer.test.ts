@@ -16,4 +16,16 @@ describe('the mixer window', () => {
     expect(master).toMatch(/z-index:\s*[1-9]/);
     expect(master).toMatch(/background:/);
   });
+
+  it('narrows the strips so that all of them fit when they can, down to a limit, and scrolls beyond it', () => {
+    expect(html).toMatch(/width:var\(--sw,92px\)/);
+    expect(html).toMatch(/function fit \(\)/);
+    const fit = /function fit \(\) \{([\s\S]*?)\n\t\t\}/.exec(html)?.[1] ?? '';
+    expect(fit).toMatch(/Math\.max \(76, Math\.min \(92,/);
+    expect(fit).toMatch(/setProperty \('--sw'/);
+  });
+  it('lets the wheel scroll the row sideways when it overflows', () => {
+    expect(html).toMatch(/addEventListener \('wheel'/);
+    expect(html).toMatch(/scrollLeft \+= ev\.deltaY/);
+  });
 });
