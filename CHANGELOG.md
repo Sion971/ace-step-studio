@@ -63,6 +63,7 @@
 - Studio: new "Projects" block. The editor session (tracks, clips, volumes, pans, fades, markers, tempo) is saved on the server for the signed-in user (`app/server/data/studio-projects/`, not versioned) and can be reopened, replaced or deleted from the Studio tab, instead of the editor's own "save session" that only downloads a file. New route `/api/studio-projects`. Also: two files added to the editor in quick succession no longer land on the same empty channel (the second renamed the first).
 - Studio: the three blocks under the song list (Projects, Export, Instrument) are now tabs, folded by default, so the song list keeps the room (it was squeezed to one or two rows). A click opens a block, a second click folds it; each block stays alive while folded (typed text, running generation), the tab shows the open project and a dot while a job runs, and the open tab is remembered.
 - README: the multitrack editor screenshot now shows the Studio tab (song list, projects / export / instrument tabs), and its caption says so.
+- Studio: the first song put in an empty editor gives its tempo and time signature to the editor's beat grid (the BEAT / TEMPS button, 120 BPM and 4/4 until then); the next songs do not change it, and the grid is not switched on. A signature the grid does not have (2/4) or a missing tempo leaves that setting as it was.
 
 ## 2026-10-21
 

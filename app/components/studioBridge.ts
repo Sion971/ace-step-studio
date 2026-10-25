@@ -1,5 +1,6 @@
 // Bridge between the Studio tab and the audio editor (AudioMass) shown in an iframe.
 // The editor is served by the same server (/editor), so the page can reach its window directly (same origin).
+import { formatTimeSignature } from '../services/timeSignature';
 
 export interface EditorWindow extends Window {
   PKAudioEditor?: {
@@ -7,6 +8,7 @@ export interface EditorWindow extends Window {
       ListClips?: () => { id: string; name: string; start: number; duration: number; selected?: boolean }[];
       GetClipBuffer?: (id: string) => { buffer: PcmSource; from: number; to: number } | null;
       GetStudioRange?: () => { start: number; end: number; from: 'region' | 'clip' } | null;
+      SetBeat?: (bpm: number | null, sig: string | null) => { bpm: number; sig: string };
       GetSessionBlob?: () => Blob | null;
       LoadSessionBuffer?: (buf: ArrayBuffer, name?: string) => boolean;
       MixdownAsync?: (selection: [number, number] | null, done: (buffer: PcmSource | null) => void) => void;
@@ -208,6 +210,30 @@ export function exportEditorMix(frame: HTMLIFrameElement | null, fileName: strin
       resolve(null);
     }
   });
+}
+
+/** The signatures the editor's beat grid has; the engine's "2" (2/4) has no equivalent there. */
+const EDITOR_SIGNATURES = ['4/4', '3/4', '6/8'];
+
+/**
+ * Gives the beat grid of the editor (the TEMPS button, 120 BPM and 4/4 until told otherwise) the tempo and time signature of a song,
+ * when the editor is still empty: the first song put there sets the pace, the next ones do not change it. The grid is not switched on.
+ * Returns true when something was set.
+ */
+export function applySongTempoToEditor(frame: HTMLIFrameElement | null, song: { bpm?: number | null; timeSignature?: string | null }): boolean {
+  try {
+    const mt = getEditorApi(frame)?.multitrack;
+    if (!mt?.SetBeat || editorHasClips(frame)) return false;
+    const bpm = Number(song.bpm);
+    const sig = formatTimeSignature(song.timeSignature);
+    const okBpm = Number.isFinite(bpm) && bpm > 0;
+    const okSig = EDITOR_SIGNATURES.includes(sig);
+    if (!okBpm && !okSig) return false;
+    mt.SetBeat(okBpm ? bpm : null, okSig ? sig : null);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** The editor's session (tracks, clips, volumes, pans, fades, markers) as a file, or null when the timeline is empty. */

@@ -5277,6 +5277,18 @@
 
 		q.IsOn = IsOn;
 		q.ExportSession = ExportSession;
+		// Studio tab: the tempo and time signature of the beat grid (the TEMPS button), taken from the first song put in the editor.
+		// bpm <= 0 or not a number, or a signature the grid does not have, leaves that setting as it is. The grid is not switched on.
+		q.SetBeat = function ( bpm, sig ) {
+			bpm = parseFloat ( bpm );
+			if (bpm > 0) setBeatBpm ( bpm );
+			if (beat_sigs.indexOf ( sig ) >= 0 && sig !== beat_sig) {
+				beat_sig = sig;
+				updateBeatUI ();
+				requestBeatGrid ();
+			}
+			return { bpm: beat_bpm, sig: beat_sig };
+		};
 		// Studio tab: the session (tracks, clips, volumes, pans, fades, markers...) as a Blob, to store it in the app instead of downloading it.
 		q.GetSessionBlob = function () {
 			if (!tracks.length || !clips.length || !app.amss || !app.amss.BuildMultitrack) return null;

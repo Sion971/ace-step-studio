@@ -3,7 +3,7 @@ import { Search, Plus, Check, Music, Trash2 } from 'lucide-react';
 import { Song } from '../types';
 import { useI18n } from '../context/I18nContext';
 import type { TranslationKey } from '../i18n/translations';
-import { addTrackToEditor, editorFileName, exportEditorClip, formatDuration, getEditorRegion, listEditorClipNames, listEditorClips, syncEditorEntries, trimAudioToWav, waitForEditor } from './studioBridge';
+import { addTrackToEditor, applySongTempoToEditor, editorFileName, exportEditorClip, formatDuration, getEditorRegion, listEditorClipNames, listEditorClips, syncEditorEntries, trimAudioToWav, waitForEditor } from './studioBridge';
 import type { EditorClip, EditorEntry } from './studioBridge';
 import { StudioInstrumentPanel } from './StudioInstrumentPanel';
 import { StudioExportPanel } from './StudioExportPanel';
@@ -206,6 +206,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
       const blob = await res.blob();
       const file = new File([blob], editorFileName(song.title, song.audioUrl), { type: blob.type });
       const api = await waitForEditor(frameRef.current);
+      if (api) applySongTempoToEditor(frameRef.current, song);
       if (!api || !addTrackToEditor(frameRef.current, file)) throw new Error('editor not ready');
       setEntries((prev) => [...prev, { id: `${song.id}:${Date.now()}`, songId: song.id, name: file.name, addedAt: Date.now(), seen: false }]);
       setLoaded((prev) => (prev.some((x) => x.id === song.id) ? prev : [...prev, song]));
@@ -240,6 +241,7 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const blob = await res.blob();
           const file = new File([blob], editorFileName(item.name, item.url), { type: blob.type });
+          if (item.song) applySongTempoToEditor(frameRef.current, item.song);
           if (!addTrackToEditor(frameRef.current, file, 0, item.track)) throw new Error('editor not ready');
           if (item.song) {
             const song = item.song;
