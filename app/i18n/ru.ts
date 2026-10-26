@@ -1430,4 +1430,24 @@ export const ru = {
 
     // Modèle de langage (LM) : téléchargement à la demande depuis le sélecteur
     lmDownloadFailed: "Не удалось скачать {{name}}. Проверьте подключение и повторите попытку.",
+
+    // Analyse d'un audio importé (fenêtre dans Créer)
+    analysisButton: "Анализировать это аудио",
+    analysisTitle: "Анализ аудио",
+    analysisRunning: "Прослушивание аудио…",
+    analysisRunningHint: "Движок преобразует аудио в коды, а затем читает их. Это может занять от нескольких секунд до пары минут.",
+    analysisStyle: "Стиль",
+    analysisLyrics: "Текст",
+    analysisBpm: "BPM",
+    analysisKey: "Тональность",
+    analysisSignature: "Размер",
+    analysisDuration: "Длительность",
+    analysisLanguage: "Язык",
+    analysisAlreadyFilled: "уже заполнено",
+    analysisApply: "Применить отмеченные поля",
+    analysisClose: "Закрыть",
+    analysisAuto: "Анализировать автоматически при выборе аудио",
+    analysisBusy: "Движок занят (идёт генерация). Повторите, когда она закончится.",
+    analysisFailed: "Анализ не удался. Проверьте, что движок запущен.",
+    analysisNoModel: "Ничего не удалось прочитать: языковая модель движка не загружена (отключена через --no-lm или INIT_LLM=false). Запустите без этой настройки.",
 };

@@ -1436,4 +1436,24 @@ export const en = {
 
     // Modèle de langage (LM) : téléchargement à la demande depuis le sélecteur
     lmDownloadFailed: "Could not download {{name}}. Check your connection and try again.",
+
+    // Analyse d'un audio importé (fenêtre dans Créer)
+    analysisButton: "Analyze this audio",
+    analysisTitle: "Analyze audio",
+    analysisRunning: "Listening to the audio…",
+    analysisRunningHint: "The engine converts the audio to codes, then reads them. This can take from a few seconds to a couple of minutes.",
+    analysisStyle: "Style",
+    analysisLyrics: "Lyrics",
+    analysisBpm: "BPM",
+    analysisKey: "Key",
+    analysisSignature: "Time signature",
+    analysisDuration: "Length",
+    analysisLanguage: "Language",
+    analysisAlreadyFilled: "already filled",
+    analysisApply: "Apply the checked fields",
+    analysisClose: "Close",
+    analysisAuto: "Analyze automatically when I pick an audio",
+    analysisBusy: "The engine is busy (a generation is running). Try again when it is done.",
+    analysisFailed: "The analysis failed. Check that the engine is running.",
+    analysisNoModel: "Nothing could be read: the engine's language model is not loaded (turned off by --no-lm or INIT_LLM=false). Start without that setting.",
 };

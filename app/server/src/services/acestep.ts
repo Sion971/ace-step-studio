@@ -102,7 +102,7 @@ function resolveAudioPath(audioUrl: string): string {
  * Prepare a local audio file for Gradio upload.
  * Returns a handle_file() wrapper or null if no file.
  */
-async function prepareAudioFile(audioUrl: string | undefined): Promise<unknown> {
+export async function prepareAudioFile(audioUrl: string | undefined): Promise<unknown> {
   if (!audioUrl) return null;
 
   const filePath = resolveAudioPath(audioUrl);

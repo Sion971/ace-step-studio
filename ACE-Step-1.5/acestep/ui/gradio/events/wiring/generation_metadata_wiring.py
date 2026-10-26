@@ -49,6 +49,7 @@ def register_generation_metadata_handlers(
             generation_section["time_signature"],
             results_section["is_format_caption_state"],
         ],
+        api_name="analyze_src_audio",  # Express calls via @gradio/client by this name
     ).then(
         fn=gen_h.uncheck_auto_for_populated_fields,
         inputs=list(auto_checkbox_inputs),

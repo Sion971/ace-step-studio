@@ -1419,4 +1419,24 @@ export const ja = {
 
     // Modèle de langage (LM) : téléchargement à la demande depuis le sélecteur
     lmDownloadFailed: "{{name}} をダウンロードできませんでした。接続を確認して、もう一度お試しください。",
+
+    // Analyse d'un audio importé (fenêtre dans Créer)
+    analysisButton: "この音声を解析",
+    analysisTitle: "音声の解析",
+    analysisRunning: "音声を解析中…",
+    analysisRunningHint: "エンジンが音声をコードに変換して読み取ります。数秒から数分かかることがあります。",
+    analysisStyle: "スタイル",
+    analysisLyrics: "歌詞",
+    analysisBpm: "BPM",
+    analysisKey: "キー",
+    analysisSignature: "拍子",
+    analysisDuration: "長さ",
+    analysisLanguage: "言語",
+    analysisAlreadyFilled: "入力済み",
+    analysisApply: "チェックした項目を適用",
+    analysisClose: "閉じる",
+    analysisAuto: "音声を選んだら自動で解析する",
+    analysisBusy: "エンジンがビジー状態です（生成中）。終わってからもう一度お試しください。",
+    analysisFailed: "解析に失敗しました。エンジンが動作しているか確認してください。",
+    analysisNoModel: "何も読み取れませんでした：エンジンの言語モデルが読み込まれていません（--no-lm または INIT_LLM=false で無効）。その設定なしで起動してください。",
 };

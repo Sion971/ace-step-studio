@@ -37,6 +37,7 @@ import toolsRoutes from './routes/tools.js';
 import midiRoutes from './routes/midi.js';
 import demucsRoutes from './routes/demucs.js';
 import loudnormRoutes from './routes/loudnorm.js';
+import audioAnalysisRoutes from './routes/audio-analysis.js';
 import audioEditorRoutes from './routes/audio-editor.js';
 import studioProjectsRoutes from './routes/studio-projects.js';
 import { pipelineManager } from './services/pipeline-manager.js';
@@ -568,6 +569,7 @@ app.use('/api/tools', toolsRoutes);
 app.use('/api/midi', midiRoutes);
 app.use('/api/demucs', demucsRoutes);
 app.use('/api/loudnorm', loudnormRoutes);
+app.use('/api/audio-analysis', audioAnalysisRoutes);
 app.use('/api/audio-editor', audioEditorRoutes);
 app.use('/api/studio-projects', studioProjectsRoutes);
 

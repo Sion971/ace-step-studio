@@ -1419,4 +1419,24 @@ export const zh = {
 
     // Modèle de langage (LM) : téléchargement à la demande depuis le sélecteur
     lmDownloadFailed: "无法下载 {{name}}。请检查网络连接后重试。",
+
+    // Analyse d'un audio importé (fenêtre dans Créer)
+    analysisButton: "分析此音频",
+    analysisTitle: "音频分析",
+    analysisRunning: "正在聆听音频…",
+    analysisRunningHint: "引擎先把音频转换为编码，再读取它们。可能需要几秒到几分钟。",
+    analysisStyle: "风格",
+    analysisLyrics: "歌词",
+    analysisBpm: "BPM",
+    analysisKey: "调性",
+    analysisSignature: "拍号",
+    analysisDuration: "时长",
+    analysisLanguage: "语言",
+    analysisAlreadyFilled: "已填写",
+    analysisApply: "应用已勾选的项目",
+    analysisClose: "关闭",
+    analysisAuto: "选择音频时自动分析",
+    analysisBusy: "引擎正忙（正在生成）。请在完成后重试。",
+    analysisFailed: "分析失败。请检查引擎是否在运行。",
+    analysisNoModel: "未能读取任何内容：引擎的语言模型未加载（被 --no-lm 或 INIT_LLM=false 关闭）。请不带该设置重新启动。",
 };

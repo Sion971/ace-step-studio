@@ -38,6 +38,8 @@ interface AudioPlayerPanelProps {
 
   onToggleAudio: () => void;
   onClearAudio: () => void;
+  /** Opens the "analyse this audio" window; absent when it cannot be used. */
+  onAnalyze?: () => void;
 
   formatTime: (seconds: number) => string;
   getAudioLabel: (url: string) => string;
@@ -90,6 +92,7 @@ export const AudioPlayerPanel: React.FC<AudioPlayerPanelProps> = ({
   onRepaintingEndChange,
   onToggleAudio,
   onClearAudio,
+  onAnalyze,
   formatTime,
   getAudioLabel,
   t,
@@ -140,6 +143,16 @@ export const AudioPlayerPanel: React.FC<AudioPlayerPanelProps> = ({
               />
             </div>
 
+            {onAnalyze && (
+              <button
+                type="button"
+                onClick={onAnalyze}
+                data-testid="audio-analyze"
+                className="px-2 py-1 rounded-md text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors"
+              >
+                {t('analysisButton')}
+              </button>
+            )}
             <button
               type="button"
               onClick={onClearAudio}

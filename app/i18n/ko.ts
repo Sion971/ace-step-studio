@@ -1419,4 +1419,24 @@ export const ko = {
 
     // Modèle de langage (LM) : téléchargement à la demande depuis le sélecteur
     lmDownloadFailed: "{{name}}을(를) 다운로드하지 못했습니다. 연결을 확인한 후 다시 시도해 주세요.",
+
+    // Analyse d'un audio importé (fenêtre dans Créer)
+    analysisButton: "이 오디오 분석",
+    analysisTitle: "오디오 분석",
+    analysisRunning: "오디오를 듣는 중…",
+    analysisRunningHint: "엔진이 오디오를 코드로 변환한 뒤 읽습니다. 몇 초에서 몇 분까지 걸릴 수 있습니다.",
+    analysisStyle: "스타일",
+    analysisLyrics: "가사",
+    analysisBpm: "BPM",
+    analysisKey: "조",
+    analysisSignature: "박자",
+    analysisDuration: "길이",
+    analysisLanguage: "언어",
+    analysisAlreadyFilled: "이미 입력됨",
+    analysisApply: "선택한 항목 적용",
+    analysisClose: "닫기",
+    analysisAuto: "오디오를 고르면 자동으로 분석",
+    analysisBusy: "엔진이 사용 중입니다(생성 진행 중). 끝난 뒤 다시 시도하세요.",
+    analysisFailed: "분석에 실패했습니다. 엔진이 실행 중인지 확인하세요.",
+    analysisNoModel: "읽을 수 없었습니다: 엔진의 언어 모델이 로드되지 않았습니다(--no-lm 또는 INIT_LLM=false로 꺼짐). 해당 설정 없이 다시 시작하세요.",
 };

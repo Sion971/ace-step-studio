@@ -1453,4 +1453,24 @@ export const fr = {
 
     // Modèle de langage (LM) : téléchargement à la demande depuis le sélecteur
     lmDownloadFailed: "Impossible de télécharger {{name}}. Vérifiez votre connexion et réessayez.",
+
+    // Analyse d'un audio importé (fenêtre dans Créer)
+    analysisButton: "Analyser cet audio",
+    analysisTitle: "Analyse de l'audio",
+    analysisRunning: "Écoute de l'audio…",
+    analysisRunningHint: "Le moteur convertit l'audio en codes, puis les lit. Cela peut prendre de quelques secondes à quelques minutes.",
+    analysisStyle: "Style",
+    analysisLyrics: "Paroles",
+    analysisBpm: "BPM",
+    analysisKey: "Tonalité",
+    analysisSignature: "Mesure",
+    analysisDuration: "Durée",
+    analysisLanguage: "Langue",
+    analysisAlreadyFilled: "déjà rempli",
+    analysisApply: "Appliquer les champs cochés",
+    analysisClose: "Fermer",
+    analysisAuto: "Analyser automatiquement quand je choisis un audio",
+    analysisBusy: "Le moteur est occupé (une génération est en cours). Réessaie quand elle est terminée.",
+    analysisFailed: "L'analyse a échoué. Vérifie que le moteur tourne.",
+    analysisNoModel: "Rien n'a pu être lu : le modèle de langage du moteur n'est pas chargé (désactivé par --no-lm ou INIT_LLM=false). Relance sans ce réglage.",
 };

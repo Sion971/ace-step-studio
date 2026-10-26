@@ -39,6 +39,7 @@ import type { SongDraft } from '../services/llm/types';
 import { aiCoverStorage } from '../services/cover/settings';
 import { buildCoverPrompt } from '../services/cover/prompts';
 import { formatTimeSignature } from '../services/timeSignature';
+import { AudioAnalysisDialog } from './AudioAnalysisDialog';
 
 interface ReferenceTrack {
   id: string;
@@ -637,6 +638,18 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const sourceInputRef = useRef<HTMLInputElement>(null);
   const dragDepthRef = useRef(0);
   const [showAudioModal, setShowAudioModal] = useState(false);
+  // Fenetre « Analyser l'audio » : s'ouvre quand on choisit un audio (si l'option est active) ou via le bouton du lecteur.
+  const [analysisTarget, setAnalysisTarget] = useState<{ url: string; title: string } | null>(null);
+  const [analysisAuto, setAnalysisAuto] = useState(() => {
+    try { return localStorage.getItem('ace-analysis-auto') !== '0'; } catch { return true; }
+  });
+  const changeAnalysisAuto = (value: boolean) => {
+    setAnalysisAuto(value);
+    try { localStorage.setItem('ace-analysis-auto', value ? '1' : '0'); } catch { /* ignore */ }
+  };
+  const offerAnalysis = (url: string, title?: string) => {
+    if (analysisAuto && token) setAnalysisTarget({ url, title: title ? title.replace(/\.[^/.]+$/, '') : url });
+  };
   const [audioModalTarget, setAudioModalTarget] = useState<'reference' | 'source'>('reference');
   const [tempAudioUrl, setTempAudioUrl] = useState('');
   // Emplacement audio unifie : le mode decide de la case du payload ET du taskType.
@@ -1337,6 +1350,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
 
       // Also set as current reference/source
       applyAudioTargetUrl(selectedTarget, data.track.audio_url, data.track.filename);
+      offerAnalysis(data.track.audio_url, data.track.filename);
       if (data.whisper_available && data.track?.id) {
         void transcribeReferenceTrack(data.track.id).then(() => undefined);
       } else {
@@ -1412,6 +1426,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
 
   const useReferenceTrack = (track: { audio_url: string; title?: string }) => {
     applyAudioTargetUrl(audioModalTarget, track.audio_url, track.title);
+    offerAnalysis(track.audio_url, track.title);
     setShowAudioModal(false);
     setPlayingTrackId(null);
     setPlayingTrackSource(null);
@@ -1437,6 +1452,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const applyAudioUrl = () => {
     if (!tempAudioUrl.trim()) return;
     applyAudioTargetUrl(audioModalTarget, tempAudioUrl.trim());
+    offerAnalysis(tempAudioUrl.trim());
     setShowAudioModal(false);
     setTempAudioUrl('');
   };
@@ -1609,6 +1625,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         const data = JSON.parse(payload);
         if (data?.url) {
           applyAudioTargetUrl(target, data.url, data.title);
+          offerAnalysis(data.url, data.title);
         }
       } catch {
         // ignore
@@ -2329,6 +2346,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                 onRepaintingEndChange={setRepaintingEnd}
                 onToggleAudio={() => toggleAudio(audioTarget)}
                 onClearAudio={clearActiveAudio}
+                onAnalyze={token ? () => setAnalysisTarget({ url: activeAudioUrl, title: activeAudioTitle || getAudioLabel(activeAudioUrl) }) : undefined}
                 formatTime={formatTime}
                 getAudioLabel={getAudioLabel}
                 t={t}
@@ -2914,6 +2932,19 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
           </div>
         )}
       </div>
+
+      {analysisTarget && token && (
+        <AudioAnalysisDialog
+          audioUrl={analysisTarget.url}
+          title={analysisTarget.title}
+          token={token}
+          filled={{ caption: Boolean(style.trim()), lyrics: Boolean(lyrics.trim()), bpm: bpm > 0, keyScale: Boolean(keyScale), timeSignature: Boolean(timeSignature), duration: duration > 0 }}
+          setters={{ setStyle, setLyrics, setBpm, setKeyScale, setTimeSignature, setDuration, setVocalLanguage }}
+          autoOpen={analysisAuto}
+          onAutoOpenChange={changeAnalysisAuto}
+          onClose={() => setAnalysisTarget(null)}
+        />
+      )}
 
       {showAudioModal && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center">
