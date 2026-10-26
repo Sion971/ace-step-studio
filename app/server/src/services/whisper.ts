@@ -6,6 +6,7 @@ import os from 'os';
 import { promises as fs } from 'fs';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
+import { structureLyrics, type TimedLine } from './lyrics-structure.js';
 
 const EXE = process.platform === 'win32' ? '.exe' : '';
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -44,20 +45,21 @@ export const findWhisperExecutable = async (): Promise<string | null> => {
 };
 
 export interface WhisperResult {
-  /** One line per sung phrase ("" when nothing was heard, e.g. an instrumental). */
+  /** The lyrics, one line per sung phrase, with [Verse] / [Chorus]... when the pauses and repetitions allow ("" when nothing was heard). */
   text: string;
   /** The language Whisper recognised ("fr", "en"...), or "". */
   language: string;
 }
 
-/** What Whisper's JSON file says: the lyrics one phrase per line, and the language. */
+/** What Whisper's JSON file says: the lyrics (phrases, grouped into sections) and the language. */
 export function parseWhisperJson(raw: string): WhisperResult | null {
   try {
-    const data = JSON.parse(raw) as { text?: unknown; language?: unknown; segments?: Array<{ text?: unknown }> };
-    const lines = Array.isArray(data.segments)
-      ? data.segments.map((s) => (typeof s?.text === 'string' ? s.text.trim() : '')).filter(Boolean)
+    const data = JSON.parse(raw) as { text?: unknown; language?: unknown; segments?: Array<{ text?: unknown; start?: unknown; end?: unknown }> };
+    const timed: TimedLine[] = Array.isArray(data.segments)
+      ? data.segments.map((s) => ({ start: Number(s?.start), end: Number(s?.end), text: typeof s?.text === 'string' ? s.text : '' }))
       : [];
-    const text = lines.length ? lines.join('\n') : typeof data.text === 'string' ? data.text.trim() : '';
+    const structured = structureLyrics(timed);
+    const text = structured || (timed.length ? '' : typeof data.text === 'string' ? data.text.trim() : '');
     return { text, language: typeof data.language === 'string' ? data.language : '' };
   } catch {
     return null;
@@ -87,7 +89,9 @@ export const transcribeWithWhisperDetailed = async (buffer: Buffer, originalFile
     ];
 
     await new Promise<void>((resolve, reject) => {
-      const proc = spawn(whisperCmd, args, { stdio: 'ignore' });
+      const proc = spawn(whisperCmd, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+      let errTail = '';
+      proc.stderr?.on('data', (d: Buffer) => { errTail = (errTail + d.toString()).slice(-800); });
       const handleAbort = () => {
         proc.kill('SIGTERM');
         reject(new Error('Transcription cancelled'));
@@ -105,7 +109,7 @@ export const transcribeWithWhisperDetailed = async (buffer: Buffer, originalFile
           signal.removeEventListener('abort', handleAbort);
         }
         if (code === 0) resolve();
-        else reject(new Error(`Whisper exited with code ${code}`));
+        else reject(new Error(`Whisper exited with code ${code}${errTail.trim() ? `: ${errTail.trim().split('\n').slice(-3).join(' | ')}` : ''}`));
       });
     });
 

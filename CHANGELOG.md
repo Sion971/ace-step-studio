@@ -82,6 +82,8 @@
 - Audio analysis: when Whisper is installed, its transcription replaces the language model's lyrics (which were invented, often in English) and its recognised language replaces the model's. The lyrics and the language are then checked by default and marked "Whisper transcription"; without Whisper they stay an unchecked estimate. An empty transcription (instrumental) gives no lyrics. Whisper code moved to `services/whisper.ts` (same behaviour for the upload route); the lyrics now keep one line per sung phrase.
 - Audio analysis: the window now opens by itself only for an imported file or a recording, no longer when an audio is picked from the library or a link (the "Analyze this audio" button still opens it on demand).
 - Whisper is now also looked for in the Studio's own Python environment (`.venv`, `venv`, `env`, `Scripts` on Windows), where `pip install openai-whisper` puts it, as well as in `WHISPER_PATH` and on the PATH (`whisper.exe` on Windows). When it is missing the server says so once in its terminal, and the analysis window warns that the lyrics are the model's invention and how to get a real transcription.
+- Whisper lyrics: the sections [Verse] / [Chorus] / [Bridge] / [Outro] are rebuilt without touching a word (`services/lyrics-structure.ts`): a pause of 2 s or more between two phrases starts a new stanza, stanzas that come back (even sung a little differently) are the chorus, a silence of 10 s or more is an [Instrumental] (an [Intro] at the start). The labels are a guess from the pauses and repetitions. The "..." / ♪ lines Whisper writes for music are dropped.
+- When Whisper fails, the server terminal now shows the end of its error message (`Whisper exited with code 1: …`).
 
 ## 2026-10-21
 
