@@ -1458,4 +1458,6 @@ export const ru = {
     createHiddenAudio: "аудио",
     createHiddenInUse: "Скрыто, но используется при генерации:",
     createHiddenSeeIn: "Перейдите в «Свой», чтобы увидеть или очистить.",
+    errDescribeFirst: "Опишите песню, чтобы создать её.",
+    errFillStyleOrLyrics: "Заполните «Стиль» или «Текст» (или загрузите аудио), чтобы создать.",
 };

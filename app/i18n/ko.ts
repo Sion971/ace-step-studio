@@ -1447,4 +1447,6 @@ export const ko = {
     createHiddenAudio: "오디오",
     createHiddenInUse: "숨겨져 있지만 생성 시 사용됨:",
     createHiddenSeeIn: "사용자 지정으로 전환하여 확인하거나 비울 수 있습니다.",
+    errDescribeFirst: "만들려면 곡 설명을 입력하세요.",
+    errFillStyleOrLyrics: "만들려면 스타일 또는 가사를 입력(또는 오디오 불러오기)하세요.",
 };

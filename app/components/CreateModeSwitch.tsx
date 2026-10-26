@@ -17,6 +17,18 @@ export function saveCreateView(view: CreateView): void {
   try { localStorage.setItem(CREATE_VIEW_KEY, view); } catch { /* storage unavailable: the choice just isn't remembered */ }
 }
 
+/**
+ * True when Create must stay greyed. Custom view: the engine would get nothing
+ * to work from (it answers 400): no description, style, lyrics or audio.
+ * Simple view: the description IS the input, so an empty one blocks even if
+ * hidden fields (style, lyrics, audio) are filled: a generation must never
+ * start from things the user cannot see.
+ */
+export function hasNothingToSend(f: { description: string; style: string; lyrics: string; referenceAudioUrl: string; sourceAudioUrl: string }, view: CreateView = 'custom'): boolean {
+  if (view === 'simple') return !f.description.trim();
+  return !f.description.trim() && !f.style.trim() && !f.lyrics.trim() && !f.referenceAudioUrl.trim() && !f.sourceAudioUrl.trim();
+}
+
 /** What the Simple view hides but still sends: it is shown, never silent. */
 export interface HiddenInUse {
   style: boolean;

@@ -1,4 +1,4 @@
-import { CreateModeSwitch, readCreateView, saveCreateView, type CreateView } from './CreateModeSwitch';
+import { CreateModeSwitch, hasNothingToSend, readCreateView, saveCreateView, type CreateView } from './CreateModeSwitch';
 import { LoraPanel } from './LoraPanel';
 import { VocalSettings, type VocalGender } from './VocalSettings';
 import { SeedSettings } from './SeedSettings';
@@ -1715,7 +1715,16 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // messages restent distincts (l'un est une erreur bloquante de charge
   // utile, l'autre un garde-fou d'usage) mais le bouton se comporte pareil
   // dans les deux cas : desactive, avec l'explication correspondante.
-  const blockGenerateReason = descriptionCannotBeUsed
+  // Rien du tout a envoyer : ni description, ni style, ni paroles, ni audio.
+  // Le serveur repond 400 (voir generate.ts), l'utilisateur ne verrait que
+  // « La generation a echoue » : on grise le bouton avant.
+  const nothingToSend = hasNothingToSend({ description: songDescription, style, lyrics, referenceAudioUrl, sourceAudioUrl }, createView);
+  const nothingToSendReason = simpleView
+    ? tf('errDescribeFirst', 'Décris ta chanson pour pouvoir créer.')
+    : tf('errFillStyleOrLyrics', 'Remplis Style ou Paroles (ou charge un audio) pour pouvoir créer.');
+  const blockGenerateReason = nothingToSend
+    ? nothingToSendReason
+    : descriptionCannotBeUsed
     ? tf('errNothingToGenerate', 'Rien à envoyer au moteur : active OpenRouter pour développer la description, ou remplis Style ou Paroles.')
     : coverModeMissingSource
       ? tf('warnCoverNoSource', 'Sans audio chargé, Cover génère du texte-à-musique — dépose un fichier pour un vrai cover.')
@@ -3321,6 +3330,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
           <p className="text-[11px] text-amber-500 leading-snug">
             {tf('warnPreflightFailed', 'OpenRouter n\'a pas répondu (clé refusée ou service indisponible) : le morceau a été généré sans paroles. Vérifie ta clé dans les réglages avancés.')}
           </p>
+        )}
+        {nothingToSend && (
+          <p data-testid="create-nothing-to-send" className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">{nothingToSendReason}</p>
         )}
         {descriptionCannotBeUsed && (
           <p className="text-[11px] text-red-500 leading-snug">

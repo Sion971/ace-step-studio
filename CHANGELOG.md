@@ -91,6 +91,7 @@
 - Installers: `install.sh` and `install.bat` now install Whisper (`openai-whisper`) at the end of the Python dependencies, so the real lyrics of imported audio work right after a fresh install. Non-blocking: if it fails, the app still runs.
 - Create panel: Simple / Custom switch is back, as a VIEW only. Both views share the same fields and the same payload (the old modes built diverging payloads, see TROUBLESHOOTING 12 and 24). Simple shows the song description, language/voice, title, quick settings and the LoRA panel, and hides audio, lyrics, style, LRC and advanced settings; hidden fields that are filled are still sent and a warning says so. The choice is remembered; Custom stays the default.
 - Create panel: the "Describe your song" box is always shown in the Simple view; in the Custom view it only shows when OpenRouter is on (it is what expands it) or when it already holds text.
+- Create panel: the Create button is greyed, with a short hint, when there is nothing to send, instead of starting a generation that fails with a 400 ("Generation failed. Please retry."). Custom view: no description, style, lyrics or audio. Simple view: an empty description is enough to block, even if hidden fields are filled, so nothing starts from fields the user cannot see.
 
 ## 2026-10-21
 

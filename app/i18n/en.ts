@@ -1464,4 +1464,6 @@ export const en = {
     createHiddenAudio: "audio",
     createHiddenInUse: "Hidden but used when generating:",
     createHiddenSeeIn: "Switch to Custom to see or clear it.",
+    errDescribeFirst: "Describe your song to be able to create.",
+    errFillStyleOrLyrics: "Fill in Style or Lyrics (or load an audio) to be able to create.",
 };

@@ -1447,4 +1447,6 @@ export const zh = {
     createHiddenAudio: "音频",
     createHiddenInUse: "已隐藏但生成时会使用：",
     createHiddenSeeIn: "切换到自定义以查看或清除。",
+    errDescribeFirst: "请先描述你的歌曲再创建。",
+    errFillStyleOrLyrics: "请填写风格或歌词（或加载音频）后再创建。",
 };

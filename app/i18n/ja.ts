@@ -1447,4 +1447,6 @@ export const ja = {
     createHiddenAudio: "オーディオ",
     createHiddenInUse: "非表示ですが生成時に使われます：",
     createHiddenSeeIn: "カスタムに切り替えると確認・消去できます。",
+    errDescribeFirst: "作成するには曲の説明を入力してください。",
+    errFillStyleOrLyrics: "作成するにはスタイルまたは歌詞を入力（またはオーディオを読み込み）してください。",
 };

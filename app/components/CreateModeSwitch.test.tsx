@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
-import { CreateModeSwitch, readCreateView, saveCreateView, CREATE_VIEW_KEY } from './CreateModeSwitch';
+import { CreateModeSwitch, hasNothingToSend, readCreateView, saveCreateView, CREATE_VIEW_KEY } from './CreateModeSwitch';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 const t = (k: string) => k;
@@ -62,5 +62,27 @@ describe('remembered view', () => {
     expect(readCreateView()).toBe('simple');
     localStorage.setItem(CREATE_VIEW_KEY, 'junk');
     expect(readCreateView()).toBe('custom');
+  });
+});
+
+describe('hasNothingToSend', () => {
+  const none = { description: '', style: '', lyrics: '', referenceAudioUrl: '', sourceAudioUrl: '' };
+  it('is true when everything is empty or blank', () => {
+    expect(hasNothingToSend(none)).toBe(true);
+    expect(hasNothingToSend({ ...none, description: '   ' })).toBe(true);
+  });
+  it('is false as soon as one source of content exists', () => {
+    for (const k of Object.keys(none)) expect(hasNothingToSend({ ...none, [k]: 'x' })).toBe(false);
+  });
+});
+
+describe('hasNothingToSend in the simple view', () => {
+  const f = { description: '', style: 'rock', lyrics: 'la la', referenceAudioUrl: 'a.mp3', sourceAudioUrl: '' };
+  it('blocks on an empty description even when hidden fields are filled', () => {
+    expect(hasNothingToSend(f, 'simple')).toBe(true);
+    expect(hasNothingToSend(f, 'custom')).toBe(false);
+  });
+  it('allows a description', () => {
+    expect(hasNothingToSend({ ...f, description: 'une chanson', style: '' }, 'simple')).toBe(false);
   });
 });
