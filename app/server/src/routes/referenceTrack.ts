@@ -8,6 +8,7 @@ import { pool } from '../db/pool.js';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { getStorageProvider } from '../services/storage/factory.js';
 import { spawn } from 'child_process';
+import { withAnalysis } from '../services/track-analysis.js';
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -133,7 +134,7 @@ const transcribeWithWhisper = async (buffer: Buffer, originalFilename: string, s
 router.get('/', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const result = await pool.query(
-      `SELECT id, filename, storage_key, duration, file_size_bytes, tags, created_at
+      `SELECT id, filename, storage_key, duration, file_size_bytes, tags, created_at, analysis
        FROM reference_tracks
        WHERE user_id = $1
        ORDER BY created_at DESC`,
@@ -142,7 +143,7 @@ router.get('/', authMiddleware, async (req: AuthenticatedRequest, res: Response)
 
     const storage = getStorageProvider();
     const tracks = result.rows.map(row => ({
-      ...row,
+      ...withAnalysis(row),
       audio_url: storage.getPublicUrl(row.storage_key)
     }));
 

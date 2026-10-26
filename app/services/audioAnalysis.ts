@@ -23,18 +23,22 @@ export class AnalysisError extends Error {
   }
 }
 
-export async function analyzeAudio(audioUrl: string, token: string, signal?: AbortSignal): Promise<AudioAnalysis> {
+/** `saved`: the analysis was also kept with the imported audio (it then shows in the song details). */
+export async function analyzeAudio(audioUrl: string, token: string, signal?: AbortSignal): Promise<{ analysis: AudioAnalysis; saved: boolean }> {
   const response = await fetch('/api/audio-analysis', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ audioUrl }),
     signal,
   });
-  const body = await response.json().catch(() => ({} as { analysis?: AudioAnalysis; error?: string }));
+  const body = await response.json().catch(() => ({} as { analysis?: AudioAnalysis; saved?: boolean; error?: string }));
   if (response.status === 409) throw new AnalysisError('busy', 'busy');
   if (!response.ok || !body.analysis) throw new AnalysisError('failed', body.error || response.statusText);
-  return body.analysis as AudioAnalysis;
+  return { analysis: body.analysis as AudioAnalysis, saved: Boolean(body.saved) };
 }
+
+/** The language model's lyrics and language are an estimate (often wrong outside English / Chinese): not checked by default. */
+export const APPROXIMATE_FIELDS: ReadonlySet<AnalysisFieldId> = new Set(['lyrics', 'language']);
 
 /** The fields that actually have a value, in display order. */
 export function availableFields(a: AudioAnalysis): AnalysisFieldId[] {

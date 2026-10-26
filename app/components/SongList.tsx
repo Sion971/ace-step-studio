@@ -11,13 +11,15 @@ import { AlbumCover } from './AlbumCover';
 import { songsApi } from '../services/api';
 
 import { parseServerDate } from '../utils/serverDate';
+import { uploadToSong } from '../services/uploadSong';
+import type { AudioAnalysis } from '../services/audioAnalysis';
 interface SongListProps {
     songs: Song[];
     currentSong: Song | null;
     selectedSong: Song | null;
     likedSongIds: Set<string>;
     isPlaying: boolean;
-    referenceTracks?: { id: string; filename: string; audio_url: string; duration?: number | null; created_at?: string }[];
+    referenceTracks?: { id: string; filename: string; audio_url: string; duration?: number | null; created_at?: string; analysis?: AudioAnalysis | null }[];
     onPlay: (song: Song) => void;
     onSelect: (song: Song) => void;
     onToggleLike: (songId: string) => void;
@@ -535,20 +537,7 @@ export const SongList: React.FC<SongListProps> = ({
                                 <UploadItem
                                     key={`upload_${item.id}`}
                                     track={item.track}
-                                    onPlay={(audioUrl, title) => {
-                                        onPlay({
-                                            id: `upload_${item.id}`,
-                                            title,
-                                            lyrics: '',
-                                            style: 'Upload',
-                                            coverUrl: '',
-                                            duration: '0:00',
-                                            createdAt: item.createdAt,
-                                            tags: [],
-                                            audioUrl,
-                                            isPublic: false,
-                                        } as Song);
-                                    }}
+                                    onPlay={() => onPlay(uploadToSong(item.track, item.createdAt))}
                                     onUseAsReference={() => onUseUploadAsReference?.(item.track)}
                                     onCoverSong={() => onCoverUpload?.(item.track)}
                                 />
@@ -997,29 +986,14 @@ const SongItem: React.FC<SongItemProps> = ({
 };
 
 const UploadItem: React.FC<{
-    track: { id: string; filename: string; audio_url: string; duration?: number | null };
-    onPlay: (audioUrl: string, title: string) => void;
+    track: { id: string; filename: string; audio_url: string; duration?: number | null; analysis?: AudioAnalysis | null };
+    onPlay: () => void;
     onUseAsReference?: () => void;
     onCoverSong?: () => void;
 }> = ({ track, onPlay, onUseAsReference, onCoverSong }) => {
-    const title = track.filename.replace(/\.[^/.]+$/, '');
-    const duration = track.duration
-        ? `${Math.floor(track.duration / 60)}:${String(Math.floor(track.duration % 60)).padStart(2, '0')}`
-        : '--:--';
     return (
         <SongItem
-            song={{
-                id: `upload_${track.id}`,
-                title,
-                lyrics: '',
-                style: 'Upload',
-                coverUrl: '',
-                duration,
-                createdAt: new Date(),
-                tags: [],
-                audioUrl: track.audio_url,
-                isPublic: false,
-            } as Song}
+            song={uploadToSong(track)}
             isCurrent={false}
             isSelected={false}
             isSelectionMode={false}
@@ -1027,8 +1001,8 @@ const UploadItem: React.FC<{
             isLiked={false}
             isPlaying={false}
             isOwner={false}
-            onPlay={() => onPlay(track.audio_url, title)}
-            onSelect={() => onPlay(track.audio_url, title)}
+            onPlay={() => onPlay()}
+            onSelect={() => onPlay()}
             onToggleSelect={() => undefined}
             onToggleLike={() => undefined}
             onAddToPlaylist={() => undefined}

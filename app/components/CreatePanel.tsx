@@ -2940,6 +2940,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
           token={token}
           filled={{ caption: Boolean(style.trim()), lyrics: Boolean(lyrics.trim()), bpm: bpm > 0, keyScale: Boolean(keyScale), timeSignature: Boolean(timeSignature), duration: duration > 0 }}
           setters={{ setStyle, setLyrics, setBpm, setKeyScale, setTimeSignature, setDuration, setVocalLanguage }}
+          onSaved={() => { onReferenceTracksChanged?.(); void fetchReferenceTracks(); }}
           autoOpen={analysisAuto}
           onAutoOpenChange={changeAnalysisAuto}
           onClose={() => setAnalysisTarget(null)}

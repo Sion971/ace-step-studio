@@ -59,9 +59,29 @@ describe('AudioAnalysisDialog', () => {
   });
 
   it('starts with the already-filled fields unchecked', async () => {
-    await mount({ status: 200, body: { analysis: full } }, { lyrics: true });
+    await mount({ status: 200, body: { analysis: full } }, { caption: true });
+    expect((document.querySelector('[data-testid="analysis-caption"]') as HTMLInputElement).checked).toBe(false);
+    expect((document.querySelector('[data-testid="analysis-bpm"]') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('does not check the model\'s lyrics and language by default (an estimate, often wrong)', async () => {
+    await mount({ status: 200, body: { analysis: full } });
     expect((document.querySelector('[data-testid="analysis-lyrics"]') as HTMLInputElement).checked).toBe(false);
+    expect((document.querySelector('[data-testid="analysis-language"]') as HTMLInputElement).checked).toBe(false);
     expect((document.querySelector('[data-testid="analysis-caption"]') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('tells the lists when the analysis was kept with the audio', async () => {
+    const onSaved = vi.fn();
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, statusText: 'x', json: async () => ({ analysis: full, saved: true }) })));
+    const { AudioAnalysisDialog } = await import('./AudioAnalysisDialog');
+    const { I18nProvider } = await import('../context/I18nContext');
+    const host = document.createElement('div'); document.body.appendChild(host);
+    root = createRoot(host);
+    const setters = { setStyle: vi.fn(), setLyrics: vi.fn(), setBpm: vi.fn(), setKeyScale: vi.fn(), setTimeSignature: vi.fn(), setDuration: vi.fn(), setVocalLanguage: vi.fn() };
+    await act(async () => { root!.render(<I18nProvider><AudioAnalysisDialog audioUrl="/a.mp3" title="a" token="t" filled={{}} setters={setters} autoOpen onAutoOpenChange={() => {}} onSaved={onSaved} onClose={() => {}} /></I18nProvider>); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(onSaved).toHaveBeenCalledTimes(1);
   });
 
   it('says so when the engine is busy', async () => {

@@ -148,6 +148,7 @@ function migrate(): void {
     // Execute the entire migration script at once
     db.exec(migrations);
     // Add dit_model column if not exists
+    try { db.exec('ALTER TABLE reference_tracks ADD COLUMN analysis TEXT'); } catch {}
     try { db.exec('ALTER TABLE songs ADD COLUMN dit_model TEXT'); } catch {}
     try { db.exec('ALTER TABLE songs ADD COLUMN lm_model TEXT'); } catch {}
     try { db.exec('ALTER TABLE songs ADD COLUMN lm_backend TEXT'); } catch {}

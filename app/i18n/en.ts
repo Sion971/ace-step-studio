@@ -1456,4 +1456,5 @@ export const en = {
     analysisBusy: "The engine is busy (a generation is running). Try again when it is done.",
     analysisFailed: "The analysis failed. Check that the engine is running.",
     analysisNoModel: "Nothing could be read: the engine's language model is not loaded (turned off by --no-lm or INIT_LLM=false). Start without that setting.",
+    analysisApproximate: "the model's estimate, often wrong",
 };

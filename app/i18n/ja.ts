@@ -1439,4 +1439,5 @@ export const ja = {
     analysisBusy: "エンジンがビジー状態です（生成中）。終わってからもう一度お試しください。",
     analysisFailed: "解析に失敗しました。エンジンが動作しているか確認してください。",
     analysisNoModel: "何も読み取れませんでした：エンジンの言語モデルが読み込まれていません（--no-lm または INIT_LLM=false で無効）。その設定なしで起動してください。",
+    analysisApproximate: "モデルの推定値。外れることが多い",
 };

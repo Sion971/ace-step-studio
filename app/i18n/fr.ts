@@ -1473,4 +1473,5 @@ export const fr = {
     analysisBusy: "Le moteur est occupé (une génération est en cours). Réessaie quand elle est terminée.",
     analysisFailed: "L'analyse a échoué. Vérifie que le moteur tourne.",
     analysisNoModel: "Rien n'a pu être lu : le modèle de langage du moteur n'est pas chargé (désactivé par --no-lm ou INIT_LLM=false). Relance sans ce réglage.",
+    analysisApproximate: "estimation du modèle, souvent fausse",
 };

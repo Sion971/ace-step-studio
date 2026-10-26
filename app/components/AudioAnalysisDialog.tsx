@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useI18n } from '../context/I18nContext';
 import { formatTimeSignature } from '../services/timeSignature';
 import {
-  analyzeAudio, applyAnalysis, availableFields, AnalysisError,
+  analyzeAudio, applyAnalysis, availableFields, AnalysisError, APPROXIMATE_FIELDS,
   type AnalysisFieldId, type AnalysisSetters, type AudioAnalysis,
 } from '../services/audioAnalysis';
 
@@ -13,6 +14,8 @@ interface Props {
   /** Fields that already hold something: they start unchecked so that nothing is overwritten by accident. */
   filled: Partial<Record<AnalysisFieldId, boolean>>;
   setters: AnalysisSetters;
+  /** The analysis was kept with the imported audio: refresh the lists that show it. */
+  onSaved?: () => void;
   autoOpen: boolean;
   onAutoOpenChange: (value: boolean) => void;
   onClose: () => void;
@@ -37,7 +40,7 @@ function show(id: AnalysisFieldId, a: AudioAnalysis): string {
   }
 }
 
-export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, filled, setters, autoOpen, onAutoOpenChange, onClose }) => {
+export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, filled, setters, autoOpen, onAutoOpenChange, onSaved, onClose }) => {
   const { t } = useI18n();
   const [state, setState] = useState<'running' | 'done' | 'busy' | 'failed'>('running');
   const [analysis, setAnalysis] = useState<AudioAnalysis | null>(null);
@@ -47,10 +50,11 @@ export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, f
     const controller = new AbortController();
     setState('running');
     analyzeAudio(audioUrl, token, controller.signal)
-      .then((a) => {
+      .then(({ analysis: a, saved }) => {
         setAnalysis(a);
-        setChosen(new Set(availableFields(a).filter((id) => !filled[id])));
+        setChosen(new Set(availableFields(a).filter((id) => !filled[id] && !APPROXIMATE_FIELDS.has(id))));
         setState('done');
+        if (saved) onSaved?.();
       })
       .catch((e) => {
         if (controller.signal.aborted) return;
@@ -72,7 +76,8 @@ export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, f
     onClose();
   };
 
-  return (
+  // Rendered on the page itself: inside the creation panel, the other panels (search bar...) drew over it when the window was not full screen.
+  return createPortal(
     <div className="fixed inset-0 z-[130] flex items-center justify-center" role="dialog" aria-modal="true" data-testid="audio-analysis">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-[92%] max-w-lg max-h-[85vh] flex flex-col rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 shadow-2xl overflow-hidden">
@@ -109,6 +114,7 @@ export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, f
                       <span className="block text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                         {t(LABELS[id])}
                         {filled[id] && <span className="normal-case tracking-normal"> · {t('analysisAlreadyFilled')}</span>}
+                        {APPROXIMATE_FIELDS.has(id) && <span className="normal-case tracking-normal"> · {t('analysisApproximate')}</span>}
                       </span>
                       <span className={`block ${id === 'lyrics' ? 'whitespace-pre-wrap max-h-40 overflow-y-auto' : 'break-words'}`}>{show(id, analysis)}</span>
                     </span>
@@ -137,6 +143,7 @@ export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, f
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
