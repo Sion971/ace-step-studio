@@ -1962,7 +1962,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             }, token),
             giveUp,
           ]);
-          return sampleToDraft(sample);
+          return sampleToDraft(sample, songDescription);
         } catch (e: any) {
           if (e?.name === 'AbortError' || ac.signal.aborted) console.warn('[Pré-vol LM] aborted (cancel or timeout)');
           else console.error('[Pré-vol LM] failed:', e);

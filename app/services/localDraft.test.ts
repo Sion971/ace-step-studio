@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { lmLanguage, sampleToDraft } from './localDraft';
+import { bpmFromText, lmLanguage, sampleToDraft } from './localDraft';
 
 describe('sampleToDraft', () => {
   it('builds the same draft shape the OpenRouter pre-flight gives', () => {
@@ -29,5 +29,38 @@ describe('lmLanguage', () => {
     expect(lmLanguage('unknown')).toBeUndefined();
     expect(lmLanguage('')).toBeUndefined();
     expect(lmLanguage('fr')).toBe('fr');
+  });
+});
+
+describe('bpmFromText', () => {
+  it('reads a single tempo', () => {
+    expect(bpmFromText('gospel, 120 BPM, choir')).toBe(120);
+    expect(bpmFromText('rock 140bpm')).toBe(140);
+    expect(bpmFromText('BPM: 100')).toBe(100);
+  });
+  it('takes the middle of a range, with any dash', () => {
+    expect(bpmFromText('Soul gospel R&B, 90–95 BPM, soulful choir')).toBe(93);
+    expect(bpmFromText('90-100 bpm')).toBe(95);
+    expect(bpmFromText('90 à 100 BPM')).toBe(95);
+  });
+  it('ignores what is not a tempo', () => {
+    expect(bpmFromText('')).toBe(0);
+    expect(bpmFromText('a slow song')).toBe(0);
+    expect(bpmFromText('1000 BPM')).toBe(0);
+    expect(bpmFromText('10 bpm')).toBe(0);
+    expect(bpmFromText('in 1990 we sang')).toBe(0);
+  });
+  it('keeps the low end when the range is reversed or its top is absurd', () => {
+    expect(bpmFromText('100-90 BPM')).toBe(100);
+    expect(bpmFromText('100-900 BPM')).toBe(100);
+  });
+});
+
+describe('a tempo in the description beats the LM', () => {
+  it('overrides the LM bpm', () => {
+    expect(sampleToDraft({ caption: 'x', bpm: 197 }, 'Soul gospel, 90–95 BPM')!.bpm).toBe(93);
+  });
+  it('keeps the LM bpm when the description has none', () => {
+    expect(sampleToDraft({ caption: 'x', bpm: 91 }, 'Soul gospel')!.bpm).toBe(91);
   });
 });
