@@ -88,6 +88,7 @@
 - Whisper lyrics: the sections are now found from the times of the WORDS (`--word_timestamps`). Whisper's own segments follow each other without a gap (0-19 s, 19-29 s...), which hid every pause of the song; the phrases are rebuilt from the words, cut at a pause of 0.6 s or at a comma / full stop, and the stanzas follow the pauses between phrases. `WHISPER_DEBUG=1` prints these phrases with their times.
 - Whisper runs one transcription at a time (a queue), and the upload no longer starts its own transcription when the analysis window will do it: two Whisper processes at once fought over the card and over the first download of the model, which made the first run fail.
 - Whisper lyrics: the guessed [Verse] / [Chorus] tags are no longer written (they were often wrong on real songs, and a wrong tag is worse than none). The lyrics come as phrases, one per line, with a blank line between stanzas (a pause of 2 s or more), to ease the manual tagging. `WHISPER_SECTIONS=1` brings the guessed tags back.
+- Installers: `install.sh` and `install.bat` now install Whisper (`openai-whisper`) at the end of the Python dependencies, so the real lyrics of imported audio work right after a fresh install. Non-blocking: if it fails, the app still runs.
 
 ## 2026-10-21
 

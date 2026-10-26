@@ -514,6 +514,11 @@ uv pip install "diffusers==0.40.0" --no-deps
 REM Installer ace-step en dernier ^(toutes ses dependances sont deja satisfaites^).
 uv pip install -e ACE-Step-1.5/ --no-deps
 
+REM Whisper ^(paroles reelles des audios importes, fenetre d analyse^). Installe en dernier pour ne pas
+REM modifier les versions deja resolues ; non bloquant : sans Whisper, paroles estimees par le modele seulement.
+uv pip install openai-whisper
+if errorlevel 1 echo [AVERTISSEMENT] Whisper non installe : paroles estimees par le modele seulement.
+
 REM === 7. Correctifs ============================================================
 echo [7/14] Correctif pytorch_wavelets ^(pkg_resources^)...
 REM pytorch_wavelets ^(dependance de DCW^) utilise encore "from pkg_resources import resource_stream".

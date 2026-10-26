@@ -608,6 +608,11 @@ if [ -d "ACE-Step-1.5" ]; then
     uv pip install -e ACE-Step-1.5/ --no-deps
 fi
 
+# Whisper (paroles reelles des audios importes, fenetre d'analyse). Installe en
+# dernier pour ne pas modifier les versions deja resolues ; non bloquant : sans
+# Whisper l'appli marche, seules les paroles restent celles estimees par le LM.
+uv pip install openai-whisper || echo "[AVERTISSEMENT] Whisper non installe : paroles estimees par le modele seulement."
+
 echo "[7/14] Correctif pytorch_wavelets (pkg_resources)..."
 # pytorch_wavelets (dependance de DCW, voir DCW.md) utilise encore
 # "from pkg_resources import resource_stream" pour charger ses coefficients
