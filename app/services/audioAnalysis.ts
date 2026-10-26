@@ -13,6 +13,8 @@ export interface AudioAnalysis {
   keyScale: string;
   language: string;
   timeSignature: string;
+  /** Whisper: a real transcription. model: the language model's estimate (often wrong). */
+  lyricsSource?: 'whisper' | 'model';
 }
 
 export type AnalysisFieldId = 'caption' | 'lyrics' | 'bpm' | 'keyScale' | 'timeSignature' | 'duration' | 'language';
@@ -39,6 +41,9 @@ export async function analyzeAudio(audioUrl: string, token: string, signal?: Abo
 
 /** The language model's lyrics and language are an estimate (often wrong outside English / Chinese): not checked by default. */
 export const APPROXIMATE_FIELDS: ReadonlySet<AnalysisFieldId> = new Set(['lyrics', 'language']);
+
+/** Lyrics and language are an estimate unless Whisper transcribed them. */
+export const isApproximate = (id: AnalysisFieldId, a: AudioAnalysis): boolean => APPROXIMATE_FIELDS.has(id) && a.lyricsSource !== 'whisper';
 
 /** The fields that actually have a value, in display order. */
 export function availableFields(a: AudioAnalysis): AnalysisFieldId[] {

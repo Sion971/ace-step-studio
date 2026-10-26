@@ -1440,4 +1440,5 @@ export const zh = {
     analysisFailed: "分析失败。请检查引擎是否在运行。",
     analysisNoModel: "未能读取任何内容：引擎的语言模型未加载（被 --no-lm 或 INIT_LLM=false 关闭）。请不带该设置重新启动。",
     analysisApproximate: "模型的估计，常有误",
+    analysisWhisper: "Whisper 转写",
 };

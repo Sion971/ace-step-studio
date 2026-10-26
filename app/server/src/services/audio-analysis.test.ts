@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { analyzeAudio, parseAnalysis } from './audio-analysis.js';
+import { analyzeAudio, parseAnalysis, withWhisperLyrics } from './audio-analysis.js';
+import { parseWhisperJson } from './whisper.js';
 
 const answer = ['<|audio_code_1|>', 'ok', 'dreamy synth pop', '[Verse]\nla', 96, 187.4, 'A minor', 'fr', '4', true];
 
@@ -35,5 +36,41 @@ describe('analyzeAudio', () => {
   });
   it('fails clearly when the file is missing', async () => {
     await expect(analyzeAudio('/x.mp3', { prepareFile: async () => null, predict: vi.fn() })).rejects.toThrow('not found');
+  });
+});
+
+describe('parseWhisperJson', () => {
+  it('makes one line per phrase and keeps the language', () => {
+    expect(parseWhisperJson(JSON.stringify({ text: ' a b', language: 'fr', segments: [{ text: ' Dieu est Esprit ' }, { text: '' }, { text: 'Gloire' }] })))
+      .toEqual({ text: 'Dieu est Esprit\nGloire', language: 'fr' });
+  });
+  it('falls back on the whole text, and gives up on garbage', () => {
+    expect(parseWhisperJson('{"text":" salut ","language":"fr"}')).toEqual({ text: 'salut', language: 'fr' });
+    expect(parseWhisperJson('not json')).toBeNull();
+  });
+});
+
+describe('withWhisperLyrics', () => {
+  const model = parseAnalysis(answer);
+  const audio = async () => ({ buffer: Buffer.from('x'), name: 'a.mp3' });
+
+  it('replaces the model\'s lyrics and language with Whisper\'s', async () => {
+    const a = await withWhisperLyrics(model, { readAudio: audio, transcribe: async () => ({ text: 'Dieu est Esprit', language: 'fr' }) });
+    expect(a).toMatchObject({ lyrics: 'Dieu est Esprit', language: 'fr', lyricsSource: 'whisper', bpm: 96, caption: 'dreamy synth pop' });
+  });
+  it('an empty transcription means no words: no invented lyrics', async () => {
+    const a = await withWhisperLyrics(model, { readAudio: audio, transcribe: async () => ({ text: '', language: 'en' }) });
+    expect(a.lyrics).toBe('');
+    expect(a.lyricsSource).toBe('whisper');
+  });
+  it('keeps the model\'s estimate, marked as such, when Whisper is missing, fails or the file cannot be read', async () => {
+    for (const deps of [
+      { readAudio: audio, transcribe: async () => null },
+      { readAudio: async () => null, transcribe: async () => ({ text: 'x', language: 'fr' }) },
+      { readAudio: audio, transcribe: async () => { throw new Error('boom'); } },
+    ]) {
+      const a = await withWhisperLyrics(model, deps);
+      expect(a).toMatchObject({ lyrics: '[Verse]\nla', language: 'fr', lyricsSource: 'model' });
+    }
   });
 });

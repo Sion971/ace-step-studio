@@ -7,7 +7,10 @@ import type { AddressInfo } from 'node:net';
 const predict = vi.fn();
 const hasUnfinishedGeneration = vi.fn(() => false);
 vi.mock('../services/gradio-client.js', () => ({ getGradioClient: async () => ({ predict }) }));
-vi.mock('../services/acestep.js', () => ({ prepareAudioFile: async () => ({ path: '/tmp/a.mp3' }), hasUnfinishedGeneration: () => hasUnfinishedGeneration() }));
+const transcribe = vi.fn(async () => null as { text: string; language: string } | null);
+vi.mock('../services/whisper.js', () => ({ transcribeWithWhisperDetailed: (...a: unknown[]) => (transcribe as any)(...a) }));
+vi.mock('fs', async (orig) => ({ ...(await orig() as object), promises: { ...((await orig() as any).promises), readFile: async () => Buffer.from('x') } }));
+vi.mock('../services/acestep.js', () => ({ resolveAudioPath: (u: string) => u, prepareAudioFile: async () => ({ path: '/tmp/a.mp3' }), hasUnfinishedGeneration: () => hasUnfinishedGeneration() }));
 const findTrackIdByUrl = vi.fn(async () => null as string | null);
 const saveTrackAnalysis = vi.fn(async () => undefined);
 vi.mock('../services/track-analysis.js', () => ({ findTrackIdByUrl: (...a: unknown[]) => (findTrackIdByUrl as any)(...a), saveTrackAnalysis: (...a: unknown[]) => (saveTrackAnalysis as any)(...a) }));
@@ -22,6 +25,7 @@ describe('POST /api/audio-analysis', () => {
     predict.mockReset();
     findTrackIdByUrl.mockReset().mockResolvedValue(null);
     saveTrackAnalysis.mockReset();
+    transcribe.mockReset().mockResolvedValue(null);
     hasUnfinishedGeneration.mockReturnValue(false);
     const app = express();
     app.use(express.json());
@@ -54,6 +58,12 @@ describe('POST /api/audio-analysis', () => {
     expect(((await (await post({ audioUrl: '/a.mp3' })).json()) as { saved: boolean }).saved).toBe(false);
     expect(((await (await post({ audioUrl: '/b.mp3' })).json()) as { saved: boolean }).saved).toBe(false);
     expect(saveTrackAnalysis).not.toHaveBeenCalled();
+  });
+  it('puts Whisper\'s lyrics in place of the model\'s when it is installed', async () => {
+    transcribe.mockResolvedValue({ text: 'Dieu est Esprit', language: 'fr' });
+    predict.mockResolvedValueOnce({ data: ['c', 'ok', 'pop', 'invented english', 100, 60, 'C major', 'en', '4', true] });
+    const body = (await (await post({ audioUrl: '/audio/a.mp3' })).json()) as { analysis: { lyrics: string; language: string; lyricsSource: string } };
+    expect(body.analysis).toMatchObject({ lyrics: 'Dieu est Esprit', language: 'fr', lyricsSource: 'whisper' });
   });
   it('asks for the audio', async () => {
     expect((await post({})).status).toBe(400);

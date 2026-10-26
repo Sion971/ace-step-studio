@@ -1440,4 +1440,5 @@ export const ja = {
     analysisFailed: "解析に失敗しました。エンジンが動作しているか確認してください。",
     analysisNoModel: "何も読み取れませんでした：エンジンの言語モデルが読み込まれていません（--no-lm または INIT_LLM=false で無効）。その設定なしで起動してください。",
     analysisApproximate: "モデルの推定値。外れることが多い",
+    analysisWhisper: "Whisper による書き起こし",
 };

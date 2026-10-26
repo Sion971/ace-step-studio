@@ -16,6 +16,8 @@ export interface AudioAnalysis {
   keyScale: string;
   language: string;
   timeSignature: string;
+  /** Where the lyrics and the language come from: Whisper (a real transcription) or, when absent, the language model (an estimate). */
+  lyricsSource?: 'whisper' | 'model';
 }
 
 const text = (v: unknown): string => (typeof v === 'string' && v.trim().toUpperCase() !== 'N/A' ? v.trim() : '');
@@ -54,4 +56,35 @@ export async function analyzeAudio(audioUrl: string, deps: AnalysisDeps): Promis
   if (!file) throw new Error('Audio file not found');
   const result = await deps.predict('/analyze_src_audio', [file, false]);
   return parseAnalysis(result.data);
+}
+
+export interface WhisperDeps {
+  /** The audio file's bytes and name, or null when it cannot be read. */
+  readAudio: () => Promise<{ buffer: Buffer; name: string } | null>;
+  /** null: Whisper is missing or failed. */
+  transcribe: (buffer: Buffer, name: string) => Promise<{ text: string; language: string } | null>;
+}
+
+/**
+ * The language model invents lyrics (often in English for a song in another language). When Whisper is installed, its transcription
+ * replaces them, and its recognised language replaces the model's. An empty transcription means no words were heard: no lyrics.
+ * When Whisper is missing or fails, the model's estimate stays, marked as such.
+ */
+export async function withWhisperLyrics(analysis: AudioAnalysis, deps: WhisperDeps): Promise<AudioAnalysis> {
+  try {
+    const audio = await deps.readAudio();
+    const heard = audio ? await deps.transcribe(audio.buffer, audio.name) : null;
+    if (heard) {
+      return {
+        ...analysis,
+        lyrics: heard.text,
+        language: heard.language || analysis.language,
+        lyricsSource: 'whisper',
+        available: analysis.available || Boolean(heard.text || heard.language),
+      };
+    }
+  } catch (error) {
+    console.warn('[Analysis] Whisper step failed:', error);
+  }
+  return { ...analysis, lyricsSource: 'model' };
 }

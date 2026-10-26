@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useI18n } from '../context/I18nContext';
 import { formatTimeSignature } from '../services/timeSignature';
 import {
-  analyzeAudio, applyAnalysis, availableFields, AnalysisError, APPROXIMATE_FIELDS,
+  analyzeAudio, applyAnalysis, availableFields, AnalysisError, isApproximate,
   type AnalysisFieldId, type AnalysisSetters, type AudioAnalysis,
 } from '../services/audioAnalysis';
 
@@ -52,7 +52,7 @@ export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, f
     analyzeAudio(audioUrl, token, controller.signal)
       .then(({ analysis: a, saved }) => {
         setAnalysis(a);
-        setChosen(new Set(availableFields(a).filter((id) => !filled[id] && !APPROXIMATE_FIELDS.has(id))));
+        setChosen(new Set(availableFields(a).filter((id) => !filled[id] && !isApproximate(id, a))));
         setState('done');
         if (saved) onSaved?.();
       })
@@ -114,7 +114,8 @@ export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, f
                       <span className="block text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                         {t(LABELS[id])}
                         {filled[id] && <span className="normal-case tracking-normal"> · {t('analysisAlreadyFilled')}</span>}
-                        {APPROXIMATE_FIELDS.has(id) && <span className="normal-case tracking-normal"> · {t('analysisApproximate')}</span>}
+                        {isApproximate(id, analysis) && <span className="normal-case tracking-normal"> · {t('analysisApproximate')}</span>}
+                        {(id === 'lyrics' || id === 'language') && analysis.lyricsSource === 'whisper' && <span className="normal-case tracking-normal"> · {t('analysisWhisper')}</span>}
                       </span>
                       <span className={`block ${id === 'lyrics' ? 'whitespace-pre-wrap max-h-40 overflow-y-auto' : 'break-words'}`}>{show(id, analysis)}</span>
                     </span>

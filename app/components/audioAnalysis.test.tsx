@@ -71,6 +71,13 @@ describe('AudioAnalysisDialog', () => {
     expect((document.querySelector('[data-testid="analysis-caption"]') as HTMLInputElement).checked).toBe(true);
   });
 
+  it('checks the lyrics and language by default when Whisper transcribed them', async () => {
+    await mount({ status: 200, body: { analysis: { ...full, lyricsSource: 'whisper' } } });
+    expect((document.querySelector('[data-testid="analysis-lyrics"]') as HTMLInputElement).checked).toBe(true);
+    expect((document.querySelector('[data-testid="analysis-language"]') as HTMLInputElement).checked).toBe(true);
+    expect(document.body.textContent).toContain('Whisper');
+  });
+
   it('tells the lists when the analysis was kept with the audio', async () => {
     const onSaved = vi.fn();
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, statusText: 'x', json: async () => ({ analysis: full, saved: true }) })));

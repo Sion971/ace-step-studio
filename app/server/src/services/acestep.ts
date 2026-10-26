@@ -83,7 +83,7 @@ const PYTHON_SCRIPT = path.join(SCRIPTS_DIR, 'simple_generate.py');
 /**
  * Resolve an audio URL (e.g. /audio/file.mp3) to an absolute local file path.
  */
-function resolveAudioPath(audioUrl: string): string {
+export function resolveAudioPath(audioUrl: string): string {
   if (audioUrl.startsWith('/audio/')) {
     return path.join(AUDIO_DIR, audioUrl.replace('/audio/', ''));
   }

@@ -1,8 +1,11 @@
 import { Router, Response } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
-import { prepareAudioFile, hasUnfinishedGeneration } from '../services/acestep.js';
+import { prepareAudioFile, hasUnfinishedGeneration, resolveAudioPath } from '../services/acestep.js';
 import { getGradioClient } from '../services/gradio-client.js';
-import { analyzeAudio } from '../services/audio-analysis.js';
+import { promises as fsp } from 'fs';
+import path from 'path';
+import { analyzeAudio, withWhisperLyrics } from '../services/audio-analysis.js';
+import { transcribeWithWhisperDetailed } from '../services/whisper.js';
 import { findTrackIdByUrl, saveTrackAnalysis } from '../services/track-analysis.js';
 
 const router = Router();
@@ -24,10 +27,20 @@ router.post('/', authMiddleware, async (req: AuthenticatedRequest, res: Response
   busy = true;
   try {
     const client = await getGradioClient();
-    const analysis = await analyzeAudio(audioUrl, {
+    const modelAnalysis = await analyzeAudio(audioUrl, {
       prepareFile: prepareAudioFile,
       predict: (endpoint, args) => client.predict(endpoint, args) as Promise<{ data: unknown }>,
     });
+    // Real lyrics and language from Whisper when it is installed (the model's are an estimate).
+    const controller = new AbortController();
+    res.on('close', () => { if (!res.writableEnded) controller.abort(); });
+    const analysis = await withWhisperLyrics(modelAnalysis, {
+        readAudio: async () => {
+          const file = resolveAudioPath(audioUrl);
+          try { return { buffer: await fsp.readFile(file), name: path.basename(file) }; } catch { return null; }
+        },
+        transcribe: (buffer, name) => transcribeWithWhisperDetailed(buffer, name, controller.signal),
+      });
     // Kept with the imported audio, so that the song details can show it. A failure here must not lose the answer.
     let saved = false;
     try {

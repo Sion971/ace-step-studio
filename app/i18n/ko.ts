@@ -1440,4 +1440,5 @@ export const ko = {
     analysisFailed: "분석에 실패했습니다. 엔진이 실행 중인지 확인하세요.",
     analysisNoModel: "읽을 수 없었습니다: 엔진의 언어 모델이 로드되지 않았습니다(--no-lm 또는 INIT_LLM=false로 꺼짐). 해당 설정 없이 다시 시작하세요.",
     analysisApproximate: "모델의 추정값, 틀리는 경우가 많음",
+    analysisWhisper: "Whisper 전사",
 };

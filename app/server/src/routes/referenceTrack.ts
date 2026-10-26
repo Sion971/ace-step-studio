@@ -1,14 +1,13 @@
 import { Router, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
-import os from 'os';
 import { promises as fs } from 'fs';
 import { fileURLToPath } from 'url';
 import { pool } from '../db/pool.js';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { getStorageProvider } from '../services/storage/factory.js';
-import { spawn } from 'child_process';
 import { withAnalysis } from '../services/track-analysis.js';
+import { findWhisperExecutable, transcribeWithWhisper } from '../services/whisper.js';
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -42,93 +41,6 @@ const upload = multer({
     }
   }
 });
-
-const findWhisperExecutable = async (): Promise<string | null> => {
-  if (process.env.WHISPER_CMD) return process.env.WHISPER_CMD;
-  const customPath = process.env.WHISPER_PATH;
-  if (customPath) {
-    const candidate = path.join(customPath, 'whisper');
-    try {
-      await fs.access(candidate);
-      return candidate;
-    } catch {
-      // ignore
-    }
-  }
-
-  const pathEntries = (process.env.PATH || '').split(path.delimiter);
-  for (const entry of pathEntries) {
-    const candidate = path.join(entry, 'whisper');
-    try {
-      await fs.access(candidate);
-      return candidate;
-    } catch {
-      // ignore
-    }
-  }
-  return null;
-};
-
-const transcribeWithWhisper = async (buffer: Buffer, originalFilename: string, signal?: AbortSignal): Promise<string | null> => {
-  const whisperCmd = await findWhisperExecutable();
-  if (!whisperCmd) return null;
-
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'whisper-'));
-  const ext = path.extname(originalFilename) || '.mp3';
-  const inputPath = path.join(tempDir, `input${ext}`);
-  const outputDir = path.join(tempDir, 'out');
-
-  try {
-    await fs.mkdir(outputDir, { recursive: true });
-    await fs.writeFile(inputPath, buffer);
-
-    const args = [
-      inputPath,
-      '--model', 'base',
-      '--output_format', 'txt',
-      '--output_dir', outputDir,
-      '--fp16', 'False'
-    ];
-
-    await new Promise<void>((resolve, reject) => {
-      const proc = spawn(whisperCmd, args, { stdio: 'ignore' });
-      const handleAbort = () => {
-        proc.kill('SIGTERM');
-        reject(new Error('Transcription cancelled'));
-      };
-      if (signal) {
-        if (signal.aborted) {
-          handleAbort();
-          return;
-        }
-        signal.addEventListener('abort', handleAbort, { once: true });
-      }
-      proc.on('error', reject);
-      proc.on('close', (code) => {
-        if (signal) {
-          signal.removeEventListener('abort', handleAbort);
-        }
-        if (code === 0) resolve();
-        else reject(new Error(`Whisper exited with code ${code}`));
-      });
-    });
-
-    const files = await fs.readdir(outputDir);
-    const txtFile = files.find((file) => file.endsWith('.txt'));
-    if (!txtFile) return null;
-    const text = await fs.readFile(path.join(outputDir, txtFile), 'utf8');
-    return text.trim() || null;
-  } catch (error) {
-    console.warn('Whisper transcription failed:', error);
-    return null;
-  } finally {
-    try {
-      await fs.rm(tempDir, { recursive: true, force: true });
-    } catch {
-      // ignore
-    }
-  }
-};
 
 // Get user's reference tracks
 router.get('/', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
