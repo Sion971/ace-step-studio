@@ -8,6 +8,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { config } from '../config/index.js';
+import { oneLine, runFallbackTool } from './audio-fallback.js';
 
 export type ExportFormat = 'wav' | 'flac' | 'mp3';
 
@@ -81,14 +82,23 @@ export function atempoChain(ratio: number): string {
  * The file played `ratio` times faster (2 = twice as fast, half as long) without changing its pitch, as a 16-bit WAV.
  * Used by the Studio to bring a song to the tempo of the project: ratio = project bpm / song bpm.
  */
-export async function stretchAudio(data: Buffer, inputName: string, ratio: number): Promise<Buffer> {
+export async function stretchAudio(data: Buffer, inputName: string, ratio: number, deps: { ffmpeg: (args: string[]) => Promise<void>; python: (input: string, output: string, ratio: number) => Promise<void> } = { ffmpeg: run, python: (i, o, r) => runFallbackTool(['stretch', '--input', i, '--out', o, '--ratio', String(r)]).then(() => undefined) }): Promise<Buffer> {
   const filter = atempoChain(ratio);
   const dir = await mkdtemp(path.join(os.tmpdir(), 'studio-stretch-'));
   try {
     const input = path.join(dir, `in${path.extname(inputName).replace(/[^.\w]/g, '') || '.wav'}`);
     const output = path.join(dir, 'out.wav');
     await writeFile(input, data);
-    await run(['-y', '-hide_banner', '-loglevel', 'error', '-i', input, '-vn', '-filter:a', filter, '-c:a', 'pcm_s16le', output]);
+    try {
+      await deps.ffmpeg(['-y', '-hide_banner', '-loglevel', 'error', '-i', input, '-vn', '-filter:a', filter, '-c:a', 'pcm_s16le', output]);
+    } catch (ffmpegError) {
+      console.warn(`[audio] ffmpeg could not stretch (${oneLine(ffmpegError)}); using the engine's Python instead.`);
+      try {
+        await deps.python(input, output, ratio);
+      } catch (pythonError) {
+        throw new Error(`${oneLine(ffmpegError)} | ${oneLine(pythonError)}`);
+      }
+    }
     return await readFile(output);
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => {});

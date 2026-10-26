@@ -6,6 +6,7 @@
  */
 import { spawn } from 'node:child_process';
 import { isTrackTask } from './track-tasks.js';
+import { oneLine, runFallbackTool } from './audio-fallback.js';
 
 export interface MixParams {
   taskType?: string;
@@ -56,7 +57,7 @@ export const buildMixArgs = (sourcePath: string, stemPath: string, outPath: stri
 };
 
 /** Lance ffmpeg ; renvoie true si le mix a été écrit, false sinon (ffmpeg absent ou en échec : la piste seule reste disponible). */
-export const mixStemWithSource = (sourcePath: string, stemPath: string, outPath: string, levelPercent: number): Promise<boolean> =>
+const mixWithFfmpeg = (sourcePath: string, stemPath: string, outPath: string, levelPercent: number): Promise<boolean> =>
   new Promise((resolve) => {
     let stderr = '';
     try {
@@ -72,3 +73,28 @@ export const mixStemWithSource = (sourcePath: string, stemPath: string, outPath:
       resolve(false);
     }
   });
+
+export interface MixDeps {
+  ffmpeg: typeof mixWithFfmpeg;
+  /** The Python tool (no ffmpeg), used when ffmpeg did not write the mix (Windows Smart App Control can refuse its DLLs). */
+  python: (sourcePath: string, stemPath: string, outPath: string, levelPercent: number) => Promise<void>;
+}
+
+const systemDeps: MixDeps = {
+  ffmpeg: mixWithFfmpeg,
+  python: async (sourcePath, stemPath, outPath, levelPercent) => {
+    await runFallbackTool(['mix', '--source', sourcePath, '--stem', stemPath, '--out', outPath, '--level', String(clampLevel(levelPercent))]);
+  },
+};
+
+export const mixStemWithSource = async (sourcePath: string, stemPath: string, outPath: string, levelPercent: number, deps: MixDeps = systemDeps): Promise<boolean> => {
+  if (await deps.ffmpeg(sourcePath, stemPath, outPath, levelPercent)) return true;
+  try {
+    await deps.python(sourcePath, stemPath, outPath, levelPercent);
+    console.warn('[Mix] ffmpeg did not write the mix: made with the engine\'s Python instead.');
+    return true;
+  } catch (err) {
+    console.warn(`[Mix] the Python fallback could not write the mix either: ${oneLine(err)}`);
+    return false;
+  }
+};

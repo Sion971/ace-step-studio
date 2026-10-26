@@ -18,7 +18,7 @@
 - [ ] Premier morceau ajouté à l'éditeur vide : BPM et signature du morceau affichés (pas 120 et 4/4).
 - [ ] Deuxième morceau d'un autre tempo, case « Caler sur le tempo du projet » cochée : la piste arrive nommée « Titre (N BPM) », la note « X → N BPM » s'affiche, la durée de la piste a changé, la hauteur non.
 - [ ] Même chose case décochée : le morceau arrive tel quel.
-- [ ] Avec ffmpeg bloqué : le morceau est ajouté tel quel et la note « Impossible de caler le tempo » s'affiche (pas de repli Python pour l'étirement).
+- [ ] Avec ffmpeg bloqué : le morceau est quand même calé (le repli Python fait l'étirement : le morceau doit alors arriver calé ; le terminal écrit `ffmpeg could not stretch ... using the engine's Python`).
 - [ ] Un morceau sans tempo connu ou à plus du double / moins de la moitié : ajouté tel quel, sans erreur.
 
 ## 3. Export vers la bibliothèque
@@ -35,6 +35,11 @@
 - [ ] Le dossier des projets est créé (`studio-projects\` à côté de la base de données, ou `STUDIO_PROJECTS_DIR`) et le fichier `.amss` est environ moitié moins gros qu'avant (audio en 16 bits).
 - [ ] Supprimer un projet de la liste.
 - [ ] Sauvegarde automatique : modifier l'éditeur, attendre environ 30 s, recharger la page (F5) : le bandeau « Restaurer » propose le travail, et le restaure.
+
+## 4 bis. Outils sans ffmpeg (si Windows le bloque)
+- [ ] Normalisation / mastering (Outils) : le fichier normalisé est produit, avec les niveaux avant / après ; le terminal écrit `[loudnorm] ffmpeg failed ... using the engine's Python instead`.
+- [ ] Instrument avec « Mixer avec l'original » : le mix est créé (`[Mix] ... made with the engine's Python instead`).
+- [ ] Rendu vidéo : **attendu en échec** tant que ffmpeg est bloqué (seul outil sans repli).
 
 ## 5. Instrument (Lego)
 - [ ] « Ajouter un instrument » sur un morceau de l'éditeur, avec un modèle Base : la piste générée arrive seule dans l'éditeur.

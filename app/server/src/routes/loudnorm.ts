@@ -21,6 +21,7 @@ import { spawn } from 'child_process';
 import { existsSync, mkdtempSync, rmSync } from 'fs';
 import path from 'path';
 import os from 'os';
+import { oneLine, runFallbackTool } from '../services/audio-fallback.js';
 import { buildMasteringFilter, isMasteringActive, limiterCeiling, parseMasteringSettings } from '../services/mastering.js';
 
 const router = Router();
@@ -90,52 +91,79 @@ router.post('/normalize', upload.single('audio'), async (req: Request, res: Resp
     const fs = await import('fs/promises');
     await fs.writeFile(inputPath, req.file.buffer);
 
-    // Passe 1 : mesure, aucun fichier de sortie reel (-f null -).
-    const analysisArgs = [
-      '-i', inputPath,
-      '-af', `${chainPrefix}loudnorm=I=${targetI}:TP=${targetTP}:LRA=${targetLRA}:print_format=json`,
-      '-f', 'null', '-',
-    ];
-    const analysisOutput = await runFfmpeg(analysisArgs);
-    const measured = extractLoudnormJson(analysisOutput);
+    const viaPython = async (): Promise<{ originalLufs: number; resultLufs: number }> => {
+      const out = await runFallbackTool([
+        'loudnorm', '--input', inputPath, '--out', outputPath, '--target-i', String(targetI), '--target-tp', String(targetTP),
+        '--harmonics', String(mastering.harmonics), '--warmth', String(mastering.warmth), '--tone', String(mastering.tone),
+        '--glue', String(mastering.glue), '--width', String(mastering.width),
+      ]);
+      const info = JSON.parse(out.trim().split('\n').pop() ?? '{}') as { original?: number | null; result?: number };
+      return { originalLufs: info.original ?? NaN, resultLufs: info.result ?? targetI };
+    };
 
-    // Passe 2 : application, avec les valeurs reellement mesurees et
-    // linear=true — une correction lineaire simple plutot qu'un
-    // limiteur dynamique, coherente avec l'objectif de preserver le
-    // caractere du mix plutot que de l'ecraser.
-    const applyArgs = [
-      '-i', inputPath,
-      '-af', [
-        `${chainPrefix}loudnorm=I=${targetI}:TP=${targetTP}:LRA=${targetLRA}`,
-        `measured_I=${measured.input_i}`,
-        `measured_TP=${measured.input_tp}`,
-        `measured_LRA=${measured.input_lra}`,
-        `measured_thresh=${measured.input_thresh}`,
-        `offset=${measured.target_offset}`,
-        'linear=true',
-        'print_format=json',
-      ].join(':') + (isMasteringActive(mastering)
-        // loudnorm sort a 192 kHz : on revient a 48 kHz puis un limiteur tient le plafond de crete choisi apres la saturation.
-        ? `,aresample=48000,alimiter=limit=${limiterCeiling(targetTP).toFixed(4)}:level=disabled`
-        : ''),
-      '-ar', '48000',
-      '-y', outputPath,
-    ];
-    const applyOutput = await runFfmpeg(applyArgs);
+    const viaFfmpeg = async (): Promise<{ originalLufs: number; resultLufs: number }> => {
+      // Passe 1 : mesure, aucun fichier de sortie reel (-f null -).
+      const analysisArgs = [
+        '-i', inputPath,
+        '-af', `${chainPrefix}loudnorm=I=${targetI}:TP=${targetTP}:LRA=${targetLRA}:print_format=json`,
+        '-f', 'null', '-',
+      ];
+      const analysisOutput = await runFfmpeg(analysisArgs);
+      const measured = extractLoudnormJson(analysisOutput);
 
-    // Niveaux mesures, renvoyes en en-tetes : l'ecoute avant/apres s'en sert pour comparer a volume egal. L'original est mesure tel quel
-    // (avec un mastering, la passe 1 a deja traite le son : une passe de plus est necessaire).
-    let originalLufs = parseFloat(measured.input_i);
-    if (isMasteringActive(mastering)) {
+      // Passe 2 : application, avec les valeurs reellement mesurees et
+      // linear=true — une correction lineaire simple plutot qu'un
+      // limiteur dynamique, coherente avec l'objectif de preserver le
+      // caractere du mix plutot que de l'ecraser.
+      const applyArgs = [
+        '-i', inputPath,
+        '-af', [
+          `${chainPrefix}loudnorm=I=${targetI}:TP=${targetTP}:LRA=${targetLRA}`,
+          `measured_I=${measured.input_i}`,
+          `measured_TP=${measured.input_tp}`,
+          `measured_LRA=${measured.input_lra}`,
+          `measured_thresh=${measured.input_thresh}`,
+          `offset=${measured.target_offset}`,
+          'linear=true',
+          'print_format=json',
+        ].join(':') + (isMasteringActive(mastering)
+          // loudnorm sort a 192 kHz : on revient a 48 kHz puis un limiteur tient le plafond de crete choisi apres la saturation.
+          ? `,aresample=48000,alimiter=limit=${limiterCeiling(targetTP).toFixed(4)}:level=disabled`
+          : ''),
+        '-ar', '48000',
+        '-y', outputPath,
+      ];
+      const applyOutput = await runFfmpeg(applyArgs);
+
+      // Niveaux mesures, renvoyes en en-tetes : l'ecoute avant/apres s'en sert pour comparer a volume egal. L'original est mesure tel quel
+      // (avec un mastering, la passe 1 a deja traite le son : une passe de plus est necessaire).
+      let originalLufs = parseFloat(measured.input_i);
+      if (isMasteringActive(mastering)) {
+        try {
+          originalLufs = parseFloat(extractLoudnormJson(await runFfmpeg(['-i', inputPath, '-af', 'loudnorm=I=-14:TP=-1:LRA=11:print_format=json', '-f', 'null', '-'])).input_i);
+        } catch { originalLufs = NaN; }
+      }
+      let resultLufs = targetI;
       try {
-        originalLufs = parseFloat(extractLoudnormJson(await runFfmpeg(['-i', inputPath, '-af', 'loudnorm=I=-14:TP=-1:LRA=11:print_format=json', '-f', 'null', '-'])).input_i);
-      } catch { originalLufs = NaN; }
-    }
-    let resultLufs = targetI;
+        const out = parseFloat(extractLoudnormJson(applyOutput).output_i ?? '');
+        if (Number.isFinite(out)) resultLufs = out;
+      } catch { /* la cible est une bonne valeur de remplacement */ }
+      return { originalLufs, resultLufs };
+    };
+
+    // ffmpeg first; when it cannot run (Windows Smart App Control can refuse its DLLs) the engine's Python does the same job.
+    let originalLufs: number;
+    let resultLufs: number;
     try {
-      const out = parseFloat(extractLoudnormJson(applyOutput).output_i ?? '');
-      if (Number.isFinite(out)) resultLufs = out;
-    } catch { /* la cible est une bonne valeur de remplacement */ }
+      ({ originalLufs, resultLufs } = await viaFfmpeg());
+    } catch (ffmpegError) {
+      console.warn(`[loudnorm] ffmpeg failed (${oneLine(ffmpegError)}); using the engine's Python instead.`);
+      try {
+        ({ originalLufs, resultLufs } = await viaPython());
+      } catch (pythonError) {
+        throw new Error(`${oneLine(ffmpegError)} | ${oneLine(pythonError)}`);
+      }
+    }
 
     if (!existsSync(outputPath)) {
       res.status(500).json({ error: 'ffmpeg finished without error but the output file was not found.' });
