@@ -2338,7 +2338,9 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
                 onSongUpdate={handleSongUpdate}
                 onCancelJob={cancelGeneration}
                 onResetJob={resetSingleJob}
-                onCancelAll={cancelAllGenerations}
+                // « Tout annuler » arrete aussi la generation en cours sur le GPU (reset) : le simple cancel-all ne
+                // faisait que la marquer annulee, le moteur la menait a son terme (~30 s de GPU pour rien).
+                onCancelAll={resetGeneration}
                 onResetAll={resetGeneration}
                 activeJobCount={totalGenerationSlots(activeJobCount, pendingClickCount)}
               />

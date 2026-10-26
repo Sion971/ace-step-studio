@@ -1934,19 +1934,24 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     // chaine FIFO que le pre-vol OpenRouter (un brouillon a la fois, apres la
     // fin des jobs en cours : le LM et la generation se partagent le GPU).
     else if (localPreflightWillRun && token) {
+      // L'utilisateur peut annuler (ac.abort) ou le delai peut expirer (timedOut) : seule l'annulation doit empecher le morceau de partir.
+      const ac = new AbortController();
+      let timedOut = false;
+      // Declare l'annulation DES LE CLIC, pas une fois arrive a son tour : sinon « Tout annuler » ou l'annulation d'une carte
+      // ne pouvait rien pour un clic encore en file, qui se lancait quand meme apres.
+      if (tempIds[0] && registerPreflightAbort) registerPreflightAbort(tempIds[0], ac);
       llmPreflightQueueRef.current = llmPreflightQueueRef.current.catch(() => null).then(async () => {
         if (waitForJobsToDrain) {
           try { await waitForJobsToDrain(); } catch { /* drain failures don't block our turn */ }
         }
+        if (ac.signal.aborted) return null; // annule pendant l'attente : le LM ne demarre pas
         if (updateTempSongForClick) {
           tempIds.forEach(id => updateTempSongForClick(id, { stage: 'stageLocalLm' }));
         }
-        const ac = new AbortController();
-        if (tempIds[0] && registerPreflightAbort) registerPreflightAbort(tempIds[0], ac);
         // L'appel au moteur ne sait pas s'interrompre : on arrete d'ATTENDRE
         // (annulation de l'utilisateur ou delai de 3 min) ; le LM finit seul.
         const giveUp = new Promise<never>((_, reject) => {
-          const timer = setTimeout(() => ac.abort(), 180_000);
+          const timer = setTimeout(() => { timedOut = true; ac.abort(); }, 180_000);
           ac.signal.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('aborted', 'AbortError')); });
         });
         giveUp.catch(() => undefined);
@@ -1967,8 +1972,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
           if (e?.name === 'AbortError' || ac.signal.aborted) console.warn('[Pré-vol LM] aborted (cancel or timeout)');
           else console.error('[Pré-vol LM] failed:', e);
           return null;
-        } finally {
-          if (tempIds[0] && unregisterPreflightAbort) unregisterPreflightAbort(tempIds[0]);
         }
       });
       try {
@@ -1976,7 +1979,11 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       } catch (e) {
         console.error('[Pré-vol LM] queued pre-flight failed:', e);
         perClickDraft = null;
+      } finally {
+        if (tempIds[0] && unregisterPreflightAbort) unregisterPreflightAbort(tempIds[0]);
       }
+      // Annule par l'utilisateur (carte retiree, « Tout annuler ») : on ne genere rien, meme si un style ou des paroles etaient saisis.
+      if (ac.signal.aborted && !timedOut) { releaseClaimedSlots(); return; }
       if (!perClickDraft) {
         setLocalPreflightFailed(true);
         if (!payloadValidWithoutDraft) { releaseClaimedSlots(); return; }

@@ -96,6 +96,8 @@
 - Local LM draft: a tempo written in the song description ("90-95 BPM", "120bpm", "BPM: 100"; a range gives its middle) is used instead of the LM's guess, which a small LM (0.6B) often gets wrong. A BPM set by hand in the quick settings still wins over both.
 - Local LM draft: when the language is on Auto, the language the LM wrote the lyrics in (e.g. French) is now sent to the engine; it used to receive "unknown" for lyrics already written in French. A language chosen by hand always wins. `/api/generate/create-sample` no longer answers a made-up "en" when the LM gave no language.
 - Song list: "Cancel all (n)" now counts the generations still waiting for their turn (clicks whose style/lyrics draft is not written yet), like the Create button's n/10 does. After 9 clicks it said 2 (the jobs the server knew) while 9 cards were waiting; it also now shows up while only drafts are waiting.
+- Cancel all: "Cancel all" now also interrupts the generation running on the GPU (it used to only mark it cancelled: the engine finished it, about 30 s of GPU for nothing). The two-step cancel/reset button could never reach its second step, since the button hid itself as soon as the counter fell to 0.
+- Local LM draft: a click still waiting in the queue can now be cancelled (card or Cancel all): its abort was only registered once it reached its turn, so a waiting click still started its draft and its song after the cancel. A cancelled click never generates, even when a style or lyrics were typed.
 
 ## 2026-10-21
 
