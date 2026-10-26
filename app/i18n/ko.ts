@@ -1442,4 +1442,9 @@ export const ko = {
     analysisApproximate: "모델의 추정값, 틀리는 경우가 많음",
     analysisWhisper: "Whisper 전사",
     analysisNoWhisper: "Whisper를 찾을 수 없거나 실패하여 이 가사는 모델이 만들어낸 것입니다. 정확한 전사를 원하면 Studio 환경에 설치(pip install openai-whisper)한 뒤 다시 시작하세요.",
+    createHiddenStyle: "스타일",
+    createHiddenLyrics: "가사",
+    createHiddenAudio: "오디오",
+    createHiddenInUse: "숨겨져 있지만 생성 시 사용됨:",
+    createHiddenSeeIn: "사용자 지정으로 전환하여 확인하거나 비울 수 있습니다.",
 };

@@ -89,6 +89,7 @@
 - Whisper runs one transcription at a time (a queue), and the upload no longer starts its own transcription when the analysis window will do it: two Whisper processes at once fought over the card and over the first download of the model, which made the first run fail.
 - Whisper lyrics: the guessed [Verse] / [Chorus] tags are no longer written (they were often wrong on real songs, and a wrong tag is worse than none). The lyrics come as phrases, one per line, with a blank line between stanzas (a pause of 2 s or more), to ease the manual tagging. `WHISPER_SECTIONS=1` brings the guessed tags back.
 - Installers: `install.sh` and `install.bat` now install Whisper (`openai-whisper`) at the end of the Python dependencies, so the real lyrics of imported audio work right after a fresh install. Non-blocking: if it fails, the app still runs.
+- Create panel: Simple / Custom switch is back, as a VIEW only. Both views share the same fields and the same payload (the old modes built diverging payloads, see TROUBLESHOOTING 12 and 24). Simple shows the song description, language/voice, title, quick settings and the LoRA panel, and hides audio, lyrics, style, LRC and advanced settings; hidden fields that are filled are still sent and a warning says so. The choice is remembered; Custom stays the default.
 
 ## 2026-10-21
 

@@ -1476,4 +1476,9 @@ export const fr = {
     analysisApproximate: "estimation du modèle, souvent fausse",
     analysisWhisper: "transcription Whisper",
     analysisNoWhisper: "Whisper est introuvable (ou a échoué) : ces paroles sont inventées par le modèle. Pour une vraie transcription, installe-le dans l'environnement du Studio (pip install openai-whisper) puis relance.",
+    createHiddenStyle: "style",
+    createHiddenLyrics: "paroles",
+    createHiddenAudio: "audio",
+    createHiddenInUse: "Masqué mais utilisé à la génération :",
+    createHiddenSeeIn: "Passe en Personnalisé pour le voir ou le vider.",
 };

@@ -1442,4 +1442,9 @@ export const zh = {
     analysisApproximate: "模型的估计，常有误",
     analysisWhisper: "Whisper 转写",
     analysisNoWhisper: "未找到 Whisper（或运行失败）：这些歌词是模型编造的。要获得真实转写，请在 Studio 环境中安装（pip install openai-whisper）并重启。",
+    createHiddenStyle: "风格",
+    createHiddenLyrics: "歌词",
+    createHiddenAudio: "音频",
+    createHiddenInUse: "已隐藏但生成时会使用：",
+    createHiddenSeeIn: "切换到自定义以查看或清除。",
 };

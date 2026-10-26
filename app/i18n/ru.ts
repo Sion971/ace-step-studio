@@ -1453,4 +1453,9 @@ export const ru = {
     analysisApproximate: "оценка модели, часто неверная",
     analysisWhisper: "расшифровка Whisper",
     analysisNoWhisper: "Whisper не найден (или завершился с ошибкой): этот текст придуман моделью. Для настоящей расшифровки установите его в окружение Studio (pip install openai-whisper) и перезапустите.",
+    createHiddenStyle: "стиль",
+    createHiddenLyrics: "текст",
+    createHiddenAudio: "аудио",
+    createHiddenInUse: "Скрыто, но используется при генерации:",
+    createHiddenSeeIn: "Перейдите в «Свой», чтобы увидеть или очистить.",
 };

@@ -1,3 +1,4 @@
+import { CreateModeSwitch, readCreateView, saveCreateView, type CreateView } from './CreateModeSwitch';
 import { LoraPanel } from './LoraPanel';
 import { VocalSettings, type VocalGender } from './VocalSettings';
 import { SeedSettings } from './SeedSettings';
@@ -289,6 +290,10 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
 
   // Advanced Settings
   const [showAdvanced, setShowAdvanced] = useState(false);
+  // Simple / Custom: a VIEW only (same state, same payload), see CreateModeSwitch.tsx.
+  const [createView, setCreateView] = useState<CreateView>(readCreateView);
+  const simpleView = createView === 'simple';
+  const changeCreateView = (v: CreateView) => { setCreateView(v); saveCreateView(v); };
   const [duration, setDuration] = useState(-1);
   const [batchSize, setBatchSize] = useState(1);
   const [bulkCount, setBulkCount] = useState(1);
@@ -2230,6 +2235,17 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             Simple / Personnalisé. Les deux modes construisaient des charges
             utiles divergentes, source de plusieurs bugs (voir §12). */}
           <div className="space-y-5">
+            <CreateModeSwitch
+              view={createView}
+              onChange={changeCreateView}
+              hidden={{ style: Boolean(style.trim()), lyrics: Boolean(lyrics.trim()) && !instrumental, audio: Boolean(referenceAudioUrl.trim() || sourceAudioUrl.trim()) }}
+              instrumental={instrumental}
+              onInstrumentalChange={setInstrumental}
+              t={t}
+              tf={tf}
+            />
+
+            {!simpleView && (<>
             {/* Enregistrement direct au micro — independant de la
                 generation IA, voir VoiceRecorder.tsx */}
             <VoiceRecorder
@@ -2244,6 +2260,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               t={t}
               tf={tf}
             />
+
+            </>)}
 
             {/* Song Description */}
             <div className="bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 overflow-hidden">
@@ -2298,6 +2316,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               )}
             </div>
 
+            {!simpleView && (<>
             {/* ─────────────────────────────────────────────────────────────
                 AUDIO — emplacement unique + menu de mode (facon Suno).
                 Remplace les deux anciennes fenetres RÉFÉRENCE et REPRISE :
@@ -2482,6 +2501,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               )}
             </div>
 
+            </>)}
+
             {/* Langue du chant et genre de la voix — voir VocalSettings.tsx.
                 Les trois valeurs restent ici : elles sont lues dans la
                 construction de la charge utile et les appels LLM. */}
@@ -2494,6 +2515,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               t={t}
             />
 
+            {!simpleView && (<>
             {/* LRC Toggle */}
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
@@ -2590,6 +2612,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                 </div>
               </div>
             </div>
+
+            </>)}
 
             {/* OpenRouter generation status — shown when a remote LLM run is in flight or just finished */}
             <GenerationStatusPanel
@@ -2695,6 +2719,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             onLoadedChange={setLoraLoaded}
           />
 
+        {!simpleView && (<>
         {/* ADVANCED SETTINGS */}
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
@@ -2941,6 +2966,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             />
           </div>
         )}
+        </>)}
       </div>
 
       {analysisTarget && token && (
