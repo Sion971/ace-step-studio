@@ -1,3 +1,4 @@
+import { totalGenerationSlots } from './services/jobCount';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 // Vue affichée au lancement, quand aucune route n'est demandée.
@@ -2252,7 +2253,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
                 onReferenceTracksChanged={loadReferenceTracks}
                 onGenerate={handleGenerate}
                 isGenerating={isGenerating}
-                activeJobCount={activeJobCount + pendingClickCount}
+                activeJobCount={totalGenerationSlots(activeJobCount, pendingClickCount)}
                 initialData={reuseData}
                 createdSongs={songs}
                 pendingAudioSelection={pendingAudioSelection}
@@ -2339,7 +2340,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
                 onResetJob={resetSingleJob}
                 onCancelAll={cancelAllGenerations}
                 onResetAll={resetGeneration}
-                activeJobCount={activeJobCount}
+                activeJobCount={totalGenerationSlots(activeJobCount, pendingClickCount)}
               />
             </div>
 
