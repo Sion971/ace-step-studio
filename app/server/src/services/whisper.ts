@@ -44,6 +44,12 @@ export const findWhisperExecutable = async (): Promise<string | null> => {
   return null;
 };
 
+/** `base` is quick but mishears sung words ("l'agneau" → "l'anio"); `small` is the default. WHISPER_MODEL can name another (tiny, base, small, medium, large). */
+export const whisperModel = (env: NodeJS.ProcessEnv = process.env): string => {
+  const wanted = (env.WHISPER_MODEL || '').trim();
+  return /^[a-z0-9._-]+$/i.test(wanted) ? wanted : 'small';
+};
+
 export interface WhisperResult {
   /** The lyrics, one line per sung phrase, with [Verse] / [Chorus]... when the pauses and repetitions allow ("" when nothing was heard). */
   text: string;
@@ -58,6 +64,9 @@ export function parseWhisperJson(raw: string): WhisperResult | null {
     const timed: TimedLine[] = Array.isArray(data.segments)
       ? data.segments.map((s) => ({ start: Number(s?.start), end: Number(s?.end), text: typeof s?.text === 'string' ? s.text : '' }))
       : [];
+    if (process.env.WHISPER_DEBUG === '1') {
+      console.log('[Whisper] segments:\n' + timed.map((s) => `  ${Number(s.start).toFixed(1)}-${Number(s.end).toFixed(1)}  ${s.text.trim()}`).join('\n'));
+    }
     const structured = structureLyrics(timed);
     const text = structured || (timed.length ? '' : typeof data.text === 'string' ? data.text.trim() : '');
     return { text, language: typeof data.language === 'string' ? data.language : '' };
@@ -82,7 +91,8 @@ export const transcribeWithWhisperDetailed = async (buffer: Buffer, originalFile
 
     const args = [
       inputPath,
-      '--model', 'base',
+      '--model', whisperModel(),
+      '--condition_on_previous_text', 'False',
       '--output_format', 'json',
       '--output_dir', outputDir,
       '--fp16', 'False'

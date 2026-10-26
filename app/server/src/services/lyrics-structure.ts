@@ -4,6 +4,8 @@
 //  - a pause between two phrases starts a new stanza,
 //  - stanzas that come back (same words, even slightly different) are the chorus,
 //  - a long pause with no singing is an [Instrumental] (or the [Intro] at the start).
+//  - a stanza that runs on for more than MAX_STANZA_LINES phrases is cut at its longest pauses (sung phrases often follow each other
+//    with less than STANZA_GAP_S between them).
 // The labels are a guess from the repetitions and the pauses; the words are Whisper's.
 
 export interface TimedLine { start: number; end: number; text: string }
@@ -11,6 +13,8 @@ export interface TimedLine { start: number; end: number; text: string }
 export const STANZA_GAP_S = 2;
 export const INSTRUMENTAL_GAP_S = 10;
 export const INTRO_S = 10;
+export const MAX_STANZA_LINES = 6;
+export const MIN_SPLIT_GAP_S = 0.5;
 
 /** Whisper writes "...", "♪" or nothing for music: not lyrics. */
 export const isNoise = (text: string): boolean => /^[\s.…♪♫\-–—_*]*$/.test(text);
@@ -35,16 +39,27 @@ export function structureLyrics(input: TimedLine[]): string {
   if (!lines.length) return '';
 
   // Stanzas: a pause starts a new one.
-  const stanzas: { lines: string[]; start: number; end: number }[] = [];
+  type Line = { start: number; end: number; text: string };
+  const raw: Line[][] = [];
   for (const l of lines) {
-    const last = stanzas[stanzas.length - 1];
-    if (last && !(l.start - last.end >= STANZA_GAP_S)) { // no times (NaN): same stanza
-      last.lines.push(l.text);
-      last.end = Math.max(last.end, l.end);
-    } else {
-      stanzas.push({ lines: [l.text], start: l.start, end: l.end });
-    }
+    const last = raw[raw.length - 1];
+    if (last && !(l.start - last[last.length - 1].end >= STANZA_GAP_S)) last.push(l); // no times (NaN): same stanza
+    else raw.push([l]);
   }
+  // A long run of phrases is cut where the pause is longest.
+  const split = (run: Line[]): Line[][] => {
+    if (run.length <= MAX_STANZA_LINES) return [run];
+    let at = -1;
+    let best = MIN_SPLIT_GAP_S;
+    for (let i = 1; i < run.length; i++) {
+      const gap = run[i].start - run[i - 1].end;
+      // Prefer cutting near the middle when pauses are alike.
+      if (gap > best + 1e-9 || (at > 0 && Math.abs(gap - best) < 1e-9 && Math.abs(i - run.length / 2) < Math.abs(at - run.length / 2))) { best = gap; at = i; }
+    }
+    if (at < 0) return [run];
+    return [...split(run.slice(0, at)), ...split(run.slice(at))];
+  };
+  const stanzas = raw.flatMap(split).map((run) => ({ lines: run.map((l) => l.text), start: run[0].start, end: run[run.length - 1].end }));
   // Too little to tell sections apart: the plain phrases.
   if (stanzas.length < 2) return lines.map((l) => l.text).join('\n');
 

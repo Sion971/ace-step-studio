@@ -57,6 +57,23 @@ describe('structureLyrics', () => {
   });
 });
 
+describe('long runs of phrases', () => {
+  const lines = (n: number, gaps: number[]): TimedLine[] => {
+    let at = 0;
+    return Array.from({ length: n }, (_, i) => { const start = at; at += 3 + (gaps[i] ?? 0.2); return { start, end: start + 3, text: `mot${String.fromCharCode(97 + i)}${String.fromCharCode(97 + i)} unique${String.fromCharCode(97 + i)}${String.fromCharCode(97 + i)}` }; });
+  };
+  it('cuts a stanza of more than 6 phrases at its longest pause', () => {
+    // 10 phrases with only short pauses (< 2 s), the longest after the 5th
+    const out = structureLyrics(lines(10, [0.2, 0.2, 0.2, 0.2, 1.5, 0.2, 0.2, 0.2, 0.2]));
+    const w = (k: number) => `mot${String.fromCharCode(97 + k)}${String.fromCharCode(97 + k)} unique${String.fromCharCode(97 + k)}${String.fromCharCode(97 + k)}`;
+    expect(out).toContain(`[Verse 1]\n${[0, 1, 2, 3, 4].map(w).join('\n')}\n\n[Verse 2]\n${w(5)}`);
+  });
+  it('leaves a run alone when there is no pause to cut at', () => {
+    const out = structureLyrics(lines(8, []).map((l, i) => ({ ...l, start: i * 3, end: i * 3 + 3 })));
+    expect(out).not.toContain('[');
+  });
+});
+
 describe('helpers', () => {
   it('knows noise', () => { expect(isNoise(' … ')).toBe(true); expect(isNoise('Amen')).toBe(false); });
   it('measures how much two stanzas share', () => {
