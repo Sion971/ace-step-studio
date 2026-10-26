@@ -1441,4 +1441,5 @@ export const ko = {
     analysisNoModel: "읽을 수 없었습니다: 엔진의 언어 모델이 로드되지 않았습니다(--no-lm 또는 INIT_LLM=false로 꺼짐). 해당 설정 없이 다시 시작하세요.",
     analysisApproximate: "모델의 추정값, 틀리는 경우가 많음",
     analysisWhisper: "Whisper 전사",
+    analysisNoWhisper: "Whisper를 찾을 수 없거나 실패하여 이 가사는 모델이 만들어낸 것입니다. 정확한 전사를 원하면 Studio 환경에 설치(pip install openai-whisper)한 뒤 다시 시작하세요.",
 };

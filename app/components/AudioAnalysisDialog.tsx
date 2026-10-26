@@ -104,6 +104,9 @@ export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, f
               {analysis.status && <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2">{analysis.status}</p>}
             </div>
           )}
+          {state === 'done' && analysis && analysis.lyrics && analysis.lyricsSource === 'model' && (
+            <p className="mb-3 text-xs text-amber-600 dark:text-amber-400" data-testid="analysis-no-whisper">{t('analysisNoWhisper')}</p>
+          )}
           {state === 'done' && fields.length > 0 && (
             <ul className="space-y-2">
               {fields.map((id) => (

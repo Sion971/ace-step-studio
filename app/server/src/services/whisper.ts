@@ -5,29 +5,40 @@ import path from 'path';
 import os from 'os';
 import { promises as fs } from 'fs';
 import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
+
+const EXE = process.platform === 'win32' ? '.exe' : '';
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+
+/** Where `whisper` can be: WHISPER_PATH, the Studio's own Python environment (where `pip install openai-whisper` puts it), then PATH. */
+export function whisperSearchDirs(env: NodeJS.ProcessEnv = process.env, root: string = REPO_ROOT): string[] {
+  const binDir = process.platform === 'win32' ? 'Scripts' : 'bin';
+  const dirs: string[] = [];
+  if (env.WHISPER_PATH) dirs.push(env.WHISPER_PATH);
+  for (const venv of ['.venv', 'venv', 'env']) dirs.push(path.join(root, venv, binDir));
+  dirs.push(path.join(root, 'python_embeded', 'Scripts'), path.join(root, 'python', 'Scripts'));
+  dirs.push(...(env.PATH || '').split(path.delimiter).filter(Boolean));
+  return dirs;
+}
+
+let warnedMissing = false;
 
 export const findWhisperExecutable = async (): Promise<string | null> => {
   if (process.env.WHISPER_CMD) return process.env.WHISPER_CMD;
-  const customPath = process.env.WHISPER_PATH;
-  if (customPath) {
-    const candidate = path.join(customPath, 'whisper');
-    try {
-      await fs.access(candidate);
-      return candidate;
-    } catch {
-      // ignore
+  for (const dir of whisperSearchDirs()) {
+    for (const name of EXE ? ['whisper.exe', 'whisper'] : ['whisper']) {
+      const candidate = path.join(dir, name);
+      try {
+        await fs.access(candidate);
+        return candidate;
+      } catch {
+        // ignore
+      }
     }
   }
-
-  const pathEntries = (process.env.PATH || '').split(path.delimiter);
-  for (const entry of pathEntries) {
-    const candidate = path.join(entry, 'whisper');
-    try {
-      await fs.access(candidate);
-      return candidate;
-    } catch {
-      // ignore
-    }
+  if (!warnedMissing) {
+    warnedMissing = true;
+    console.warn('[Whisper] not found: lyrics cannot be transcribed. Install it in the Studio environment (pip install openai-whisper) or set WHISPER_PATH / WHISPER_CMD.');
   }
   return null;
 };

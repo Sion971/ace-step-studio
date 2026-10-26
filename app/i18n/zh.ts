@@ -1441,4 +1441,5 @@ export const zh = {
     analysisNoModel: "未能读取任何内容：引擎的语言模型未加载（被 --no-lm 或 INIT_LLM=false 关闭）。请不带该设置重新启动。",
     analysisApproximate: "模型的估计，常有误",
     analysisWhisper: "Whisper 转写",
+    analysisNoWhisper: "未找到 Whisper（或运行失败）：这些歌词是模型编造的。要获得真实转写，请在 Studio 环境中安装（pip install openai-whisper）并重启。",
 };

@@ -638,7 +638,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const sourceInputRef = useRef<HTMLInputElement>(null);
   const dragDepthRef = useRef(0);
   const [showAudioModal, setShowAudioModal] = useState(false);
-  // Fenetre « Analyser l'audio » : s'ouvre quand on choisit un audio (si l'option est active) ou via le bouton du lecteur.
+  // Fenetre « Analyser l'audio » : s'ouvre toute seule pour un fichier importe ou un enregistrement (si l'option est active),
+  // jamais pour un audio pris dans la bibliotheque ; le bouton du lecteur l'ouvre a la demande.
   const [analysisTarget, setAnalysisTarget] = useState<{ url: string; title: string } | null>(null);
   const [analysisAuto, setAnalysisAuto] = useState(() => {
     try { return localStorage.getItem('ace-analysis-auto') !== '0'; } catch { return true; }
@@ -1426,7 +1427,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
 
   const useReferenceTrack = (track: { audio_url: string; title?: string }) => {
     applyAudioTargetUrl(audioModalTarget, track.audio_url, track.title);
-    offerAnalysis(track.audio_url, track.title);
     setShowAudioModal(false);
     setPlayingTrackId(null);
     setPlayingTrackSource(null);
@@ -1452,7 +1452,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const applyAudioUrl = () => {
     if (!tempAudioUrl.trim()) return;
     applyAudioTargetUrl(audioModalTarget, tempAudioUrl.trim());
-    offerAnalysis(tempAudioUrl.trim());
     setShowAudioModal(false);
     setTempAudioUrl('');
   };
@@ -1625,7 +1624,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         const data = JSON.parse(payload);
         if (data?.url) {
           applyAudioTargetUrl(target, data.url, data.title);
-          offerAnalysis(data.url, data.title);
         }
       } catch {
         // ignore
@@ -2233,7 +2231,18 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
           <div className="space-y-5">
             {/* Enregistrement direct au micro — independant de la
                 generation IA, voir VoiceRecorder.tsx */}
-            <VoiceRecorder token={token} onSongCreated={(song) => onSongCreated?.(song as Song)} t={t} tf={tf} />
+            <VoiceRecorder
+              token={token}
+              onSongCreated={(song) => {
+                onSongCreated?.(song as Song);
+                // A recording is a new audio like an import: analyze it (the library's audios are not analyzed by themselves).
+                const rec = song as { audio_url?: string; audioUrl?: string; title?: string };
+                const url = rec.audio_url || rec.audioUrl;
+                if (url) offerAnalysis(url, rec.title);
+              }}
+              t={t}
+              tf={tf}
+            />
 
             {/* Song Description */}
             <div className="bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 overflow-hidden">

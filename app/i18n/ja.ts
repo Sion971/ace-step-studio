@@ -1441,4 +1441,5 @@ export const ja = {
     analysisNoModel: "何も読み取れませんでした：エンジンの言語モデルが読み込まれていません（--no-lm または INIT_LLM=false で無効）。その設定なしで起動してください。",
     analysisApproximate: "モデルの推定値。外れることが多い",
     analysisWhisper: "Whisper による書き起こし",
+    analysisNoWhisper: "Whisper が見つからない（または失敗した）ため、この歌詞はモデルが作ったものです。正確な書き起こしには、Studio の環境に Whisper をインストールして（pip install openai-whisper）再起動してください。",
 };

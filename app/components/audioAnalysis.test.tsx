@@ -78,6 +78,16 @@ describe('AudioAnalysisDialog', () => {
     expect(document.body.textContent).toContain('Whisper');
   });
 
+  it('says so when the lyrics are the model\'s invention (no Whisper)', async () => {
+    await mount({ status: 200, body: { analysis: { ...full, lyricsSource: 'model' } } });
+    expect(document.querySelector('[data-testid="analysis-no-whisper"]')).not.toBeNull();
+  });
+
+  it('does not say it when Whisper transcribed', async () => {
+    await mount({ status: 200, body: { analysis: { ...full, lyricsSource: 'whisper' } } });
+    expect(document.querySelector('[data-testid="analysis-no-whisper"]')).toBeNull();
+  });
+
   it('tells the lists when the analysis was kept with the audio', async () => {
     const onSaved = vi.fn();
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, statusText: 'x', json: async () => ({ analysis: full, saved: true }) })));

@@ -1458,4 +1458,5 @@ export const en = {
     analysisNoModel: "Nothing could be read: the engine's language model is not loaded (turned off by --no-lm or INIT_LLM=false). Start without that setting.",
     analysisApproximate: "the model's estimate, often wrong",
     analysisWhisper: "Whisper transcription",
+    analysisNoWhisper: "Whisper was not found (or failed): these lyrics are invented by the model. For a real transcription, install it in the Studio environment (pip install openai-whisper) and restart.",
 };
