@@ -90,6 +90,7 @@
 - Whisper lyrics: the guessed [Verse] / [Chorus] tags are no longer written (they were often wrong on real songs, and a wrong tag is worse than none). The lyrics come as phrases, one per line, with a blank line between stanzas (a pause of 2 s or more), to ease the manual tagging. `WHISPER_SECTIONS=1` brings the guessed tags back.
 - Installers: `install.sh` and `install.bat` now install Whisper (`openai-whisper`) at the end of the Python dependencies, so the real lyrics of imported audio work right after a fresh install. Non-blocking: if it fails, the app still runs.
 - Create panel: Simple / Custom switch is back, as a VIEW only. Both views share the same fields and the same payload (the old modes built diverging payloads, see TROUBLESHOOTING 12 and 24). Simple shows the song description, language/voice, title, quick settings and the LoRA panel, and hides audio, lyrics, style, LRC and advanced settings; hidden fields that are filled are still sent and a warning says so. The choice is remembered; Custom stays the default.
+- Create panel: the "Describe your song" box is always shown in the Simple view; in the Custom view it only shows when OpenRouter is on (it is what expands it) or when it already holds text.
 
 ## 2026-10-21
 

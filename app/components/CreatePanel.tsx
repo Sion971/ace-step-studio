@@ -2263,7 +2263,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
 
             </>)}
 
-            {/* Song Description */}
+            {/* Song Description : en Simple toujours ; en Personnalise seulement si OpenRouter la developpe ou si elle contient deja du texte. */}
+            {(simpleView || useOpenRouter || songDescription.trim()) && (
             <div className="bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 overflow-hidden">
               <div className="px-3 py-2.5 flex items-center justify-between border-b border-zinc-100 dark:border-white/5 bg-zinc-50 dark:bg-white/5">
                 <span className="text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
@@ -2315,6 +2316,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                 </p>
               )}
             </div>
+            )}
 
             {!simpleView && (<>
             {/* ─────────────────────────────────────────────────────────────
