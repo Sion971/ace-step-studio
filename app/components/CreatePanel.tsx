@@ -1,4 +1,4 @@
-import { lmLanguage, sampleToDraft } from '../services/localDraft';
+import { effectiveLanguage, lmLanguage, sampleToDraft } from '../services/localDraft';
 import { CreateModeSwitch, hasNothingToSend, readCreateView, saveCreateView, type CreateView } from './CreateModeSwitch';
 import { LoraPanel } from './LoraPanel';
 import { VocalSettings, type VocalGender } from './VocalSettings';
@@ -2008,6 +2008,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     // LLM-tailored cover prompt for this exact song. Empty string falls
     // through to the keyword-based default in buildCoverPrompt.
     const effCoverPrompt = d?.coverPrompt || '';
+    // Langue : le choix de l'utilisateur, sinon (Auto) celle dans laquelle le LM local a ecrit les paroles.
+    const effLanguage = effectiveLanguage(vocalLanguage, d?.language);
 
     const styleWithGender = (() => {
       if (!vocalGender) return effStyle;
@@ -2058,7 +2060,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         title: bulkCount > 1 ? `${effTitle} (${i + 1})` : effTitle,
         ditModel: selectedModel,
         instrumental,
-        vocalLanguage,
+        vocalLanguage: effLanguage,
         bpm: effBpm,
         keyScale: effKeyScale,
         timeSignature: effTimeSig,
@@ -2085,7 +2087,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             title: effTitle,
             caption: styleWithGender,
             topic: songDescription,
-            language: vocalLanguage,
+            language: effLanguage,
             instrumental,
             lyrics: instrumental ? '' : effLyrics,
           }),

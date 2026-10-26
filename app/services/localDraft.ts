@@ -8,6 +8,8 @@ export interface LocalSample {
   duration?: number;
   keyScale?: string;
   timeSignature?: string;
+  /** Language the LM picked for the lyrics ('' or 'unknown' when it did not). */
+  vocalLanguage?: string;
 }
 
 /**
@@ -33,6 +35,7 @@ export function sampleToDraft(sample: LocalSample | null | undefined, descriptio
     timeSignature: sample.timeSignature || '',
     durationSec: sample.duration && sample.duration > 0 ? sample.duration : 0,
     coverPrompt: '',
+    ...(realLanguage(sample.vocalLanguage) ? { language: realLanguage(sample.vocalLanguage) } : {}),
   };
 }
 
@@ -57,4 +60,19 @@ export function bpmFromText(text: string): number {
   const ok = (n: number) => n >= 40 && n <= 300;
   if (!ok(lo)) return 0;
   return ok(hi) && hi >= lo ? Math.round((lo + hi) / 2) : lo;
+}
+
+/** A language code the engine can sing in: not empty, not 'unknown' (the app's Auto). */
+export function realLanguage(code: string | undefined | null): string {
+  const c = (code || '').trim();
+  return c && c !== 'unknown' ? c : '';
+}
+
+/**
+ * The language to send for the vocals. What the user chose wins; on Auto
+ * ('unknown'), the language the LM wrote the lyrics in; otherwise unchanged.
+ * Without it the engine got "unknown" for lyrics the LM had written in French.
+ */
+export function effectiveLanguage(userChoice: string, draftLanguage: string | undefined): string {
+  return realLanguage(userChoice) || realLanguage(draftLanguage) || userChoice;
 }

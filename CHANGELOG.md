@@ -94,6 +94,7 @@
 - Create panel: the Create button is greyed, with a short hint, when there is nothing to send, instead of starting a generation that fails with a 400 ("Generation failed. Please retry."). Custom view: no description, style, lyrics or audio. Simple view: an empty description is enough to block, even if hidden fields are filled, so nothing starts from fields the user cannot see.
 - Create panel: without OpenRouter, the song description is now expanded into style and lyrics by the engine's local LM (create_sample, the same as the Gradio Simple mode), as long as an LM is loaded. Same rules as the OpenRouter pre-flight: only when the lyrics are empty, what you typed (style, BPM, key...) always wins, one draft at a time after the running jobs. If the LM fails, the song is generated without the draft when something else can carry it, otherwise nothing starts and a message says why. Without OpenRouter and without a loaded LM, a description alone still blocks Create.
 - Local LM draft: a tempo written in the song description ("90-95 BPM", "120bpm", "BPM: 100"; a range gives its middle) is used instead of the LM's guess, which a small LM (0.6B) often gets wrong. A BPM set by hand in the quick settings still wins over both.
+- Local LM draft: when the language is on Auto, the language the LM wrote the lyrics in (e.g. French) is now sent to the engine; it used to receive "unknown" for lyrics already written in French. A language chosen by hand always wins. `/api/generate/create-sample` no longer answers a made-up "en" when the LM gave no language.
 
 ## 2026-10-21
 

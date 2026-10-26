@@ -38,6 +38,8 @@ export interface SongDraft {
   keyScale: string;
   timeSignature: string;
   durationSec: number;
+  /** Language the writer chose for the lyrics, when the user left it on Auto (local LM only). */
+  language?: string;
   /**
    * One-or-two-sentence English visual description of an album cover for THIS
    * specific song. The LLM tailors it to the lyrics and mood. Used as the local AI

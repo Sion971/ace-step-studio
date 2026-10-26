@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { bpmFromText, lmLanguage, sampleToDraft } from './localDraft';
+import { bpmFromText, effectiveLanguage, lmLanguage, realLanguage, sampleToDraft } from './localDraft';
 
 describe('sampleToDraft', () => {
   it('builds the same draft shape the OpenRouter pre-flight gives', () => {
@@ -62,5 +62,25 @@ describe('a tempo in the description beats the LM', () => {
   });
   it('keeps the LM bpm when the description has none', () => {
     expect(sampleToDraft({ caption: 'x', bpm: 91 }, 'Soul gospel')!.bpm).toBe(91);
+  });
+});
+
+describe('the language the LM chose', () => {
+  it('is carried by the draft when it is a real language', () => {
+    expect(sampleToDraft({ caption: 'x', vocalLanguage: 'fr' })!.language).toBe('fr');
+    expect(sampleToDraft({ caption: 'x', vocalLanguage: 'unknown' })!.language).toBeUndefined();
+    expect(sampleToDraft({ caption: 'x', vocalLanguage: '' })!.language).toBeUndefined();
+  });
+  it('realLanguage ignores empty and unknown', () => {
+    expect(realLanguage('unknown')).toBe('');
+    expect(realLanguage(undefined)).toBe('');
+    expect(realLanguage(' ja ')).toBe('ja');
+  });
+  it('fills in an Auto language, never overrides the user', () => {
+    expect(effectiveLanguage('unknown', 'fr')).toBe('fr');
+    expect(effectiveLanguage('', 'fr')).toBe('fr');
+    expect(effectiveLanguage('en', 'fr')).toBe('en');
+    expect(effectiveLanguage('unknown', undefined)).toBe('unknown');
+    expect(effectiveLanguage('unknown', 'unknown')).toBe('unknown');
   });
 });
