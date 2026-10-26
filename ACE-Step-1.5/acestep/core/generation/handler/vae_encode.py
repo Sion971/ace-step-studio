@@ -8,6 +8,8 @@ from loguru import logger
 
 from acestep.gpu_config import get_gpu_memory_gb
 
+from . import small_gpu_stream
+
 
 class VaeEncodeMixin:
     """High-level VAE encode entrypoints and runtime chunk policy."""
@@ -41,6 +43,10 @@ class VaeEncodeMixin:
                 )
                 if input_was_2d:
                     audio = audio.squeeze(0)
+
+        # ---- Small-GPU stream mode: encode on the card in float32 (the engine's device is the processor here) ----
+        if small_gpu_stream.vae_encode_enabled() and not getattr(self, "_vae_encode_on_card", False):
+            return small_gpu_stream.tiled_encode_on_card(self, audio, chunk_size, overlap, offload_latent_to_cpu)
 
         # ---- PyTorch path (CUDA / MPS / CPU) ----
         if chunk_size is None:

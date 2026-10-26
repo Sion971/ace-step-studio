@@ -1960,5 +1960,120 @@ class LazyStatsTests(unittest.TestCase):
         self.assertIsNone(stats.t0)
 
 
+class VaeEncodeOnCardTests(unittest.TestCase):
+    """The audio-to-latent encoder on the card (cover, repaint, reference audio): the card is mocked, as in the decode tests."""
+
+    GB = 1024**3
+
+    def _handler(self, results):
+        handler = types.SimpleNamespace(vae=mock.Mock(), device="cpu", _vae_encode_on_card=False)
+        handler.vae.to.return_value = handler.vae
+        seen = []
+
+        def encode(audio, chunk_size=None, overlap=None, offload_latent_to_cpu=True):
+            seen.append({"chunk": chunk_size, "device": handler.device, "flag": handler._vae_encode_on_card})
+            outcome = results.pop(0)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+        handler.tiled_encode = encode
+        return handler, seen
+
+    def _run(self, handler, **kwargs):
+        patches = [
+            mock.patch.object(sgs.torch.cuda, "empty_cache"),
+            mock.patch.object(sgs.torch.cuda, "mem_get_info", return_value=(6 * self.GB, 8 * self.GB)),
+            mock.patch.object(sgs.torch.cuda, "get_device_name", return_value="fake"),
+            mock.patch.object(sgs, "release_gpu"),
+            mock.patch.object(sgs, "log_memory"),
+            mock.patch.object(sgs, "stats_enabled", return_value=False),
+        ]
+        for p in patches:
+            p.start()
+        try:
+            return sgs.tiled_encode_on_card(handler, torch.zeros(1, 2, 100), **kwargs)
+        finally:
+            mock.patch.stopall()
+
+    def test_the_encoder_works_on_the_card_and_everything_goes_back_afterwards(self):
+        latents = torch.zeros(1, 64, 10)
+        handler, seen = self._handler([latents])
+        out = self._run(handler)
+        self.assertIs(out, latents)
+        self.assertEqual(seen, [{"chunk": 15 * 48000, "device": "cuda", "flag": True}])
+        self.assertEqual(handler.device, "cpu")
+        self.assertFalse(handler._vae_encode_on_card)
+        self.assertEqual(handler.vae.to.call_args_list[0].kwargs["device"], torch.device("cuda"))
+        self.assertEqual(handler.vae.to.call_args_list[-1].kwargs["device"], "cpu")
+
+    def test_a_lack_of_memory_retries_with_smaller_chunks(self):
+        handler, seen = self._handler([torch.cuda.OutOfMemoryError(), torch.zeros(1, 64, 10)])
+        self._run(handler)
+        self.assertEqual([x["chunk"] for x in seen], [15 * 48000, 10 * 48000])
+        self.assertTrue(all(x["device"] == "cuda" for x in seen))
+
+    def test_when_the_smallest_chunks_fail_the_processor_takes_over(self):
+        handler, seen = self._handler([torch.cuda.OutOfMemoryError(), torch.cuda.OutOfMemoryError(), torch.zeros(1, 64, 10)])
+        out = self._run(handler)
+        self.assertEqual(tuple(out.shape), (1, 64, 10))
+        self.assertEqual([x["device"] for x in seen], ["cuda", "cuda", "cpu"])
+        self.assertTrue(seen[-1]["flag"])  # still flagged: the processor path must not come back to the card
+        self.assertFalse(handler._vae_encode_on_card)
+
+    def test_a_latents_tensor_left_on_the_card_is_brought_back_to_the_processor(self):
+        fake = mock.Mock()
+        fake.device.type = "cuda"
+        fake.to.return_value = "on the processor"
+        handler, _ = self._handler([fake])
+        self.assertEqual(self._run(handler), "on the processor")
+        fake.to.assert_called_once_with("cpu")
+
+    def test_an_error_still_puts_the_device_and_the_weights_back(self):
+        handler, _ = self._handler([RuntimeError("boom")])
+        with self.assertRaises(RuntimeError):
+            self._run(handler)
+        self.assertEqual(handler.device, "cpu")
+        self.assertFalse(handler._vae_encode_on_card)
+        self.assertEqual(handler.vae.to.call_args_list[-1].kwargs["device"], "cpu")
+
+    def test_the_switch_and_the_stream_mode_decide(self):
+        with mock.patch.object(sgs, "enabled", return_value=True), mock.patch.object(sgs, "active", return_value=True):
+            with mock.patch.dict(os.environ, {sgs.ENV_VAE_ENCODE: "0"}):
+                self.assertFalse(sgs.vae_encode_enabled())
+            with mock.patch.dict(os.environ, {}, clear=False):
+                os.environ.pop(sgs.ENV_VAE_ENCODE, None)
+                self.assertTrue(sgs.vae_encode_enabled())
+        with mock.patch.object(sgs, "enabled", return_value=False):
+            self.assertFalse(sgs.vae_encode_enabled())
+
+    def test_tiled_encode_hands_over_to_the_card_unless_it_is_the_card_calling(self):
+        from acestep.core.generation.handler.vae_encode import VaeEncodeMixin
+
+        class Handler(VaeEncodeMixin):
+            use_mlx_vae = False
+            mlx_vae = None
+            device = "cpu"
+            disable_tqdm = True
+
+            def __init__(self):
+                self.vae = mock.Mock()
+                self.vae.dtype = torch.float32
+                self.vae.encode.return_value.latent_dist.sample.return_value = torch.zeros(1, 64, 5)
+
+        audio = torch.zeros(1, 2, 1000)
+        handler = Handler()
+        with mock.patch.object(sgs, "vae_encode_enabled", return_value=True), \
+                mock.patch.object(sgs, "tiled_encode_on_card", return_value="from the card") as card:
+            self.assertEqual(handler.tiled_encode(audio), "from the card")
+            card.assert_called_once()
+            handler._vae_encode_on_card = True
+            self.assertEqual(tuple(handler.tiled_encode(audio).shape), (1, 64, 5))
+            card.assert_called_once()  # not called again: it is the card's own call
+        with mock.patch.object(sgs, "vae_encode_enabled", return_value=False):
+            handler._vae_encode_on_card = False
+            self.assertEqual(tuple(handler.tiled_encode(audio).shape), (1, 64, 5))
+
+
 if __name__ == "__main__":
     unittest.main()

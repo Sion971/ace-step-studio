@@ -1515,6 +1515,18 @@ def vae_decode_enabled() -> bool:
     return enabled() and active()
 
 
+ENV_VAE_ENCODE = "ACESTEP_STREAM_VAE_ENCODE"
+# Audio chunks (seconds) tried by the encoder on the card, biggest first; a lack of memory goes to the next one, then to the processor.
+VAE_ENCODE_SECONDS = (15, 10)
+
+
+def vae_encode_enabled() -> bool:
+    """The audio-to-latent encoder (cover, repaint, reference audio) runs on the card too, unless ``ACESTEP_STREAM_VAE_ENCODE=0``."""
+    if os.environ.get(ENV_VAE_ENCODE, "1").strip().lower() in ("0", "false", "no", "off"):
+        return False
+    return enabled() and active()
+
+
 def vae_chunk_size() -> int:
     try:
         return max(24, int(os.environ.get(ENV_VAE_CHUNK, DEFAULT_VAE_CHUNK)))
@@ -1591,6 +1603,98 @@ def decode_with_ladder(handler: Any, latents: torch.Tensor, ladder: List[int], c
             done = done.to("cpu")
         pieces.append(done)
     return (pieces[0] if len(pieces) == 1 else torch.cat(pieces, dim=0)), used
+
+
+def tiled_encode_on_card(handler: Any, audio: torch.Tensor, chunk_size: Optional[int] = None, overlap: Optional[int] = None,
+                         offload_latent_to_cpu: bool = True) -> torch.Tensor:
+    """Encode ``audio`` ([batch, channels, samples] or [channels, samples]) to latents with the handler's VAE on the card, in float32.
+
+    The engine's device is the processor in this mode, so its encoder ran there: 4 min 12 s for a 246 s song (a cover), 20 s for a
+    reference audio, against 8 s to decode 300 s on the card. The tiling is the engine's own (``tiled_encode``), only the VAE and the
+    ``device`` it reads are on the card while it runs. A lack of memory retries with a smaller chunk (``VAE_ENCODE_SECONDS``), then
+    gives the work back to the processor. The VAE is moved back afterwards, like after a decode. The latents come back on the processor.
+    """
+    clock = PhaseClock()
+    release_gpu()  # the DiT slots are not needed: the VAE needs the room
+    clock.lap("card given back")
+    device = torch.device("cuda")
+    vae = handler.vae
+    saved = snapshot_cpu_weights(vae)
+    old_device = handler.device
+    handler._vae_encode_on_card = True  # tiled_encode must not come back here
+    moved = {"on_card": False}
+
+    def clear(full: bool = True) -> None:
+        if full:
+            gc.collect()
+        torch.cuda.empty_cache()
+
+    def move_back() -> None:
+        if not moved["on_card"]:
+            return
+        moved["on_card"] = False
+        handler.device = old_device
+        try:
+            if saved is not None:
+                restore_cpu_weights(saved)
+            else:
+                handler.vae = handler.vae.to(device="cpu", dtype=torch.float32)
+        except Exception as exc:  # pragma: no cover
+            logger.warning("[small_gpu_stream] could not move the VAE back to the processor: {}", exc)
+            try:
+                handler.vae = handler.vae.to(device="cpu", dtype=torch.float32)
+            except Exception:
+                pass
+        try:
+            left = drop_card_leftovers(handler.vae)
+            if left:
+                logger.debug("[small_gpu_stream] {:.0f} MB of VAE weights left on the card by the encoder moved back to the processor.", left / 1024 ** 2)
+        except Exception as exc:  # pragma: no cover
+            logger.debug("[small_gpu_stream] could not free the VAE leftovers: {}", exc)
+
+    result = None
+    try:
+        moved["on_card"] = True  # set first: a failure half-way through the move must still bring the weights back
+        vae.to(device=device, dtype=torch.float32)
+        handler.device = "cuda"
+        clear(full=False)
+        clock.lap("weights to the card")
+        sizes = [chunk_size] if chunk_size else [seconds * 48000 for seconds in VAE_ENCODE_SECONDS]
+        t0 = time.perf_counter()
+        for size in sizes:
+            failed = False
+            try:
+                logger.info("[small_gpu_stream] VAE encode on {} (float32, chunks of {:.0f} s, {:.2f} GB free)",
+                            torch.cuda.get_device_name(device), size / 48000, torch.cuda.mem_get_info(device)[0] / 1024 ** 3)
+                result = handler.tiled_encode(audio, chunk_size=size, overlap=overlap, offload_latent_to_cpu=offload_latent_to_cpu)
+                if result.device.type != "cpu":
+                    result = result.to("cpu")
+                logger.info("[small_gpu_stream] VAE encode done in {:.1f} s", time.perf_counter() - t0)
+                break
+            except torch.cuda.OutOfMemoryError:
+                logger.warning("[small_gpu_stream] VAE encode: out of memory with chunks of {:.0f} s; trying smaller ones", size / 48000)
+                failed = True
+            if failed:
+                clear()  # outside the except block, so the failed chunk's tensors are no longer referenced
+        clock.lap("encode")
+        if result is None:
+            logger.warning("[small_gpu_stream] VAE encode: the smallest chunks failed too; handing the work to the processor")
+            move_back()
+            result = handler.tiled_encode(audio, chunk_size=chunk_size, overlap=overlap, offload_latent_to_cpu=offload_latent_to_cpu)
+        return result
+    finally:
+        failed_run = sys.exc_info()[0] is not None
+        move_back()
+        handler._vae_encode_on_card = False
+        clock.lap("weights back")
+        clear(full=failed_run)
+        clock.lap("cleanup")
+        try:
+            if stats_enabled():
+                logger.info("[small_gpu_stream] audio encoding steps: {}", clock.text())
+        except Exception as exc:  # pragma: no cover - a measurement must never break a generation
+            logger.debug("[small_gpu_stream] could not report the encoding steps: {}", exc)
+        log_memory("after the audio encoding")
 
 
 def snapshot_cpu_weights(module: nn.Module) -> Optional[list]:
