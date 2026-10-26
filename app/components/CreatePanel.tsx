@@ -1,3 +1,4 @@
+import { lmLanguage, sampleToDraft } from '../services/localDraft';
 import { CreateModeSwitch, hasNothingToSend, readCreateView, saveCreateView, type CreateView } from './CreateModeSwitch';
 import { LoraPanel } from './LoraPanel';
 import { VocalSettings, type VocalGender } from './VocalSettings';
@@ -635,6 +636,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // paroles manqueront. Sans ce signal, l'echec n'apparaissait que dans la
   // console du navigateur.
   const [preflightFailed, setPreflightFailed] = useState(false);
+  const [localPreflightFailed, setLocalPreflightFailed] = useState(false);
   const [isFormattingStyle, setIsFormattingStyle] = useState(false);
   const [isFormattingLyrics, setIsFormattingLyrics] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -1687,9 +1689,15 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // cas « style ecrit + paroles vides » sans aucun redacteur.
   const preflightWillRun =
     useOpenRouter && Boolean(songDescription.trim()) && !lyrics.trim();
+  // Sans OpenRouter, le LM local du moteur (create_sample) developpe la
+  // description a la place, a condition qu'il soit charge.
+  const localLmReady = Boolean(activeLmModel);
+  const localPreflightWillRun =
+    !useOpenRouter && localLmReady && Boolean(songDescription.trim()) && !lyrics.trim();
+  const anyPreflightWillRun = preflightWillRun || localPreflightWillRun;
   // Ce que le pre-vol comblera reellement : un champ deja rempli par
   // l'utilisateur n'est jamais ecrase (voir la resolution des eff* plus bas).
-  const preflightWillFillStyle = preflightWillRun && !style.trim();
+  const preflightWillFillStyle = anyPreflightWillRun && !style.trim();
   // Le serveur (generate.ts l.423) exige style OU paroles OU audio de
   // reference. Quand l'un des trois est deja la, un echec du pre-vol ne doit
   // pas faire tomber la generation : on part sans le brouillon.
@@ -1699,7 +1707,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // la requete partirait en 400 « Style, lyrics, or reference audio required ».
   const descriptionCannotBeUsed =
     Boolean(songDescription.trim()) && !lyrics.trim() && !style.trim()
-    && !useOpenRouter && !referenceAudioUrl.trim() && !sourceAudioUrl.trim();
+    && !useOpenRouter && !localLmReady && !referenceAudioUrl.trim() && !sourceAudioUrl.trim();
 
   // Cover sans fichier source charge : AUDIO_MODE_MAP['cover'].field ===
   // 'source', donc sans sourceAudioUrl le taskType retombe silencieusement
@@ -1786,6 +1794,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     if (trackModeBlock) return;
 
     setPreflightFailed(false);
+    setLocalPreflightFailed(false);
     const slotsClaimed = bulkCount;
     incrementPendingClicks?.(slotsClaimed);
     // Create a visible placeholder card per bulk variant — instant feedback.
@@ -1918,6 +1927,59 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         if (!payloadValidWithoutDraft) { releaseClaimedSlots(); return; }
         setPreflightFailed(true);
         perClickDraft = null;
+      }
+    }
+
+    // Pre-vol LOCAL : pas d'OpenRouter, mais le LM du moteur est charge. Meme
+    // chaine FIFO que le pre-vol OpenRouter (un brouillon a la fois, apres la
+    // fin des jobs en cours : le LM et la generation se partagent le GPU).
+    else if (localPreflightWillRun && token) {
+      llmPreflightQueueRef.current = llmPreflightQueueRef.current.catch(() => null).then(async () => {
+        if (waitForJobsToDrain) {
+          try { await waitForJobsToDrain(); } catch { /* drain failures don't block our turn */ }
+        }
+        if (updateTempSongForClick) {
+          tempIds.forEach(id => updateTempSongForClick(id, { stage: 'stageLocalLm' }));
+        }
+        const ac = new AbortController();
+        if (tempIds[0] && registerPreflightAbort) registerPreflightAbort(tempIds[0], ac);
+        // L'appel au moteur ne sait pas s'interrompre : on arrete d'ATTENDRE
+        // (annulation de l'utilisateur ou delai de 3 min) ; le LM finit seul.
+        const giveUp = new Promise<never>((_, reject) => {
+          const timer = setTimeout(() => ac.abort(), 180_000);
+          ac.signal.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('aborted', 'AbortError')); });
+        });
+        giveUp.catch(() => undefined);
+        try {
+          const sample = await Promise.race([
+            generateApi.createSample({
+              query: songDescription,
+              instrumental,
+              vocalLanguage: lmLanguage(vocalLanguage),
+              lmTemperature,
+              lmTopK: lmTopK > 0 ? lmTopK : undefined,
+              lmTopP,
+            }, token),
+            giveUp,
+          ]);
+          return sampleToDraft(sample);
+        } catch (e: any) {
+          if (e?.name === 'AbortError' || ac.signal.aborted) console.warn('[Pré-vol LM] aborted (cancel or timeout)');
+          else console.error('[Pré-vol LM] failed:', e);
+          return null;
+        } finally {
+          if (tempIds[0] && unregisterPreflightAbort) unregisterPreflightAbort(tempIds[0]);
+        }
+      });
+      try {
+        perClickDraft = await llmPreflightQueueRef.current;
+      } catch (e) {
+        console.error('[Pré-vol LM] queued pre-flight failed:', e);
+        perClickDraft = null;
+      }
+      if (!perClickDraft) {
+        setLocalPreflightFailed(true);
+        if (!payloadValidWithoutDraft) { releaseClaimedSlots(); return; }
       }
     }
 
@@ -2305,11 +2367,15 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               />
               {/* Le pre-vol n'est plus declenche par un mode mais par l'etat des
                   champs : on l'annonce, sinon le comportement est invisible. */}
-              {preflightWillRun && (
+              {anyPreflightWillRun && (
                 <p className="px-3 pb-2.5 text-[10px] text-pink-500">
-                  {preflightWillFillStyle
-                    ? tf('hintPreflightActive', 'OpenRouter développera cette description en style et paroles à la génération.')
-                    : tf('hintPreflightLyricsOnly', 'OpenRouter écrira les paroles à partir de cette description. Le style saisi est conservé.')}
+                  {preflightWillRun
+                    ? (preflightWillFillStyle
+                      ? tf('hintPreflightActive', 'OpenRouter développera cette description en style et paroles à la génération.')
+                      : tf('hintPreflightLyricsOnly', 'OpenRouter écrira les paroles à partir de cette description. Le style saisi est conservé.'))
+                    : (preflightWillFillStyle
+                      ? tf('hintPreflightLocalActive', 'Le modèle local (LM) développera cette description en style et paroles à la génération.')
+                      : tf('hintPreflightLocalLyricsOnly', 'Le modèle local (LM) écrira les paroles à partir de cette description. Le style saisi est conservé.'))}
                 </p>
               )}
               {descriptionCannotBeUsed && (
@@ -2317,7 +2383,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                   {tf('hintPreflightImpossible', 'Rien ne peut développer cette description : active OpenRouter, ou remplis Style ou Paroles.')}
                 </p>
               )}
-              {Boolean(songDescription.trim()) && !preflightWillRun && !descriptionCannotBeUsed && (
+              {Boolean(songDescription.trim()) && !anyPreflightWillRun && !descriptionCannotBeUsed && (
                 <p className="px-3 pb-2.5 text-[10px] text-zinc-400 dark:text-zinc-500">
                   {lyrics.trim()
                     ? tf('hintPreflightSkipped', 'Des paroles sont déjà écrites : la description ne sera pas développée.')
@@ -3333,6 +3399,13 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         )}
         {nothingToSend && (
           <p data-testid="create-nothing-to-send" className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">{nothingToSendReason}</p>
+        )}
+        {localPreflightFailed && (
+          <p data-testid="local-preflight-failed" className="text-[11px] text-amber-500 leading-snug">
+            {payloadValidWithoutDraft
+              ? tf('warnLocalPreflightFailed', 'Le modèle local n’a pas pu écrire le style et les paroles : le morceau a été généré sans.')
+              : tf('errLocalPreflightFailed', 'Le modèle local n’a pas pu développer la description : rien n’a été lancé. Réessaie, ou remplis Style ou Paroles.')}
+          </p>
         )}
         {descriptionCannotBeUsed && (
           <p className="text-[11px] text-red-500 leading-snug">
