@@ -143,6 +143,9 @@ interface CreatePanelProps {
    *  directement (voir VoiceRecorder — enregistrement au micro, hors
    *  generation IA), pour qu'il puisse rafraichir sa propre liste. */
   onSongCreated?: (song: Song) => void;
+  /** Told whenever the list of uploaded audio changes here (upload, delete, length filled in), so that the parent's own copy of the list
+   *  (the workspace list, the library) follows at once instead of at the next visit. */
+  onReferenceTracksChanged?: () => void;
   /** Returns a promise that resolves when all currently-running generation
    *  jobs have completed. Used to serialize bulk clicks: the next click's
    *  LLM pre-flight + POST happen only after the previous track is fully
@@ -199,6 +202,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   pendingAudioSelection,
   onAudioSelectionApplied,
   onSongCreated,
+  onReferenceTracksChanged,
   waitForJobsToDrain,
   incrementPendingClicks,
   decrementPendingClicks,
@@ -1329,6 +1333,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
 
       const data = await response.json();
       setReferenceTracks(prev => [data.track, ...prev]);
+      onReferenceTracksChanged?.();
 
       // Also set as current reference/source
       applyAudioTargetUrl(selectedTarget, data.track.audio_url, data.track.filename);
@@ -1391,6 +1396,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       });
       if (response.ok) {
         setReferenceTracks(prev => prev.filter(t => t.id !== trackId));
+        onReferenceTracksChanged?.();
         if (playingTrackId === trackId && playingTrackSource === 'uploads') {
           setPlayingTrackId(null);
           setPlayingTrackSource(null);
@@ -3228,6 +3234,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                       setReferenceTracks(prev => prev.map(t =>
                         t.id === track.id ? { ...t, duration: Math.round(modalAudioRef.current?.duration || 0) } : t
                       ));
+                      onReferenceTracksChanged?.();
                     }).catch(() => undefined);
                   }
                 }

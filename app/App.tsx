@@ -2249,6 +2249,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
               style={{ width: window.innerWidth >= 768 ? leftPanel.width : undefined }}
             >
               <CreatePanel
+                onReferenceTracksChanged={loadReferenceTracks}
                 onGenerate={handleGenerate}
                 isGenerating={isGenerating}
                 activeJobCount={activeJobCount + pendingClickCount}
