@@ -1352,7 +1352,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       // Also set as current reference/source
       applyAudioTargetUrl(selectedTarget, data.track.audio_url, data.track.filename);
       offerAnalysis(data.track.audio_url, data.track.filename);
-      if (data.whisper_available && data.track?.id) {
+      // The analysis window transcribes the lyrics itself: doing it here too ran Whisper twice at once.
+      if (data.whisper_available && data.track?.id && !(analysisAuto && token)) {
         void transcribeReferenceTrack(data.track.id).then(() => undefined);
       } else {
         setShowAudioModal(false);

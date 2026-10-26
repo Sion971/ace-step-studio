@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { isNoise, similarity, structureLyrics, type TimedLine } from './lyrics-structure.js';
+import { isNoise, similarity, structureLyrics, wordsToLines, type TimedLine } from './lyrics-structure.js';
 
 let t = 0;
 /** Lines of 3 s, 0.5 s apart; `gap` seconds of silence before the first one. */
@@ -79,5 +79,32 @@ describe('helpers', () => {
   it('measures how much two stanzas share', () => {
     expect(similarity(['la la la'], ['la la la'])).toBe(1);
     expect(similarity(['abc def'], ['xyz uvw'])).toBe(0);
+  });
+});
+
+describe('wordsToLines', () => {
+  const w = (word: string, start: number, end: number) => ({ word: ` ${word}`, start, end });
+  it('cuts at a pause between words', () => {
+    const lines = wordsToLines([w('Dieu', 0, 0.4), w('est', 0.5, 0.7), w('esprit', 0.8, 1.4), w('il', 3.0, 3.2), w('faut', 3.3, 3.6)]);
+    expect(lines.map((l) => l.text)).toEqual(['Dieu est esprit', 'il faut']);
+    expect(lines[1].start).toBe(3.0);
+  });
+  it('cuts after a comma or a full stop even without a pause', () => {
+    expect(wordsToLines([w('Dieu', 0, 0.4), w('esprit,', 0.45, 0.9), w('il', 0.95, 1.1), w('faut', 1.15, 1.4)]).map((l) => l.text)).toEqual(['Dieu esprit,', 'il faut']);
+  });
+  it('does not let a very long run of words become one phrase', () => {
+    const many = Array.from({ length: 30 }, (_, i) => w(`m${i}`, i * 0.3, i * 0.3 + 0.25));
+    expect(wordsToLines(many).length).toBeGreaterThanOrEqual(3);
+  });
+  it('lets the pauses between the rebuilt phrases make the stanzas, although the segments touch', () => {
+    // two stanzas of two phrases, a 4 s pause between them, the second one repeating the first
+    const words = [
+      w('Gloire', 0, 0.5), w('a', 0.6, 0.7), w('Dieu', 0.8, 1.2), w('toujours', 2.0, 2.6), w('encore', 2.7, 3.2),
+      w('Christ', 8.0, 8.4), w('est', 8.5, 8.7), w('venu', 8.8, 9.2), w('pour', 10.0, 10.3), w('tous', 10.4, 10.8),
+      w('Gloire', 16.0, 16.5), w('a', 16.6, 16.7), w('Dieu', 16.8, 17.2), w('toujours', 18.0, 18.6), w('encore', 18.7, 19.2),
+    ];
+    const out = structureLyrics(wordsToLines(words));
+    expect(out).toContain('[Chorus]');
+    expect(out).toContain('[Verse 1]');
   });
 });

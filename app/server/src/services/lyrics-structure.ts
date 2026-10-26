@@ -16,6 +16,36 @@ export const INTRO_S = 10;
 export const MAX_STANZA_LINES = 6;
 export const MIN_SPLIT_GAP_S = 0.5;
 
+export interface TimedWord { start: number; end: number; word: string }
+
+/** A pause this long between two words ends the phrase; so does a comma, a full stop... after a word. */
+export const PHRASE_GAP_S = 0.6;
+export const MAX_PHRASE_WORDS = 12;
+
+/**
+ * Whisper's own segments follow each other without a gap (one starts where the previous ends), so the pauses of the song are
+ * lost. The times of the WORDS keep them: the phrases are rebuilt from the words, cut at a pause or at the punctuation.
+ */
+export function wordsToLines(words: TimedWord[]): TimedLine[] {
+  const lines: TimedLine[] = [];
+  let cur: { start: number; end: number; words: string[] } | null = null;
+  for (const w of words) {
+    const text = w.word.trim();
+    if (!text) continue;
+    const prev: string | undefined = cur?.words[cur.words.length - 1];
+    const breaks = !cur || !(w.start - cur.end < PHRASE_GAP_S) || /[,.;:!?…]$/.test(prev || '') || cur.words.length >= MAX_PHRASE_WORDS;
+    if (breaks) {
+      if (cur) lines.push({ start: cur.start, end: cur.end, text: cur.words.join(' ') });
+      cur = { start: w.start, end: w.end, words: [text] };
+    } else if (cur) {
+      cur.words.push(text);
+      cur.end = Math.max(cur.end, w.end);
+    }
+  }
+  if (cur) lines.push({ start: cur.start, end: cur.end, text: cur.words.join(' ') });
+  return lines;
+}
+
 /** Whisper writes "...", "♪" or nothing for music: not lyrics. */
 export const isNoise = (text: string): boolean => /^[\s.…♪♫\-–—_*]*$/.test(text);
 

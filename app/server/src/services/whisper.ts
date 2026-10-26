@@ -6,7 +6,7 @@ import os from 'os';
 import { promises as fs } from 'fs';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
-import { structureLyrics, type TimedLine } from './lyrics-structure.js';
+import { structureLyrics, wordsToLines, type TimedLine, type TimedWord } from './lyrics-structure.js';
 
 const EXE = process.platform === 'win32' ? '.exe' : '';
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -60,12 +60,16 @@ export interface WhisperResult {
 /** What Whisper's JSON file says: the lyrics (phrases, grouped into sections) and the language. */
 export function parseWhisperJson(raw: string): WhisperResult | null {
   try {
-    const data = JSON.parse(raw) as { text?: unknown; language?: unknown; segments?: Array<{ text?: unknown; start?: unknown; end?: unknown }> };
-    const timed: TimedLine[] = Array.isArray(data.segments)
-      ? data.segments.map((s) => ({ start: Number(s?.start), end: Number(s?.end), text: typeof s?.text === 'string' ? s.text : '' }))
-      : [];
+    const data = JSON.parse(raw) as { text?: unknown; language?: unknown; segments?: Array<{ text?: unknown; start?: unknown; end?: unknown; words?: Array<{ word?: unknown; start?: unknown; end?: unknown }> }> };
+    const segments = Array.isArray(data.segments) ? data.segments : [];
+    const segmentLines: TimedLine[] = segments.map((s) => ({ start: Number(s?.start), end: Number(s?.end), text: typeof s?.text === 'string' ? s.text : '' }));
+    // The words carry the real pauses (the segments follow each other without a gap).
+    const words: TimedWord[] = segments.flatMap((s) => (Array.isArray(s?.words) ? s.words : []))
+      .map((w) => ({ start: Number(w?.start), end: Number(w?.end), word: typeof w?.word === 'string' ? w.word : '' }))
+      .filter((w) => w.word.trim() && Number.isFinite(w.start) && Number.isFinite(w.end));
+    const timed: TimedLine[] = words.length >= 2 ? wordsToLines(words) : segmentLines;
     if (process.env.WHISPER_DEBUG === '1') {
-      console.log('[Whisper] segments:\n' + timed.map((s) => `  ${Number(s.start).toFixed(1)}-${Number(s.end).toFixed(1)}  ${s.text.trim()}`).join('\n'));
+      console.log(`[Whisper] ${words.length ? 'phrases from the words' : 'segments (no word times)'}:\n` + timed.map((s) => `  ${Number(s.start).toFixed(1)}-${Number(s.end).toFixed(1)}  ${s.text.trim()}`).join('\n'));
     }
     const structured = structureLyrics(timed);
     const text = structured || (timed.length ? '' : typeof data.text === 'string' ? data.text.trim() : '');
@@ -75,8 +79,17 @@ export function parseWhisperJson(raw: string): WhisperResult | null {
   }
 }
 
+/** One transcription at a time: two at once fight over the card and over the first download of the model (that made the first run fail). */
+let queue: Promise<unknown> = Promise.resolve();
+
 /** null: Whisper is missing or failed. A result with an empty text: it ran and heard no words. */
-export const transcribeWithWhisperDetailed = async (buffer: Buffer, originalFilename: string, signal?: AbortSignal): Promise<WhisperResult | null> => {
+export const transcribeWithWhisperDetailed = (buffer: Buffer, originalFilename: string, signal?: AbortSignal): Promise<WhisperResult | null> => {
+  const run = queue.then(() => runWhisper(buffer, originalFilename, signal));
+  queue = run.catch(() => undefined);
+  return run;
+};
+
+const runWhisper = async (buffer: Buffer, originalFilename: string, signal?: AbortSignal): Promise<WhisperResult | null> => {
   const whisperCmd = await findWhisperExecutable();
   if (!whisperCmd) return null;
 
@@ -93,6 +106,7 @@ export const transcribeWithWhisperDetailed = async (buffer: Buffer, originalFile
       inputPath,
       '--model', whisperModel(),
       '--condition_on_previous_text', 'False',
+      '--word_timestamps', 'True',
       '--output_format', 'json',
       '--output_dir', outputDir,
       '--fp16', 'False'

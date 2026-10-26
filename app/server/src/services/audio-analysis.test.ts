@@ -49,6 +49,12 @@ describe('parseWhisperJson', () => {
     const raw = JSON.stringify({ language: 'fr', segments: [seg(0, ' Dieu est esprit'), seg(3, ' il faut'), seg(9, ' Gloire a Dieu'), seg(12, ' toujours'), seg(18, ' Christ est venu'), seg(21, ' pour tous'), seg(27, ' Gloire a Dieu'), seg(30, ' toujours')] });
     expect(parseWhisperJson(raw)?.text).toBe('[Verse 1]\nDieu est esprit\nil faut\n\n[Chorus]\nGloire a Dieu\ntoujours\n\n[Verse 2]\nChrist est venu\npour tous\n\n[Chorus]\nGloire a Dieu\ntoujours');
   });
+  it('uses the times of the words when there are some (the segments touch each other and hide the pauses)', () => {
+    const raw = JSON.stringify({ language: 'fr', segments: [
+      { start: 0, end: 20, text: ' Dieu est esprit il faut', words: [{ word: ' Dieu', start: 0, end: 0.4 }, { word: ' est', start: 0.5, end: 0.7 }, { word: ' esprit', start: 0.8, end: 1.2 }, { word: ' il', start: 6, end: 6.2 }, { word: ' faut', start: 6.3, end: 6.6 }] },
+    ] });
+    expect(parseWhisperJson(raw)?.text).toBe('[Verse 1]\nDieu est esprit\n\n[Verse 2]\nil faut');
+  });
   it('falls back on the whole text, and gives up on garbage', () => {
     expect(parseWhisperJson('{"text":" salut ","language":"fr"}')).toEqual({ text: 'salut', language: 'fr' });
     expect(parseWhisperJson('not json')).toBeNull();
