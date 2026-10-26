@@ -1,3 +1,4 @@
+import { createHandoffBarrier } from '../services/handoffBarrier';
 import { effectiveLanguage, lmLanguage, sampleToDraft } from '../services/localDraft';
 import { CreateModeSwitch, hasNothingToSend, readCreateView, saveCreateView, type CreateView } from './CreateModeSwitch';
 import { LoraPanel } from './LoraPanel';
@@ -1769,6 +1770,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     fetch('/api/generate/models').then(r => r.json()).then(d => { const lm = lmOnDiskFrom(d.lm_models); if (lm) setLmOnDisk(lm); }).catch(() => {});
   };
 
+  const handoffBarrierRef = useRef(createHandoffBarrier());
   const handleGenerate = async () => {
     // Per-click LLM draft from pre-flight (used to populate effStyle/effLyrics/etc
     // and the AI cover prompt). null = pre-flight either didn't run
@@ -1795,6 +1797,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
 
     setPreflightFailed(false);
     setLocalPreflightFailed(false);
+    // Ordre des remises au serveur : le brouillon du clic suivant attend que celui-ci ait lance sa generation (voir handoffBarrier.ts).
+    const handoff = handoffBarrierRef.current.enter();
     const slotsClaimed = bulkCount;
     incrementPendingClicks?.(slotsClaimed);
     // Create a visible placeholder card per bulk variant — instant feedback.
@@ -1941,6 +1945,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       // ne pouvait rien pour un clic encore en file, qui se lancait quand meme apres.
       if (tempIds[0] && registerPreflightAbort) registerPreflightAbort(tempIds[0], ac);
       llmPreflightQueueRef.current = llmPreflightQueueRef.current.catch(() => null).then(async () => {
+        await handoff.previous; // le clic precedent a remis sa generation au serveur
         if (waitForJobsToDrain) {
           try { await waitForJobsToDrain(); } catch { /* drain failures don't block our turn */ }
         }
@@ -2219,6 +2224,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       // own catch). Release every slot we claimed so the badge doesn't stick.
       console.error('handleGenerate crashed:', e);
       releaseClaimedSlots();
+    } finally {
+      handoff.done(); // quelle que soit la sortie : succes, annulation, echec
     }
     // NOTE: success path does NOT release here. Each onGenerate call hands
     // off a slot to the active counter inside App.tsx (decrementPendingClicks

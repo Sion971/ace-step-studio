@@ -18,6 +18,7 @@ import {
   cleanupJob,
   cancelJob,
   cancelAllJobs,
+  hasUnfinishedGeneration,
   getJobRawResponse,
   downloadAudioToBuffer,
   resolvePythonPath,
@@ -932,7 +933,10 @@ router.post('/cancel-all', authMiddleware, async (req: AuthenticatedRequest, res
 // POST /api/generate/reset — Hard reset: cancel + interrupt Gradio DiT diffusion
 router.post('/reset', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    // 1. Cancel all queued jobs
+    // 1. Cancel all queued jobs. Asked BEFORE they are marked failed: the engine's cancel flag must only be armed when a
+    // generation is really there to stop. Armed with none running (a cancel during the LM draft), it stayed set and killed
+    // the NEXT generation at its first step.
+    const somethingToInterrupt = hasUnfinishedGeneration();
     cancelAllJobs();
 
     // Drop in-flight cover-gen entries (same reason as /cancel-all)
@@ -952,14 +956,16 @@ router.post('/reset', authMiddleware, async (req: AuthenticatedRequest, res: Res
 
     // 3. Send cancel to Gradio to interrupt DiT diffusion loop
     let gradioCancel = false;
-    try {
-      const r = await fetch(`${config.acestep.apiUrl}/v1/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(3000),
-      });
-      if (r.ok) gradioCancel = true;
-    } catch {}
+    if (somethingToInterrupt) {
+      try {
+        const r = await fetch(`${config.acestep.apiUrl}/v1/cancel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(3000),
+        });
+        if (r.ok) gradioCancel = true;
+      } catch {}
+    }
 
     res.json({ reset: true, gradioCancel });
   } catch (error) {

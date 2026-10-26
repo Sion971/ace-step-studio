@@ -98,6 +98,8 @@
 - Song list: "Cancel all (n)" now counts the generations still waiting for their turn (clicks whose style/lyrics draft is not written yet), like the Create button's n/10 does. After 9 clicks it said 2 (the jobs the server knew) while 9 cards were waiting; it also now shows up while only drafts are waiting.
 - Cancel all: "Cancel all" now also interrupts the generation running on the GPU (it used to only mark it cancelled: the engine finished it, about 30 s of GPU for nothing). The two-step cancel/reset button could never reach its second step, since the button hid itself as soon as the counter fell to 0.
 - Local LM draft: a click still waiting in the queue can now be cancelled (card or Cancel all): its abort was only registered once it reached its turn, so a waiting click still started its draft and its song after the cancel. A cancelled click never generates, even when a style or lyrics were typed.
+- Create queue: the local-LM draft of a click now waits until the previous click has handed its generation to the server. Before, the next draft started in the gap before the job was registered, so two drafts ran back to back and the first generation sat behind the second one in the engine (the LM blocks it), out of reach of a cancel.
+- Reset / Cancel all: the engine's cancel flag is only armed when a generation is queued or running. Armed with none (a cancel during an LM draft), it stayed set and stopped the next generation at its first step.
 
 ## 2026-10-21
 
