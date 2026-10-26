@@ -64,7 +64,11 @@ export function similarity(a: string[], b: string[]): number {
   return common / Math.min(x.size, y.size) * 0.5 + common / new Set([...x, ...y]).size * 0.5;
 }
 
-export function structureLyrics(input: TimedLine[]): string {
+/**
+ * `labels`: write the [Verse] / [Chorus]... tags. Off by default: they are a guess from pauses and repetitions that is often wrong on
+ * real songs, and a wrong tag is worse than none. Without them the stanzas are only separated by a blank line.
+ */
+export function structureLyrics(input: TimedLine[], labels = false): string {
   const lines = input.map((l) => ({ ...l, text: l.text.trim() })).filter((l) => l.text && !isNoise(l.text));
   if (!lines.length) return '';
 
@@ -110,15 +114,15 @@ export function structureLyrics(input: TimedLine[]): string {
   let verse = 0;
   const out: string[] = [];
   const first = stanzas[0];
-  if (first.start >= INTRO_S) out.push('[Intro]', '');
+  if (labels && first.start >= INTRO_S) out.push('[Intro]', '');
   stanzas.forEach((s, i) => {
-    if (i > 0 && s.start - stanzas[i - 1].end >= INSTRUMENTAL_GAP_S) out.push('[Instrumental]', '');
+    if (i > 0 && s.start - stanzas[i - 1].end >= INSTRUMENTAL_GAP_S) { if (labels) out.push('[Instrumental]', ''); }
     let tag: string;
     if (group[i] === chorusGroup) { tag = 'Chorus'; choruses++; }
     else if (size.get(group[i])! < 2 && choruses >= 2 && i < lastChorus) tag = 'Bridge';
     else if (size.get(group[i])! < 2 && lastChorus >= 0 && i > lastChorus) tag = 'Outro';
     else { verse++; tag = `Verse ${verse}`; }
-    out.push(`[${tag}]`, ...s.lines, '');
+    out.push(...(labels ? [`[${tag}]`] : []), ...s.lines, '');
   });
   return out.join('\n').trim();
 }

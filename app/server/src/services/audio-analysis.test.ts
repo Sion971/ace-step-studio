@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { analyzeAudio, parseAnalysis, withWhisperLyrics } from './audio-analysis.js';
 import { parseWhisperJson } from './whisper.js';
 
@@ -40,6 +40,8 @@ describe('analyzeAudio', () => {
 });
 
 describe('parseWhisperJson', () => {
+  beforeEach(() => { vi.stubEnv('WHISPER_SECTIONS', '1'); });
+  afterEach(() => { vi.unstubAllEnvs(); });
   it('makes one line per phrase and keeps the language', () => {
     expect(parseWhisperJson(JSON.stringify({ text: ' a b', language: 'fr', segments: [{ text: ' Dieu est Esprit ' }, { text: '' }, { text: 'Gloire' }] })))
       .toEqual({ text: 'Dieu est Esprit\nGloire', language: 'fr' });
@@ -58,6 +60,14 @@ describe('parseWhisperJson', () => {
   it('falls back on the whole text, and gives up on garbage', () => {
     expect(parseWhisperJson('{"text":" salut ","language":"fr"}')).toEqual({ text: 'salut', language: 'fr' });
     expect(parseWhisperJson('not json')).toBeNull();
+  });
+});
+
+describe('parseWhisperJson without the section tags (default)', () => {
+  it('leaves the words and the blank lines between stanzas, no tags', () => {
+    const w = (word: string, start: number, end: number) => ({ word: ` ${word}`, start, end });
+    const raw = JSON.stringify({ language: 'fr', segments: [{ start: 0, end: 20, text: 'x', words: [w('Dieu', 0, 0.4), w('est', 0.5, 0.7), w('esprit', 0.8, 1.2), w('il', 6, 6.2), w('faut', 6.3, 6.6)] }] });
+    expect(parseWhisperJson(raw)?.text).toBe('Dieu est esprit\n\nil faut');
   });
 });
 

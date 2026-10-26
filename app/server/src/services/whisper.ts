@@ -71,7 +71,8 @@ export function parseWhisperJson(raw: string): WhisperResult | null {
     if (process.env.WHISPER_DEBUG === '1') {
       console.log(`[Whisper] ${words.length ? 'phrases from the words' : 'segments (no word times)'}:\n` + timed.map((s) => `  ${Number(s.start).toFixed(1)}-${Number(s.end).toFixed(1)}  ${s.text.trim()}`).join('\n'));
     }
-    const structured = structureLyrics(timed);
+    // The [Verse] / [Chorus] tags are only a guess: WHISPER_SECTIONS=1 turns them on, otherwise the stanzas are just separated by a blank line.
+    const structured = structureLyrics(timed, process.env.WHISPER_SECTIONS === '1');
     const text = structured || (timed.length ? '' : typeof data.text === 'string' ? data.text.trim() : '');
     return { text, language: typeof data.language === 'string' ? data.language : '' };
   } catch {
