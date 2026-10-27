@@ -87,6 +87,28 @@ export interface LoraExportResult {
   listed: boolean;
 }
 
+const PEFT_FILE = 'adapter_model.safetensors';
+const LOKR_FILE = 'lokr_weights.safetensors';
+
+/**
+ * The trainer writes into one shared `final` folder, so a LoRA run leaves a LoKr's weights behind (and the other way round). Copied as they are,
+ * they end up in the wrong export - and since the engine prefers lokr_weights.safetensors, a "LoRA" folder would silently load an old LoKr.
+ * The adapter type comes from what the Studio recorded; without a record, from whichever weights file is newer. Unknown: nothing is left out.
+ */
+export function staleFilesFor(sourceDir: string, recordedType: 'lora' | 'lokr' | null): Set<string> {
+  let type = recordedType;
+  if (!type) {
+    try {
+      const peft = statSync(path.join(sourceDir, PEFT_FILE)).mtimeMs;
+      const lokr = statSync(path.join(sourceDir, LOKR_FILE)).mtimeMs;
+      type = lokr > peft ? 'lokr' : 'lora';
+    } catch {
+      return new Set();
+    }
+  }
+  return new Set(type === 'lokr' ? [PEFT_FILE, 'adapter_config.json'] : [LOKR_FILE]);
+}
+
 export async function exportLora(opts: LoraExportOptions): Promise<LoraExportResult> {
   const baseDir = path.resolve(opts.baseDir);
   const loraDir = resolveInside(baseDir, (opts.loraOutputDir ?? '').trim() || './lora_output', 'LoRA output folder');
@@ -106,7 +128,11 @@ export async function exportLora(opts: LoraExportOptions): Promise<LoraExportRes
 
   await mkdir(path.dirname(destination), { recursive: true });
   await rm(destination, { recursive: true, force: true });
-  await cp(source, destination, { recursive: true });
+  const stale = staleFilesFor(source, info?.adapterType ?? null);
+  await cp(source, destination, {
+    recursive: true,
+    filter: (file) => path.dirname(file) !== source || !stale.has(path.basename(file)),
+  });
   if (info) writeTrainedLoraRecord(destination, info);
   return { source, destination, listed: info !== null };
 }

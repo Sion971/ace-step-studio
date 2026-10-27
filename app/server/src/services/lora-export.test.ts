@@ -52,6 +52,33 @@ describe('LoRA export by file copy', () => {
     expect(existsSync(path.join(base, 'out/lora/new.safetensors'))).toBe(true);
   });
 
+  it('leaves the other adapter type\'s leftovers out of the export', async () => {
+    record({ adapterType: 'lora' });
+    put('lora_output/final/adapter_model.safetensors', 'lora');
+    put('lora_output/final/adapter_config.json', '{}');
+    put('lora_output/final/lokr_weights.safetensors', 'old lokr');
+    const lora = await exportLora({ baseDir: base, exportPath: 'out/a' });
+    expect(existsSync(path.join(lora.destination, 'lokr_weights.safetensors'))).toBe(false);
+    expect(readFileSync(path.join(lora.destination, 'adapter_model.safetensors'), 'utf8')).toBe('lora');
+
+    record({ adapterType: 'lokr' });
+    const lokr = await exportLora({ baseDir: base, exportPath: 'out/b' });
+    expect(existsSync(path.join(lokr.destination, 'adapter_model.safetensors'))).toBe(false);
+    expect(existsSync(path.join(lokr.destination, 'adapter_config.json'))).toBe(false);
+    expect(readFileSync(path.join(lokr.destination, 'lokr_weights.safetensors'), 'utf8')).toBe('old lokr');
+  });
+
+  it('without a record, keeps the newer of the two weights files', async () => {
+    put('lora_output/final/adapter_model.safetensors', 'old lora');
+    put('lora_output/final/adapter_config.json', '{}');
+    put('lora_output/final/lokr_weights.safetensors', 'new lokr');
+    const past = new Date(Date.now() - 3600_000);
+    utimesSync(path.join(base, 'lora_output/final/adapter_model.safetensors'), past, past);
+    const out = await exportLora({ baseDir: base, exportPath: 'out/c' });
+    expect(existsSync(path.join(out.destination, 'adapter_model.safetensors'))).toBe(false);
+    expect(existsSync(path.join(out.destination, 'lokr_weights.safetensors'))).toBe(true);
+  });
+
   it('says so when nothing is trained yet', async () => {
     mkdirSync(path.join(base, 'lora_output'), { recursive: true });
     await expect(exportLora({ baseDir: base, exportPath: 'out/lora' })).rejects.toThrow(/No trained LoRA found/);

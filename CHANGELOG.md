@@ -103,6 +103,7 @@
 - Startup LM: the launcher now also reads `ACESTEP_LM_MODEL_PATH` (the variable `ACE-Step-1.5/.env.example` documents) to choose the language model the engine starts with; only `LM_MODEL` was read, so a `.env` written as documented always started the 0.6B. `LM_MODEL` still wins when both are set.
 - Status panel: the LM name shown (and stored with the songs) was a hard-coded 0.6B until a model switch, since the engine's /health never reports its LM. It now starts from the LM the launcher started the engine with (`LM_MODEL` / `ACESTEP_LM_MODEL_PATH`), so a 1.7B start no longer shows "LM 0.6B".
 - Song details: with a random seed the real seed used by the engine (one per batch item) is now stored with each song, so the "Seed" row shows the actual number instead of -1 and it can be reused.
+- LoRA export: the trainer reuses one `final` folder, so an export used to carry the weights of the previous run of the other type (a LoKr inside a "LoRA" folder, and the engine prefers `lokr_weights.safetensors`, so the wrong adapter loaded). Only the files of the trained adapter type are copied now (type from the training record, else the newest weights file).
 
 ## 2026-10-21
 
