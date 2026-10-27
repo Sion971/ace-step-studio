@@ -1,4 +1,5 @@
 import { writeFile, mkdir, copyFile, rm, readFile } from 'fs/promises';
+import { parseSeeds } from './seed-info.js';
 import { existsSync } from 'fs';
 import path from 'path';
 import { handle_file } from '@gradio/client';
@@ -437,6 +438,7 @@ interface GenerationResult {
   status: string;
   generationTime?: number;
   lrcData?: (string | null)[];
+  seeds?: number[];
 }
 
 interface JobStatus {
@@ -862,6 +864,7 @@ async function processGenerationViaGradio(
     timeSignature: metas.timeSignature || params.timeSignature,
     generationTime,
     lrcData,
+    seeds: parseSeeds(genSeed),
     status: 'succeeded',
   };
   job.rawResponse = { genDetails, genStatus };

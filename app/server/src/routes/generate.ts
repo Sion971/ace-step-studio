@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { paramsWithSeed } from '../services/seed-info.js';
 import multer from 'multer';
 import path from 'path';
 import { existsSync, readdirSync, readFileSync } from 'fs';
@@ -706,7 +707,7 @@ router.get('/status/:jobId', authMiddleware, async (req: AuthenticatedRequest, r
                     aceStatus.result.keyScale || params.keyScale,
                     aceStatus.result.timeSignature || params.timeSignature,
                     JSON.stringify([]),
-                    JSON.stringify(params),
+                    JSON.stringify(paramsWithSeed(params, aceStatus.result.seeds, i)),
                     activeLoadedModel || params.ditModel || null,
                     activeLmModel || params.lmModel || null,
                     activeLmBackend || params.lmBackend || null,
@@ -743,7 +744,7 @@ router.get('/status/:jobId', authMiddleware, async (req: AuthenticatedRequest, r
                     aceStatus.result.keyScale || params.keyScale,
                     aceStatus.result.timeSignature || params.timeSignature,
                     JSON.stringify([]),
-                    JSON.stringify(params),
+                    JSON.stringify(paramsWithSeed(params, aceStatus.result.seeds, i)),
                     activeLoadedModel || params.ditModel || null,
                     activeLmModel || params.lmModel || null,
                     activeLmBackend || params.lmBackend || null,
