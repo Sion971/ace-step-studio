@@ -23,6 +23,7 @@ import {
   downloadAudioToBuffer,
   resolvePythonPath,
 } from '../services/acestep.js';
+import { startupLmModel } from '../services/lm-startup.js';
 import { getStorageProvider } from '../services/storage/factory.js';
 import { tagMp3Buffer, fetchCoverImage, updateMp3Cover } from '../services/id3-tagger.js';
 import {
@@ -1156,7 +1157,9 @@ router.get('/system-info', async (_req, res: Response) => {
 // Hot-swap model via Gradio /v1/init API (no process restart)
 const DEFAULT_MODEL = process.env.DEFAULT_MODEL || 'acestep-v15-xl-turbo-bf16';
 let activeLoadedModel: string = DEFAULT_MODEL;
-let activeLmModel: string = process.env.INIT_LLM === 'false' ? '' : 'acestep-5Hz-lm-0.6B';
+// The engine's /health does not report its LM (its handler never records the name), so this is what the app shows until a
+// switch: it must be the LM the launcher started the engine with, not a hard-coded 0.6B (the panel said 0.6B with the 1.7B loaded).
+let activeLmModel: string = process.env.INIT_LLM === 'false' ? '' : startupLmModel();
 let activeLmBackend: string = process.env.INIT_LLM === 'false' ? '' : 'pt';
 let activeOffloadToCpu: boolean = false;
 let activeChunkedFfn: number = 2;
@@ -1169,7 +1172,7 @@ import('../services/pipeline-manager.js').then(({ pipelineManager }) => {
   pipelineManager.onRestart(() => {
     console.log('[Model] Pipeline restarted — resetting model state to defaults');
     activeLoadedModel = DEFAULT_MODEL;
-    activeLmModel = process.env.INIT_LLM === 'false' ? '' : 'acestep-5Hz-lm-0.6B';
+    activeLmModel = process.env.INIT_LLM === 'false' ? '' : startupLmModel();
     activeLmBackend = process.env.INIT_LLM === 'false' ? '' : 'pt';
     modelLoadingStatus = { state: 'idle', model: '' };
     generationInProgress = false;
