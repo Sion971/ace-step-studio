@@ -4,6 +4,7 @@ import path from 'path';
 import { config } from '../config/index.js';
 import { DownloadTracker, StdoutRouter, type DownloadEvent, type DownloadSnapshot } from './download-tracker.js';
 import { dropGpuDiagnostic } from './cpu-log-filter.js';
+import { startupLmModel } from './lm-startup.js';
 import { isCpuMode, isStreamMode } from './hardware-mode.js';
 
 export type PipelineState =
@@ -79,7 +80,7 @@ class PipelineManager {
       lastError: this.lastError,
       defaultModel,
       initLlm: process.env.INIT_LLM !== 'false',
-      lmModel: process.env.LM_MODEL || 'acestep-5Hz-lm-0.6B',
+      lmModel: startupLmModel(),
       checkpointsDir: process.env.ACESTEP_CHECKPOINTS_DIR || path.join(aceStepDir, 'checkpoints'),
       profilePath: process.env.HARDWARE_PROFILE_PATH || path.join(aceStepDir, '..', 'hardware_profile.env'),
     });
@@ -138,7 +139,7 @@ class PipelineManager {
     this.router = new StdoutRouter();
 
     const initLlm = process.env.INIT_LLM !== 'false';
-    const lmModel = process.env.LM_MODEL || 'acestep-5Hz-lm-0.6B';
+    const lmModel = startupLmModel();
     const lmBackend = process.env.LM_BACKEND || 'pt';
     // Quantification INT8 auto-activee par ACE-Step-1.5 lui-meme sur les
     // GPU <20 Go — mais incompatible avec le chargement de LoRA

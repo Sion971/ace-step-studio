@@ -100,6 +100,7 @@
 - Local LM draft: a click still waiting in the queue can now be cancelled (card or Cancel all): its abort was only registered once it reached its turn, so a waiting click still started its draft and its song after the cancel. A cancelled click never generates, even when a style or lyrics were typed.
 - Create queue: the local-LM draft of a click now waits until the previous click has handed its generation to the server. Before, the next draft started in the gap before the job was registered, so two drafts ran back to back and the first generation sat behind the second one in the engine (the LM blocks it), out of reach of a cancel.
 - Reset / Cancel all: the engine's cancel flag is only armed when a generation is queued or running. Armed with none (a cancel during an LM draft), it stayed set and stopped the next generation at its first step.
+- Startup LM: the launcher now also reads `ACESTEP_LM_MODEL_PATH` (the variable `ACE-Step-1.5/.env.example` documents) to choose the language model the engine starts with; only `LM_MODEL` was read, so a `.env` written as documented always started the 0.6B. `LM_MODEL` still wins when both are set.
 
 ## 2026-10-21
 
