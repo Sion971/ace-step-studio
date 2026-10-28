@@ -165,7 +165,7 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
 
 | Requirement | Specification |
 |-------------|---------------|
-| **OS** | Linux (developed on Linux Mint / Ubuntu 24.04) or Windows 10/11 |
+| **OS** | Linux (developed on Linux Mint / Ubuntu 24.04; Arch Linux also tested, in a container) or Windows 10/11 |
 | **Node.js** | 22 LTS |
 | **Python** | Managed automatically by `uv` — 3.12 on both platforms for the main environment; a separate isolated 3.11 environment on both platforms for MIDI conversion (and, on Linux, another for stem separation) |
 | **NVIDIA GPU** | **From 2 GB of VRAM** (a GTX 1050 2 GB works: small-card *stream* mode, no language model). 4 GB and up: the 2B Turbo model. **8 GB** runs the XL Turbo model with the 0.6B language model (measured on an RTX 5060 8 GB). More VRAM leaves room for larger language models and longer tracks. See [Which graphics card?](#-which-graphics-card) below. No NVIDIA card at all: a CPU-only mode exists, but it is about 15 times slower than the length of the audio produced |
@@ -249,7 +249,7 @@ cd ace-step-studio
 
 The installer walks through fourteen steps, all self-checking and safe to re-run:
 
-1. System dependencies (FFmpeg, libsndfile) via apt, only if missing
+1. System dependencies (FFmpeg, libsndfile) via apt or pacman (Arch), only if missing
 2. Working directory structure
 3. GPU detection (`nvidia-smi`: name, VRAM, compute capability, driver) with a suggested menu option — Enter accepts it. RTX 20-series and newer choose between CUDA 13.0 (suggested when your driver allows it) and CUDA 12.8; older cards (Pascal, Volta) use CUDA 12.6. Driver checks run before anything is installed. The VRAM tier sets the default model, recorded in `hardware_profile.env`, and Python virtual environment (via `uv`)
 4. Build tools
@@ -262,7 +262,7 @@ The installer walks through fourteen steps, all self-checking and safe to re-run
 10. npm install (frontend and server)
 11. Frontend build
 12. Database migration (playlist/workspace schema) — idempotent, safe on every reinstall
-13. Isolated `basic-pitch` environment for MIDI conversion (Python 3.11 via deadsnakes PPA)
+13. Isolated `basic-pitch` environment for MIDI conversion (Python 3.11 via the deadsnakes PPA on apt systems, via `uv` elsewhere, e.g. Arch)
 14. Isolated Demucs environment for stem separation — delegates to `app/server/setup-demucs-venv.sh`, which creates `app/server/demucs-venv` (isolated from ACE-Step's pinned PyTorch/NumPy) and pre-downloads the 6-stem model so the first separation isn't slow. Skipped on re-runs if the environment already works; if it fails, the rest of the install still completes
 
 To redo that environment on its own at any time:

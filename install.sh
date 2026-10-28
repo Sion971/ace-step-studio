@@ -25,13 +25,44 @@ export TMP="$SCRIPT_DIR/temp"
 # déjà présent, la branche unique d'origine sautait aussi libsndfile1.
 echo "[1/14] Dépendances système..."
 
+# Gestionnaire de paquets : apt (Debian, Ubuntu, Mint) ou pacman (Arch, Manjaro,
+# EndeavourOS). Sur toute autre distribution, le script indique quoi installer.
+if command -v apt-get &> /dev/null; then
+    PKG_MGR="apt"
+elif command -v pacman &> /dev/null; then
+    PKG_MGR="pacman"
+else
+    PKG_MGR=""
+fi
+
 MISSING_PKGS=""
 command -v ffmpeg &> /dev/null || MISSING_PKGS="$MISSING_PKGS ffmpeg"
-ldconfig -p 2>/dev/null | grep -q libsndfile || MISSING_PKGS="$MISSING_PKGS libsndfile1"
+if ! ldconfig -p 2>/dev/null | grep -q libsndfile; then
+    # Le paquet s'appelle libsndfile1 sous apt, libsndfile sous pacman.
+    if [ "$PKG_MGR" = "pacman" ]; then
+        MISSING_PKGS="$MISSING_PKGS libsndfile"
+    else
+        MISSING_PKGS="$MISSING_PKGS libsndfile1"
+    fi
+fi
 
 if [ -n "$MISSING_PKGS" ]; then
-    echo "Installation via apt :$MISSING_PKGS"
-    sudo apt update && sudo apt install -y $MISSING_PKGS
+    case "$PKG_MGR" in
+        apt)
+            echo "Installation via apt :$MISSING_PKGS"
+            sudo apt update && sudo apt install -y $MISSING_PKGS
+            ;;
+        pacman)
+            echo "Installation via pacman :$MISSING_PKGS"
+            sudo pacman -S --needed --noconfirm $MISSING_PKGS
+            ;;
+        *)
+            echo "ERREUR: ni apt ni pacman détectés. Installez avec votre"
+            echo "gestionnaire de paquets :$MISSING_PKGS"
+            echo "(FFmpeg et libsndfile), puis relancez ./install.sh."
+            exit 1
+            ;;
+    esac
 else
     echo "FFmpeg et libsndfile déjà présents."
 fi
@@ -663,6 +694,11 @@ fi
 
 # === 8. Node.js ==============================================================
 echo "[9/14] Vérification de Node.js..."
+if ! command -v node &> /dev/null && [ "$PKG_MGR" = "pacman" ]; then
+    # Arch : la branche LTS (22) est nodejs-lts-jod ; « nodejs » suit la version courante.
+    echo "  Node.js introuvable — installation de nodejs-lts-jod et npm via pacman..."
+    sudo pacman -S --needed --noconfirm nodejs-lts-jod npm
+fi
 if ! command -v node &> /dev/null; then
     echo "ERREUR: Node.js n'est pas installé. Veuillez installer Node.js 22 LTS."
     exit 1
@@ -695,10 +731,15 @@ echo "[13/14] Environnement basic-pitch (conversion audio -> MIDI)..."
 # Venv Python ISOLE, distinct de .venv (ACE-Step) — evite tout conflit avec
 # ses versions figees de torch/torchaudio/numpy. basic-pitch exige
 # tensorflow<2.15.1 (meme avec l'extra [onnx]), sans roue compatible Python
-# 3.12 : necessite specifiquement Python 3.11, via le PPA deadsnakes.
+# 3.12 : necessite specifiquement Python 3.11.
+#
+# Sous apt, 3.11 vient du PPA deadsnakes. Ailleurs (Arch, Fedora...), ou si
+# le PPA n'est pas utilisable, on prend le Python 3.11 gere par uv, qui est
+# deja installe a ce stade — aucun paquet systeme a ajouter.
 #
 # Idempotent : sans-op si python3.11 et le venv sont deja en place.
-if ! command -v python3.11 &> /dev/null; then
+PY311="$(command -v python3.11 || true)"
+if [ -z "$PY311" ] && [ "$PKG_MGR" = "apt" ] && command -v add-apt-repository &> /dev/null; then
     echo "  Python 3.11 introuvable — ajout du PPA deadsnakes..."
     sudo add-apt-repository -y ppa:deadsnakes/ppa
     # "|| true" delibere : contrairement a l'etape 1 (ou apt update est
@@ -712,7 +753,14 @@ if ! command -v python3.11 &> /dev/null; then
     # exactement le symptome observe (arret net juste apres cette ligne).
     sudo apt update || true
     sudo apt install -y python3.11 python3.11-venv
+    PY311="$(command -v python3.11 || true)"
 fi
+if [ -z "$PY311" ]; then
+    echo "  Python 3.11 introuvable — installation via uv..."
+    uv python install 3.11
+    PY311="$(uv python find 3.11)"
+fi
+echo "  Python 3.11 : $PY311"
 
 BASIC_PITCH_VENV="app/server/basic-pitch-venv"
 if [ -d "$BASIC_PITCH_VENV" ]; then
@@ -720,7 +768,7 @@ if [ -d "$BASIC_PITCH_VENV" ]; then
     rm -rf "$BASIC_PITCH_VENV"
 fi
 
-python3.11 -m venv "$BASIC_PITCH_VENV"
+"$PY311" -m venv "$BASIC_PITCH_VENV"
 "$BASIC_PITCH_VENV/bin/pip" install --upgrade pip
 # Version figee : sans elle, pip peut reculer vers d'anciennes versions de
 # basic-pitch (observe jusqu'a 0.2.6) qui exigent un numpy anterieur a 1.24,
