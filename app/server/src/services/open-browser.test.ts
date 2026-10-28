@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { browserOpenCommand, maybeOpenBrowser } from './open-browser.js';
+import { browserOpenCommand, launchDetached, maybeOpenBrowser } from './open-browser.js';
 
 describe('browserOpenCommand', () => {
   it('uses each system\'s own opener', () => {
@@ -53,5 +53,44 @@ describe('maybeOpenBrowser', () => {
     const logs: string[] = [];
     maybeOpenBrowser({ managed: true, port: 3005, env: {}, run: () => {}, log: (m) => logs.push(m) });
     expect(logs).toEqual(['[Server] Opening browser: http://localhost:3005']);
+  });
+});
+
+describe('launchDetached', () => {
+  const fake = () => {
+    const calls: { command: string; options: Record<string, unknown> }[] = [];
+    const events: string[] = [];
+    let unrefs = 0;
+    const spawnFn = (command: string, options: Record<string, unknown>) => {
+      calls.push({ command, options });
+      return {
+        on: (event: string) => void events.push(event),
+        unref: () => void (unrefs += 1),
+      };
+    };
+    return { calls, events, unrefs: () => unrefs, spawnFn };
+  };
+
+  it('starts the browser in its own session, so Ctrl+C in the terminal does not close it', () => {
+    const f = fake();
+    launchDetached('xdg-open "http://localhost:3001"', 'linux', f.spawnFn);
+    expect(f.calls).toHaveLength(1);
+    expect(f.calls[0].command).toBe('xdg-open "http://localhost:3001"');
+    expect(f.calls[0].options.detached).toBe(true);
+    expect(f.calls[0].options.stdio).toBe('ignore');
+  });
+
+  it('lets the Studio exit without waiting for the browser, and ignores a missing opener', () => {
+    const f = fake();
+    launchDetached('xdg-open "http://localhost:3001"', 'linux', f.spawnFn);
+    expect(f.unrefs()).toBe(1);
+    expect(f.events).toContain('error');
+  });
+
+  it('does not detach on Windows (start already returns at once, and a detached console would flash)', () => {
+    const f = fake();
+    launchDetached('start "" "http://localhost:3001"', 'win32', f.spawnFn);
+    expect(f.calls[0].options.detached).toBe(false);
+    expect(f.calls[0].options.windowsHide).toBe(true);
   });
 });

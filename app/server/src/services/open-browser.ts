@@ -7,12 +7,26 @@
 // Same conditions as before: only when the Studio runs the engine itself, and not when NO_AUTO_BROWSER=true (the Pinokio
 // launcher handles tab opening itself). It happens once, when the server starts, never on engine restarts.
 
-import { exec } from 'child_process';
+import { spawn, type SpawnOptions } from 'child_process';
 
 export function browserOpenCommand(url: string, platform: NodeJS.Platform = process.platform): string {
   if (platform === 'win32') return `start "" "${url}"`;
   if (platform === 'darwin') return `open "${url}"`;
   return `xdg-open "${url}"`;
+}
+
+type SpawnFn = (command: string, options: SpawnOptions) => { on: (event: string, listener: () => void) => unknown; unref: () => void };
+
+/**
+ * Starts the opener apart from the Studio. When the browser was not running yet, xdg-open IS the browser: started as a plain
+ * child it stays in the terminal's process group, so Ctrl+C (which signals the whole group) closed the whole browser along
+ * with the Studio, not just the tab. Detached (its own session) and with no link to our streams, it lives on its own.
+ * A missing opener (headless server) must not crash the Studio.
+ */
+export function launchDetached(command: string, platform: NodeJS.Platform = process.platform, spawnFn: SpawnFn = spawn): void {
+  const child = spawnFn(command, { shell: true, detached: platform !== 'win32', stdio: 'ignore', windowsHide: true });
+  child.on('error', () => {});
+  child.unref();
 }
 
 export interface OpenBrowserOptions {
@@ -32,9 +46,7 @@ export function maybeOpenBrowser(options: OpenBrowserOptions): boolean {
     port,
     env = process.env,
     platform = process.platform,
-    run = (command: string) => {
-      exec(command, () => {}); // a missing opener (headless server) must not crash the Studio
-    },
+    run = (command: string) => launchDetached(command, platform),
     log = (message: string) => console.log(message),
   } = options;
   if (!managed || env.NO_AUTO_BROWSER === 'true') return false;
