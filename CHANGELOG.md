@@ -104,6 +104,7 @@
 - Status panel: the LM name shown (and stored with the songs) was a hard-coded 0.6B until a model switch, since the engine's /health never reports its LM. It now starts from the LM the launcher started the engine with (`LM_MODEL` / `ACESTEP_LM_MODEL_PATH`), so a 1.7B start no longer shows "LM 0.6B".
 - Song details: with a random seed the real seed used by the engine (one per batch item) is now stored with each song, so the "Seed" row shows the actual number instead of -1 and it can be reused.
 - LoRA export: the trainer reuses one `final` folder, so an export used to carry the weights of the previous run of the other type (a LoKr inside a "LoRA" folder, and the engine prefers `lokr_weights.safetensors`, so the wrong adapter loaded). Only the files of the trained adapter type are copied now (type from the training record, else the newest weights file).
+- Cancel: a cancel that arrives while the audio is being decoded (nothing checks the flag there, so the song finishes) no longer stays armed in the engine and stops the next generation at its first step; the flag is cleared when `generate_music` ends. The server also logs what a reset did (`[Reset] ...`).
 
 ## 2026-10-21
 

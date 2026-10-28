@@ -182,6 +182,13 @@ class GenerateMusicMixinTests(unittest.TestCase):
         self.assertEqual(host.calls["_run_generate_music_service_with_progress"]["guidance_scale"], 6.5)
         self.assertEqual(host.calls["_prepare_generate_music_decode_state"]["infer_steps_for_progress"], 8)
 
+    def test_cancel_flag_left_armed_after_decode_is_cleared(self):
+        """A cancel that arrives after the diffusion loop must not stop the next generation."""
+        host = _Host()
+        host.model = types.SimpleNamespace(_cancel_generation=True)
+        host.generate_music(captions="cap", lyrics="lyr")
+        self.assertFalse(host.model._cancel_generation)
+
     def test_generate_music_returns_readiness_error_when_components_missing(self):
         """It short-circuits with readiness payload when required models are missing."""
         host = _Host()

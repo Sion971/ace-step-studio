@@ -969,6 +969,7 @@ router.post('/reset', authMiddleware, async (req: AuthenticatedRequest, res: Res
       } catch {}
     }
 
+    console.log(`[Reset] ${somethingToInterrupt ? (gradioCancel ? 'engine interrupted (/v1/cancel sent)' : 'engine did not answer /v1/cancel') : 'no generation running, engine not touched'}`);
     res.json({ reset: true, gradioCancel });
   } catch (error) {
     console.error('Reset error:', error);

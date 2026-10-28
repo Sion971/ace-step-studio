@@ -510,3 +510,10 @@ class GenerateMusicMixin:
                 "success": False,
                 "error": f"{exc!s}",
             }
+        finally:
+            # A cancel that lands while the audio is being decoded (nothing checks the flag there) would otherwise stay
+            # armed and stop the NEXT generation at its first step.
+            _model = getattr(self, "model", None)
+            if _model is not None and getattr(_model, "_cancel_generation", False):
+                _model._cancel_generation = False
+                logger.info("[generate_music] Cancel received after the diffusion loop: the song is finished, the flag is cleared.")
