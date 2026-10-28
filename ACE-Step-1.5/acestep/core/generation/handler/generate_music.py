@@ -497,6 +497,18 @@ class GenerateMusicMixin:
             gc_utils.collect_if_card_holds("end of generate_music")
             self._empty_cache()
             return result
+        except InterruptedError as exc:
+            # The user cancelled: not a failure worth a traceback.
+            logger.info("[generate_music] Generation cancelled by the user ({})", exc)
+            gc.collect()
+            self._empty_cache()
+            return {
+                "audios": [],
+                "status_message": f"Error: {exc!s}",
+                "extra_outputs": {},
+                "success": False,
+                "error": f"{exc!s}",
+            }
         except Exception as exc:
             error_msg = f"Error: {exc!s}\n{traceback.format_exc()}"
             logger.exception("[generate_music] Generation failed")

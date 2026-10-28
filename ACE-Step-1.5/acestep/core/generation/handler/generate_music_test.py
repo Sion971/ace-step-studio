@@ -182,6 +182,20 @@ class GenerateMusicMixinTests(unittest.TestCase):
         self.assertEqual(host.calls["_run_generate_music_service_with_progress"]["guidance_scale"], 6.5)
         self.assertEqual(host.calls["_prepare_generate_music_decode_state"]["infer_steps_for_progress"], 8)
 
+    def test_generate_music_cancel_returns_error_payload_without_traceback(self):
+        """A user cancel comes back as a failure payload whose status carries no traceback."""
+        host = _Host()
+
+        def _cancel(**_kwargs):
+            """Raise the interrupt the cancel guard raises."""
+            raise InterruptedError("Generation cancelled")
+
+        host._prepare_reference_and_source_audio = _cancel
+        out = host.generate_music(captions="cap", lyrics="lyr")
+        self.assertFalse(out["success"])
+        self.assertEqual(out["error"], "Generation cancelled")
+        self.assertNotIn("Traceback", out["status_message"])
+
     def test_cancel_flag_left_armed_after_decode_is_cleared(self):
         """A cancel that arrives after the diffusion loop must not stop the next generation."""
         host = _Host()

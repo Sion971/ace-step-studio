@@ -106,6 +106,7 @@
 - LoRA export: the trainer reuses one `final` folder, so an export used to carry the weights of the previous run of the other type (a LoKr inside a "LoRA" folder, and the engine prefers `lokr_weights.safetensors`, so the wrong adapter loaded). Only the files of the trained adapter type are copied now (type from the training record, else the newest weights file).
 - Cancel: a cancel that arrives while the audio is being decoded (nothing checks the flag there, so the song finishes) no longer stays armed in the engine and stops the next generation at its first step; the flag is cleared when `generate_music` ends. The server also logs what a reset did (`[Reset] ...`).
 - Cancel: the engine now stops the diffusion at the next step whatever the model's code does. Community checkpoints such as `acestep-v15-xl-turbo-bf16` ship their own modeling code, which never reads the cancel flag, so a cancel in the middle of the diffusion was ignored and the song was finished anyway; a guard on the decoder now does the check.
+- Cancel: the engine logs a user cancel as one info line instead of an `ERROR` with a full traceback.
 
 ## 2026-10-21
 
