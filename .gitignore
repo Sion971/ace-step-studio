@@ -44,3 +44,6 @@ app/server/demucs-venv/
 .venv-demucs/
 sac_pending.txt
 /package-lock.json
+
+# Journal du serveur ecrit par le lanceur Windows sans console (launch-studio.vbs)
+logs/

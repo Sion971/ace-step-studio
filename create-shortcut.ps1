@@ -9,7 +9,10 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$target = Join-Path $root 'run.bat'
+# Le raccourci lance launch-studio.vbs par wscript.exe : le serveur tourne dans une console cachee, seule la page web
+# s'ouvre (comme sous Linux). run.bat reste utilisable a la main pour voir les journaux en direct.
+$launcher = Join-Path $root 'launch-studio.vbs'
+$target = Join-Path $env:SystemRoot 'System32\wscript.exe'
 $icon = Join-Path $root 'app\docs\Ace-Step UI.ico'
 $linkName = 'ACE-Step Studio.lnk'
 
@@ -27,8 +30,8 @@ if ($Remove) {
     exit 0
 }
 
-if (-not (Test-Path -LiteralPath $target)) {
-    Write-Host ("  ERREUR : " + $target + " est introuvable.")
+if (-not (Test-Path -LiteralPath $launcher)) {
+    Write-Host ("  ERREUR : " + $launcher + " est introuvable.")
     exit 1
 }
 
@@ -43,8 +46,8 @@ foreach ($p in $places) {
     $lnk = $shell.CreateShortcut($f)
     $lnk.TargetPath = $target
     $lnk.WorkingDirectory = $root
-    # Comme sous Linux : fermer la page web arrete le serveur et le moteur (la fenetre noire se ferme avec eux).
-    $lnk.Arguments = '--quit-on-close'
+    # Comme sous Linux : fermer la page web arrete le serveur et le moteur (launch-studio.vbs passe --quit-on-close).
+    $lnk.Arguments = '"' + $launcher + '"'
     $lnk.Description = 'ACE-Step Studio - generation musicale par IA, en local'
     $lnk.WindowStyle = 1
     if (Test-Path -LiteralPath $icon) { $lnk.IconLocation = $icon + ',0' }
