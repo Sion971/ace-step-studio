@@ -5,6 +5,9 @@
 #  Cree le lanceur « ACE-Step Studio » dans le menu des applications et sur le
 #  bureau, avec l'icone app/docs/Ace-Step UI.ico. Il demarre launch-ace-step.sh
 #  (le Studio se ferme avec sa page : --quit-on-close), sans fenetre de terminal.
+#  Une seconde entree du menu, « ACE-Step Studio (avec terminal) », fait la meme
+#  chose dans une fenetre de terminal qui montre les journaux du serveur, comme
+#  le raccourci Windows.
 #
 #  Usage :  ./create-shortcut.sh [options]
 #
@@ -27,7 +30,7 @@ while [[ $# -gt 0 ]]; do
         --no-desktop) WANT_DESKTOP=false; shift ;;
         --no-menu)    WANT_MENU=false; shift ;;
         --remove)     REMOVE=true; shift ;;
-        --help|-h)    sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'; exit 0 ;;
+        --help|-h)    sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'; exit 0 ;;
         *) echo "Option inconnue : $1 (voir --help)"; exit 1 ;;
     esac
 done
@@ -41,6 +44,7 @@ APPS_DIR="$DATA_HOME/applications"
 ICON_DIR="$DATA_HOME/icons/hicolor/256x256/apps"
 ICON_PNG="$ICON_DIR/ace-step-studio.png"
 DESKTOP_FILE_NAME="ace-step-studio.desktop"
+TERMINAL_FILE_NAME="ace-step-studio-terminal.desktop"
 
 # Dossier du bureau : suit la langue de la session (Desktop, Bureau...).
 DESKTOP_DIR=""
@@ -61,7 +65,7 @@ refresh_caches() {
 }
 
 if $REMOVE; then
-    rm -f "$APPS_DIR/$DESKTOP_FILE_NAME" "$ICON_PNG"
+    rm -f "$APPS_DIR/$DESKTOP_FILE_NAME" "$APPS_DIR/$TERMINAL_FILE_NAME" "$ICON_PNG"
     [ -n "$DESKTOP_DIR" ] && rm -f "$DESKTOP_DIR/$DESKTOP_FILE_NAME"
     refresh_caches
     echo "Raccourci ACE-Step Studio supprime (menu, bureau, icone)."
@@ -112,17 +116,20 @@ case "$LAUNCHER$STUDIO_DIR" in
         exit 1 ;;
 esac
 q() { printf '"%s"' "$1"; }
+# build_entry [nom] [Terminal=true|false] : le raccourci normal n'ouvre que la page web ; la variante « avec terminal » ouvre
+# une fenetre de terminal qui affiche les journaux (elle se ferme avec la page, comme sans terminal).
 build_entry() {
+    local name="${1:-ACE-Step Studio}" terminal="${2:-false}"
     cat <<DESKTOP
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=ACE-Step Studio
+Name=$name
 Comment=Generation musicale par IA, en local
 Exec=$(q "$LAUNCHER")
 Path=$STUDIO_DIR
 ${ICON_VALUE:+Icon=$ICON_VALUE}
-Terminal=false
+Terminal=$terminal
 Categories=AudioVideo;Audio;
 StartupNotify=false
 DESKTOP
@@ -133,6 +140,9 @@ if $WANT_MENU; then
     build_entry > "$APPS_DIR/$DESKTOP_FILE_NAME"
     chmod +x "$APPS_DIR/$DESKTOP_FILE_NAME"
     echo "Menu des applications : $APPS_DIR/$DESKTOP_FILE_NAME"
+    build_entry "ACE-Step Studio (avec terminal)" true > "$APPS_DIR/$TERMINAL_FILE_NAME"
+    chmod +x "$APPS_DIR/$TERMINAL_FILE_NAME"
+    echo "Avec terminal         : $APPS_DIR/$TERMINAL_FILE_NAME"
 fi
 
 if $WANT_DESKTOP; then
