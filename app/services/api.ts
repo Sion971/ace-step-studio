@@ -1083,32 +1083,6 @@ export const trainingApi = {
     hint?: string;
   }> => api('/api/training/auto-label', { method: 'POST', body: params, token }),
 
-  // Initialize model for training (requires Gradio)
-  initModel: (params: {
-    checkpoint?: string;
-    configPath?: string;
-    device?: string;
-    initLlm?: boolean;
-    lmModelPath?: string;
-    backend?: string;
-    useFlashAttention?: boolean;
-    offloadToCpu?: boolean;
-    offloadDitToCpu?: boolean;
-    compileModel?: boolean;
-    quantization?: boolean;
-  }, token: string): Promise<{
-    status: string;
-    modelReady?: boolean;
-    error?: string;
-    hint?: string;
-  }> => api('/api/training/init-model', { method: 'POST', body: params, token }),
-
-  // List available checkpoints
-  getCheckpoints: (token: string): Promise<{
-    checkpoints: string[];
-    configs: string[];
-  }> => api('/api/training/checkpoints', { token }),
-
   // List LoRA training checkpoints
   getLoraCheckpoints: (dir: string, token: string): Promise<{
     checkpoints: string[];

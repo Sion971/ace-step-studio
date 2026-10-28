@@ -5,7 +5,6 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useI18n } from '../context/I18nContext';
 
-import { ModelConfigSection } from './training/ModelConfigSection';
 import { DatasetTab } from './training/DatasetTab';
 import { TrainTab } from './training/TrainTab';
 import { ExportTab } from './training/ExportTab';
@@ -81,9 +80,6 @@ export const TrainingPanel: React.FC = () => {
 
       {/* Tab Content & Active Views */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 scrollbar-hide max-w-6xl mx-auto w-full">
-        {/* Configuration du modèle (Toujours accessible au sommet) */}
-        <ModelConfigSection token={token} t={t} />
-
         {/* Panneaux dédiés */}
         {activeTab === 'dataset' && <DatasetTab token={token} t={t} markStep={markStep} />}
         {activeTab === 'train' && <TrainTab token={token} t={t} markStep={markStep} />}
