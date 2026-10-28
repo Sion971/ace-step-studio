@@ -598,8 +598,10 @@ async function processQueue(): Promise<void> {
         const msg = error?.message || String(error);
         job.status = 'failed';
         const failure = classifyGenerationFailure(msg);
-        job.error = failure === 'timeout' ? friendlyTimeoutMessage(msg) : msg;
-        if (failure === 'timeout') {
+        job.error = failure === 'timeout' ? friendlyTimeoutMessage(msg) : failure === 'cancelled' ? 'Cancelled by user' : msg;
+        if (failure === 'cancelled') {
+          console.log(`[${jobId}] Generation cancelled by the user`);
+        } else if (failure === 'timeout') {
           console.error(`\n\u23f1\ufe0f [${jobId}] GENERATION TIMED OUT`);
           console.error(`   ${job.error}\n`);
         } else if (failure === 'out-of-memory') {

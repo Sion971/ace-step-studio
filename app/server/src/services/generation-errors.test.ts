@@ -13,6 +13,10 @@ const ACE_TIMEOUT =
   'diffusion loop stalled.  Try reducing batch size, duration, or inference steps.';
 
 describe('classifyGenerationFailure', () => {
+  it('recognises the engine\'s answer to a cancel', () => {
+    expect(classifyGenerationFailure('Gradio generation returned no audio files. Status: Error: Generation cancelled. Details: none')).toBe('cancelled');
+  });
+
   it('reports ACE-Step\'s timeout as a timeout, although its text mentions VRAM', () => {
     expect(ACE_TIMEOUT).toContain('VRAM');
     expect(classifyGenerationFailure(ACE_TIMEOUT)).toBe('timeout');
