@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import torch
 from loguru import logger
 
+from .cancel_guard import cancel_guard
+
 
 class ServiceGenerateExecuteMixin:
     """Run diffusion execution for normalized service-generation requests."""
@@ -256,9 +258,11 @@ class ServiceGenerateExecuteMixin:
                         )
                     except Exception as exc:
                         logger.warning("[service_generate] MLX diffusion failed ({}); falling back to PyTorch.", exc)
-                        outputs = self.model.generate_audio(**generate_kwargs)
+                        with cancel_guard(self.model):
+                            outputs = self.model.generate_audio(**generate_kwargs)
                 else:
                     logger.info("[service_generate] DiT diffusion via PyTorch ({})...", self.device)
-                    outputs = self.model.generate_audio(**generate_kwargs)
+                    with cancel_guard(self.model):
+                        outputs = self.model.generate_audio(**generate_kwargs)
 
         return outputs, encoder_hidden_states, encoder_attention_mask, context_latents
