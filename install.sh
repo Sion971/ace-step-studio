@@ -67,6 +67,14 @@ else
     echo "FFmpeg et libsndfile déjà présents."
 fi
 
+# Compilateur C : Triton compile un petit module au premier lancement du moteur
+# (et flash-attn en a besoin si sa roue precompilee echoue). Debian / Ubuntu /
+# Mint l'ont presque toujours ; une installation Arch minimale non.
+if [ "$PKG_MGR" = "pacman" ] && ! command -v gcc &> /dev/null; then
+    echo "Compilateur C introuvable — installation de base-devel via pacman..."
+    sudo pacman -S --needed --noconfirm base-devel
+fi
+
 # torchcodec choisit sa bibliothèque selon la version de FFmpeg installée
 # (libtorchcodec_core4 à 8). Un FFmpeg bundlé dans le projet créerait un
 # conflit avec les .so du système : on laisse volontairement apt gérer.
