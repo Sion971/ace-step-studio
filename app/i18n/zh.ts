@@ -868,6 +868,8 @@ export const zh = {
     allInstrumental: '全部纯音乐',
     tagPosition: '标签位置',
     tagPrepend: '前置（标签，描述）',
+    settingsApplied: "设置已应用（标签：{{tag}}）。",
+    settingsNoTag: "（无）",
     tagAppend: '后置（描述，标签）',
     tagReplace: '替换描述',
     genreRatio: '风格比例',

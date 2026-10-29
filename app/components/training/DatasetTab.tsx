@@ -87,6 +87,7 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
     genreRatio: 0,
   });
   const [datasetStatus, setDatasetStatus] = useState('');
+  const [settingsStatus, setSettingsStatus] = useState('');
 
   // Table state
   const [dataframeHeaders, setDataframeHeaders] = useState<string[]>([]);
@@ -405,9 +406,12 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
         allInstrumental: datasetSettings.allInstrumental,
         genreRatio: datasetSettings.genreRatio,
       }, token);
-      setDatasetStatus('Settings updated');
+      const tag = datasetSettings.customTag.trim() || t('settingsNoTag');
+      // The summary line under "Scan the folder" still showed the tag read at load time.
+      setScanStatus(prev => prev.replace(/(Custom Tag:[ \t]*)[^\r\n]*?(?=[ \t]*(?:\r?\n|✅|$))/, `$1${tag}`));
+      setSettingsStatus(fillTemplate(t('settingsApplied'), { tag }));
     } catch (error) {
-      setDatasetStatus(`${t('error')}: ${error instanceof Error ? error.message : safeString(error)}`);
+      setSettingsStatus(`${t('error')}: ${error instanceof Error ? error.message : safeString(error)}`);
     }
   }, [token, datasetSettings, t]);
 
@@ -630,6 +634,7 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
                 <button onClick={handleUpdateSettings} className="w-full py-1.5 bg-white/5 hover:bg-white/10 text-zinc-300 rounded-lg text-xs font-medium">
                   {t('applySettings')}
                 </button>
+                {settingsStatus && <p className="text-xs text-zinc-400 break-words">{settingsStatus}</p>}
               </div>
             </Section>
 

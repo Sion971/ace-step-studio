@@ -876,6 +876,8 @@ export const en = {
     allInstrumental: 'All Instrumental',
     tagPosition: 'Tag Position',
     tagPrepend: 'Prepend (tag, caption)',
+    settingsApplied: "Settings applied (tag: {{tag}}).",
+    settingsNoTag: "(none)",
     tagAppend: 'Append (caption, tag)',
     tagReplace: 'Replace caption',
     genreRatio: 'Genre Ratio',

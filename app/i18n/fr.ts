@@ -953,6 +953,8 @@ export const fr = {
     allInstrumental: 'Entièrement instrumental',
     tagPosition: 'Position du tag',
     tagPrepend: 'Au début (tag, description)',
+    settingsApplied: "Réglages appliqués (tag : {{tag}}).",
+    settingsNoTag: "(aucun)",
     tagAppend: 'À la fin (description, tag)',
     tagReplace: 'Remplacer la description',
     genreRatio: 'Ratio de genre',

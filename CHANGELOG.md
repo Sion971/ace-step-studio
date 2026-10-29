@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-29
+
+### Fixed
+- LoRA training, dataset builder: "Apply the settings" now confirms right under the button ("Settings applied (tag: ...)") instead of in the "Load an existing dataset" box, and the summary line under "Scan the folder" shows the tag that was just applied (it kept showing "Custom Tag: (none)", which looked as if the button did nothing).
+
 ## 2026-10-28
 
 ### Added

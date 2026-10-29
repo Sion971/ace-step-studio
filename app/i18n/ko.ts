@@ -868,6 +868,8 @@ export const ko = {
     allInstrumental: '모두 인스트루멘탈',
     tagPosition: '태그 위치',
     tagPrepend: '앞에 추가 (태그, 캡션)',
+    settingsApplied: "설정을 적용했습니다 (태그: {{tag}}).",
+    settingsNoTag: "(없음)",
     tagAppend: '뒤에 추가 (캡션, 태그)',
     tagReplace: '캡션 대체',
     genreRatio: '장르 비율',

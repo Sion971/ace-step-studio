@@ -872,6 +872,8 @@ export const ru = {
     allInstrumental: 'Всё инструментальное',
     tagPosition: 'Позиция тега',
     tagPrepend: 'В начало (тег, описание)',
+    settingsApplied: "Настройки применены (тег: {{tag}}).",
+    settingsNoTag: "(нет)",
     tagAppend: 'В конец (описание, тег)',
     tagReplace: 'Заменить описание',
     genreRatio: 'Соотношение жанров',

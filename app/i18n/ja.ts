@@ -868,6 +868,8 @@ export const ja = {
   allInstrumental: '全てインストゥルメンタル',
   tagPosition: 'タグの位置',
   tagPrepend: '前置（タグ、キャプション）',
+  settingsApplied: "設定を適用しました（タグ: {{tag}}）。",
+  settingsNoTag: "（なし）",
   tagAppend: '後置（キャプション、タグ）',
   tagReplace: 'キャプションを置換',
   genreRatio: 'ジャンル比率',
