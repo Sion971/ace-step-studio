@@ -8,7 +8,7 @@ export const Section: React.FC<{ title: string | React.ReactNode; children: Reac
 );
 
 export const FieldRow: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div className="flex items-center gap-2">
+  <div className="flex items-center gap-2 min-w-0">
     <label className="text-[11px] text-zinc-500 w-28 flex-shrink-0">{label}</label>
     {children}
   </div>

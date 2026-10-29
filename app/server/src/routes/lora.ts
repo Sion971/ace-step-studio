@@ -25,6 +25,9 @@ let loraState = {
   path: '',
 };
 
+/** A copy of the LoRA state, for the generation log (the engine does not say which scale a generation used). */
+export const getLoraState = () => ({ ...loraState });
+
 // The engine forgets its LoRA when it restarts (crash, CUDA error): the server must not go on saying it is loaded, or the interface
 // would show a LoRA that is not there (it now reads this state when the Create page opens).
 import('../services/pipeline-manager.js').then(({ pipelineManager }) => {

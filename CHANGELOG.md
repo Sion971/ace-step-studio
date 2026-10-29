@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-28
+
+### Added
+- Server terminal: the `[Generate]` line now ends with the LoRA in use and its scale (`lora=my_lora_dataset-lora@0.5`, `lora=... (switched off)` or `lora=none`), so a comparison between two scales can be checked in the log and not only on screen.
+
+### Fixed
+- LoRA training, dataset builder: the tag position now starts on "At the start" (it was "Replace the description": the tag then took the place of the whole description in the training text) and "Entirely instrumental" starts unchecked (songs with vocals were recorded as instrumentals).
+- LoRA training, dataset builder: "Save the dataset" first sends the tag, its position and the "instrumental" box to the engine. A position changed on screen after the last click on "Apply the settings" used to be saved as the old one.
+- LoRA training: the "Warmup steps" label no longer sits under the scheduler list.
+
 ## 2026-10-22
 
 ### Documentation

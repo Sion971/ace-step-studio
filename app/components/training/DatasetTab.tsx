@@ -82,8 +82,8 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
   const [datasetSettings, setDatasetSettings] = useState<DatasetSettings>({
     datasetName: 'my_lora_dataset',
     customTag: '',
-    tagPosition: 'replace',
-    allInstrumental: true,
+    tagPosition: 'prepend',
+    allInstrumental: false,
     genreRatio: 0,
   });
   const [datasetStatus, setDatasetStatus] = useState('');
@@ -153,8 +153,8 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
       customTag: typeof settings?.customTag === 'string' ? settings.customTag : safeString(settings?.customTag),
       tagPosition: ['prepend', 'append', 'replace'].includes(settings?.tagPosition as string)
         ? (settings?.tagPosition as DatasetSettings['tagPosition'])
-        : 'replace',
-      allInstrumental: Boolean(settings?.allInstrumental ?? true),
+        : 'prepend',
+      allInstrumental: Boolean(settings?.allInstrumental ?? false),
       genreRatio: typeof settings?.genreRatio === 'number' && !isNaN(settings.genreRatio) ? settings.genreRatio : 0,
     };
   };
@@ -417,6 +417,14 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
     setSaveStatus(t('savingDataset'));
     const safeName = datasetSettings.datasetName?.trim() || 'my_lora_dataset';
     try {
+      // The tag, its position and the "instrumental" box are what the file records, and the engine only learns them from "Apply": a
+      // position changed on screen after the last click on it was saved as the old one (the description was then replaced by the tag).
+      await trainingApi.updateSettings({
+        customTag: datasetSettings.customTag,
+        tagPosition: datasetSettings.tagPosition,
+        allInstrumental: datasetSettings.allInstrumental,
+        genreRatio: datasetSettings.genreRatio,
+      }, token);
       const result = await trainingApi.saveDataset({
         savePath: savePath || `./datasets/${safeName}.json`,
         datasetName: safeName,
@@ -600,7 +608,7 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
                 </FieldRow>
                 <FieldRow label={t('tagPosition')}>
                   <select
-                    value={typeof datasetSettings.tagPosition === 'string' ? datasetSettings.tagPosition : 'replace'}
+                    value={typeof datasetSettings.tagPosition === 'string' ? datasetSettings.tagPosition : 'prepend'}
                     onChange={e => {
                       const val = e.target.value as DatasetSettings['tagPosition'];
                       setDatasetSettings(s => ({ ...s, tagPosition: val }));

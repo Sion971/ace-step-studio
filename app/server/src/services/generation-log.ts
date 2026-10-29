@@ -5,8 +5,24 @@
 
 const asNumber = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
+/** What the server knows of the LoRA at the time of a generation (the engine itself does not repeat it in its log). */
+export interface LoraSnapshot {
+  loaded: boolean;
+  active: boolean;
+  scale: number;
+  path: string;
+}
+
+/** "lora=my-lora@0.5", "lora=my-lora (switched off)" or "lora=none": the adapter that really shapes this generation. */
+export function describeLora(lora: LoraSnapshot | undefined): string | null {
+  if (!lora) return null;
+  if (!lora.loaded) return 'lora=none';
+  const name = lora.path.replace(/\\/g, '/').replace(/\/+$/, '').split('/').pop() || 'adapter';
+  return lora.active ? `lora=${name}@${lora.scale}` : `lora=${name} (switched off)`;
+}
+
 /** "[Generate] vocal_language=fr, duration=225 s, ..." from the arguments given to the engine. */
-export function describeGenerationArgs(args: Record<string, unknown>): string {
+export function describeGenerationArgs(args: Record<string, unknown>, lora?: LoraSnapshot): string {
   const lyrics = typeof args.lyrics === 'string' ? args.lyrics : '';
   const lines = lyrics.split(/\r?\n/).filter((l) => l.trim() && !/^\[.*\]$/.test(l.trim())).length;
   const duration = asNumber(args.audio_duration);
@@ -39,5 +55,7 @@ export function describeGenerationArgs(args: Record<string, unknown>): string {
   }
   const batch = asNumber(args.batch_size_input);
   if (batch !== null && batch > 1) parts.push(`batch=${batch}`);
+  const loraPart = describeLora(lora);
+  if (loraPart) parts.push(loraPart);
   return `[Generate] ${parts.join(', ')}`;
 }

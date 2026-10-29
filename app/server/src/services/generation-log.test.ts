@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { describeGenerationArgs } from './generation-log.js';
+import { describeGenerationArgs, describeLora } from './generation-log.js';
 
 describe('describeGenerationArgs', () => {
   it('shows the language, the length, the tempo and how many lines are sung (tags do not count)', () => {
@@ -36,5 +36,19 @@ describe('describeGenerationArgs', () => {
   it('does not fail on missing or odd values', () => {
     expect(() => describeGenerationArgs({})).not.toThrow();
     expect(describeGenerationArgs({ audio_duration: 'x', lyrics: 5 })).toContain('lyrics=0 lines');
+  });
+
+  it('names the LoRA and its scale, or says that none is in use', () => {
+    const base = { task_type: 'text2music', inference_steps: 50 };
+    const loaded = { loaded: true, active: true, scale: 0.5, path: './lora_output/my_lora_dataset-lora' };
+    expect(describeGenerationArgs(base, loaded)).toContain('lora=my_lora_dataset-lora@0.5');
+    expect(describeGenerationArgs(base, { ...loaded, active: false })).toContain('lora=my_lora_dataset-lora (switched off)');
+    expect(describeGenerationArgs(base, { loaded: false, active: false, scale: 1, path: '' })).toContain('lora=none');
+    // Without the state (the server could not read it) the line stays as before.
+    expect(describeGenerationArgs(base)).not.toContain('lora=');
+  });
+
+  it('reads the adapter name from a Windows or a trailing-slash path', () => {
+    expect(describeLora({ loaded: true, active: true, scale: 1, path: 'C:\\Studio\\lora_output\\style-a\\' })).toBe('lora=style-a@1');
   });
 });

@@ -725,7 +725,11 @@ async function processGenerationViaGradio(
 
   const client = await getGradioClient();
   const args = await buildGradioArgs(params);
-  console.log(describeGenerationArgs(args));
+  let loraSnapshot;
+  try {
+    loraSnapshot = (await import('../routes/lora.js')).getLoraState();
+  } catch {}
+  console.log(describeGenerationArgs(args, loraSnapshot));
 
   const caption = params.style || trackCaptionFallback(params.taskType, params.trackName, params.completeTrackClasses) || 'pop music';
   const prompt = params.customMode ? caption : (params.songDescription || caption);

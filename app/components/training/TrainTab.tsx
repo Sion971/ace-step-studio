@@ -526,7 +526,7 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
                   value={params.schedulerType}
                   onChange={e => set('schedulerType', e.target.value)}
                   disabled={isActive}
-                  className={`flex-1 ${INPUT_CLASS} disabled:opacity-50`}
+                  className={`flex-1 min-w-0 ${INPUT_CLASS} disabled:opacity-50`}
                 >
                   {SCHEDULER_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
