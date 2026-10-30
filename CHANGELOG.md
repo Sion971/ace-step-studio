@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-30
+
+### Fixed
+- Server terminal: the message filters of `sitecustomize.py` were never loaded on Ubuntu, Debian and Linux Mint, where Python's own `/usr/lib/python3.x/sitecustomize.py` comes before the environment's `site-packages` (the harmless torchao / diffusers / transformers messages and the DEBUG lines were still printed). The file is now `studio_log_filters.py`, loaded by a `studio_log_filters.pth` that Python always runs. `install.sh` / `install.bat` deploy both, and `run.sh` redeploys them at every start through `deploy-log-filters.sh` (an earlier install or a change of the file is picked up without reinstalling). Windows: `install.bat` updated, not tested.
+
 ## 2026-10-29
 
 ### Fixed

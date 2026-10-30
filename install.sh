@@ -671,19 +671,17 @@ else
     echo "  DCW restera desactive (repli automatique, pas de plantage)."
 fi
 
-# sitecustomize.py — filtre un FutureWarning generique de diffusers
-# (AutoencoderOobleck caste directement via .to() plutot que via
-# torch_dtype= a from_pretrained()), sans consequence reelle dans notre
-# cas (liste des modules a risque vide : []), mais visible a chaque
-# lancement. Mecanisme standard Python (module site), charge
-# automatiquement au demarrage de l'interpreteur avant meme le code
-# d'ACE-Step-1.5 — evite de toucher au code amont pour autant.
-if [ -f "sitecustomize.py" ]; then
-    SITE_PACKAGES=$(.venv/bin/python -c "import site; print(site.getsitepackages()[0])")
-    cp sitecustomize.py "$SITE_PACKAGES/sitecustomize.py"
-    echo "  [OK] sitecustomize.py deploye : $SITE_PACKAGES/sitecustomize.py"
+# studio_log_filters.py — filtre quelques messages connus et sans consequence
+# (avertissements de torchao / diffusers / transformers, voir la docstring
+# du fichier) et passe le niveau de journal loguru par defaut a INFO
+# (LOGURU_LEVEL=DEBUG dans l'environnement pour le mode verbeux). Charge par
+# un .pth, pas par un sitecustomize.py : sur Ubuntu / Mint, celui du systeme
+# passe avant le .venv et le notre n'etait jamais lu. run.sh redeploie ces
+# fichiers a chaque lancement.
+if bash ./deploy-log-filters.sh .venv/bin/python; then
+    echo "  [OK] filtres de messages deployes (studio_log_filters.pth)"
 else
-    echo "  ATTENTION : sitecustomize.py introuvable, avertissement diffusers non filtre."
+    echo "  ATTENTION : filtres de messages non deployes (studio_log_filters.py ou .venv introuvable)."
 fi
 
 

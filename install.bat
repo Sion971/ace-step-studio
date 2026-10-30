@@ -532,15 +532,20 @@ if exist "patch-pytorch-wavelets.py" (
     echo   DCW restera desactive ^(repli automatique, pas de plantage^).
 )
 
-REM sitecustomize.py - filtre un FutureWarning generique de diffusers ^(AutoencoderOobleck^),
-REM sans consequence mais visible a chaque lancement. Mecanisme standard Python ^(module site^).
-if not exist "sitecustomize.py" goto :site_missing
+REM studio_log_filters.py - filtre quelques messages connus et sans consequence ^(torchao, diffusers,
+REM transformers : voir la docstring du fichier^) et passe le niveau loguru par defaut a INFO
+REM ^(LOGURU_LEVEL=DEBUG pour le mode verbeux^). Charge par un .pth ^(studio_log_filters.pth^), comme sous Linux.
+REM Copie dans le site-packages : apres une modification, recopier le fichier a la main.
+if not exist "studio_log_filters.py" goto :site_missing
 for /f "delims=" %%p in ('.venv\Scripts\python.exe -c "import site; print(site.getsitepackages()[-1])"') do set "SITE_PACKAGES=%%p"
-copy /Y "sitecustomize.py" "!SITE_PACKAGES!\sitecustomize.py" >nul
-echo   [OK] sitecustomize.py deploye : !SITE_PACKAGES!\sitecustomize.py
+copy /Y "studio_log_filters.py" "!SITE_PACKAGES!\studio_log_filters.py" >nul
+> "!SITE_PACKAGES!\studio_log_filters.pth" echo import studio_log_filters
+REM Les anciens installeurs deposaient ce code sous le nom sitecustomize.py : on retire ce fichier-la seulement.
+if exist "!SITE_PACKAGES!\sitecustomize.py" findstr /C:"avant meme le code d'ACE-Step-1.5" "!SITE_PACKAGES!\sitecustomize.py" >nul && del "!SITE_PACKAGES!\sitecustomize.py"
+echo   [OK] filtres de messages deployes : !SITE_PACKAGES!\studio_log_filters.pth
 goto :site_done
 :site_missing
-echo   ATTENTION : sitecustomize.py introuvable, avertissement diffusers non filtre.
+echo   ATTENTION : studio_log_filters.py introuvable, messages connus non filtres.
 :site_done
 
 REM === 8. Node.js ===============================================================

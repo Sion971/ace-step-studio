@@ -189,6 +189,8 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # === 5. Configuration du pipeline ACE-Step ===================================
 export PYTHON_PATH="$SCRIPT_DIR/.venv/bin/python"
+# Filtres de messages connus (studio_log_filters.pth) : deployes a chaque lancement, sans effet si deja a jour.
+bash "$SCRIPT_DIR/deploy-log-filters.sh" "$PYTHON_PATH" >/dev/null 2>&1 || true
 export ACESTEP_PATH="$SCRIPT_DIR/ACE-Step-1.5"
 # Profil materiel (ecrit par install.sh) : modele par defaut selon la VRAM. Priorites
 # inchangees : un DEFAULT_MODEL / INIT_LLM deja defini (environnement, ACE-Step-1.5/.env,

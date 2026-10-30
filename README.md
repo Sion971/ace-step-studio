@@ -291,7 +291,7 @@ The installer walks through thirteen steps, all self-checking and safe to re-run
 4. Python 3.12 virtual environment (via `uv`), recreated from scratch on every run
 5. PyTorch, matched to your selected CUDA version — 2.14.1 on the CUDA 13.0 stack, 2.11.0 on the others; the installer first checks that the PyTorch index offers that version for Windows, and afterwards that the CUDA build (not the CPU one) was installed
 6. ACE-Step dependencies, `triton-windows`, and `flash-attn` — on the CUDA 13.0 stack a prebuilt wheel for RTX 30/40/50-series cards (no local compiler needed), tested on your GPU after installation and removed if it does not run; the other stacks use SDPA
-7. `pytorch_wavelets` patch — same `pkg_resources` fix as Linux, same reasoning — and the `sitecustomize.py` warning filter
+7. `pytorch_wavelets` patch — same `pkg_resources` fix as Linux, same reasoning — and the `studio_log_filters.py` message filter (loaded through a `.pth`)
 8. Node.js
 9. npm install (frontend and server)
 10. Frontend build

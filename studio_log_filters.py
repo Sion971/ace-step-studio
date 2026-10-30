@@ -1,9 +1,16 @@
 """
-sitecustomize.py
+studio_log_filters.py
 
-Charge automatiquement par Python au demarrage de l'interpreteur (mecanisme
-standard du module site), avant meme le code d'ACE-Step-1.5 : permet de
-filtrer des messages precis sans toucher au code source amont.
+Charge au demarrage de chaque interpreteur de l'environnement par un fichier
+.pth (studio_log_filters.pth, qui contient « import studio_log_filters »),
+avant meme le code d'ACE-Step-1.5 : permet de filtrer des messages precis sans
+toucher au code source amont.
+
+Pourquoi un .pth et pas un sitecustomize.py : sur Debian, Ubuntu et Linux Mint,
+Python livre son propre /usr/lib/python3.x/sitecustomize.py, dans un dossier
+qui passe AVANT le site-packages de l'environnement. Un sitecustomize.py
+depose dans le .venv n'y est donc jamais charge. Un .pth, lui, est toujours
+execute.
 
 Principe : chaque filtre vise le TEXTE exact d'un message connu et sans
 consequence, jamais une categorie entiere ni un logger entier. Tout autre
