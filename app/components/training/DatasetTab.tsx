@@ -555,10 +555,10 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
           <div className="overflow-x-auto max-h-48 overflow-y-auto rounded-lg border border-white/5">
             <table className="w-full text-[10px]">
               <thead>
-                <tr className="bg-white/5 sticky top-0">
-                  <th className="text-left px-2 py-1 text-zinc-400 font-medium">#</th>
+                <tr>
+                  <th className="text-left px-2 py-1 text-zinc-400 font-medium sticky top-0 z-10 bg-zinc-100 dark:bg-zinc-900">#</th>
                   {dataframeHeaders.slice(0, 6).map(h => (
-                    <th key={h} className="text-left px-2 py-1 text-zinc-400 font-medium truncate max-w-[80px]">{h}</th>
+                    <th key={h} className="text-left px-2 py-1 text-zinc-400 font-medium truncate max-w-[80px] sticky top-0 z-10 bg-zinc-100 dark:bg-zinc-900">{h}</th>
                   ))}
                 </tr>
               </thead>
