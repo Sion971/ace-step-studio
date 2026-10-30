@@ -4,6 +4,7 @@ import { trainingApi, getTrainingAudioUrl, TrainingSample, DatasetSettings } fro
 import { Section, FieldRow } from './TrainingUIComponents';
 import { fillTemplate } from '../../utils/fillTemplate';
 import { savePathForName } from './datasetPaths';
+import { formatTimeSignature } from '../../services/timeSignature';
 
 type PipelineStepKey = 'upload' | 'edit' | 'save' | 'preprocess' | 'train' | 'export';
 
@@ -725,7 +726,7 @@ export const DatasetTab: React.FC<DatasetTabProps> = ({ token, t, markStep }) =>
                 <div>
                   <label className="text-[11px] text-zinc-500 mb-0.5 block">Time Sig</label>
                   <select value={editTimeSig} onChange={e => setEditTimeSig(e.target.value)} className="w-full bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-200">
-                    {TIME_SIGS.map(ts => <option key={ts} value={ts}>{ts || 'Auto'}</option>)}
+                    {TIME_SIGS.map(ts => <option key={ts} value={ts}>{ts ? formatTimeSignature(ts) : 'Auto'}</option>)}
                   </select>
                 </div>
                 <div>
