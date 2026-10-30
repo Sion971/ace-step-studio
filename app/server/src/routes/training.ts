@@ -880,7 +880,9 @@ router.post('/export', authMiddleware, async (req: AuthenticatedRequest, res: Re
 
     res.json({
       status: `LoRA exported to ${result.destination}`
-        + (result.listed ? '. It is now in the LoRA menu with its trigger word and training details.' : '.'),
+        + (!result.inMenuFolder
+          ? '. It is NOT in the LoRA menu, which lists ACE-Step-1.5/lora_output only: export again with a plain name (no slash) to list it.'
+          : result.listed ? '. It is now in the LoRA menu with its trigger word and training details.' : '. It is in the LoRA menu.'),
     });
   } catch (error) {
     if (error instanceof LoraExportError) {

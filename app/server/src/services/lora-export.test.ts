@@ -136,10 +136,51 @@ describe('LoRA export by file copy', () => {
     expect(hub('lora_output/mady-lokr').training.adapterType).toBe('lokr');
   });
 
+  it('puts a plain name, or no name, in the LoRA menu folder even when the run was trained elsewhere', async () => {
+    put('lora_output_lot1/final/adapter_model.safetensors', 'w');
+    const named = await exportLora({ baseDir: base, exportPath: 'sion_style_lot1', loraOutputDir: './lora_output_lot1' });
+    expect(named.destination).toBe(path.join(base, 'lora_output', 'sion_style_lot1'));
+    expect(named.inMenuFolder).toBe(true);
+    const auto = await exportLora({ baseDir: base, loraOutputDir: './lora_output_lot1' });
+    expect(auto.destination).toBe(path.join(base, 'lora_output', 'trained-lora'));
+    expect(auto.inMenuFolder).toBe(true);
+  });
+
+  it('keeps a path with a slash as typed, and says it is out of the menu folder when it is', async () => {
+    put('lora_output/final/adapter_model.safetensors', 'w');
+    const out = await exportLora({ baseDir: base, exportPath: 'mes_lora/v1' });
+    expect(out.destination).toBe(path.join(base, 'mes_lora', 'v1'));
+    expect(out.inMenuFolder).toBe(false);
+    const inside = await exportLora({ baseDir: base, exportPath: './lora_output/v2' });
+    expect(inside.inMenuFolder).toBe(true);
+  });
+
   it('falls back to a generic name when nothing is known about the run', async () => {
     put('lora_output/final/adapter_model.safetensors');
     const out = await exportLora({ baseDir: base });
     expect(out.destination).toBe(path.join(base, 'lora_output', 'trained-lora'));
+  });
+
+  it('puts a plain name in the LoRA menu folder, even when the run was trained into another folder', async () => {
+    put('lora_output_lot1/final/adapter_model.safetensors', 'w');
+    put('lora_output_lot1/final/adapter_config.json', '{}');
+    const named = await exportLora({ baseDir: base, exportPath: 'sion_style_lot1', loraOutputDir: './lora_output_lot1' });
+    expect(named.destination).toBe(path.join(base, 'lora_output', 'sion_style_lot1'));
+    expect(named.inMenuFolder).toBe(true);
+    expect(existsSync(path.join(base, 'lora_output', 'sion_style_lot1', 'adapter_model.safetensors'))).toBe(true);
+    expect(existsSync(path.join(base, 'sion_style_lot1'))).toBe(false);
+    const auto = await exportLora({ baseDir: base, loraOutputDir: './lora_output_lot1' });
+    expect(auto.destination).toBe(path.join(base, 'lora_output', 'trained-lora'));
+    expect(auto.inMenuFolder).toBe(true);
+  });
+
+  it('takes a path with a slash as typed, and says when the copy is out of the menu folder', async () => {
+    put('lora_output/final/adapter_model.safetensors', 'w');
+    const out = await exportLora({ baseDir: base, exportPath: 'out/lora' });
+    expect(out.destination).toBe(path.join(base, 'out', 'lora'));
+    expect(out.inMenuFolder).toBe(false);
+    const inside = await exportLora({ baseDir: base, exportPath: './lora_output/mine' });
+    expect(inside.inMenuFolder).toBe(true);
   });
 
   it('refuses to overwrite a LoRA installed from the catalog, but re-exports over its own earlier export', async () => {

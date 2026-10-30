@@ -83,6 +83,8 @@ export interface LoraExportOptions {
 export interface LoraExportResult {
   source: string;
   destination: string;
+  /** True when the copy sits directly in the LoRA menu's folder (ACE-Step-1.5/lora_output): the menu lists nothing else. */
+  inMenuFolder: boolean;
   /** True when the training details were recorded, so the LoRA menu shows its trigger word and base model. */
   listed: boolean;
 }
@@ -117,8 +119,16 @@ export async function exportLora(opts: LoraExportOptions): Promise<LoraExportRes
   const recorded = loadTrainingInfo(loraDir);
   const info = recorded && trainingInfoIsCurrent(recorded, source) ? recorded : null;
 
+  // The LoRA menu lists ACE-Step-1.5/lora_output only. A name without a slash, or no name at all, goes there whatever the training folder is
+  // (a run trained into ./lora_output_lot1 used to be exported next to it, out of the menu); a path with a slash is taken as typed.
+  const menuDir = path.join(baseDir, 'lora_output');
   const requested = (opts.exportPath ?? '').trim();
-  const destination = requested ? resolveInside(baseDir, requested, 'Export path') : path.join(loraDir, autoExportName(loraDir, info));
+  const isPlainName = requested !== '' && !/[\\/]/.test(requested) && requested !== '.' && requested !== '..' && requested !== 'lora_output';
+  const destination = isPlainName
+    ? path.join(menuDir, requested)
+    : requested
+      ? resolveInside(baseDir, requested, 'Export path')
+      : path.join(menuDir, autoExportName(menuDir, info));
 
   // The destination is emptied before the copy: never let that be the trained adapter or a folder holding it.
   if (isInside(destination, source) || isInside(source, destination)) {
@@ -134,5 +144,5 @@ export async function exportLora(opts: LoraExportOptions): Promise<LoraExportRes
     filter: (file) => path.dirname(file) !== source || !stale.has(path.basename(file)),
   });
   if (info) writeTrainedLoraRecord(destination, info);
-  return { source, destination, listed: info !== null };
+  return { source, destination, inMenuFolder: path.dirname(destination) === menuDir, listed: info !== null };
 }
