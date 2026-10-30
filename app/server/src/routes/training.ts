@@ -31,7 +31,7 @@ function trainingErrorMessage(error: unknown, fallback: string): string {
     resetGradioClient(); // the cached connection points at the engine that was stopped
     return down;
   }
-  return trainingErrorMessage(error, fallback);
+  return gradioErrorMessage(error, fallback);
 }
 
 /** The engine is stopped to free the VRAM while a LoRA trains: bring it back once the run is over. */
