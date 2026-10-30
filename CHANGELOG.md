@@ -3,6 +3,7 @@
 ## 2026-10-29
 
 ### Fixed
+- LoRA training, export: a LoRA exported with a plain name (no slash), or with no name, now goes into `ACE-Step-1.5/lora_output`, the only folder the LoRA menu lists. It used to be written next to the training folder (`./lora_output_lot1`) or in the ACE-Step folder, so it never showed up in the menu. A path with a slash is still taken as typed, and the message after the export now says when the copy is not in the menu.
 - LoRA training, dataset builder: "Apply the settings" now confirms right under the button ("Settings applied (tag: ...)") instead of in the "Load an existing dataset" box, and the summary line under "Scan the folder" shows the tag that was just applied (it kept showing "Custom Tag: (none)", which looked as if the button did nothing).
 
 ## 2026-10-28
