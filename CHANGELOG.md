@@ -3,6 +3,7 @@
 ## 2026-10-30
 
 ### Fixed
+- LoRA training page: the mouse wheel now scrolls over the empty side bands too. In a maximised window the scrolling box was only as wide as the centred column (max-w-6xl), so the wheel did nothing on the black bands on each side; the scrolling box now spans the whole width and the column is centred inside it.
 - LoRA training, dataset list: the header row of the sample table is now opaque and stuck on each header cell (it was a see-through sticky row: the first sample showed through it and overlapped the titles, and Firefox could stop scrolling the page in a maximised window).
 - LoRA training, error messages: the helper that builds the error text for the training routes called itself when the engine was not simply stopped (endless recursion, then a `RangeError`), so the real cause never reached the screen. It now returns the engine's own message.
 - LoRA training, dataset editor: the "Time Sig" list now reads "2/4, 3/4, 4/4, 6/8" like the Create tab instead of the bare numbers 2, 3, 4, 6 (display only: the stored value stays the number the engine uses; it knows no 9/8 or 12/8).

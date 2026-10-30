@@ -79,11 +79,13 @@ export const TrainingPanel: React.FC = () => {
       </div>
 
       {/* Tab Content & Active Views */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 scrollbar-hide max-w-6xl mx-auto w-full">
-        {/* Panneaux dédiés */}
-        {activeTab === 'dataset' && <DatasetTab token={token} t={t} markStep={markStep} />}
-        {activeTab === 'train' && <TrainTab token={token} t={t} markStep={markStep} />}
-        {activeTab === 'export' && <ExportTab token={token} t={t} markStep={markStep} />}
+      <div className="flex-1 overflow-y-auto scrollbar-hide w-full">
+        <div className="px-4 py-3 space-y-3 max-w-6xl mx-auto w-full">
+          {/* Panneaux dédiés */}
+          {activeTab === 'dataset' && <DatasetTab token={token} t={t} markStep={markStep} />}
+          {activeTab === 'train' && <TrainTab token={token} t={t} markStep={markStep} />}
+          {activeTab === 'export' && <ExportTab token={token} t={t} markStep={markStep} />}
+        </div>
       </div>
     </div>
   );
