@@ -240,6 +240,31 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
     return () => { cancelled = true; };
   }, [applyPreset]);
 
+  // The model of the training is the one the engine has loaded now (the tensors were prepared with it).
+  // Kept when the engine is stopped for the training; unknown until the engine has answered once.
+  const [activeModel, setActiveModel] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const read = async () => {
+      try {
+        const response = await fetch('/api/generate/model-status');
+        if (!response.ok) return;
+        const body = await response.json();
+        if (!cancelled && body?.connected && body?.state === 'ready' && typeof body.activeModel === 'string' && body.activeModel) {
+          setActiveModel(body.activeModel);
+        }
+      } catch {
+        /* moteur indisponible : on garde le dernier modele connu */
+      }
+    };
+    read();
+    const timer = setInterval(read, 5000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, []);
+  useEffect(() => {
+    if (activeModel) setParams(p => (p.modelVariant === activeModel ? p : { ...p, modelVariant: activeModel }));
+  }, [activeModel]);
+
   const activePreset = presetId === DEFAULT_PRESET ? undefined : findPreset(presetId);
   const presetModified = activePreset
     ? (Object.keys(activePreset.values) as (keyof PresetValues)[]).some(k => params[k] !== activePreset.values[k])
@@ -392,16 +417,27 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
       {/* ---- Modèle de base ---- */}
       <Section title={t('baseModel') || 'Modèle de base'}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-          <FieldRow label={t('modelVariant') || 'Variante'}>
-            <select
-              value={params.modelVariant}
-              onChange={e => set('modelVariant', e.target.value)}
-              disabled={isActive}
-              className={`flex-1 ${INPUT_CLASS} disabled:opacity-50`}
-            >
-              {MODEL_VARIANTS.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
-          </FieldRow>
+          {activeModel ? (
+            <div className="lg:col-span-2 text-xs text-zinc-500 dark:text-zinc-400 break-words">
+              {t('trainingModelCurrent') || 'Model used for training:'}{' '}
+              <span className="font-semibold text-zinc-800 dark:text-zinc-200">{activeModel}</span>
+              <span className="block text-[10px] mt-0.5 leading-relaxed">
+                {t('trainingModelHint') ||
+                  'This is the model currently loaded. To train with another model, load it in the Create tab, then run the preprocessing again: the tensors belong to one model.'}
+              </span>
+            </div>
+          ) : (
+            <FieldRow label={t('modelVariant') || 'Variante'}>
+              <select
+                value={params.modelVariant}
+                onChange={e => set('modelVariant', e.target.value)}
+                disabled={isActive}
+                className={`flex-1 ${INPUT_CLASS} disabled:opacity-50`}
+              >
+                {MODEL_VARIANTS.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </FieldRow>
+          )}
           <FieldRow label={t('checkpointDir') || 'Dossier checkpoints'}>
             <input
               type="text"

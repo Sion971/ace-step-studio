@@ -48,6 +48,8 @@ const KEYS = [
   'freeVramHint',
   'streamBlocks',
   'streamBlocksHint',
+  'trainingModelCurrent',
+  'trainingModelHint',
   'resumeCheckpoint',
   'restartPipeline',
   'elapsed',

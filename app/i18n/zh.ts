@@ -1305,6 +1305,8 @@ export const zh = {
     freeVramHint: "生成服务器会把模型保留在显存中。在 8 GB 显卡上，如果不停止它，训练会失败。",
     streamBlocks: "小显卡模式（按块传输权重）",
     streamBlocksHint: "模型权重保留在内存中，按块逐个送入显卡：训练 LoRA 约需 1–2 GB 显存（XL 模型同样适用），速度约慢 1.6 倍。仅限 LoRA。",
+    trainingModelCurrent: "训练所用模型：",
+    trainingModelHint: "这是当前已加载的模型。若要用其他模型训练，请先在“创作”页签加载它，然后重新运行预处理：张量与具体模型绑定。",
     trainingPreset: "预设",
     trainingPresetStudio: "Studio 默认值",
     trainingPresetVram8: "8 GB 显存",
