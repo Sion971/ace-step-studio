@@ -3,6 +3,7 @@
 ## 2026-10-30
 
 ### Added
+- The refusal sent while a training runs is now shown in the interface language, without the "409:" prefix.
 - The "Generation failed" message now adds the reason when the server refused the request (for example "a LoRA training is running"), instead of the bare "Generation failed".
 - While a LoRA training runs, the Studio now refuses the requests that would use the card: generation, model switch, "create sample" and "format" (answer 409 with the reason, shown on screen). With "Free VRAM during training" unchecked the engine stays alive, and a generation started during the training took 5.1 GB of the 7.5 GB card and made the training fail with "CUDA out of memory" before its first step.
 - LoRA training page: the model of the training is now the one the engine has loaded. The "Variant" list is replaced by a sentence ("Model used for training: acestep-v15-xl-turbo-bf16") with a reminder that another model has to be loaded in the Create tab first and the preprocessing run again, since the tensors belong to one model. The folder name of the loaded model is passed to the trainer as it is. The list only comes back while the engine has not answered yet.

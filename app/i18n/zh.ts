@@ -333,6 +333,7 @@ export const zh = {
     dragToMove: '拖动移动',
     scrollToResize: '滚动调整大小',
     generationFailed: '生成失败，请重试。',
+    trainingRunningBusy: 'LoRA 训练正在进行：生成已暂停，直至训练结束（同时使用显卡会导致训练失败）。',
     playlistCreated: '歌单创建成功！',
     failedToCreatePlaylist: '创建歌单失败',
     songAddedToPlaylist: '已添加到歌单',

@@ -345,6 +345,7 @@ export const fr = {
     dragToMove: 'Faire glisser pour déplacer',
     scrollToResize: 'Faire défiler pour redimensionner',
     generationFailed: 'La génération a échoué. Veuillez réessayer.',
+    trainingRunningBusy: 'Un entraînement LoRA est en cours : la génération est suspendue jusqu\'à sa fin (utiliser la carte en même temps ferait échouer l\'entraînement).',
     playlistCreated: 'Playlist créée avec succès !',
     workspaceCreated: 'Espace de travail créé avec succès !',
     failedToCreatePlaylist: 'Échec de la création de la playlist',

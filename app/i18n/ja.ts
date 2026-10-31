@@ -333,6 +333,7 @@ export const ja = {
   dragToMove: 'ドラッグで移動',
   scrollToResize: 'スクロールでサイズ変更',
   generationFailed: '生成に失敗しました。もう一度お試しください。',
+  trainingRunningBusy: 'LoRA の学習中です。学習が終わるまで生成は一時停止されます（同時に GPU を使うと学習が失敗するため）。',
   playlistCreated: 'プレイリストを作成しました！',
   failedToCreatePlaylist: 'プレイリストの作成に失敗しました',
   songAddedToPlaylist: 'プレイリストに追加しました',

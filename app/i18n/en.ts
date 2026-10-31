@@ -336,6 +336,7 @@ export const en = {
     dragToMove: 'Drag to move',
     scrollToResize: 'Scroll to resize',
     generationFailed: 'Generation failed. Please try again.',
+    trainingRunningBusy: 'A LoRA training is running: generation is paused until it ends (using the card at the same time would make the training fail).',
     playlistCreated: 'Playlist created successfully!',
     failedToCreatePlaylist: 'Failed to create playlist',
     songAddedToPlaylist: 'Song added to playlist',

@@ -104,7 +104,7 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
     const error = await response.json().catch(() => ({ error: 'Request failed' }));
     const errorMessage = error.error || error.message || 'Request failed';
     // Include status code in error for proper handling
-    throw new Error(`${response.status}: ${errorMessage}`);
+    throw Object.assign(new Error(`${response.status}: ${errorMessage}`), { code: error.code as string | undefined });
   }
 
   return response.json();

@@ -1475,6 +1475,10 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
       if (activeJobsRef.current.size === 0) {
         setIsGenerating(false);
       }
+      if ((e as { code?: string })?.code === 'training_running') {
+        showToast(t('trainingRunningBusy'), 'error');
+        return;
+      }
       const reason = e instanceof Error ? e.message.trim() : '';
       showToast(reason ? `${t('generationFailed')} ${reason}` : t('generationFailed'), 'error');
     }

@@ -333,6 +333,7 @@ export const ko = {
     dragToMove: '드래그하여 이동',
     scrollToResize: '스크롤하여 크기 조절',
     generationFailed: '생성에 실패했습니다. 다시 시도해주세요.',
+    trainingRunningBusy: 'LoRA 학습이 진행 중입니다. 학습이 끝날 때까지 생성이 일시 중지됩니다(동시에 GPU를 쓰면 학습이 실패합니다).',
     playlistCreated: '재생목록이 생성되었습니다!',
     failedToCreatePlaylist: '재생목록 생성에 실패했습니다',
     songAddedToPlaylist: '재생목록에 추가되었습니다',
