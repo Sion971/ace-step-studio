@@ -290,6 +290,15 @@ class ResidentAndComputeTests(unittest.TestCase):
         self.assertEqual(len(pool.resident), 3)
         self.assertTrue(torch.equal(before, after))
 
+    @torch.no_grad()
+    def test_slots_that_are_missing_while_the_pool_is_ready_are_made_again(self):
+        decoder, pool, _ref, before, inputs = self._run(6, resident=3)
+        pool.slots, pool.slot_params, pool.loaded = [], [], []  # the state behind the IndexError seen on the card
+        after = decoder(**inputs, use_cache=False)[0]
+        self.assertEqual(len(pool.slots), 2)
+        self.assertEqual(len(pool.slot_params), 2)
+        self.assertTrue(torch.equal(before, after))
+
     def test_bfloat16_compute_stays_close_and_comes_back_in_float32(self):
         decoder, reference, cfg = self._decoders()
         pool = sgs.install(decoder, self.CPU, torch.bfloat16, compute_dtype=torch.bfloat16, resident=2)

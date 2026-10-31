@@ -55,6 +55,7 @@ import gc
 import os
 import subprocess
 import sys
+import threading
 import time
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
@@ -998,6 +999,16 @@ class StreamPool:
 
     def acquire(self, layer_idx: int) -> nn.Module:
         self.ensure_gpu()
+        if self.resident_n < self.count and not self.slot_params:
+            # Seen once, on the first generation of a session with an adapter (IndexError in _load): the pool was marked
+            # ready and some blocks are streamed, but the two slots were not there. Make them instead of failing.
+            logger.warning(
+                "[small_gpu_stream] {}: the slots were missing ({} resident of {} blocks, thread {}); they are made again.",
+                self.label, self.resident_n, self.count, threading.current_thread().name,
+            )
+            self.slots, self.slot_params = [], []
+            with torch.inference_mode(False), torch.no_grad():
+                self._make_slots()
         if layer_idx < self.resident_n:
             self._prefetch_after(layer_idx)
             return self.resident[layer_idx]
