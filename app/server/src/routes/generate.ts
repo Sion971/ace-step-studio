@@ -8,6 +8,7 @@ import { pool } from '../db/pool.js';
 import { generateUUID } from '../db/sqlite.js';
 import { config } from '../config/index.js';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
+import { blockWhileTraining } from '../middleware/training-busy.js';
 import { getGradioClient } from '../services/gradio-client.js';
 import { LISTED_DIT_MODELS, LISTED_LM_MODELS, downloadArgs, isDownloadableModel, isLmModel } from '../services/model-downloads.js';
 import {
@@ -342,7 +343,7 @@ router.post('/upload-audio', authMiddleware, (req: AuthenticatedRequest, res: Re
   }
 });
 
-router.post('/', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', authMiddleware, blockWhileTraining, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const {
       customMode,
@@ -1194,7 +1195,7 @@ export function setGenerationInProgress(v: boolean) { generationInProgress = v; 
 // preservation automatique de /config pour ce champ precis.
 export function getActiveLoadedModel(): string { return activeLoadedModel; }
 
-router.post('/switch-model', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/switch-model', authMiddleware, blockWhileTraining, async (req: AuthenticatedRequest, res: Response) => {
   const { model, lmModel, lmBackend } = req.body;
   if (!model) {
     res.status(400).json({ error: 'model required' });
@@ -1559,7 +1560,7 @@ router.get('/random-description', authMiddleware, async (_req: AuthenticatedRequ
 // Calls our custom /v1/create_sample_from_query (inspiration path) — runs the LLM directly
 // on the description to AUTO-GENERATE lyrics. Do NOT use upstream /format_input here:
 // that endpoint requires user-provided lyrics and forces "[Instrumental]" if they're empty.
-router.post('/create-sample', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/create-sample', authMiddleware, blockWhileTraining, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { query, instrumental, vocalLanguage, lmTemperature } = req.body;
 
@@ -1607,7 +1608,7 @@ router.post('/create-sample', authMiddleware, async (req: AuthenticatedRequest, 
 });
 
 // Format endpoint - uses LLM to enhance style/lyrics
-router.post('/format', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/format', authMiddleware, blockWhileTraining, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { caption, lyrics, bpm, duration, keyScale, timeSignature, temperature, topK, topP, lmModel, lmBackend, vocalLanguage } = req.body;
 
