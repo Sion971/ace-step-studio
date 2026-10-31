@@ -2,6 +2,9 @@
 
 ## 2026-10-30
 
+### Added
+- LoRA training, block streaming (experimental): new option `--stream-blocks` of the Side-Step trainer (LoRA only, one GPU). The frozen weights of the model stay in RAM and each transformer block is copied to the card just before it runs (twice per step: forward, then the recomputation of the backward pass), so the card only holds one block, the LoRA matrices and the activations. Meant for training on small cards (and, next, the XL model on 8 GB); slower than the normal mode, the speed depends on the PCIe link. Off by default, the normal path is unchanged. Unit test: `python3 -m acestep.training_v2.block_stream_test` (CPU, same gradients as a normal run).
+
 ### Fixed
 - LoRA training page: the mouse wheel now scrolls over the empty side bands too. In a maximised window the scrolling box was only as wide as the centred column (max-w-6xl), so the wheel did nothing on the black bands on each side; the scrolling box now spans the whole width and the column is centred inside it.
 - LoRA training, dataset list: the header row of the sample table is now opaque and stuck on each header cell (it was a see-through sticky row: the first sample showed through it and overlapped the titles, and Firefox could stop scrolling the page in a maximised window).

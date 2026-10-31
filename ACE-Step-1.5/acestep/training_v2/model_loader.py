@@ -120,8 +120,13 @@ def load_decoder_for_training(
     variant: str = "turbo",
     device: str = "cpu",
     precision: str = "bf16",
+    keep_on_cpu: bool = False,
 ) -> Any:
     """Load the full ``AceStepConditionGenerationModel`` for training.
+
+    With ``keep_on_cpu`` the weights stay in RAM (block-streamed training puts
+    them on the GPU one block at a time); ``device`` still decides which
+    attention implementation is chosen.
 
     The model is loaded in eval mode with gradients disabled on all
     parameters (the caller -- the trainer -- will selectively enable
@@ -177,10 +182,10 @@ def load_decoder_for_training(
     for param in model.parameters():
         param.requires_grad = False
 
-    model = model.to(device=device, dtype=dtype)
+    model = model.to(device="cpu" if keep_on_cpu else device, dtype=dtype)
     model.eval()
 
-    logger.info("[OK] Model on %s (%s), all params frozen", device, dtype)
+    logger.info("[OK] Model on %s (%s), all params frozen", "cpu" if keep_on_cpu else device, dtype)
     return model
 
 

@@ -95,6 +95,7 @@ def run_fixed(args: argparse.Namespace) -> int:
                 variant=train_cfg.model_variant,
                 device=train_cfg.device,
                 precision=train_cfg.precision,
+                keep_on_cpu=bool(getattr(train_cfg, "stream_blocks", False)),
             )
         except Exception as exc:
             handle_error(exc, context="Model loading", show_traceback=True)

@@ -293,6 +293,41 @@ class FixedLoRATrainer:
         train_loader = data_module.train_dataloader()
         train_loader = self.fabric.setup_dataloaders(train_loader)
 
+        # -- Block streaming (frozen DiT weights in RAM, one block on the card) --
+        stream_blocks = bool(getattr(cfg, "stream_blocks", False))
+        stream_layers = None
+        if stream_blocks:
+            problem = None
+            if self.adapter_type != "lora":
+                problem = "--stream-blocks only supports LoRA (not LoKr) for now"
+            elif world_size > 1:
+                problem = "--stream-blocks works on a single GPU only"
+            elif self.module.device.type != "cuda":
+                problem = "--stream-blocks needs a CUDA GPU"
+            if problem:
+                if is_main:
+                    yield TrainingUpdate(0, 0.0, f"[FAIL] {problem}", kind="fail")
+                    tb.close()
+                return
+            from acestep.training_v2 import block_stream
+
+            stream_layers = block_stream.find_layers(self.module.model.decoder)
+            moved = block_stream.move_outside_layers(
+                self.module.model.decoder, stream_layers, self.module.device,
+            )
+            if self.module._null_cond_emb is not None:
+                self.module._null_cond_emb.data = self.module._null_cond_emb.data.to(self.module.device)
+            n_blocks = block_stream.enable_block_streaming(stream_layers, self.module.device)
+            torch.cuda.synchronize()
+            torch.cuda.reset_peak_memory_stats()
+            if is_main:
+                yield TrainingUpdate(
+                    0, 0.0,
+                    f"[INFO] Block streaming ON: {n_blocks} blocks stream from RAM, {moved} small tensors on the card "
+                    f"(VRAM now {torch.cuda.memory_allocated() / 2**20:.0f} MiB)",
+                    kind="info",
+                )
+
         # -- Trainable params / optimizer -----------------------------------
         trainable_params = [p for p in self.module.model.parameters() if p.requires_grad]
         if not trainable_params:
@@ -358,6 +393,10 @@ class FixedLoRATrainer:
                     kind="info",
                 )
 
+        if stream_layers is not None:
+            # gradient_checkpointing_enable() switched the blocks' own flag back on; streaming checkpoints by itself
+            block_stream.keep_layers_unwrapped(stream_layers)
+
         # -- Encoder/VAE offloading ------------------------------------------
         if getattr(cfg, "offload_encoder", False):
             offloaded = offload_non_decoder(self.module.model)
@@ -369,7 +408,9 @@ class FixedLoRATrainer:
 
         # -- dtype / Fabric setup -------------------------------------------
         self.module.model = self.module.model.to(self.module.dtype)
-        self.module.model.decoder, optimizer = self.fabric.setup(self.module.model.decoder, optimizer)
+        self.module.model.decoder, optimizer = self.fabric.setup(
+            self.module.model.decoder, optimizer, move_to_device=not stream_blocks,
+        )
 
         # -- Resume ---------------------------------------------------------
         start_epoch = 0
@@ -499,6 +540,12 @@ class FixedLoRATrainer:
             avg_epoch_loss = epoch_loss / max(num_updates, 1)
             if is_main:
                 tb.log_epoch_loss(avg_epoch_loss, epoch + 1)
+                if stream_blocks:
+                    yield TrainingUpdate(
+                        step=global_step, loss=avg_epoch_loss,
+                        msg=f"[INFO] Peak VRAM so far: {torch.cuda.max_memory_allocated() / 2**30:.2f} GiB",
+                        kind="info",
+                    )
                 yield TrainingUpdate(
                     step=global_step, loss=avg_epoch_loss,
                     msg=f"[OK] Epoch {epoch + 1}/{cfg.max_epochs} in {epoch_time:.1f}s, Loss: {avg_epoch_loss:.4f}",
