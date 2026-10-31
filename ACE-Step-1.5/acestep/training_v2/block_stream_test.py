@@ -249,6 +249,73 @@ def test_keep_layers_unwrapped_resets_the_flag():
     assert all(layer.gradient_checkpointing is False for layer in model.layers)
 
 
+def _attention_case(q_len, k_len, heads=4, mask=None, gqa=False, budget_mib=1):
+    torch.manual_seed(3)
+    q = torch.randn(1, heads, q_len, 8, requires_grad=True)
+    kv_heads = heads // 2 if gqa else heads
+    k = torch.randn(1, kv_heads, k_len, 8, requires_grad=True)
+    v = torch.randn(1, kv_heads, k_len, 8, requires_grad=True)
+    m = None
+    if mask == "bool":
+        m = (torch.rand(1, 1, q_len, k_len) > 0.3)
+        m[..., 0] = True
+    elif mask == "float":
+        m = torch.randn(1, 1, q_len, k_len)
+    kw = {"enable_gqa": True} if gqa else {}
+    ref = F.scaled_dot_product_attention(q, k, v, attn_mask=m, scale=0.3, **kw)
+    ref.square().sum().backward()
+    grads = [t.grad.clone() for t in (q, k, v)]
+    for t in (q, k, v):
+        t.grad = None
+    assert bs.enable_chunked_attention(budget_mib=budget_mib)
+    try:
+        calls = {"n": 0}
+        original = bs._SDPA_STATE["original"]
+
+        def counting(*a, **kw2):
+            calls["n"] += 1
+            return original(*a, **kw2)
+
+        F.scaled_dot_product_attention = bs._make_chunked_sdpa(counting, budget_mib * 2**20)
+        out = F.scaled_dot_product_attention(q, k, v, attn_mask=m, scale=0.3, **kw)
+        out.square().sum().backward()
+    finally:
+        bs.disable_chunked_attention()
+    assert F.scaled_dot_product_attention is original or bs._SDPA_STATE["original"] is None
+    torch.testing.assert_close(out, ref, atol=1e-5, rtol=1e-5)
+    for a, b in zip([q.grad, k.grad, v.grad], grads):
+        torch.testing.assert_close(a, b, atol=1e-4, rtol=1e-4)
+    return calls["n"]
+
+
+def test_chunked_attention_matches_the_original_without_mask():
+    # 1 MiB / (1 head-batch * 4 heads * 600 keys * 4 bytes) = 109 rows per slice -> several slices
+    assert _attention_case(700, 600) > 1
+
+
+def test_chunked_attention_matches_with_masks_cross_attention_and_gqa():
+    assert _attention_case(700, 700, mask="bool") > 1
+    assert _attention_case(700, 700, mask="float") > 1
+    assert _attention_case(700, 90, mask=None) >= 1  # cross attention: few keys, a single slice is allowed
+    assert _attention_case(700, 650, mask="bool", gqa=True) > 1
+
+
+def test_chunked_attention_leaves_small_calls_alone_and_restores_the_function():
+    before = F.scaled_dot_product_attention
+    assert bs.enable_chunked_attention(budget_mib=48)
+    assert not bs.enable_chunked_attention(budget_mib=48)  # already on
+    q = torch.randn(1, 2, 10, 4)
+    out = F.scaled_dot_product_attention(q, q, q)
+    assert out.shape == q.shape
+    assert bs.disable_chunked_attention()
+    assert F.scaled_dot_product_attention is before
+    assert not bs.disable_chunked_attention()
+
+
+def test_chunked_attention_is_not_asked_for_on_the_cpu():
+    assert bs.wants_chunked_attention("cpu") in (False, True)  # depends on a possible local GPU; must not raise
+
+
 if __name__ == "__main__":
     import sys
 

@@ -199,3 +199,80 @@ def keep_layers_unwrapped(layers: Iterable[nn.Module]) -> None:
     for layer in layers:
         if getattr(layer, _MARK, False) and hasattr(layer, "gradient_checkpointing"):
             layer.gradient_checkpointing = False
+
+
+# ---------------------------------------------------------------------------
+# Attention in slices of queries (cards without bf16 attention kernels)
+# ---------------------------------------------------------------------------
+_SDPA_STATE: Dict[str, Any] = {"original": None}
+
+
+def wants_chunked_attention(device: Any) -> bool:
+    """True on cards older than Ampere (compute capability below 8): they have no bf16 memory-efficient attention kernel, so
+    PyTorch falls back to the plain one, which builds the whole ``heads x N x N`` table (about 400 MiB for 200 s of music, and
+    several of them in the backward pass). ``ACESTEP_CHUNKED_ATTENTION=on`` / ``off`` overrides the choice."""
+    import os
+
+    choice = os.environ.get("ACESTEP_CHUNKED_ATTENTION", "auto").strip().lower()
+    if choice in ("on", "1", "yes", "true"):
+        return True
+    if choice in ("off", "0", "no", "false"):
+        return False
+    if not torch.cuda.is_available():
+        return False
+    return torch.cuda.get_device_capability(device)[0] < 8
+
+
+def _make_chunked_sdpa(original: Callable, budget_bytes: int) -> Callable:
+    def sdpa(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None, **kwargs):
+        if is_causal or dropout_p or query.dim() != 4 or key.dim() != 4:
+            return original(query, key, value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal,
+                            scale=scale, **kwargs)
+        batch, heads, q_len, _ = query.shape
+        k_len = key.shape[-2]
+        rows = max(16, int(budget_bytes // max(1, batch * heads * k_len * 4)))  # the table is counted in float32
+        if rows >= q_len:
+            return original(query, key, value, attn_mask=attn_mask, scale=scale, **kwargs)
+        grad = torch.is_grad_enabled() and (query.requires_grad or key.requires_grad or value.requires_grad)
+
+        def part(q_part, k_all, v_all, m_part):
+            return original(q_part, k_all, v_all, attn_mask=m_part, scale=scale, **kwargs)
+
+        outs = []
+        for start in range(0, q_len, rows):
+            stop = min(start + rows, q_len)
+            m_part = attn_mask
+            if attn_mask is not None and attn_mask.dim() >= 2 and attn_mask.shape[-2] == q_len:
+                m_part = attn_mask[..., start:stop, :]
+            q_part = query[:, :, start:stop]
+            if grad:  # the table of one slice is rebuilt in the backward pass instead of being kept
+                outs.append(checkpoint(part, q_part, key, value, m_part, use_reentrant=False))
+            else:
+                outs.append(part(q_part, key, value, m_part))
+        return torch.cat(outs, dim=-2)
+
+    return sdpa
+
+
+def enable_chunked_attention(budget_mib: int = 48) -> bool:
+    """Replace ``torch.nn.functional.scaled_dot_product_attention`` by a version that works on slices of queries so that the
+    attention table of a slice stays under ``budget_mib`` MiB. Same results as the original (each query row is independent);
+    calls that are small enough, causal or with dropout go to the original untouched. Returns False if already on."""
+    import torch.nn.functional as F
+
+    if _SDPA_STATE["original"] is not None:
+        return False
+    _SDPA_STATE["original"] = F.scaled_dot_product_attention
+    F.scaled_dot_product_attention = _make_chunked_sdpa(_SDPA_STATE["original"], int(budget_mib) * 2**20)
+    return True
+
+
+def disable_chunked_attention() -> bool:
+    import torch.nn.functional as F
+
+    if _SDPA_STATE["original"] is None:
+        return False
+    F.scaled_dot_product_attention = _SDPA_STATE["original"]
+    _SDPA_STATE["original"] = None
+    return True
+

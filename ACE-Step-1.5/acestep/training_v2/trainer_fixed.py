@@ -318,8 +318,16 @@ class FixedLoRATrainer:
             if self.module._null_cond_emb is not None:
                 self.module._null_cond_emb.data = self.module._null_cond_emb.data.to(self.module.device)
             n_blocks = block_stream.enable_block_streaming(stream_layers, self.module.device)
+            sliced_attention = block_stream.wants_chunked_attention(self.module.device) and block_stream.enable_chunked_attention()
             torch.cuda.synchronize()
             torch.cuda.reset_peak_memory_stats()
+            if is_main and sliced_attention:
+                yield TrainingUpdate(
+                    0, 0.0,
+                    "[INFO] Attention in slices of queries (this card has no bf16 attention kernel): "
+                    "the full attention table is never built",
+                    kind="info",
+                )
             if is_main:
                 yield TrainingUpdate(
                     0, 0.0,

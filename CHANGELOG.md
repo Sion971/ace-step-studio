@@ -3,6 +3,7 @@
 ## 2026-10-30
 
 ### Added
+- Block-streamed training on cards older than Ampere (GTX 10xx, 2 GB): the attention is computed in slices of queries (same results, tested), because those cards have no bf16 attention kernel and the plain one builds a table of about 400 MiB per layer for 200 s of music, which ran the 2 GB card out of memory at the first step. `ACESTEP_CHUNKED_ATTENTION=on|off` overrides the automatic choice.
 - The refusal sent while a training runs is now shown in the interface language, without the "409:" prefix.
 - The "Generation failed" message now adds the reason when the server refused the request (for example "a LoRA training is running"), instead of the bare "Generation failed".
 - While a LoRA training runs, the Studio now refuses the requests that would use the card: generation, model switch, "create sample" and "format" (answer 409 with the reason, shown on screen). With "Free VRAM during training" unchecked the engine stays alive, and a generation started during the training took 5.1 GB of the 7.5 GB card and made the training fail with "CUDA out of memory" before its first step.
