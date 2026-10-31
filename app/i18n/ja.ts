@@ -1303,6 +1303,8 @@ export const ja = {
     offloadEncoder: "エンコーダーをオフロード",
     freeVram: "トレーニング中に VRAM を解放",
     freeVramHint: "生成サーバーはモデルを VRAM に保持します。8 GB のカードでは、停止しないとトレーニングが失敗します。",
+    streamBlocks: "小型カードモード（ブロック単位で重みを転送）",
+    streamBlocksHint: "モデルの重みは RAM に置かれ、1 ブロックずつカードに送られます。LoRA は約 1〜2 GB の VRAM で学習できます（XL モデルも）。速度は約 1.6 倍遅くなります。LoRA のみ。",
     trainingPreset: "プリセット",
     trainingPresetStudio: "Studio の既定値",
     trainingPresetVram8: "VRAM 8 GB",

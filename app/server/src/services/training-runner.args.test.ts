@@ -30,6 +30,14 @@ describe('train.py arguments', () => {
     for (const flag of ['--warmup-steps', '--scheduler-type', '--cfg-ratio', '--attention-type']) expect(none).not.toContain(flag);
   });
 
+  it('adds --stream-blocks only when asked, and only for a LoRA', () => {
+    expect(argsOf({})).not.toContain('--stream-blocks');
+    expect(argsOf({ streamBlocks: false })).not.toContain('--stream-blocks');
+    expect(argsOf({ streamBlocks: true })).toContain('--stream-blocks');
+    expect(argsOf({ streamBlocks: true, adapterType: 'lora' })).toContain('--stream-blocks');
+    expect(argsOf({ streamBlocks: true, adapterType: 'lokr' })).not.toContain('--stream-blocks');
+  });
+
   it('keeps the global options before the subcommand', () => {
     const a = argsOf({ cfgRatio: 0.15 });
     expect(a.slice(0, 3)).toEqual(['--yes', '--plain', 'fixed']);

@@ -35,6 +35,11 @@ def _resolve_model_config_path(ckpt_root: Path, variant: str) -> Path:
         if p.is_file():
             return p
 
+    if mapped:
+        p = ckpt_root / (mapped + "-bf16") / "config.json"  # the bf16 download (acestep-v15-xl-turbo-bf16)
+        if p.is_file():
+            return p
+
     # 2. Literal folder name (fine-tunes, custom models)
     p = ckpt_root / variant / "config.json"
     if p.is_file():

@@ -953,6 +953,7 @@ export interface TrainingParams {
   attentionType?: string;
   gradientCheckpointing?: boolean;
   offloadEncoder?: boolean;
+  streamBlocks?: boolean;
   numWorkers?: number;
   /** Fréquence des lignes de log (1 = une par époque). Requis pour la progression. */
   logEvery?: number;

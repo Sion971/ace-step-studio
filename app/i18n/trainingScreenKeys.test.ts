@@ -46,6 +46,8 @@ const KEYS = [
   'offloadEncoder',
   'freeVram',
   'freeVramHint',
+  'streamBlocks',
+  'streamBlocksHint',
   'resumeCheckpoint',
   'restartPipeline',
   'elapsed',

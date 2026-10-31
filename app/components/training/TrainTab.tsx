@@ -196,6 +196,7 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
     optimizerType: 'adamw8bit',
     gradientCheckpointing: true,
     offloadEncoder: true,
+    streamBlocks: false,
     numWorkers: 0,
 
     // Le serveur Gradio garde le DiT résident (~6,8 Go). Sur une carte 8 Go
@@ -611,6 +612,15 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
           </label>
           <label className="flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-zinc-400">
             <input
+              type="checkbox" checked={params.streamBlocks && params.adapterType === 'lora'}
+              onChange={e => set('streamBlocks', e.target.checked)}
+              disabled={isActive || params.adapterType !== 'lora'}
+              className="w-3 h-3 accent-pink-500"
+            />
+            {t('streamBlocks') || 'Small-card mode (weights by blocks)'}
+          </label>
+          <label className="flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+            <input
               type="checkbox" checked={params.freeVram}
               onChange={e => set('freeVram', e.target.checked)}
               disabled={isActive}
@@ -622,6 +632,10 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
         <p className="text-[10px] text-zinc-500 mt-1.5 leading-relaxed">
           {t('freeVramHint') ||
             'Le serveur de génération garde le modèle en VRAM. Sur une carte de 8 Go, l\'entraînement échoue si on ne l\'arrête pas.'}
+        </p>
+        <p className="text-[10px] text-zinc-500 mt-1 leading-relaxed">
+          {t('streamBlocksHint') ||
+            'The model weights stay in RAM and go to the card one block at a time: a LoRA trains in about 1 to 2 GB of VRAM (the XL model too), about 1.6 times slower. LoRA only.'}
         </p>
       </Section>
 

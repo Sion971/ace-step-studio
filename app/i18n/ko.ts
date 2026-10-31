@@ -1303,6 +1303,8 @@ export const ko = {
     offloadEncoder: "인코더 오프로드",
     freeVram: "훈련 중 VRAM 해제",
     freeVramHint: "생성 서버가 모델을 VRAM에 유지합니다. 8GB 카드에서는 서버를 중지하지 않으면 훈련이 실패합니다.",
+    streamBlocks: "소형 카드 모드(블록 단위 가중치)",
+    streamBlocksHint: "모델 가중치는 RAM에 두고 블록 하나씩 카드로 보냅니다. LoRA를 약 1~2GB VRAM에서 훈련할 수 있고(XL 모델 포함) 속도는 약 1.6배 느려집니다. LoRA 전용.",
     trainingPreset: "프리셋",
     trainingPresetStudio: "Studio 기본값",
     trainingPresetVram8: "VRAM 8GB",

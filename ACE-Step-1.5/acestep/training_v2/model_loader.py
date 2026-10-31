@@ -75,6 +75,9 @@ def _resolve_model_dir(checkpoint_dir: str | Path, variant: str) -> Path:
         p = Path(checkpoint_dir) / subdir
         if p.is_dir():
             return p
+        p = Path(checkpoint_dir) / (subdir + "-bf16")  # the bf16 download of the model (acestep-v15-xl-turbo-bf16)
+        if p.is_dir():
+            return p
 
     # 2. Literal subdirectory name (e.g. "my-custom-finetune")
     p = Path(checkpoint_dir) / variant

@@ -901,6 +901,8 @@ export const fr = {
     offloadEncoder: 'Décharger l\'encodeur',
     freeVram: 'Libérer la VRAM pendant l\'entraînement',
     freeVramHint: 'Le serveur de génération garde le modèle en VRAM. Sur une carte de 8 Go, l\'entraînement échoue si on ne l\'arrête pas.',
+    streamBlocks: 'Mode petite carte (poids par blocs)',
+    streamBlocksHint: 'Les poids du modèle restent en RAM et passent par la carte bloc par bloc : un LoRA s\'entraîne dans 1 à 2 Go de VRAM environ (le modèle XL aussi), mais environ 1,6 fois plus lentement. LoRA uniquement.',
     trainingPreset: "Préréglage",
     trainingPresetStudio: "Valeurs du Studio",
     trainingPresetVram8: "8 Go de VRAM",

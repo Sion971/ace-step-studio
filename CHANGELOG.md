@@ -3,6 +3,8 @@
 ## 2026-10-30
 
 ### Added
+- LoRA training page: "Small-card mode (weights by blocks)" checkbox, under the memory options. It adds `--stream-blocks` to the training command (LoRA only; greyed out for LoKr): the weights of the model stay in RAM and go to the card one block at a time, so a LoRA trains in about 1 to 2 GB of VRAM, the XL model included, about 1.6 times slower. Measured on an RTX 5060: Turbo 2B 1.1 GiB at 36 s per epoch (5.4 GiB at 22 s without), XL 4B 1.8 GiB at 89 s per epoch. Off by default.
+- LoRA training: the XL variants (`xl_turbo`, `xl_base`, `xl_sft`) now also find the model folders downloaded in bf16 (`acestep-v15-xl-turbo-bf16`...). Until now the trainer's path check did not know the XL names at all (`--model-variant xl_turbo` was refused as "Model directory not found" unless a folder had exactly that name) and looked for the folder without the suffix.
 - LoRA training, block streaming (experimental): new option `--stream-blocks` of the Side-Step trainer (LoRA only, one GPU). The frozen weights of the model stay in RAM and each transformer block is copied to the card just before it runs (twice per step: forward, then the recomputation of the backward pass), so the card only holds one block, the LoRA matrices and the activations. Meant for training on small cards (and, next, the XL model on 8 GB); slower than the normal mode, the speed depends on the PCIe link. Off by default, the normal path is unchanged. Unit test: `python3 -m acestep.training_v2.block_stream_test` (CPU, same gradients as a normal run).
 
 ### Fixed

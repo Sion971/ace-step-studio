@@ -1314,6 +1314,8 @@ export const ru = {
     offloadEncoder: "Выгружать кодировщик",
     freeVram: "Освобождать VRAM во время обучения",
     freeVramHint: "Сервер генерации держит модель в VRAM. На карте с 8 ГБ обучение завершится ошибкой, если его не остановить.",
+    streamBlocks: "Режим малой карты (веса по блокам)",
+    streamBlocksHint: "Веса модели остаются в ОЗУ и передаются на карту по одному блоку: LoRA обучается примерно в 1–2 ГБ VRAM (в том числе XL), но примерно в 1,6 раза медленнее. Только LoRA.",
     trainingPreset: "Пресет",
     trainingPresetStudio: "Значения Studio по умолчанию",
     trainingPresetVram8: "8 ГБ VRAM",

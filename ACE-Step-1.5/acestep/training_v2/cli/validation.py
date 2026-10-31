@@ -29,6 +29,8 @@ def validate_paths(args: argparse.Namespace) -> bool:
     variant_dir = VARIANT_DIR_MAP.get(args.model_variant)
     if variant_dir and (ckpt_root / variant_dir).is_dir():
         model_dir = ckpt_root / variant_dir
+    elif variant_dir and (ckpt_root / (variant_dir + "-bf16")).is_dir():
+        model_dir = ckpt_root / (variant_dir + "-bf16")  # the bf16 download (acestep-v15-xl-turbo-bf16)
     elif (ckpt_root / args.model_variant).is_dir():
         model_dir = ckpt_root / args.model_variant
     else:
