@@ -101,6 +101,14 @@ def run_fixed(args: argparse.Namespace) -> int:
             handle_error(exc, context="Model loading", show_traceback=True)
             return 1
 
+        # -- The tensors must belong to this model (same width) -------------
+        from acestep.training_v2.dataset_check import mismatch_message
+
+        problem = mismatch_message(train_cfg.dataset_dir, model)
+        if problem:
+            handle_error(ValueError(problem), context="Dataset and model do not match", show_traceback=False)
+            return 1
+
         # -- Train ------------------------------------------------------------
         try:
             trainer = FixedLoRATrainer(model, adapter_cfg, train_cfg)
