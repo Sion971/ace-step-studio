@@ -3,10 +3,9 @@
 ## 2026-10-30
 
 ### Added
-- Documentation of the block-streamed LoRA training: `TROUBLESHOOTING.md` §63 (principle, measurements on RTX 5060 and GTX 1050, pre-Ampere attention, engine during training, tensor check) and the README (feature list and LoRA Training section).
+- Documentation of the block-streamed LoRA training: `TROUBLESHOOTING.md` §63 (principle, measurements on RTX 5060 and GTX 1050, pre-Ampere attention, engine during training) and the README (feature list and LoRA Training section).
 - The failure lines of the training log ("[FAIL]", out of memory, the trainer's own "Error:" messages, tracebacks) are shown in red in the journal, and the separate red error box, which repeated the end of the log, is removed.
 - The error box of the training page now shows a whole message (it was cut after a few lines in a box of 96 px, in a small font).
-- Before a training starts, the trainer checks that the preprocessed tensors have the width of the loaded model (2048 for the 2B models, 2560 for XL) and stops with a clear message naming both, instead of a shape error in the first step (`dataset_check.py`, tested). It stays silent whenever the width of either side cannot be read.
 - Small-card mode in the training page now also prefetches the next block (`--stream-prefetch`): measured on an RTX 5060 with Turbo 2B, an epoch takes 24-26 s instead of 35-37 s (normal mode: 22 s) for 0.13 GB more VRAM (1.26 GiB peak).
 - `--stream-prefetch` (with `--stream-blocks`): the next block's weights are copied to the card on a side stream while the current block computes, in both the forward pass and the recomputation of the backward pass (off by default; costs one more block of VRAM).
 - Block-streamed training on cards older than Ampere (GTX 10xx, 2 GB): the attention is computed in slices of queries (same results, tested), because those cards have no bf16 attention kernel and the plain one builds a table of about 400 MiB per layer for 200 s of music, which ran the 2 GB card out of memory at the first step. `ACESTEP_CHUNKED_ATTENTION=on|off` overrides the automatic choice.
