@@ -163,6 +163,7 @@ def build_configs(args: argparse.Namespace) -> Tuple[AdapterConfig, TrainingConf
         gradient_checkpointing=getattr(args, "gradient_checkpointing", True),
         offload_encoder=getattr(args, "offload_encoder", False),
         stream_blocks=getattr(args, "stream_blocks", False),
+        stream_prefetch=getattr(args, "stream_prefetch", False),
         cfg_ratio=getattr(args, "cfg_ratio", 0.15),
         timestep_mu=timestep_mu,
         timestep_sigma=timestep_sigma,

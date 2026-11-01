@@ -316,6 +316,53 @@ def test_chunked_attention_is_not_asked_for_on_the_cpu():
     assert bs.wants_chunked_attention("cpu") in (False, True)  # depends on a possible local GPU; must not raise
 
 
+def test_prefetch_gives_the_same_losses_and_gradients_and_hits_after_the_first_block():
+    ref = make()
+    streamed = copy.deepcopy(ref)
+    ref_losses, ref_grads = run(ref)
+
+    bs.enable_block_streaming(streamed.layers, "cpu", pin=False, prefetch=True, backend=bs._SyncBackend())
+    pf = bs._LAST_PREFETCHER[0]
+    s_losses, s_grads = run(streamed)
+
+    assert ref_losses == s_losses
+    for k in ref_grads:
+        assert torch.equal(ref_grads[k], s_grads[k]), k
+    # per step: forward 4 blocks (first one misses), recompute 4 blocks (the first recomputed, block 3, misses)
+    # = 6 of 8 loads come from the prefetcher, both directions
+    assert pf.hits == 2 * 6 and pf.misses == 2 * 2, (pf.hits, pf.misses)
+    assert pf.pending == {}  # nothing is left over after the last block of the backward pass
+
+
+def test_prefetch_loads_each_block_twice_per_step_like_without_it():
+    model = make()
+    backend = bs._SyncBackend()
+    started = []
+    original = backend.start
+
+    def counting(tensors, device):
+        started.append(len(tensors))
+        return original(tensors, device)
+
+    backend.start = counting
+    bs.enable_block_streaming(model.layers, "cpu", pin=False, prefetch=True, backend=backend)
+    run(model, steps=1)
+    assert len(started) == 6  # 3 prefetches in the forward pass (blocks 1-3), 3 in the recomputation (blocks 2-0)
+
+
+def test_prefetch_wrong_guess_is_dropped_and_the_block_copies_itself():
+    pf = bs._Prefetcher(bs._SyncBackend(), torch.device("cpu"), [([], []) for _ in range(3)])
+    pf.start(1)
+    assert pf.take(2) is None          # asked for another block: a miss
+    assert 1 in pf.pending
+    pf.start(2)                         # the stale entry is dropped
+    assert list(pf.pending) == [2]
+    assert pf.take(2) == []
+    pf.start(5)                         # out of range: nothing started
+    pf.start(-1)
+    assert pf.pending == {}
+
+
 if __name__ == "__main__":
     import sys
 

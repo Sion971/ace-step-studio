@@ -3,6 +3,7 @@
 ## 2026-10-30
 
 ### Added
+- `--stream-prefetch` (with `--stream-blocks`): the next block's weights are copied to the card on a side stream while the current block computes, in both the forward pass and the recomputation of the backward pass (off by default; costs one more block of VRAM).
 - Block-streamed training on cards older than Ampere (GTX 10xx, 2 GB): the attention is computed in slices of queries (same results, tested), because those cards have no bf16 attention kernel and the plain one builds a table of about 400 MiB per layer for 200 s of music, which ran the 2 GB card out of memory at the first step. `ACESTEP_CHUNKED_ATTENTION=on|off` overrides the automatic choice.
 - The refusal sent while a training runs is now shown in the interface language, without the "409:" prefix.
 - The "Generation failed" message now adds the reason when the server refused the request (for example "a LoRA training is running"), instead of the bare "Generation failed".

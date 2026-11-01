@@ -136,6 +136,7 @@ class TrainingConfigV2(TrainingConfig):
     """Move encoder/VAE to CPU after setup to free ~2-4 GB VRAM."""
 
     stream_blocks: bool = False
+    stream_prefetch: bool = False
     """Block-streamed training (LoRA only): the frozen DiT weights stay in RAM and each
     block is copied to the GPU just before it runs (twice per step: forward and the
     recomputation of the backward pass).  Needs far less VRAM, at the price of speed."""
@@ -262,6 +263,7 @@ class TrainingConfigV2(TrainingConfig):
                 "gradient_checkpointing": self.gradient_checkpointing,
                 "offload_encoder": self.offload_encoder,
                 "stream_blocks": self.stream_blocks,
+                "stream_prefetch": self.stream_prefetch,
                 "vram_profile": self.vram_profile,
                 "adapter_type": self.adapter_type,
                 "cfg_ratio": self.cfg_ratio,

@@ -33,6 +33,7 @@ from torch.utils.checkpoint import checkpoint
 logger = logging.getLogger(__name__)
 
 _MARK = "_block_stream"
+_LAST_PREFETCHER: List[Optional["_Prefetcher"]] = [None]  # the one made by the latest enable_block_streaming (tests, logs)
 
 
 def _frozen_params(layer: nn.Module) -> List[Tuple[nn.Module, str, torch.Tensor]]:
@@ -69,6 +70,7 @@ def _on_card(
     items: List[Tuple[nn.Module, str, torch.Tensor]],
     copier: Callable[[torch.Tensor], torch.Tensor],
     buffers: bool = False,
+    ready: Optional[List[torch.Tensor]] = None,
 ):
     """Put copies of the frozen tensors on the card for the duration of the block.
 
@@ -76,8 +78,8 @@ def _on_card(
     backward is done (they are referenced by the graph, not by the module), which is exactly the lifetime wanted.
     """
     slot = "_buffers" if buffers else "_parameters"
-    for module, name, tensor in items:
-        copy = copier(tensor)
+    for position, (module, name, tensor) in enumerate(items):
+        copy = ready[position] if ready is not None else copier(tensor)  # `ready`: already copied by the prefetcher
         if buffers:
             module._buffers[name] = copy
         else:
@@ -90,12 +92,89 @@ def _on_card(
             getattr(module, slot)[name] = tensor
 
 
+class _SyncBackend:
+    """Reference backend (CPU, tests): the copy is made at once. Same protocol as the CUDA one."""
+
+    def start(self, tensors: List[torch.Tensor], device: torch.device):
+        return [t.detach().to(device) for t in tensors]
+
+    def use(self, handle):
+        return handle
+
+
+class _CudaBackend:
+    """Copies on a side stream while the current block computes on the main stream."""
+
+    def __init__(self, device: torch.device):
+        self.device = device
+        self.stream = torch.cuda.Stream(device)
+
+    def start(self, tensors: List[torch.Tensor], device: torch.device):
+        with torch.cuda.stream(self.stream):
+            copies = [t.detach().to(device, non_blocking=True) for t in tensors]
+            event = torch.cuda.Event()
+            event.record(self.stream)
+        return copies, event
+
+    def use(self, handle):
+        copies, event = handle
+        current = torch.cuda.current_stream(self.device)
+        current.wait_event(event)           # the block waits for its weights, not the whole card
+        for tensor in copies:
+            tensor.record_stream(current)   # the memory is not reused before the main stream is done with it
+        return copies
+
+
+def _in_backward() -> bool:
+    """True while autograd runs a backward pass (the recomputation of a checkpointed block happens there)."""
+    try:
+        return torch._C._current_graph_task_id() != -1
+    except Exception:  # noqa: BLE001 - an internal API: if it is gone, the guess "forward" only costs speed
+        return False
+
+
+class _Prefetcher:
+    """Starts the copy of the block that comes next while the current one computes (one block ahead, never more).
+
+    The next block is idx + 1 in the forward pass and idx - 1 in the recomputation of the backward pass. A wrong guess only
+    wastes one copy (the entry is dropped when the next one starts); the block then copies its weights itself.
+    """
+
+    def __init__(self, backend: Any, device: torch.device, infos: List[Tuple[list, list]]):
+        self.backend = backend
+        self.device = device
+        self.infos = infos
+        self.pending: Dict[int, Any] = {}
+        self.hits = 0
+        self.misses = 0
+
+    def take(self, idx: int) -> Optional[List[torch.Tensor]]:
+        handle = self.pending.pop(idx, None)
+        if handle is None:
+            self.misses += 1
+            return None
+        self.hits += 1
+        return self.backend.use(handle)
+
+    def start(self, idx: int) -> None:
+        if idx < 0 or idx >= len(self.infos) or idx in self.pending:
+            return
+        self.pending.clear()  # whatever is left was a wrong guess
+        frozen, buffers = self.infos[idx]
+        try:
+            self.pending[idx] = self.backend.start([t for *_, t in frozen] + [t for *_, t in buffers], self.device)
+        except Exception as exc:  # noqa: BLE001 - e.g. out of memory for the extra block: go on without prefetching
+            logger.warning("[block-stream] prefetch of block %d failed (%s: %s): that block copies by itself", idx, type(exc).__name__, exc)
+
+
 def enable_block_streaming(
     layers: Iterable[nn.Module],
     device: torch.device | str,
     pin: bool = True,
     checkpoint_kwargs: Optional[Dict[str, Any]] = None,
     copier: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
+    prefetch: bool = False,
+    backend: Any = None,
 ) -> int:
     """Turn every block into a streamed, checkpointed block.  Returns the number of blocks converted.
 
@@ -111,8 +190,17 @@ def enable_block_streaming(
     if checkpoint_kwargs:
         ckpt_kwargs.update(checkpoint_kwargs)
 
+    layers = list(layers)
+    prefetcher: Optional[_Prefetcher] = None
+    infos: List[Tuple[list, list]] = [([], []) for _ in layers]
+    if prefetch:
+        if backend is None:
+            backend = _CudaBackend(device)
+        prefetcher = _Prefetcher(backend, device, infos)
+        _LAST_PREFETCHER[0] = prefetcher
+
     count = 0
-    for layer in layers:
+    for index, layer in enumerate(layers):
         if getattr(layer, _MARK, False):
             continue
 
@@ -127,15 +215,23 @@ def enable_block_streaming(
 
         frozen = _frozen_params(layer)
         buffers = _frozen_buffers(layer)
+        infos[index] = (frozen, buffers)
         original_forward = layer.forward
 
         # the block must not checkpoint on its own on top of ours (Hugging Face's GradientCheckpointingLayer does)
         if hasattr(layer, "gradient_checkpointing"):
             layer.gradient_checkpointing = False
 
-        def streamed_forward(*args, _layer=layer, _fwd=original_forward, _frozen=frozen, _buffers=buffers, **kwargs):
+        def streamed_forward(*args, _layer=layer, _fwd=original_forward, _frozen=frozen, _buffers=buffers,
+                             _index=index, **kwargs):
             def run(*a, **kw):
-                with _on_card(_frozen, copier), _on_card(_buffers, copier, buffers=True):
+                ready = None
+                if prefetcher is not None:
+                    ready = prefetcher.take(_index)
+                    prefetcher.start(_index + (-1 if _in_backward() else 1))  # the next block loads while this one computes
+                ready_p = ready[: len(_frozen)] if ready is not None else None
+                ready_b = ready[len(_frozen):] if ready is not None else None
+                with _on_card(_frozen, copier, ready=ready_p), _on_card(_buffers, copier, buffers=True, ready=ready_b):
                     return _fwd(*a, **kw)
 
             if torch.is_grad_enabled() and _layer.training:

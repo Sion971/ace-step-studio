@@ -317,7 +317,8 @@ class FixedLoRATrainer:
             )
             if self.module._null_cond_emb is not None:
                 self.module._null_cond_emb.data = self.module._null_cond_emb.data.to(self.module.device)
-            n_blocks = block_stream.enable_block_streaming(stream_layers, self.module.device)
+            prefetch = bool(getattr(cfg, "stream_prefetch", False))
+            n_blocks = block_stream.enable_block_streaming(stream_layers, self.module.device, prefetch=prefetch)
             sliced_attention = block_stream.wants_chunked_attention(self.module.device) and block_stream.enable_chunked_attention()
             torch.cuda.synchronize()
             torch.cuda.reset_peak_memory_stats()
@@ -332,7 +333,8 @@ class FixedLoRATrainer:
                 yield TrainingUpdate(
                     0, 0.0,
                     f"[INFO] Block streaming ON: {n_blocks} blocks stream from RAM, {moved} small tensors on the card "
-                    f"(VRAM now {torch.cuda.memory_allocated() / 2**20:.0f} MiB)",
+                    f"(VRAM now {torch.cuda.memory_allocated() / 2**20:.0f} MiB)"
+                    + (", next block prefetched" if prefetch else ""),
                     kind="info",
                 )
 

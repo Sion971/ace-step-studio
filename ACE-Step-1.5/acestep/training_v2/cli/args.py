@@ -282,6 +282,8 @@ def _add_common_training_args(
     g_train.add_argument("--offload-encoder", action=argparse.BooleanOptionalAction, default=False, help="Move encoder/VAE to CPU after setup (saves ~2-4GB VRAM)")
     g_train.add_argument("--stream-blocks", action=argparse.BooleanOptionalAction, default=False, help="LoRA only: keep the frozen DiT weights in RAM and copy one block at a time to the GPU (much less VRAM, slower)")
 
+    g_train.add_argument("--stream-prefetch", action=argparse.BooleanOptionalAction, default=False, help="With --stream-blocks: copy the next block to the GPU while the current one computes (faster, one more block of VRAM)")
+
     # -- Adapter selection ---------------------------------------------------
     g_adapter = parser.add_argument_group("Adapter")
     g_adapter.add_argument("--adapter-type", type=str, default="lora", choices=["lora", "lokr"], help="Adapter type: lora (PEFT) or lokr (LyCORIS) (default: lora)")
