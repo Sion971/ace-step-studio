@@ -812,7 +812,7 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
               )}
 
               {status.lastError && (
-                <pre className="text-[10px] text-red-500 dark:text-red-400 bg-red-500/5 rounded-lg p-2 max-h-24 overflow-y-auto whitespace-pre-wrap">
+                <pre className="text-xs text-red-500 dark:text-red-400 bg-red-500/5 rounded-lg p-2 max-h-72 overflow-y-auto whitespace-pre-wrap break-words">
                   {status.lastError}
                 </pre>
               )}
