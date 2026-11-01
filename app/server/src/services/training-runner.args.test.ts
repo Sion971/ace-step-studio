@@ -34,6 +34,9 @@ describe('train.py arguments', () => {
     expect(argsOf({})).not.toContain('--stream-blocks');
     expect(argsOf({ streamBlocks: false })).not.toContain('--stream-blocks');
     expect(argsOf({ streamBlocks: true })).toContain('--stream-blocks');
+    expect(argsOf({ streamBlocks: true })).toContain('--stream-prefetch');
+    expect(argsOf({ streamBlocks: false })).not.toContain('--stream-prefetch');
+    expect(argsOf({ streamBlocks: true, adapterType: 'lokr' })).not.toContain('--stream-prefetch');
     expect(argsOf({ streamBlocks: true, adapterType: 'lora' })).toContain('--stream-blocks');
     expect(argsOf({ streamBlocks: true, adapterType: 'lokr' })).not.toContain('--stream-blocks');
   });

@@ -271,7 +271,7 @@ class TrainingRunner {
       ? '--no-gradient-checkpointing'
       : '--gradient-checkpointing');
     if (p.offloadEncoder !== false) args.push('--offload-encoder');
-    if (p.streamBlocks === true && (p.adapterType ?? 'lora') === 'lora') args.push('--stream-blocks');
+    if (p.streamBlocks === true && (p.adapterType ?? 'lora') === 'lora') args.push('--stream-blocks', '--stream-prefetch');
     args.push('--num-workers', String(p.numWorkers ?? 0));
 
     // Indispensable : sans --log-every, le mode --plain n'émet AUCUNE ligne de
