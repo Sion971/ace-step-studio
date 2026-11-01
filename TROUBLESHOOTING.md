@@ -129,6 +129,8 @@ Résultat : pic VRAM à 5,4 Go sur 7,5 — large marge.
 **Autres leviers mémoire** (CLI Side-Step) : `--optimizer-type adamw8bit`,
 `--offload-encoder`, `--gradient-checkpointing`, `--rank 16`.
 
+Pour entraîner avec 1 à 2 Go de VRAM (modèles 2B et XL), voir §63 (mode petite carte).
+
 ---
 
 ## 4. Le CLI d'entraînement (Side-Step)
@@ -2392,3 +2394,34 @@ Copy-Item downloads\ffmpeg-extract\*\bin\* ffmpeg -Force
 - Sur un morceau long, les deux modes sont donc du même ordre de grandeur de bout en bout ; le flux évite la compression int8, le mode normal ne demande pas la RAM supplémentaire. Ces chiffres viennent de séries différentes (morceaux et réglages pas identiques) : ils donnent un ordre de grandeur, pas une comparaison à seed égal.
 
 **À savoir en mode normal sur 8 Go.** Pendant le LRC automatique d'un morceau de 3 minutes, une carte de 8 Go peut manquer de mémoire (`torch.OutOfMemoryError … Tried to allocate 172 MiB` dans `get_lyric_timestamp`, le moteur tenait 6,5 Go) : un cas sur les six LRC du journal du 2026-10-22. Le morceau est produit ; seules les paroles synchronisées manquent. Corrigé le 2026-10-22 : l'attention croisée de l'alignement est calculée 4 têtes à la fois (`ACESTEP_ALIGN_HEAD_CHUNK`, 4 par défaut ; 1 pour le pic le plus bas) et seules les têtes lues par l'alignement sont gardées, au lieu des poids des 32 têtes d'une couche d'un coup (le `172 MiB` du message était le softmax en float32 de ces 32 têtes). Les valeurs sont celles d'avant. Si l'erreur revient sur un morceau très long, mettre `ACESTEP_ALIGN_HEAD_CHUNK=1` dans `ACE-Step-1.5/.env`. Le moteur exécute la copie du code du modèle livrée avec le point de contrôle (`models/modules/transformers_modules/<modèle>/modeling_*.py`), pas celle du dépôt : la fonction d'attention de cette copie est remplacée au lancement du LRC, sans toucher au fichier. Le journal d'erreur montre quelle copie tourne (chemin du fichier `modeling_…py` dans la trace).
+
+## 63. Entraînement LoRA par blocs : tenir sur 2 Go de VRAM (2026-10-31)
+
+**Principe.** Case « Mode petite carte (poids par blocs) » de l'onglet Entraînement. En ligne de commande : `--stream-blocks --stream-prefetch` après `fixed` (les options globales `--plain --yes` se placent, elles, avant `fixed`). Les poids figés du DiT restent en RAM (épinglée) ; chaque bloc est copié sur la carte juste avant d'être calculé, dans un `torch.utils.checkpoint`, puis libéré (deux copies par pas : la passe avant, puis le recalcul de la passe arrière). Sur la carte : les matrices LoRA, les petites parties autour des blocs, un bloc et les activations. Les noms de paramètres et l'adaptateur enregistré sont ceux du mode normal. LoRA uniquement (pas LoKr), une seule carte. Code : `acestep/training_v2/block_stream.py` (tests `block_stream_test.py`, sur CPU : mêmes pertes et mêmes gradients qu'un entraînement normal).
+
+**Préchargement (`--stream-prefetch`, branché sur la même case).** Un flux CUDA séparé copie les poids du bloc suivant (bloc +1 à l'aller, bloc −1 pendant le recalcul) pendant que le bloc courant calcule ; le bloc attend un événement, pas toute la carte. Coût : un bloc de VRAM de plus. Les pertes par époque sont les mêmes avec et sans (à la 3e ou 4e décimale ; l'écart restant est du bruit d'exécution, vu aussi entre deux séries sans préchargement).
+
+**Mesures (16 morceaux, rang 16, accumulation 4 ; journaux du 2026-10-31).**
+
+| | pic VRAM | par époque |
+|---|---|---|
+| RTX 5060 8 Go, Turbo 2B, normal | 5,4 GiB | 22 s |
+| Turbo 2B, par blocs | 1,13 GiB | 35,6 s |
+| Turbo 2B, par blocs + préchargement | 1,25 GiB | 23,7 s (10 époques : 4 min 01) |
+| XL 4B, par blocs | 1,84 GiB | 89 à 92 s |
+| XL 4B, par blocs + préchargement | 2,07 GiB | 58,7 à 60 s (10 époques : 10 min 21) |
+| GTX 1050 2 Go, Turbo 2B, par blocs, sans préchargement | 1,16 GiB | 791 à 859 s (10 époques : 2 h 20) |
+
+Un LoRA XL de 100 époques prend ainsi environ 2 h 28 sans préchargement (mesure du 2026-10-30) et environ 1 h 40 avec (extrapolé des 10 époques ci-dessus). XL ne tient pas sur 2 Go (1,84 GiB sans préchargement, 2,07 avec) : il demande une carte de 4 Go environ ou plus.
+
+**GTX 1050 (Pascal) : l'attention.** Premier essai : `CUDA out of memory` à 0 pas, 382 MiB demandés alors qu'il en restait 263. Une carte de capacité de calcul inférieure à 8 n'a pas de noyau d'attention bf16 économe : PyTorch construit la table complète têtes × N × N (environ 400 Mio par couche pour 200 s de musique, plusieurs exemplaires à la passe arrière). Sur ces cartes, les requêtes sont désormais traitées par tranches (table de 48 Mio au plus, chaque tranche recalculée à la passe arrière) : mêmes résultats que l'appel normal (testé sur les valeurs et les gradients, avec masques, attention croisée et GQA). Journal : `Attention in slices of queries`. `ACESTEP_CHUNKED_ATTENTION=on|off` force le choix.
+
+**GTX 1050 : la lenteur est du calcul, pas de la copie.** `nvidia-smi` indique 100 % d'utilisation pendant tout l'entraînement ; le préchargement n'y change donc presque rien. Micro-mesure d'un produit de matrices 4096×2048 par 2048×6144 : fp32 1,40 TFLOPS, fp16 1,60, bf16 0,85. Un calcul en fp32 serait au mieux 1,3 à 1,5 fois plus rapide (estimation) pour du code spécifique et plus de VRAM : non fait. La carte sert à valider (le LoRA entraîné dessus se charge et agit, de façon discrète après 10 époques) ; l'entraînement utile se fait sur une carte plus rapide.
+
+**Le moteur de génération pendant l'entraînement.** « Libérer la VRAM pendant l'entraînement » (cochée par défaut) arrête le moteur, qui repart ensuite. Décochée sur une 5060 8 Go : moteur au repos (environ 0,7 Go) + entraînement XL par blocs (1,8 Go) tiennent ensemble ; mais un moteur en train de générer garde environ 5,1 GiB (une vingtaine de blocs résidents) et l'entraînement meurt en `CUDA out of memory` à 0 pas. Depuis le 2026-10-31, le serveur refuse donc (HTTP 409, `code: training_running`) la génération, le changement de modèle, « create sample » et « format » tant qu'un entraînement tourne (`app/server/src/middleware/training-busy.ts`) ; l'onglet Créer affiche la raison, traduite.
+
+**Les tenseurs doivent être ceux du modèle chargé.** Un LoRA et les tenseurs prétraités appartiennent à une architecture (largeur 2048 pour les modèles 2B, 2560 pour XL). Avant le premier pas, le trainer compare la largeur du premier fichier de tenseurs à celle du modèle chargé et s'arrête avec un message qui nomme les deux (`dataset_check.py`) ; il se tait si l'une des largeurs est illisible. Pour changer de modèle : le charger dans l'onglet Créer, puis refaire le prétraitement. Le dossier de sortie par défaut (`./lora_output`) est écrasé par l'entraînement suivant : le renommer pour garder un LoRA.
+
+**Dans le journal.** Les lignes d'échec (`[FAIL]`, mémoire pleine, messages `[Side-Step] … Error:`, traces Python) sont en rouge dans le journal d'entraînement. Le résumé final affiche `Epochs .... 0 / N` : défaut d'affichage connu, les époques ont bien eu lieu.
+
+**Au passage (moteur, §60).** Une première génération avec LoRA après un changement de modèle a une fois planté en `IndexError` dans `StreamPool._load` (blocs de la fenêtre absents). Cause racine non trouvée ; un garde-fou reconstruit les emplacements et écrit `[small_gpu_stream] … the slots were missing (… thread …)`. Si cette ligne apparaît, noter le fil d'exécution indiqué.

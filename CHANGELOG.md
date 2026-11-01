@@ -3,6 +3,7 @@
 ## 2026-10-30
 
 ### Added
+- Documentation of the block-streamed LoRA training: `TROUBLESHOOTING.md` §63 (principle, measurements on RTX 5060 and GTX 1050, pre-Ampere attention, engine during training, tensor check) and the README (feature list and LoRA Training section).
 - The failure lines of the training log ("[FAIL]", out of memory, the trainer's own "Error:" messages, tracebacks) are shown in red in the journal, and the separate red error box, which repeated the end of the log, is removed.
 - The error box of the training page now shows a whole message (it was cut after a few lines in a box of 96 px, in a small font).
 - Before a training starts, the trainer checks that the preprocessed tensors have the width of the loaded model (2048 for the 2B models, 2560 for XL) and stops with a clear message naming both, instead of a shape error in the first step (`dataset_check.py`, tested). It stays silent whenever the width of either side cannot be read.
