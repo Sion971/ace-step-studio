@@ -17,6 +17,7 @@ import { FolderOpen, Play, Square, RotateCw, Copy, Check } from 'lucide-react';
 import { trainingApi } from '../../services/api';
 import { Section, FieldRow, ParamSlider } from './TrainingUIComponents';
 import { fillTemplate } from '../../utils/fillTemplate';
+import { markLogLines } from './logLines';
 import {
   ATTENTION_TYPES, DEFAULT_PRESET_VALUES, SCHEDULER_TYPES, TRAINING_PRESETS, findPreset, presetForVram, type PresetValues,
 } from '../../services/training-presets';
@@ -279,6 +280,7 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
   const engineStateRef = useRef<string | null>(null);
   const [copied, setCopied] = useState(false);
   const logRef = useRef<HTMLPreElement>(null);
+  const logLines = useMemo(() => markLogLines(status?.log ?? ''), [status?.log]);
   const markedRef = useRef(false);
 
   const isActive = status ? ACTIVE_STATES.includes(status.state) : false;
@@ -810,12 +812,6 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
                   </button>
                 </div>
               )}
-
-              {status.lastError && (
-                <pre className="text-xs text-red-500 dark:text-red-400 bg-red-500/5 rounded-lg p-2 max-h-72 overflow-y-auto whitespace-pre-wrap break-words">
-                  {status.lastError}
-                </pre>
-              )}
             </div>
           </Section>
 
@@ -840,7 +836,11 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
             ref={logRef}
             className="text-[10px] text-zinc-600 dark:text-zinc-400 bg-black/5 dark:bg-black/20 rounded-lg p-2 max-h-56 overflow-y-auto whitespace-pre-wrap"
           >
-            {status.log}
+            {logLines.map((line, i) => (
+              <div key={i} className={line.error ? 'text-red-500 dark:text-red-400 font-semibold' : undefined}>
+                {line.text || '\u00a0'}
+              </div>
+            ))}
           </pre>
         </Section>
       )}

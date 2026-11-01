@@ -3,6 +3,7 @@
 ## 2026-10-30
 
 ### Added
+- The failure lines of the training log ("[FAIL]", out of memory, the trainer's own "Error:" messages, tracebacks) are shown in red in the journal, and the separate red error box, which repeated the end of the log, is removed.
 - The error box of the training page now shows a whole message (it was cut after a few lines in a box of 96 px, in a small font).
 - Before a training starts, the trainer checks that the preprocessed tensors have the width of the loaded model (2048 for the 2B models, 2560 for XL) and stops with a clear message naming both, instead of a shape error in the first step (`dataset_check.py`, tested). It stays silent whenever the width of either side cannot be read.
 - Small-card mode in the training page now also prefetches the next block (`--stream-prefetch`): measured on an RTX 5060 with Turbo 2B, an epoch takes 24-26 s instead of 35-37 s (normal mode: 22 s) for 0.13 GB more VRAM (1.26 GiB peak).
