@@ -8,7 +8,13 @@ from pathlib import Path
 
 import torch
 
-from acestep.training_v2.dataset_check import dataset_signature, mismatch_message
+from acestep.training_v2.dataset_check import (
+    _main,
+    dataset_signature,
+    mark_dataset,
+    mismatch_message,
+    unmarked_message,
+)
 
 
 def _model(width):
@@ -59,6 +65,49 @@ class DatasetCheckTest(unittest.TestCase):
             _write(d, "b", model_hidden_size=2560)
             Path(d, "manifest.json").write_text(json.dumps({"samples": ["b.pt", "a.pt"]}), encoding="utf-8")
             self.assertEqual(dataset_signature(d)[0], 2560)
+
+    def test_unmarked_tensors_give_a_warning(self):
+        with tempfile.TemporaryDirectory() as d:
+            _write(d, "a")
+            msg = unmarked_message(d)
+            self.assertIn("no model mark", msg)
+            self.assertIn("--family", msg)
+            self.assertIn(d, msg)
+
+    def test_marked_or_missing_folder_gives_no_warning(self):
+        with tempfile.TemporaryDirectory() as d:
+            _write(d, "a", model_hidden_size=2048)
+            self.assertIsNone(unmarked_message(d))
+        self.assertIsNone(unmarked_message("/nonexistent/folder"))
+
+    def test_marking_a_folder_by_hand_enables_the_check(self):
+        with tempfile.TemporaryDirectory() as d:
+            _write(d, "a")
+            _write(d, "b")
+            self.assertEqual(mark_dataset(d, "2b"), (2, 0, 0))
+            self.assertIsNone(unmarked_message(d))
+            self.assertIn("2B", mismatch_message(d, _model(2560)))
+            self.assertIsNone(mismatch_message(d, _model(2048)))
+            # the tensors themselves are untouched
+            data = torch.load(Path(d) / "a.pt", weights_only=True)
+            self.assertEqual(tuple(data["encoder_hidden_states"].shape), (4, 2048))
+            self.assertEqual(data["metadata"]["filename"], "a")
+            self.assertEqual(mark_dataset(d, "2b"), (0, 2, 0))
+
+    def test_marking_does_not_overwrite_another_architecture_without_force(self):
+        with tempfile.TemporaryDirectory() as d:
+            _write(d, "a", model_hidden_size=2560)
+            self.assertEqual(mark_dataset(d, "2b"), (0, 0, 1))
+            self.assertEqual(dataset_signature(d)[0], 2560)
+            self.assertEqual(mark_dataset(d, "2b", force=True), (1, 0, 0))
+            self.assertEqual(dataset_signature(d)[0], 2048)
+
+    def test_command_line(self):
+        with tempfile.TemporaryDirectory() as d:
+            _write(d, "a")
+            self.assertEqual(_main([d, "--family", "xl"]), 0)
+            self.assertEqual(dataset_signature(d)[0], 2560)
+            self.assertEqual(_main(["/nonexistent/folder", "--family", "xl"]), 1)
 
 
 if __name__ == "__main__":

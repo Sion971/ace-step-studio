@@ -6,12 +6,19 @@ just learns from encodings the model does not understand. Since the preprocessin
 was added carry no such entry: they are accepted without a word, and so is anything unreadable.
 
 Only the architecture is compared, not the exact variant: Turbo, Base and SFT share the 2B architecture.
+
+Tensors without the mention cannot be checked. The trainer says so (``unmarked_message``) instead of staying silent, and a folder
+whose origin the user knows can be marked by hand::
+
+    python -m acestep.training_v2.dataset_check ./datasets/preprocessed_turbo --family 2b
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
+import sys
 from typing import Any, Optional, Tuple
 
 from acestep.training.model_signature import HIDDEN_SIZE_KEY, NAME_KEY, model_hidden_size
@@ -69,3 +76,83 @@ def mismatch_message(dataset_dir: str, model: Any) -> Optional[str]:
         f"trained on. Load the matching model (Create tab in the Studio, or --model-variant on the command line), or run the "
         f"preprocessing again with the model you want to train."
     )
+
+
+def unmarked_message(dataset_dir: str) -> Optional[str]:
+    """A warning when the first tensor file carries no model mark (None when it has one or no file can be read)."""
+    path = _first_tensor_file(dataset_dir)
+    if path is None:
+        return None
+    size, _name = dataset_signature(dataset_dir)
+    if size is not None:
+        return None
+    try:
+        import torch
+
+        torch.load(path, map_location="cpu", weights_only=True)
+    except Exception:  # noqa: BLE001 - unreadable: the dataset loader reports it
+        return None
+    return (
+        f"The tensors in {dataset_dir} carry no model mark (made before 2026-11-02), so it cannot be checked that they come "
+        f"from the architecture being trained. A 2B and an XL model give tensors of the same shape: with the wrong ones the "
+        f"training runs but learns nothing useful. To get the check, run the preprocessing again, or mark this folder if you "
+        f"know which model made it: python -m acestep.training_v2.dataset_check {dataset_dir} --family 2b   (or xl)."
+    )
+
+
+FAMILY_WIDTH = {"2b": 2048, "xl": 2560}
+
+
+def mark_dataset(dataset_dir: str, family: str, force: bool = False) -> Tuple[int, int, int]:
+    """Write the model mark into every ``.pt`` of ``dataset_dir`` by hand.
+
+    Returns ``(marked, already_marked, refused)``. A file already marked is left alone, unless it says another architecture
+    and ``force`` is false (counted as refused).
+    """
+    import torch
+
+    width = FAMILY_WIDTH[family.lower()]
+    marked = already = refused = 0
+    for name in sorted(os.listdir(dataset_dir)):
+        if not name.endswith(".pt") or name.endswith(".tmp.pt"):
+            continue
+        path = os.path.join(dataset_dir, name)
+        data = torch.load(path, map_location="cpu", weights_only=True)
+        meta = dict(data.get("metadata") or {})
+        current = meta.get(HIDDEN_SIZE_KEY)
+        if isinstance(current, int):
+            if current == width:
+                already += 1
+                continue
+            if not force:
+                refused += 1
+                continue
+        meta[HIDDEN_SIZE_KEY] = width
+        meta[NAME_KEY] = f"marked by hand ({family.lower()})"
+        data["metadata"] = meta
+        tmp = path + ".marking"
+        torch.save(data, tmp)
+        os.replace(tmp, path)
+        marked += 1
+    return marked, already, refused
+
+
+def _main(argv: Optional[list] = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="python -m acestep.training_v2.dataset_check",
+        description="Mark the preprocessed tensors of a folder with the architecture of the model that made them.",
+    )
+    parser.add_argument("dataset_dir")
+    parser.add_argument("--family", required=True, choices=sorted(FAMILY_WIDTH), help="2b (Turbo, Base, SFT) or xl")
+    parser.add_argument("--force", action="store_true", help="overwrite a mark that says the other architecture")
+    args = parser.parse_args(argv)
+    if not os.path.isdir(args.dataset_dir):
+        print(f"Not a folder: {args.dataset_dir}", file=sys.stderr)
+        return 1
+    marked, already, refused = mark_dataset(args.dataset_dir, args.family, args.force)
+    print(f"{marked} file(s) marked {args.family}, {already} already marked, {refused} refused (other architecture; --force to overwrite).")
+    return 1 if refused else 0
+
+
+if __name__ == "__main__":
+    sys.exit(_main())

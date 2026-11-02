@@ -109,6 +109,13 @@ def run_fixed(args: argparse.Namespace) -> int:
             handle_error(ValueError(problem), context="Dataset and model do not match", show_traceback=False)
             return 1
 
+        from acestep.training_v2.dataset_check import unmarked_message
+        from acestep.training_v2.ui.errors import show_warning
+
+        unmarked = unmarked_message(train_cfg.dataset_dir)
+        if unmarked:
+            show_warning(unmarked)
+
         # -- Train ------------------------------------------------------------
         try:
             trainer = FixedLoRATrainer(model, adapter_cfg, train_cfg)
