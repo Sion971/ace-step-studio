@@ -47,8 +47,8 @@ def add(host: Any, lora_path: str, adapter_name: str) -> str:
         return f"❌ LoRA path not found: {lora_path}"
     from acestep.core.generation.handler.lora.lifecycle import _resolve_lokr_weights_path
 
-    if _resolve_lokr_weights_path(lora_path) is not None:
-        return "❌ LoKr adapters are not supported in small-card mode; use a LoRA adapter."
+    lokr_path = _resolve_lokr_weights_path(lora_path)
+    label = "LoKr" if lokr_path is not None else "LoRA"
     lora = _set(pool, create=True)
     active = getattr(host, "_active_loras", None)
     if active is None:
@@ -56,24 +56,30 @@ def add(host: Any, lora_path: str, adapter_name: str) -> str:
     if adapter_name in lora.adapters:
         return f"❌ Adapter name already in use: {adapter_name}. Use a different name or remove it first."
     try:
-        adapter = small_gpu_stream_lora.load_adapter(adapter_name, lora_path, pool.param_names, pool.param_shapes, pool.count)
+        if lokr_path is not None:
+            adapter = small_gpu_stream_lora.load_lokr_adapter(
+                adapter_name, lokr_path, pool.param_names, pool.param_shapes, pool.count)
+        else:
+            adapter = small_gpu_stream_lora.load_adapter(adapter_name, lora_path, pool.param_names, pool.param_shapes, pool.count)
     except StreamLoraError as exc:
-        return f"❌ Failed to load LoRA: {exc}"
+        return f"❌ Failed to load {label}: {exc}"
     except Exception as exc:
-        logger.exception("Failed to read the LoRA adapter")
-        return f"❌ Failed to load LoRA: {exc}"
+        logger.exception("Failed to read the {} adapter", label)
+        return f"❌ Failed to load {label}: {exc}"
     lora.add(adapter)
     lora.set_enabled(True)
     host.lora_loaded = True
     host.use_lora = True
-    host._adapter_type = "lora"
+    host._adapter_type = "lokr" if lokr_path is not None else "lora"
     host._lora_active_adapter = adapter_name
     active[adapter_name] = 1.0
     host.lora_scale = 1.0
     note = f" ({adapter.ignored} weight(s) outside the DiT blocks ignored)" if adapter.ignored else ""
-    logger.info("[small_gpu_stream] LoRA '{}' loaded from {}: {} targets in {} blocks{}", adapter_name, lora_path,
+    if adapter.inactive:
+        note += f" ({adapter.inactive} untrained module(s) skipped)"
+    logger.info("[small_gpu_stream] {} '{}' loaded from {}: {} targets in {} blocks{}", label, adapter_name, lora_path,
                 adapter.targets, len(adapter.layers), note)
-    return f"✅ LoRA '{adapter_name}' loaded from {lora_path}{note}"
+    return f"✅ {label} '{adapter_name}' loaded from {lora_path}{note}"
 
 
 def remove(host: Any, adapter_name: str) -> str:

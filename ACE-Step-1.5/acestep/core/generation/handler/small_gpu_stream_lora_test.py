@@ -238,6 +238,184 @@ class StreamLoraTests(unittest.TestCase):
             sgl.load_adapter("x", self.tmp.name, pool.param_names, pool.param_shapes, pool.count)
 
 
+def _write_lokr(directory, decoder, dim=4, alpha=8.0, w2_decomposed=True, zero=(), seed=0, filename="lokr_weights.safetensors"):
+    """Write a LyCORIS-looking LoKr file for ``TARGETS`` of every block; return {(layer, module): delta} (float32)."""
+    from safetensors.torch import save_file
+
+    g = torch.Generator().manual_seed(seed)
+    tensors, deltas = {}, {}
+    for index, layer in enumerate(decoder.layers):
+        for module in TARGETS:
+            parent = layer
+            for part in module.split("."):
+                parent = getattr(parent, part, None)
+                if parent is None:
+                    break
+            if parent is None:
+                continue
+            out_features, in_features = parent.weight.shape
+            key = f"lycoris_layers_{index}_{module.replace('.', '_')}"
+            w1 = torch.randn(out_features // 8, 8, generator=g) * 0.3
+            if w2_decomposed:
+                w2a = torch.randn(8, dim, generator=g) * 0.3
+                w2b = torch.randn(dim, in_features // 8, generator=g) * 0.3
+                if (index, module) in zero:
+                    w2b = torch.zeros_like(w2b)
+                w2 = w2a @ w2b
+                tensors[f"{key}.lokr_w2_a"], tensors[f"{key}.lokr_w2_b"] = w2a, w2b
+                scale = alpha / dim
+            else:
+                w2 = torch.randn(8, in_features // 8, generator=g) * 0.3
+                tensors[f"{key}.lokr_w2"] = w2
+                scale = 1.0  # both factors full: LyCORIS forces scale = 1
+            tensors[f"{key}.lokr_w1"] = w1
+            tensors[f"{key}.alpha"] = torch.tensor(alpha)
+            deltas[(index, module)] = scale * torch.kron(w1, w2)
+    save_file(tensors, os.path.join(directory, filename))
+    return deltas
+
+
+def _merged_deltas(decoder, deltas, strength=1.0):
+    merged = copy.deepcopy(decoder)
+    for (index, module), delta in deltas.items():
+        parent = merged.layers[index]
+        for part in module.split("."):
+            parent = getattr(parent, part)
+        parent.weight.data += strength * delta
+    return merged
+
+
+class StreamLokrTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        decoder, self.cfg = _tiny_decoder(layers=4)
+        decoder.float().eval()
+        self.streamed = copy.deepcopy(decoder).eval()
+        decoder.to(torch.bfloat16).float()
+        self.reference = decoder
+        self.inputs = _inputs(self.cfg)
+
+    def _load(self, pool, name="k", path=None):
+        adapter = sgl.load_lokr_adapter(name, path or os.path.join(self.tmp.name, "lokr_weights.safetensors"),
+                                        pool.param_names, pool.param_shapes, pool.count)
+        if pool.lora is None:
+            pool.lora = sgl.StreamLoraSet(pool)
+        pool.lora.add(adapter)
+        return adapter
+
+    @torch.no_grad()
+    def _out(self, model):
+        return model(**self.inputs, use_cache=False)[0]
+
+    def test_the_streamed_output_equals_the_merged_model(self):
+        for decomposed in (True, False):
+            with self.subTest(w2_decomposed=decomposed):
+                deltas = _write_lokr(self.tmp.name, self.reference, w2_decomposed=decomposed)
+                streamed = copy.deepcopy(self.streamed)
+                pool = sgs.install(streamed, CPU, torch.bfloat16)
+                base = self._out(streamed)
+                adapter = self._load(pool)
+                self.assertEqual(adapter.targets, len(deltas))
+                self.assertEqual(adapter.kind, "lokr")
+                out = self._out(streamed)
+                ref = self._out(_merged_deltas(self.reference, deltas))
+                self.assertLess((out - ref).abs().max().item(), 1e-3)
+                self.assertGreater((out - base).abs().max().item(), 1e-3, "the adapter must change the result")
+
+    def test_strength_off_and_removal(self):
+        deltas = _write_lokr(self.tmp.name, self.reference)
+        pool = sgs.install(self.streamed, CPU, torch.bfloat16)
+        base = self._out(self.streamed)
+        self._load(pool)
+        pool.lora.set_scale("k", 0.5)
+        ref = self._out(_merged_deltas(self.reference, deltas, 0.5))
+        self.assertLess((self._out(self.streamed) - ref).abs().max().item(), 1e-3)
+        pool.lora.set_enabled(False)
+        self.assertLess((self._out(self.streamed) - base).abs().max().item(), 1e-4)
+        pool.lora.set_enabled(True)
+        pool.lora.remove("k")
+        self.assertLess((self._out(self.streamed) - base).abs().max().item(), 1e-4)
+
+    def test_untrained_modules_are_skipped(self):
+        zero = {(i, "cross_attn.v_proj") for i in range(4)}
+        deltas = _write_lokr(self.tmp.name, self.reference, zero=zero)
+        pool = sgs.install(self.streamed, CPU, torch.bfloat16)
+        adapter = self._load(pool)
+        self.assertEqual(adapter.inactive, len(zero))
+        self.assertEqual(adapter.targets, len(deltas) - len(zero))
+        ref = self._out(_merged_deltas(self.reference, {k: v for k, v in deltas.items() if k not in zero}))
+        self.assertLess((self._out(self.streamed) - ref).abs().max().item(), 1e-3)
+
+    def test_blocks_resident_on_the_card_get_the_change_too(self):
+        deltas = _write_lokr(self.tmp.name, self.reference)
+        ref = self._out(_merged_deltas(self.reference, deltas))
+        for resident in (0, 2, 4):
+            with self.subTest(resident=resident):
+                streamed = copy.deepcopy(self.streamed)
+                pool = sgs.install(streamed, CPU, torch.bfloat16, resident=resident)
+                self._load(pool)
+                self.assertLess((self._out(streamed) - ref).abs().max().item(), 1e-3)
+
+    def test_same_change_as_lycoris_itself(self):
+        try:
+            from lycoris import LycorisNetwork, create_lycoris
+        except ImportError:
+            self.skipTest("LyCORIS is not installed")
+        wrapped = copy.deepcopy(self.reference)
+        LycorisNetwork.apply_preset({"unet_target_name": ["q_proj", "v_proj"], "target_name": ["q_proj", "v_proj"]})
+        net = create_lycoris(wrapped, 1.0, linear_dim=4, linear_alpha=8, algo="lokr", factor=-1)
+        net.apply_to()
+        torch.manual_seed(1)
+        for p in net.parameters():  # the zero-initialised half would make every change zero
+            torch.nn.init.normal_(p, std=0.1)
+        net.save_weights(os.path.join(self.tmp.name, "lokr_weights.safetensors"), dtype=None, metadata={"algo": "lokr"})
+        merged = copy.deepcopy(self.reference)
+        by_name = {"lycoris_" + n.replace(".", "_"): m for n, m in merged.named_modules()}
+        wrapped_by_name = {"lycoris_" + n.replace(".", "_"): m for n, m in wrapped.named_modules()}
+        with torch.no_grad():
+            for module in net.loras:
+                name = module.lora_name
+                target = by_name.get(name) if name.startswith("lycoris_layers_") else None  # blocks only
+                if target is None or not hasattr(target, "weight"):
+                    continue
+                # What LyCORIS really computes: the change its patched forward adds, read off with an identity matrix.
+                # (``get_diff_weight`` is not used: in this LyCORIS version it applies the scale twice.)
+                layer = wrapped_by_name[name]
+                eye = torch.eye(layer.weight.shape[1])
+                change = (layer(eye) - layer(torch.zeros(1, layer.weight.shape[1])) - eye @ layer.weight.T).T
+                target.weight.data += change
+        pool = sgs.install(self.streamed, CPU, torch.bfloat16)
+        adapter = self._load(pool)
+        self.assertGreater(adapter.targets, 0)
+        out, ref = self._out(self.streamed), self._out(merged)
+        self.assertLess((out - ref).abs().max().item(), 2e-3)
+        self.assertGreater((out - self._out(self.reference)).abs().max().item(), 1e-3)
+
+    def test_unusable_lokr_files_are_refused_with_a_reason(self):
+        from safetensors.torch import save_file
+
+        pool = sgs.install(self.streamed, CPU, torch.bfloat16)
+        path = os.path.join(self.tmp.name, "lokr_weights.safetensors")
+        key = "lycoris_layers_0_self_attn_q_proj"
+        save_file({f"{key}.lokr_w1": torch.ones(8, 8), f"{key}.lokr_w2": torch.ones(8, 8), f"{key}.lokr_t2": torch.ones(2, 2, 1, 1)}, path)
+        with self.assertRaisesRegex(sgl.StreamLoraError, "Tucker"):
+            sgl.load_lokr_adapter("x", path, pool.param_names, pool.param_shapes, pool.count)
+        save_file({f"{key}.lokr_w1": torch.ones(8, 8), f"{key}.lokr_w2": torch.ones(7, 8)}, path)
+        with self.assertRaisesRegex(sgl.StreamLoraError, "do not fit"):
+            sgl.load_lokr_adapter("x", path, pool.param_names, pool.param_shapes, pool.count)
+        save_file({f"{key}.lokr_w1": torch.ones(8, 8)}, path)
+        with self.assertRaisesRegex(sgl.StreamLoraError, "incomplete"):
+            sgl.load_lokr_adapter("x", path, pool.param_names, pool.param_shapes, pool.count)
+        save_file({"lycoris_layers_99_self_attn_q_proj.lokr_w1": torch.ones(8, 8),
+                   "lycoris_layers_99_self_attn_q_proj.lokr_w2": torch.ones(8, 8)}, path)
+        with self.assertRaisesRegex(sgl.StreamLoraError, "no LoKr weight"):
+            sgl.load_lokr_adapter("x", path, pool.param_names, pool.param_shapes, pool.count)
+        open(path, "wb").close()
+        with self.assertRaises(sgl.StreamLoraError):
+            sgl.load_lokr_adapter("x", path, pool.param_names, pool.param_shapes, pool.count)
+
+
 class HandlerTests(unittest.TestCase):
     """The handler-level operations (load, scale, switch, unload) on a streamed DiT."""
 
@@ -282,7 +460,7 @@ class HandlerTests(unittest.TestCase):
         self.assertFalse(self.host.lora_loaded)
         self.assertIn("Unknown adapter", stream_adapter.remove(self.host, "mine"))
 
-    def test_bad_paths_and_lokr_are_refused_in_plain_words(self):
+    def test_bad_paths_and_broken_lokr_files_are_refused_in_plain_words(self):
         self.assertIn("not found", stream_adapter.add(self.host, os.path.join(self.tmp.name, "nope"), "x"))
         self.assertIn("provide a LoRA path", stream_adapter.add(self.host, " ", "x"))
         lokr = tempfile.TemporaryDirectory()
@@ -290,6 +468,18 @@ class HandlerTests(unittest.TestCase):
         open(os.path.join(lokr.name, "lokr_weights.safetensors"), "wb").close()
         self.assertIn("LoKr", stream_adapter.add(self.host, lokr.name, "x"))
         self.assertFalse(self.host.lora_loaded)
+
+    def test_a_lokr_folder_loads_scales_and_unloads(self):
+        lokr = tempfile.TemporaryDirectory()
+        self.addCleanup(lokr.cleanup)
+        _write_lokr(lokr.name, self.reference)
+        message = stream_adapter.add(self.host, lokr.name, "k")
+        self.assertTrue(message.startswith("✅ LoKr"), message)
+        self.assertEqual(self.host._adapter_type, "lokr")
+        self.assertTrue(self.host.lora_loaded and self.host.use_lora)
+        self.assertTrue(stream_adapter.set_scale(self.host, "k", 0.5).startswith("✅"))
+        self.assertTrue(stream_adapter.unload(self.host).startswith("✅"))
+        self.assertIsNone(self.host._adapter_type)
 
     def test_a_failed_load_changes_nothing(self):
         empty = tempfile.TemporaryDirectory()
