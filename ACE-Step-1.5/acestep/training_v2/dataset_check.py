@@ -63,10 +63,25 @@ def _family(width: int) -> str:
     return _FAMILY.get(width, f"a model of width {width}")
 
 
+def config_hidden_size(checkpoint_dir: str, variant: str) -> Optional[int]:
+    """Hidden size written in the model's ``config.json`` (None when it cannot be read): no weights are loaded."""
+    try:
+        from acestep.training_v2.model_loader import read_model_config
+
+        value = read_model_config(checkpoint_dir, variant).get("hidden_size")
+    except Exception:  # noqa: BLE001 - unknown layout: the check after loading takes over
+        return None
+    return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
+
+
 def mismatch_message(dataset_dir: str, model: Any) -> Optional[str]:
     """An explanation when the tensors come from another architecture than ``model``, else None."""
+    return mismatch_message_for_width(dataset_dir, model_hidden_size(model))
+
+
+def mismatch_message_for_width(dataset_dir: str, model_w: Optional[int]) -> Optional[str]:
+    """Same as :func:`mismatch_message` for a model known only by its hidden size."""
     data_w, data_name = dataset_signature(dataset_dir)
-    model_w = model_hidden_size(model)
     if data_w is None or model_w is None or data_w == model_w:
         return None
     made_with = f"{_family(data_w)}" + (f" ({data_name})" if data_name else "")

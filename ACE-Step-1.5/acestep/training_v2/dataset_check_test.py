@@ -10,9 +10,11 @@ import torch
 
 from acestep.training_v2.dataset_check import (
     _main,
+    config_hidden_size,
     dataset_signature,
     mark_dataset,
     mismatch_message,
+    mismatch_message_for_width,
     unmarked_message,
 )
 
@@ -108,6 +110,25 @@ class DatasetCheckTest(unittest.TestCase):
             self.assertEqual(_main([d, "--family", "xl"]), 0)
             self.assertEqual(dataset_signature(d)[0], 2560)
             self.assertEqual(_main(["/nonexistent/folder", "--family", "xl"]), 1)
+
+    def test_width_known_only_from_the_config(self):
+        with tempfile.TemporaryDirectory() as d:
+            _write(d, "a", model_hidden_size=2048)
+            self.assertIsNone(mismatch_message_for_width(d, 2048))
+            self.assertIn("XL", mismatch_message_for_width(d, 2560))
+            self.assertIsNone(mismatch_message_for_width(d, None))
+
+    def test_config_hidden_size_reads_config_json(self):
+        with tempfile.TemporaryDirectory() as root:
+            for name, width in (("acestep-v15-xl-turbo-bf16", 2560), ("acestep-v15-turbo", 2048)):
+                folder = Path(root) / name
+                folder.mkdir()
+                (folder / "config.json").write_text(json.dumps({"hidden_size": width}), encoding="utf-8")
+            self.assertEqual(config_hidden_size(root, "acestep-v15-xl-turbo-bf16"), 2560)
+            self.assertEqual(config_hidden_size(root, "turbo"), 2048)
+            self.assertIsNone(config_hidden_size(root, "no-such-model"))
+            (Path(root) / "acestep-v15-turbo" / "config.json").write_text("{}", encoding="utf-8")
+            self.assertIsNone(config_hidden_size(root, "turbo"))
 
 
 if __name__ == "__main__":

@@ -87,6 +87,29 @@ def run_fixed(args: argparse.Namespace) -> int:
     model = None
     trainer = None
     try:
+        # -- The tensors must come from this model's architecture ---------------
+        # Checked first, from the model's config.json, so that a wrong pair stops at
+        # once instead of after the (long, memory-hungry) loading of the weights.
+        from acestep.training_v2.dataset_check import (
+            config_hidden_size,
+            mismatch_message,
+            mismatch_message_for_width,
+            unmarked_message,
+        )
+        from acestep.training_v2.ui.errors import show_warning
+
+        problem = mismatch_message_for_width(
+            train_cfg.dataset_dir,
+            config_hidden_size(train_cfg.checkpoint_dir, train_cfg.model_variant),
+        )
+        if problem:
+            handle_error(ValueError(problem), context="Dataset and model do not match", show_traceback=False)
+            return 1
+
+        unmarked = unmarked_message(train_cfg.dataset_dir)
+        if unmarked:
+            show_warning(unmarked)
+
         # -- Load model -------------------------------------------------------
         try:
             show_info(f"Loading model (variant={train_cfg.model_variant}, device={train_cfg.device})")
@@ -101,20 +124,11 @@ def run_fixed(args: argparse.Namespace) -> int:
             handle_error(exc, context="Model loading", show_traceback=True)
             return 1
 
-        # -- The tensors must come from this model's architecture ---------------
-        from acestep.training_v2.dataset_check import mismatch_message
-
+        # Same check on the loaded model, in case config.json could not be read above.
         problem = mismatch_message(train_cfg.dataset_dir, model)
         if problem:
             handle_error(ValueError(problem), context="Dataset and model do not match", show_traceback=False)
             return 1
-
-        from acestep.training_v2.dataset_check import unmarked_message
-        from acestep.training_v2.ui.errors import show_warning
-
-        unmarked = unmarked_message(train_cfg.dataset_dir)
-        if unmarked:
-            show_warning(unmarked)
 
         # -- Train ------------------------------------------------------------
         try:
