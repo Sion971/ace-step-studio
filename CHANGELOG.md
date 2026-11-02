@@ -3,6 +3,7 @@
 ## 2026-10-30
 
 ### Added
+- When the model runs out of memory while loading without block streaming (XL on an 8 GB card with the small-card box unticked), the error now says to tick "Small-card mode (weights by blocks)" (or add --stream-blocks --stream-prefetch) instead of advising a smaller batch or rank, which cannot help at that point.
 - The tensors-versus-model check now runs before the weights are loaded, from the hidden_size in the model's config.json (2048 for 2B, 2560 for XL), so a wrong pair stops at once instead of after a long load or an out-of-memory; the check on the loaded model stays as a fallback.
 - Training now warns ("The tensors in ... carry no model mark") when the tensors were made before the model mark existed, instead of staying silent; `python -m acestep.training_v2.dataset_check <folder> --family 2b|xl` marks such a folder by hand so that the check applies to it.
 - The preprocessing writes the decoder's hidden size (2048 for 2B, 2560 for XL) and the model name into each tensor file's metadata, and the trainer stops with a clear message when the tensors come from the other architecture (tensors made earlier carry no mention and are accepted as before). Replaces the width check removed on 2026-10-31, which compared the wrong quantity.

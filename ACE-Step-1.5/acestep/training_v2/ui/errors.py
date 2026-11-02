@@ -79,10 +79,29 @@ def _find_suggestions(error_str: str) -> list[str]:
 
 # ---- Public API -------------------------------------------------------------
 
+def load_oom_suggestions(exc: BaseException, block_streaming: bool) -> Optional[list[str]]:
+    """Suggestions for an out-of-memory error raised while loading the model, or None to keep the generic ones.
+
+    Loading puts the whole model on the card unless block streaming is on, so the usual advice (smaller batch,
+    smaller rank) cannot help: those only matter once training runs.
+    """
+    text = f"{type(exc).__name__} {exc}".lower()
+    if block_streaming or ("out of memory" not in text and "outofmemory" not in text):
+        return None
+    return [
+        "The model does not fit on the card as a whole. Turn on block streaming: tick \"Small-card mode (weights "
+        "by blocks)\" on the Studio's training page (Memory and performance), or add --stream-blocks "
+        "--stream-prefetch on the command line (LoRA only).",
+        "Close other programs using the GPU, the Studio's generation engine included (leave \"Free VRAM during "
+        "training\" ticked).",
+    ]
+
+
 def handle_error(
     exc: BaseException,
     context: str = "Training",
     show_traceback: bool = False,
+    suggestions: Optional[list[str]] = None,
 ) -> None:
     """Display an error with suggestions.
 
@@ -90,10 +109,12 @@ def handle_error(
         exc: The exception that occurred.
         context: Short label (e.g. "Model loading", "Training").
         show_traceback: If True, include the full traceback.
+        suggestions: Replaces the generic suggestions matched from the error text when given.
     """
     error_str = str(exc)
     exc_type = type(exc).__name__
-    suggestions = _find_suggestions(error_str)
+    if suggestions is None:
+        suggestions = _find_suggestions(error_str)
 
     if is_rich_active() and console is not None:
         _show_rich(exc, exc_type, error_str, context, suggestions, show_traceback)

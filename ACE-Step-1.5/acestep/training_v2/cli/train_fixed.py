@@ -57,7 +57,7 @@ def run_fixed(args: argparse.Namespace) -> int:
     from acestep.training_v2.ui import set_plain_mode
     from acestep.training_v2.ui.banner import show_banner
     from acestep.training_v2.ui.config_panel import show_config, confirm_start
-    from acestep.training_v2.ui.errors import handle_error, show_info
+    from acestep.training_v2.ui.errors import handle_error, load_oom_suggestions, show_info
     from acestep.training_v2.ui.progress import track_training
     from acestep.training_v2.ui.summary import show_summary
 
@@ -121,7 +121,12 @@ def run_fixed(args: argparse.Namespace) -> int:
                 keep_on_cpu=bool(getattr(train_cfg, "stream_blocks", False)),
             )
         except Exception as exc:
-            handle_error(exc, context="Model loading", show_traceback=True)
+            handle_error(
+                exc,
+                context="Model loading",
+                show_traceback=True,
+                suggestions=load_oom_suggestions(exc, bool(getattr(train_cfg, "stream_blocks", False))),
+            )
             return 1
 
         # Same check on the loaded model, in case config.json could not be read above.
