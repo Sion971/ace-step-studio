@@ -3,6 +3,7 @@
 ## 2026-10-30
 
 ### Added
+- The training summary shows the loss as epoch averages (first -> last epoch), matching the journal and the checkpoint names, instead of the first and last single steps; the best single step is labelled "Best step loss".
 - The summary printed at the end of a training no longer says "Epochs 0 / N": the final "complete" update (epoch 0) no longer resets the epoch counter.
 - Documentation of the block-streamed LoRA training: `TROUBLESHOOTING.md` §63 (principle, measurements on RTX 5060 and GTX 1050, pre-Ampere attention, engine during training) and the README (feature list and LoRA Training section).
 - The failure lines of the training log ("[FAIL]", out of memory, the trainer's own "Error:" messages, tracebacks) are shown in red in the journal, and the separate red error box, which repeated the end of the log, is removed.

@@ -68,6 +68,10 @@ class TrainingStats:
     first_loss: float = 0.0
     best_loss: float = float("inf")
     last_loss: float = 0.0
+    first_epoch_loss: float = 0.0
+    """Average loss of the first epoch of this session (0 until one ends)."""
+    last_epoch_loss: float = 0.0
+    """Average loss of the latest finished epoch."""
     last_lr: float = 0.0
     _lr_seen: bool = False
     current_epoch: int = 0
@@ -427,6 +431,10 @@ def _process_structured(update: TrainingUpdate, stats: TrainingStats) -> None:
     """Extract stats from a TrainingUpdate."""
     stats.current_step = update.step
     stats.last_loss = update.loss
+    if update.kind == "epoch" and update.loss > 0:
+        if stats.first_epoch_loss == 0.0:
+            stats.first_epoch_loss = update.loss
+        stats.last_epoch_loss = update.loss
     # Updates such as "complete" carry epoch=0: never let them reset the counter.
     if update.epoch > 0:
         stats.current_epoch = update.epoch

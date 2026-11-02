@@ -56,6 +56,19 @@ def show_summary(
         _show_plain(stats, output_dir, log_dir)
 
 
+def _loss_trajectory(stats: TrainingStats) -> "tuple[float, float, str]":
+    """``(first, last, label)`` for the summary's loss line.
+
+    Epoch averages when at least one epoch finished: comparable with the
+    ``Loss:`` figures of the journal and the checkpoint names. Single steps
+    are noisy and the last one is not representative, so they are only used
+    when no epoch average exists.
+    """
+    if stats.first_epoch_loss > 0 and stats.last_epoch_loss > 0:
+        return stats.first_epoch_loss, stats.last_epoch_loss, "Loss (epoch avg)"
+    return stats.first_loss, stats.last_loss, "Loss"
+
+
 def _show_failure(stats: TrainingStats, output_dir: str) -> None:
     """Show a clear failure message when training completes with 0 steps."""
     if is_rich_active() and console is not None:
@@ -108,17 +121,18 @@ def _show_rich(
     table.add_row("Epochs completed", f"{stats.current_epoch} / {stats.max_epochs}")
     table.add_row("Total steps", str(stats.current_step))
 
-    if stats.first_loss > 0:
-        direction = "down" if stats.last_loss < stats.first_loss else "up"
+    first, last, label = _loss_trajectory(stats)
+    if first > 0:
+        direction = "down" if last < first else "up"
         color = "green" if direction == "down" else "red"
-        pct = abs(stats.last_loss - stats.first_loss) / stats.first_loss * 100
+        pct = abs(last - first) / first * 100
         table.add_row(
-            "Loss",
-            f"[bold]{stats.first_loss:.4f}[/] -> [{color}]{stats.last_loss:.4f}[/]  "
+            label,
+            f"[bold]{first:.4f}[/] -> [{color}]{last:.4f}[/]  "
             f"[dim]({direction} {pct:.1f}%)[/]",
         )
     if stats.best_loss < float("inf"):
-        table.add_row("Best loss", f"[green]{stats.best_loss:.4f}[/]")
+        table.add_row("Best step loss", f"[green]{stats.best_loss:.4f}[/]")
     if stats.peak_vram_mb > 0:
         table.add_row("Peak VRAM", f"{stats.peak_vram_mb / 1024:.1f} GiB")
     if stats.samples_per_sec > 0:
@@ -224,10 +238,11 @@ def _show_plain(
     print(f"  Epochs .............. {stats.current_epoch} / {stats.max_epochs}", file=sys.stderr)
     print(f"  Total steps ......... {stats.current_step}", file=sys.stderr)
 
-    if stats.first_loss > 0:
-        print(f"  Loss ................ {stats.first_loss:.4f} -> {stats.last_loss:.4f}", file=sys.stderr)
+    first, last, label = _loss_trajectory(stats)
+    if first > 0:
+        print(f"  {label + ' ':.<21} {first:.4f} -> {last:.4f}", file=sys.stderr)
     if stats.best_loss < float("inf"):
-        print(f"  Best loss ........... {stats.best_loss:.4f}", file=sys.stderr)
+        print(f"  Best step loss ...... {stats.best_loss:.4f}", file=sys.stderr)
     if stats.peak_vram_mb > 0:
         print(f"  Peak VRAM ........... {stats.peak_vram_mb / 1024:.1f} GiB", file=sys.stderr)
 
