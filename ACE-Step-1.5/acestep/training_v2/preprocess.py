@@ -359,6 +359,7 @@ def _pass2_heavy(
     from acestep.training.dataset_builder_modules.preprocess_context import (
         build_context_latents,
     )
+    from acestep.training.model_signature import model_signature
 
     dtype = _resolve_dtype(precision)
 
@@ -431,7 +432,7 @@ def _pass2_heavy(
                 # Write final .pt  (strip ".tmp" from "song.tmp.pt" -> "song.pt")
                 base_name = tmp_path.name.replace(".tmp.pt", ".pt")
                 final_path = out_path / base_name
-                meta = data["metadata"]
+                meta = {**data["metadata"], **model_signature(model, variant)}
                 torch.save(
                     {
                         "target_latents": data["target_latents"],

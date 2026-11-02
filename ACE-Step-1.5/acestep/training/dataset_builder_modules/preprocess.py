@@ -22,6 +22,7 @@ from .preprocess_manifest import save_manifest
 from .preprocess_text import build_text_prompt, encode_text
 from .preprocess_utils import select_genre_indices
 from .preprocess_vae import tiled_vae_encode
+from acestep.training.model_signature import model_signature
 from acestep.debug_utils import (
     debug_log_for,
     debug_log_verbose_for,
@@ -97,6 +98,8 @@ class PreprocessMixin:
         fail_count = 0
 
         model = dit_handler.model
+        # Which model made the tensors: written into every file (see acestep.training.model_signature).
+        signature_name = (getattr(dit_handler, "last_init_params", None) or {}).get("config_path")
         vae = dit_handler.vae
         text_encoder = dit_handler.text_encoder
         text_tokenizer = dit_handler.text_tokenizer
@@ -277,6 +280,7 @@ class PreprocessMixin:
                         "language": sample.language,
                         "is_instrumental": sample.is_instrumental,
                         "preprocess_mode": mode,
+                        **model_signature(model, signature_name),
                     },
                 }
 
