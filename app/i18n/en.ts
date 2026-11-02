@@ -1322,7 +1322,7 @@ export const en = {
     freeVram: "Free VRAM during training",
     freeVramHint: "The generation server keeps the model in VRAM. On an 8 GB card, training fails if it is not stopped.",
     streamBlocks: "Small-card mode (weights by blocks)",
-    streamBlocksHint: "The model weights stay in RAM and go to the card one block at a time: a LoRA trains in about 1 to 2 GB of VRAM (the XL model too), about 1.2 times slower on a recent card (more on an older one), because the next block is copied while the current one computes. LoRA only.",
+    streamBlocksHint: "The model weights stay in RAM and go to the card one block at a time: a LoRA trains in about 1 to 2 GB of VRAM (the XL model too), about 1.2 times slower on a recent card (more on an older one), because the next block is copied while the current one computes. LoRA and LoKr.",
     trainingModelCurrent: "Model used for training:",
     trainingModelHint: "This is the model currently loaded. To train with another model, load it in the Create tab, then run the preprocessing again: the tensors belong to one model.",
     trainingPreset: "Preset",

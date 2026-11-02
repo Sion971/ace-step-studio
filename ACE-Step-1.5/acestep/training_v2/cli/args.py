@@ -280,7 +280,7 @@ def _add_common_training_args(
     g_train.add_argument("--scheduler-type", type=str, default="cosine", choices=["cosine", "cosine_restarts", "linear", "constant", "constant_with_warmup"], help="LR scheduler (default: cosine)")
     g_train.add_argument("--gradient-checkpointing", action=argparse.BooleanOptionalAction, default=True, help="Recompute activations to save VRAM (~40-60%% less, ~10-30%% slower). On by default; use --no-gradient-checkpointing to disable")
     g_train.add_argument("--offload-encoder", action=argparse.BooleanOptionalAction, default=False, help="Move encoder/VAE to CPU after setup (saves ~2-4GB VRAM)")
-    g_train.add_argument("--stream-blocks", action=argparse.BooleanOptionalAction, default=False, help="LoRA only: keep the frozen DiT weights in RAM and copy one block at a time to the GPU (much less VRAM, slower)")
+    g_train.add_argument("--stream-blocks", action=argparse.BooleanOptionalAction, default=False, help="LoRA and LoKr: keep the frozen DiT weights in RAM and copy one block at a time to the GPU (much less VRAM, slower)")
 
     g_train.add_argument("--stream-prefetch", action=argparse.BooleanOptionalAction, default=False, help="With --stream-blocks: copy the next block to the GPU while the current one computes (faster, one more block of VRAM)")
 

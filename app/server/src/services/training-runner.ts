@@ -63,7 +63,7 @@ export interface TrainingParams {
   optimizerType?: 'adamw' | 'adamw8bit' | 'adafactor' | 'prodigy';
   gradientCheckpointing?: boolean;
   offloadEncoder?: boolean;
-  /** Small-card mode: the frozen weights stay in RAM and pass through the card block by block (LoRA only). */
+  /** Small-card mode: the frozen weights stay in RAM and pass through the card block by block (LoRA and LoKr). */
   streamBlocks?: boolean;
   numWorkers?: number;
   /** Fréquence des lignes de log (1 = une par époque). Requis pour la progression. */
@@ -271,7 +271,7 @@ class TrainingRunner {
       ? '--no-gradient-checkpointing'
       : '--gradient-checkpointing');
     if (p.offloadEncoder !== false) args.push('--offload-encoder');
-    if (p.streamBlocks === true && (p.adapterType ?? 'lora') === 'lora') args.push('--stream-blocks', '--stream-prefetch');
+    if (p.streamBlocks === true) args.push('--stream-blocks', '--stream-prefetch');
     args.push('--num-workers', String(p.numWorkers ?? 0));
 
     // Indispensable : sans --log-every, le mode --plain n'émet AUCUNE ligne de

@@ -137,7 +137,7 @@ class TrainingConfigV2(TrainingConfig):
 
     stream_blocks: bool = False
     stream_prefetch: bool = False
-    """Block-streamed training (LoRA only): the frozen DiT weights stay in RAM and each
+    """Block-streamed training (LoRA and LoKr): the frozen DiT weights stay in RAM and each
     block is copied to the GPU just before it runs (twice per step: forward and the
     recomputation of the backward pass).  Needs far less VRAM, at the price of speed."""
 

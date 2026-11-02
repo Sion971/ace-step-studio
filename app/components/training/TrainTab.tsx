@@ -650,9 +650,9 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
           </label>
           <label className="flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-zinc-400">
             <input
-              type="checkbox" checked={params.streamBlocks && params.adapterType === 'lora'}
+              type="checkbox" checked={params.streamBlocks}
               onChange={e => set('streamBlocks', e.target.checked)}
-              disabled={isActive || params.adapterType !== 'lora'}
+              disabled={isActive}
               className="w-3 h-3 accent-pink-500"
             />
             {t('streamBlocks') || 'Small-card mode (weights by blocks)'}
@@ -673,7 +673,7 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
         </p>
         <p className="text-[10px] text-zinc-500 mt-1 leading-relaxed">
           {t('streamBlocksHint') ||
-            'The model weights stay in RAM and go to the card one block at a time: a LoRA trains in about 1 to 2 GB of VRAM (the XL model too), about 1.6 times slower. LoRA only.'}
+            'The model weights stay in RAM and go to the card one block at a time: a LoRA trains in about 1 to 2 GB of VRAM (the XL model too), about 1.6 times slower. LoRA and LoKr.'}
         </p>
       </Section>
 

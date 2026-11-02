@@ -220,6 +220,14 @@ class FixedLoRAModule(nn.Module):
             model,
             cfg,
         )
+        if getattr(self.training_config, "stream_blocks", False):
+            # Block streaming: the frozen weights must stay in RAM.  The trainer moves the adapters (they sit in
+            # ``decoder._lycoris_net``, outside the blocks) and everything else outside the blocks to the card.
+            logger.info(
+                "[OK] LoKR injected: %s trainable params (kept on the CPU for block streaming)",
+                f"{self.adapter_info['trainable_params']:,}",
+            )
+            return
         # LyCORIS creates adapter parameters on CPU.  Move the entire
         # model to the target device so all parameters (including the
         # new LoKR ones) are co-located before Fabric setup.

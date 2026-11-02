@@ -363,6 +363,122 @@ def test_prefetch_wrong_guess_is_dropped_and_the_block_copies_itself():
     assert pf.pending == {}
 
 
+class _LokrBlock(nn.Module):
+    """Like Block, but with plain frozen linears named like the DiT's (LyCORIS wraps them)."""
+
+    def __init__(self, dim):
+        super().__init__()
+        self.norm = nn.LayerNorm(dim)
+        self.q_proj = nn.Linear(dim, dim, bias=False)
+        self.v_proj = nn.Linear(dim, dim, bias=False)
+        self.mlp = nn.Sequential(nn.Linear(dim, 2 * dim), nn.GELU(), nn.Linear(2 * dim, dim))
+        self.gradient_checkpointing = True
+
+    def forward(self, hidden_states, *args, **kwargs):
+        h = self.norm(hidden_states)
+        a = F.scaled_dot_product_attention(self.q_proj(h)[:, None], self.v_proj(h)[:, None], self.v_proj(h)[:, None])[:, 0]
+        hidden_states = hidden_states + a
+        return (hidden_states + self.mlp(self.norm(hidden_states)),)
+
+
+class _LokrDecoder(nn.Module):
+    def __init__(self, dim=16, n=3):
+        super().__init__()
+        self.layers = nn.ModuleList([_LokrBlock(dim) for _ in range(n)])
+        self.out = nn.Linear(dim, dim)
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)[0]
+        return self.out(x)
+
+
+class _LokrModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.decoder = _LokrDecoder()
+
+
+def _lokr_model(seed=0):
+    torch.manual_seed(seed)
+    model = _LokrModel()
+    for p in model.parameters():
+        p.requires_grad = False
+    return model
+
+
+def _inject(model):
+    from acestep.training.configs import LoKRConfig
+    from acestep.training.lokr_utils import inject_lokr_into_dit
+
+    torch.manual_seed(5)  # same start values for the adapters in both models
+    cfg = LoKRConfig(linear_dim=4, linear_alpha=4, target_modules=["q_proj", "v_proj"])
+    model, net, info = inject_lokr_into_dit(model, cfg)
+    for p in net.parameters():  # the zero-initialised half would give all-zero gradients on the other half
+        if p.requires_grad and not p.abs().sum():
+            torch.nn.init.normal_(p, std=0.05)
+    return model, net
+
+
+def _lokr_run(model, steps=2):
+    torch.manual_seed(11)
+    x, tgt = torch.randn(2, 8, 16), torch.randn(2, 8, 16)
+    losses, grads = [], None
+    for _ in range(steps):
+        for p in model.parameters():
+            p.grad = None
+        loss = F.mse_loss(model.decoder(x), tgt)
+        loss.backward()
+        losses.append(loss.item())
+        grads = {n: p.grad.clone() for n, p in model.named_parameters() if p.grad is not None}
+    return losses, grads
+
+
+def test_lokr_gives_the_same_losses_and_gradients_as_a_normal_run():
+    try:
+        import lycoris  # noqa: F401
+    except ImportError:
+        return  # LoKr needs LyCORIS; nothing to check without it
+    ref, _ = _inject(_lokr_model())
+    streamed, _ = _inject(_lokr_model())
+    ref_losses, ref_grads = _lokr_run(ref)
+
+    layers = bs.find_layers(streamed.decoder)
+    # LoKr adapters sit in decoder._lycoris_net, outside the blocks: they must end up outside the streamed weights
+    assert not any(id(p) in {id(q) for q in layers.parameters()} for p in streamed.decoder._lycoris_net.parameters())
+    bs.move_outside_layers(streamed.decoder, layers, "cpu")
+    assert bs.enable_block_streaming(layers, "cpu", pin=False, copier=lambda t: t.detach().clone()) == 3
+    s_losses, s_grads = _lokr_run(streamed)
+
+    assert ref_losses == s_losses
+    assert ref_grads.keys() == s_grads.keys() and len(ref_grads) > 0
+    assert any("lokr" in k for k in ref_grads)
+    for k in ref_grads:
+        assert torch.equal(ref_grads[k], s_grads[k]), k
+
+
+def test_lokr_blocks_read_the_streamed_copies_of_the_frozen_weights():
+    try:
+        import lycoris  # noqa: F401
+    except ImportError:
+        return
+    model, _ = _inject(_lokr_model())
+    layers = bs.find_layers(model.decoder)
+    loads = []
+
+    def copier(t):
+        loads.append(t.shape)
+        return t.detach().clone()
+
+    bs.enable_block_streaming(layers, "cpu", pin=False, copier=copier)
+    per_block = len(bs._frozen_params(layers[0])) + len(bs._frozen_buffers(layers[0]))
+    _lokr_run(model, steps=1)
+    assert len(loads) == 2 * 3 * per_block
+    # nothing is left swapped: the adapters' base layers hold real parameters again
+    for layer in layers:
+        assert isinstance(layer.q_proj.weight, nn.Parameter) and isinstance(layer.v_proj.weight, nn.Parameter)
+
+
 if __name__ == "__main__":
     import sys
 

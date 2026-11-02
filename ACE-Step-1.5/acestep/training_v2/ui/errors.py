@@ -91,7 +91,7 @@ def load_oom_suggestions(exc: BaseException, block_streaming: bool) -> Optional[
     return [
         "The model does not fit on the card as a whole. Turn on block streaming: tick \"Small-card mode (weights "
         "by blocks)\" on the Studio's training page (Memory and performance), or add --stream-blocks "
-        "--stream-prefetch on the command line (LoRA only).",
+        "--stream-prefetch on the command line (LoRA and LoKr).",
         "Close other programs using the GPU, the Studio's generation engine included (leave \"Free VRAM during "
         "training\" ticked).",
     ]

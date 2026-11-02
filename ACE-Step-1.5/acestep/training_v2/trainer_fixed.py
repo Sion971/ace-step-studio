@@ -298,9 +298,7 @@ class FixedLoRATrainer:
         stream_layers = None
         if stream_blocks:
             problem = None
-            if self.adapter_type != "lora":
-                problem = "--stream-blocks only supports LoRA (not LoKr) for now"
-            elif world_size > 1:
+            if world_size > 1:
                 problem = "--stream-blocks works on a single GPU only"
             elif self.module.device.type != "cuda":
                 problem = "--stream-blocks needs a CUDA GPU"

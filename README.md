@@ -370,7 +370,7 @@ Generate several variations of the same prompt in one pass to compare results qu
 
 **LoRA Training** — scan your dataset, label, preprocess, and train, all from the UI.
 
-On the training page, **Small-card mode (weights by blocks)** lets a card of 2 GB or more train a LoRA (LoRA only, not LoKr): the model's weights stay in RAM (about 6 GB for the 2B models, 10 GB for XL) and pass through the card block by block. The trained model is the one loaded in the Create tab, and the preprocessed tensors must come from the same model (a 2B LoRA does not fit XL); While a training runs, generation is paused. Leave « Free VRAM during training » ticked unless you know the engine will stay idle.
+On the training page, **Small-card mode (weights by blocks)** lets a card of 2 GB or more train a LoRA or a LoKr: the model's weights stay in RAM (about 6 GB for the 2B models, 10 GB for XL) and pass through the card block by block. The trained model is the one loaded in the Create tab, and the preprocessed tensors must come from the same model (a 2B LoRA does not fit XL); While a training runs, generation is paused. Leave « Free VRAM during training » ticked unless you know the engine will stay idle.
 
 **Video Generator** — turn a track into a music video with Pexels stock backgrounds.
 

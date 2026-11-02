@@ -1305,7 +1305,7 @@ export const ko = {
     freeVram: "훈련 중 VRAM 해제",
     freeVramHint: "생성 서버가 모델을 VRAM에 유지합니다. 8GB 카드에서는 서버를 중지하지 않으면 훈련이 실패합니다.",
     streamBlocks: "소형 카드 모드(블록 단위 가중치)",
-    streamBlocksHint: "모델 가중치는 RAM에 두고 블록 하나씩 카드로 보냅니다. LoRA를 약 1~2GB VRAM에서 훈련할 수 있고(XL 모델 포함) 속도는 최신 카드에서 약 1.2배 느려집니다(오래된 카드에서는 더 느림). 현재 블록을 계산하는 동안 다음 블록을 복사하기 때문입니다. LoRA 전용.",
+    streamBlocksHint: "모델 가중치는 RAM에 두고 블록 하나씩 카드로 보냅니다. LoRA를 약 1~2GB VRAM에서 훈련할 수 있고(XL 모델 포함) 속도는 최신 카드에서 약 1.2배 느려집니다(오래된 카드에서는 더 느림). 현재 블록을 계산하는 동안 다음 블록을 복사하기 때문입니다. LoRA와 LoKr 지원.",
     trainingModelCurrent: "훈련에 사용하는 모델:",
     trainingModelHint: "현재 로드된 모델입니다. 다른 모델로 훈련하려면 만들기 탭에서 해당 모델을 로드한 뒤 전처리를 다시 실행하세요. 텐서는 모델마다 다릅니다.",
     trainingPreset: "프리셋",
