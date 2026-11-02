@@ -3,6 +3,7 @@
 ## 2026-10-30
 
 ### Added
+- Changing the LoRA/LoKr strength (or switching or removing the adapter) while a generation runs in small-card mode no longer crashes the engine with a CUDA illegal memory access: the card is now given back at the start of the next step, on the thread that computes, instead of from the slider's thread in the middle of a step.
 - LoKr adapters now load in the small-card (stream) generation mode instead of failing with "LoKr adapters are not supported in small-card mode": the change `scale * kron(w1, w2)` is rebuilt on the card as each block arrives, like a LoRA's, and modules that were never trained (zero change) are skipped. Checked on the CPU against what LyCORIS computes in its forward pass; not yet run on a real card.
 - Block-streamed training now works with LoKr as well as LoRA: the checkbox is no longer greyed out for LoKr, the server passes `--stream-blocks --stream-prefetch`, and the trainer no longer refuses it. The LoKr adapters (LyCORIS, held in `decoder._lycoris_net` outside the blocks) go to the card with the other small parts while the frozen weights stay in RAM; a CPU test checks that losses and gradients equal a normal run. Not yet run on a real card.
 - When the model runs out of memory while loading without block streaming (XL on an 8 GB card with the small-card box unticked), the error now says to tick "Small-card mode (weights by blocks)" (or add --stream-blocks --stream-prefetch) instead of advising a smaller batch or rank, which cannot help at that point.

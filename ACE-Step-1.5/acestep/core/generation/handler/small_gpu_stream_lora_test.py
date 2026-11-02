@@ -125,6 +125,37 @@ class StreamLoraTests(unittest.TestCase):
         pool.lora.remove("a")
         self.assertLess((self._out(self.streamed) - base).abs().max().item(), 1e-4)
 
+    def test_a_change_during_a_step_waits_for_the_next_step(self):
+        """The strength slider calls set_scale from another thread while a generation computes: the card must not be given
+        back under the computation (CUDA illegal memory access, 2026-11-02); the change applies at the next step."""
+        factors = _write_adapter(self.tmp.name, self.reference)
+        pool = self._pool(resident=2)
+        self._load(pool)
+        self._out(self.streamed)  # blocks are on the card now
+        seen = {}
+
+        def change_scale(module, args, kwargs=None):
+            if "ready" not in seen:
+                pool.lora.set_scale("a", 0.5)
+                seen["ready"] = pool._gpu_ready
+                seen["dirty"] = pool.lora_dirty
+
+        handle = self.streamed.layers[2].register_forward_pre_hook(change_scale)
+        self._out(self.streamed)  # the change arrives in the middle of this step
+        handle.remove()
+        self.assertTrue(seen["ready"], "the card was given back in the middle of a step")
+        self.assertTrue(seen["dirty"])
+        ref = self._out(_merged(self.reference, factors, 8 / 4 * 0.5))
+        self.assertLess((self._out(self.streamed) - ref).abs().max().item(), 1e-4)  # next step: the new strength
+        self.assertFalse(pool.lora_dirty)
+
+    def test_a_change_made_while_idle_is_taken_into_account_at_the_next_step(self):
+        factors = _write_adapter(self.tmp.name, self.reference)
+        pool = self._pool()
+        self._load(pool)  # the pool was ready before the adapter existed, and nothing has run yet
+        ref = self._out(_merged(self.reference, factors, 8 / 4))
+        self.assertLess((self._out(self.streamed) - ref).abs().max().item(), 1e-4)
+
     def test_the_ram_copies_of_the_base_weights_are_never_changed(self):
         _write_adapter(self.tmp.name, self.reference)
         pool = self._pool()

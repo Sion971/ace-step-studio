@@ -648,6 +648,7 @@ class StreamPool:
         self.slot_params: List[List[torch.Tensor]] = []
         self.loaded: List[int] = []
         self._gpu_ready = False
+        self.lora_dirty = False  # the adapter changed while blocks were on the card: rebuilt at the next step (see begin_call)
         self._copy_stream = None
         self._ready: List[Any] = []
         self._free: List[Any] = []
@@ -872,6 +873,7 @@ class StreamPool:
         self.resident, self.resident_n = [], 0
         self._copy_stream, self._ready, self._free = None, [], []
         self._gpu_ready = False
+        self.lora_dirty = False  # nothing is left on the card: the next use is built with the adapter as it is now
         self.args.clear()
         self._last_index = -1
         if not self.cuda:
@@ -985,6 +987,11 @@ class StreamPool:
 
     def begin_call(self, layer_idx: int) -> None:
         """A block call whose index does not go up starts a new step: the shared inputs of the previous one are dropped."""
+        if layer_idx == 0 and self.lora_dirty:
+            # The adapter was changed (strength, switched off, removed...) while blocks were on the card, possibly from
+            # another thread while this one was computing: the card is only given back here, between two steps, by the
+            # thread that uses it. The next ``acquire`` places the blocks again with the adapter as it is now.
+            self.release_gpu()
         if layer_idx <= self._last_index:
             self.args.clear()
         self._last_index = layer_idx

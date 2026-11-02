@@ -253,8 +253,16 @@ class StreamLoraSet:
             self.changed()
 
     def changed(self) -> None:
-        """Card copies were built with the previous settings: give them up, they are rebuilt at the next use."""
-        self.pool.release_gpu()
+        """Card copies were built with the previous settings: they are rebuilt at the next use.
+
+        The change can arrive from another thread (the strength slider) while a generation is computing on these very
+        copies: giving the card back at that moment pulled the blocks from under it (CUDA illegal memory access, seen on
+        2026-11-02). So when blocks are on the card, the pool only notes it and gives the card back at the start of the next
+        step, on the thread that computes (``StreamPool.begin_call``)."""
+        if getattr(self.pool, "_gpu_ready", False):
+            self.pool.lora_dirty = True
+        else:
+            self.pool.release_gpu()
 
     # -- use by the pool ----------------------------------------------------------------------------------------
     def targets_of(self, layer_idx: int) -> List[Union[Target, KronTarget]]:
