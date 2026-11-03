@@ -781,6 +781,11 @@ class StreamPool:
         self._gpu_ready = True
         self._begin_measure()
         log_memory(f"{self.label}: {self.resident_n} resident blocks placed")
+        if self.lora is not None and self.lora.active:
+            logger.info(
+                "[small_gpu_stream] {}: adapter '{}' applied at strength {:.2f}{}", self.label, self.lora.active,
+                self.lora.scales.get(self.lora.active, 1.0), "" if self.lora.enabled else " (switched off)",
+            )
         if self.resident_n and self.resident_n != self._logged_resident:
             self._logged_resident = self.resident_n
             logger.info(

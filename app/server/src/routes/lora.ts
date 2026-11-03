@@ -102,6 +102,7 @@ router.post('/scale', authMiddleware, async (req: AuthenticatedRequest, res: Res
     const status = (result.data as unknown[])[0] as string;
 
     loraState.scale = scale;
+    console.log(`[LoRA] strength set to ${scale}: ${status}`);
 
     res.json({ message: status, scale });
   } catch (error) {

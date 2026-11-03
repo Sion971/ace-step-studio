@@ -241,6 +241,7 @@ class StreamLoraSet:
 
     def set_scale(self, name: str, scale: float) -> None:
         self.scales[name] = float(scale)
+        logger.info("[small_gpu_stream] adapter '{}': strength set to {:.2f}", name, float(scale))
         self.changed()
 
     def set_enabled(self, enabled: bool) -> None:
