@@ -1,0 +1,82 @@
+name: Small-card report
+description: Tell us how the stream / small-card mode behaved on your hardware (working or not).
+title: "[small-card] <GPU>, <what you ran>"
+labels: ["small-card-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing. A report that says "it worked" is as useful as one that says "it crashed".
+  - type: input
+    id: gpu
+    attributes:
+      label: Graphics card and VRAM
+      placeholder: "RTX 3060 Ti, 8 GB"
+    validations:
+      required: true
+  - type: input
+    id: ram
+    attributes:
+      label: System RAM (total, and roughly how much was free)
+      placeholder: "16 GB total, about 9 GB free"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - Windows
+        - macOS
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: task
+    attributes:
+      label: What did you run?
+      options:
+        - Generation (stream mode)
+        - LoRA training with small-card mode
+        - LoKr training with small-card mode
+        - Loading a LoRA or LoKr for generation
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      placeholder: "acestep-v15-xl-turbo-bf16"
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - Worked
+        - Worked, but slowly
+        - Ran out of GPU memory
+        - Ran out of RAM
+        - Crashed with another error
+        - Ran, but the output sounds wrong
+    validations:
+      required: true
+  - type: textarea
+    id: numbers
+    attributes:
+      label: Numbers, if you have them
+      description: Time per epoch or per generation, peak VRAM (the training summary prints it), track length, number of songs.
+      placeholder: "16 songs, about 70 s per epoch, peak VRAM 2.2 GiB"
+  - type: textarea
+    id: log
+    attributes:
+      label: Log lines
+      description: The lines around the error, or the summary at the end of the run.
+      render: shell
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else

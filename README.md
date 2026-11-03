@@ -411,6 +411,28 @@ Built with [Claude](https://claude.ai) (Anthropic) as a development pair — mos
 
 ---
 
+## 🧪 Small-card mode: testers wanted
+
+ACE-Step's own GPU table marks the XL models as unsupported below about 12 GB of VRAM. This fork runs and trains them on smaller cards by keeping the frozen model in RAM and copying **one transformer block at a time** to the card (the next block is copied while the current one computes). It has been tested on two cards only, so reports from other hardware are what it needs most.
+
+| What | Card | Measured |
+|---|---|---|
+| XL Turbo generation, 225 s track, 8 steps | RTX 5060 8 GB | DiT about 13.5 s, audio decoding about 6 s |
+| LoRA training, XL, 16 songs, rank 16 | RTX 5060 8 GB | 2.07 GiB peak VRAM, about 65 s per epoch (100 epochs: 1 h 49) |
+| LoKr training, XL, 16 songs, dim 16 | RTX 5060 8 GB | 2.18 GiB peak VRAM, about 104 s per epoch |
+| LoRA training, 2B Turbo, 16 songs | GTX 1050 2 GB | 1.16 GiB peak VRAM, about 14 minutes per epoch |
+
+These are single runs on one machine each, not benchmarks. The XL path needs about 10 GB of free RAM on top of the system's own use (32 GB advised).
+
+**How to try it**
+- Generation: pick the stream mode at install time on a card of 8 GB or less (see [Which graphics card?](#-which-graphics-card)).
+- Training: tick *Small-card mode (weights by blocks)* on the training page, LoRA or LoKr. XL on 8 GB needs it ticked.
+
+**How to help**
+- Open a [small-card report](https://github.com/Sion971/ace-step-studio/issues/new?template=small-card-report.yml): your card, RAM, what you ran and what happened, even if it simply worked.
+- Failures are as useful as successes. Attach the log lines around the error.
+- Cards of 4 to 6 GB, Windows, and 16 GB of RAM are the combinations least tested.
+
 ## 🤝 Contributing
 
 This started as a personal project to get ACE-Step Studio running well on Linux, and it's grown from there. Development happens in short, focused sessions rather than on a fixed schedule, so don't expect instant replies — but issues, questions, and pull requests are genuinely welcome. If something's broken, tell us. If you've got an idea, open a discussion. If you've fixed something yourself, a PR is very welcome.
