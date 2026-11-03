@@ -2810,6 +2810,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             selectedModel={selectedModel}
             loraLoaded={loraLoaded}
             onLoadedChange={setLoraLoaded}
+            isGenerating={isGenerating}
           />
 
         {!simpleView && (<>

@@ -460,6 +460,7 @@ export const fr = {
     loraUnload: 'Décharger',
     loraScale: 'Échelle du LoRA',
     loraScaleDescription: 'Ajuster l’intensité de l’influence du modèle LoRA',
+    loraScaleLocked: 'Verrouillée pendant la génération : un changement ne serait pris en compte qu’en milieu de morceau',
 
     // CreatePanel - Audio
     reference: 'Référence',

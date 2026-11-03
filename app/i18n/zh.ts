@@ -439,6 +439,7 @@ export const zh = {
     loraUnload: '卸载',
     loraScale: 'LoRA 强度',
     loraScaleDescription: '调整 LoRA 模型的影响强度',
+    loraScaleLocked: '生成期间已锁定：更改只会在曲目中途生效',
 
     // CreatePanel - Audio
     reference: '参考',

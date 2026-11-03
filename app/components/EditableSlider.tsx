@@ -11,6 +11,8 @@ interface EditableSliderProps {
   helpText?: string;
   title?: string;
   autoLabel?: string;
+  /** Grise le curseur et la saisie : plus aucune modification possible. */
+  disabled?: boolean;
 }
 
 export const EditableSlider: React.FC<EditableSliderProps> = ({
@@ -24,6 +26,7 @@ export const EditableSlider: React.FC<EditableSliderProps> = ({
   helpText,
   title = '',
   autoLabel = 'Auto',
+  disabled = false,
 }) => {
   const [inputValue, setInputValue] = useState(value.toString());
   const [isEditing, setIsEditing] = useState(false);
@@ -81,7 +84,7 @@ export const EditableSlider: React.FC<EditableSliderProps> = ({
           />
         ) : (
           <span
-            onClick={() => setIsEditing(true)}
+            onClick={() => { if (!disabled) setIsEditing(true); }}
             className="text-xs font-mono text-zinc-900 dark:text-white bg-zinc-100 dark:bg-black/20 px-2 py-0.5 rounded cursor-pointer hover:bg-zinc-200 dark:hover:bg-black/30 transition-colors"
           >
             {displayValue}
@@ -94,8 +97,9 @@ export const EditableSlider: React.FC<EditableSliderProps> = ({
         max={max}
         step={step}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
+        className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-pink-500 disabled:opacity-40 disabled:cursor-not-allowed"
       />
       {helpText && (
         <p className="text-[10px] text-zinc-500">{helpText}</p>

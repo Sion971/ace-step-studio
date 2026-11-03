@@ -439,6 +439,7 @@ export const ko = {
     loraUnload: '언로드',
     loraScale: 'LoRA 강도',
     loraScaleDescription: 'LoRA 모델의 영향 강도 조절',
+    loraScaleLocked: '생성 중에는 잠김: 변경해도 곡 중간부터만 적용됩니다',
 
     // CreatePanel - Audio
     reference: '참조',

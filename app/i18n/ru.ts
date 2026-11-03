@@ -443,6 +443,7 @@ export const ru = {
     loraUnload: 'Выгрузить',
     loraScale: 'Масштаб LoRA',
     loraScaleDescription: 'Регулировка силы влияния модели LoRA',
+    loraScaleLocked: 'Заблокировано во время генерации: изменение сработало бы только в середине трека',
 
     // CreatePanel - Audio
     reference: 'Референс',

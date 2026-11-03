@@ -28,6 +28,8 @@ interface LoraPanelProps {
   /** État remonté au parent (paramètres de génération + arbitrages). */
   loraLoaded: boolean;
   onLoadedChange: (loaded: boolean) => void;
+  /** Une génération est en cours : l'intensité est verrouillée (elle ne serait prise qu'à mi-morceau). */
+  isGenerating?: boolean;
 }
 
 /** The chosen path when the list has it, else the first LoRA of the list; unchanged while the list is empty. */
@@ -42,6 +44,7 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
   selectedModel,
   loraLoaded,
   onLoadedChange,
+  isGenerating = false,
 }) => {
   /* -- État local --------------------------------------------------------- */
   const [showPanel, setShowPanel] = useState(false);
@@ -459,7 +462,8 @@ export const LoraPanel: React.FC<LoraPanelProps> = ({
               step={0.05}
               onChange={handleScaleChange}
               formatDisplay={(val) => val.toFixed(2)}
-              helpText={t('loraScaleDescription')}
+              helpText={isGenerating ? t('loraScaleLocked') : t('loraScaleDescription')}
+              disabled={isGenerating}
             />
           </div>
         </div>

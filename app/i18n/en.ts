@@ -447,6 +447,7 @@ export const en = {
     loraUnload: 'Unload',
     loraScale: 'LoRA Scale',
     loraScaleDescription: 'Adjust the influence strength of the LoRA model',
+    loraScaleLocked: 'Locked during generation: a change would only apply mid-track',
 
     // CreatePanel - Audio
     reference: 'Reference',

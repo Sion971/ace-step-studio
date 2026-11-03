@@ -439,6 +439,7 @@ export const ja = {
   loraUnload: 'アンロード',
   loraScale: 'LoRA スケール',
   loraScaleDescription: 'LoRA モデルの影響強度を調整',
+  loraScaleLocked: '生成中はロックされています。変更は曲の途中からしか反映されません',
 
   // CreatePanel - Audio
   reference: '参照',
