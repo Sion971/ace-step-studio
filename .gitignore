@@ -47,3 +47,8 @@ sac_pending.txt
 
 # Journal du serveur ecrit par le lanceur Windows sans console (launch-studio.vbs)
 logs/
+
+# Sorties d'entrainement renommees pour les garder (lora_output_xl_100, lora_output_lokr_xl_e20...) et fichiers d'essai
+ACE-Step-1.5/lora_output*/
+ACE-Step-1.5/lora_test_*/
+menage-local.sh
