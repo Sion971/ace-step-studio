@@ -42,6 +42,7 @@ import type { SongDraft } from '../services/llm/types';
 import { aiCoverStorage } from '../services/cover/settings';
 import { buildCoverPrompt } from '../services/cover/prompts';
 import { formatTimeSignature } from '../services/timeSignature';
+import { cleanText } from '../utils/cleanText';
 import { AudioAnalysisDialog } from './AudioAnalysisDialog';
 
 interface ReferenceTrack {
@@ -1205,7 +1206,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const handleFormat = async (target: 'style' | 'lyrics') => {
     if (useOpenRouter) {
       if (target === 'style' && !style.trim()) return;
-      if (target === 'lyrics' && !lyrics.trim()) return;
+      if (target === 'lyrics' && !cleanText(lyrics)) return;
       const primary = target === 'style' ? 'caption' : 'lyrics';
       orActiveOpRef.current = 'format';
       orActivePrimaryRef.current = primary;
@@ -1225,7 +1226,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     }
     if (!token) return;
     if (target === 'style' && !style.trim()) return;
-    if (target === 'lyrics' && !lyrics.trim()) return;
+    if (target === 'lyrics' && !cleanText(lyrics)) return;
     if (target === 'style') {
       setIsFormattingStyle(true);
     } else {
@@ -1689,12 +1690,12 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // Exiger aussi un style vide, comme dans une premiere version, laissait le
   // cas « style ecrit + paroles vides » sans aucun redacteur.
   const preflightWillRun =
-    useOpenRouter && Boolean(songDescription.trim()) && !lyrics.trim();
+    useOpenRouter && Boolean(songDescription.trim()) && !cleanText(lyrics);
   // Sans OpenRouter, le LM local du moteur (create_sample) developpe la
   // description a la place, a condition qu'il soit charge.
   const localLmReady = Boolean(activeLmModel);
   const localPreflightWillRun =
-    !useOpenRouter && localLmReady && Boolean(songDescription.trim()) && !lyrics.trim();
+    !useOpenRouter && localLmReady && Boolean(songDescription.trim()) && !cleanText(lyrics);
   const anyPreflightWillRun = preflightWillRun || localPreflightWillRun;
   // Ce que le pre-vol comblera reellement : un champ deja rempli par
   // l'utilisateur n'est jamais ecrase (voir la resolution des eff* plus bas).
@@ -1703,11 +1704,11 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // reference. Quand l'un des trois est deja la, un echec du pre-vol ne doit
   // pas faire tomber la generation : on part sans le brouillon.
   const payloadValidWithoutDraft =
-    Boolean(style.trim() || lyrics.trim() || referenceAudioUrl.trim() || sourceAudioUrl.trim());
+    Boolean(style.trim() || cleanText(lyrics) || referenceAudioUrl.trim() || sourceAudioUrl.trim());
   // Description saisie, rien pour la developper, et rien d'autre a envoyer :
   // la requete partirait en 400 « Style, lyrics, or reference audio required ».
   const descriptionCannotBeUsed =
-    Boolean(songDescription.trim()) && !lyrics.trim() && !style.trim()
+    Boolean(songDescription.trim()) && !cleanText(lyrics) && !style.trim()
     && !useOpenRouter && !localLmReady && !referenceAudioUrl.trim() && !sourceAudioUrl.trim();
 
   // Cover sans fichier source charge : AUDIO_MODE_MAP['cover'].field ===
@@ -2001,7 +2002,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     // du pre-vol de ce clic, puis la ref (derniere generation streamee).
     // L'ordre inverse ecrasait un style saisi a la main par la caption du LLM.
     const effStyle = style.trim() || d?.caption || styleRef.current || style;
-    const effLyrics = lyrics.trim() || d?.lyrics || lyricsTextRef.current || lyrics;
+    const effLyrics = cleanText(lyrics) || d?.lyrics || lyricsTextRef.current || lyrics;
     const effTitle = title.trim() || d?.title || titleRef.current || title;
     // Meme correctif que effStyle/effLyrics/effTitle (l.1784-1786) : la
     // valeur saisie par l'utilisateur doit gagner, pas le brouillon du
@@ -2325,7 +2326,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             <CreateModeSwitch
               view={createView}
               onChange={changeCreateView}
-              hidden={{ style: Boolean(style.trim()), lyrics: Boolean(lyrics.trim()) && !instrumental, audio: Boolean(referenceAudioUrl.trim() || sourceAudioUrl.trim()) }}
+              hidden={{ style: Boolean(style.trim()), lyrics: Boolean(cleanText(lyrics)) && !instrumental, audio: Boolean(referenceAudioUrl.trim() || sourceAudioUrl.trim()) }}
               instrumental={instrumental}
               onInstrumentalChange={setInstrumental}
               t={t}
@@ -2401,7 +2402,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               )}
               {Boolean(songDescription.trim()) && !anyPreflightWillRun && !descriptionCannotBeUsed && (
                 <p className="px-3 pb-2.5 text-[10px] text-zinc-400 dark:text-zinc-500">
-                  {lyrics.trim()
+                  {cleanText(lyrics)
                     ? tf('hintPreflightSkipped', 'Des paroles sont déjà écrites : la description ne sera pas développée.')
                     : tf('hintPreflightNoOr', 'OpenRouter est désactivé : la description ne sera pas développée en paroles.')}
                 </p>
@@ -2566,7 +2567,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                     className={`p-1.5 hover:bg-zinc-200 dark:hover:bg-white/10 rounded transition-colors ${isFmtLyricsActive ? 'text-pink-500' : 'text-zinc-500 hover:text-black dark:hover:text-white'}`}
                     title={tf('aiFormat', 'Enhance existing lyrics')}
                     onClick={useOpenRouter && isFmtLyricsActive ? () => orHook.cancel() : () => handleFormat('lyrics')}
-                    disabled={(isFmtLyricsActive && !useOpenRouter) || isGenLyricsActive || (orRunning && !isFmtLyricsActive) || !lyrics.trim()}
+                    disabled={(isFmtLyricsActive && !useOpenRouter) || isGenLyricsActive || (orRunning && !isFmtLyricsActive) || !cleanText(lyrics)}
                   >
                     {useOpenRouter && isFmtLyricsActive
                       ? <Square size={14} />
@@ -3068,7 +3069,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
           audioUrl={analysisTarget.url}
           title={analysisTarget.title}
           token={token}
-          filled={{ caption: Boolean(style.trim()), lyrics: Boolean(lyrics.trim()), bpm: bpm > 0, keyScale: Boolean(keyScale), timeSignature: Boolean(timeSignature), duration: duration > 0 }}
+          filled={{ caption: Boolean(style.trim()), lyrics: Boolean(cleanText(lyrics)), bpm: bpm > 0, keyScale: Boolean(keyScale), timeSignature: Boolean(timeSignature), duration: duration > 0 }}
           setters={{ setStyle, setLyrics, setBpm, setKeyScale, setTimeSignature, setDuration, setVocalLanguage }}
           onSaved={() => { onReferenceTracksChanged?.(); void fetchReferenceTracks(); }}
           autoOpen={analysisAuto}
