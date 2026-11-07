@@ -2427,3 +2427,23 @@ Un LoRA XL de 100 époques prend ainsi environ 2 h 28 sans préchargement (mesur
 **LoKr par blocs (2026-11-02).** Les adaptateurs LoKr (LyCORIS) ne sont pas dans les blocs : le réseau est rattaché au décodeur (`decoder._lycoris_net`). Le mode par blocs les traite donc comme « les petites parties autour des blocs » : ils vont sur la carte avec elles, tandis que les poids figés restent en RAM et que chaque couche de base est échangée contre sa copie sur la carte le temps du bloc (LyCORIS relit le poids de la couche d'origine à chaque appel). Côté code, deux obstacles levés : le refus explicite de l'entraîneur, et le `model.to(device)` qui suivait l'injection LoKr (il aurait rempli la carte avant le début). Test sur CPU (`block_stream_test.py`, ignoré si LyCORIS manque) : mêmes pertes et mêmes gradients qu'un entraînement normal, au bit près. **Pas encore essayé sur une vraie carte** : à vérifier avec un XL, case cochée, d'abord 1 époque (mémoire de pointe affichée dans le journal, la perte doit baisser comme avec LoRA). Le LoKr enregistré (`lokr_weights.safetensors`) est celui du mode normal.
 
 **Au passage (moteur, §60).** Une première génération avec LoRA après un changement de modèle a une fois planté en `IndexError` dans `StreamPool._load` (blocs de la fenêtre absents). Cause racine non trouvée ; un garde-fou reconstruit les emplacements et écrit `[small_gpu_stream] … the slots were missing (… thread …)`. Si cette ligne apparaît, noter le fil d'exécution indiqué.
+
+## 64. Windows : `[Server] Pipeline start error: spawn UNKNOWN` (Smart App Control, 2026-11-07)
+
+**Symptôme.** Au lancement de `run.bat`, le serveur démarre mais le moteur non : `[Server] Pipeline start error: spawn UNKNOWN`, et l'interface n'a jamais de moteur à qui parler.
+
+**Cause.** Smart App Control (la politique d'intégrité du code de Windows 11, identifiant `{0283ac0f-fff1-49ae-ada1-8a933130cad6}`) refuse de charger des binaires non signés ou sans réputation. Le journal de l'Observateur d'événements (`Applications et services > Microsoft > Windows > CodeIntegrity > Operational`) liste chaque blocage : le `python.exe` du `.venv`, `torch\lib\shm.dll`, les `.pyd` de numba, les DLL de `ffmpeg\`, `llvmlite.dll` et `lameenc` des environnements Demucs et Basic Pitch. Node ne reçoit alors qu'une erreur système générique, d'où `UNKNOWN`.
+
+**État.** `(Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy").VerifiedAndReputablePolicyState` : 1 = appliqué, 2 = évaluation (rien n'est encore bloqué), 0 = désactivé. Sur la machine du test il valait 1.
+
+**Correctif qui garde Smart App Control actif.** PowerShell ouvert en administrateur :
+
+```powershell
+Add-MpPreference -ExclusionPath "C:\Users\<nom>\ace-step-studio"
+```
+
+puis relancer `run.bat`. Essayé le 2026-11-07 sur Windows 11 (RTX 5060) : le studio démarre, et il démarre encore après un redémarrage de Windows. C'est surprenant sur le papier (une exclusion de l'antivirus n'est pas censée toucher une politique d'intégrité du code) : le résultat est observé sur une seule machine et n'est pas expliqué. Pas vérifié : les outils qui lancent un Python hors du dossier exclu (`%APPDATA%\uv\python`, `Python311` sous `AppData\Local`) ; si l'un d'eux échoue, ajouter ces dossiers de la même façon.
+
+**Autre solution.** Désactiver Smart App Control (Sécurité Windows > Contrôle des applications et du navigateur). À éviter : Windows ne permet généralement pas de le réactiver sans réinitialisation.
+
+**Dans le code.** `app/server/src/services/windows-block-hint.ts` : sur Windows, quand le démarrage du moteur échoue avec `UNKNOWN`, le serveur écrit ce diagnostic et la commande d'exclusion avec le chemin du dossier (test : `windows-block-hint.test.ts`).

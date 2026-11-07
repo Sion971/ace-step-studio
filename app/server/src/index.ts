@@ -42,6 +42,7 @@ import audioEditorRoutes from './routes/audio-editor.js';
 import studioProjectsRoutes from './routes/studio-projects.js';
 import { pipelineManager } from './services/pipeline-manager.js';
 import { maybeOpenBrowser } from './services/open-browser.js';
+import { windowsBlockHint } from './services/windows-block-hint.js';
 import { pool } from './db/pool.js';
 import './db/migrate.js';
 
@@ -624,6 +625,8 @@ async function startServer() {
     console.log('[Server] Starting pipeline manager...');
     pipelineManager.start().catch(err => {
       console.error('[Server] Pipeline start error:', err.message);
+      const hint = windowsBlockHint(err, path.resolve(config.pipeline.aceStepDir, '..'));
+      if (hint) console.error(hint);
     });
   }
 
