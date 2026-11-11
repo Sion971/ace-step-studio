@@ -92,5 +92,28 @@ class AlignmentHeadsTests(unittest.TestCase):
         self.assertTrue(torch.allclose(streamed, expected, atol=1e-5, rtol=1e-4))
 
 
+    def test_the_block_where_the_alignment_pass_stops_hands_its_result_back(self):
+        # The decoder stops after the block of the highest layer of the config (early exit) and runs its output norm on
+        # the processor: with the activations kept on the card, that block must still give them back, like the last one.
+        decoder = _tiny_decoder()
+        pool = sgs.install(decoder, torch.device("cpu"), torch.float32, keep_on_card=True)
+        kept = []
+        real_result = sgs._result_of_block
+
+        def spy(out, keep_on_card):
+            kept.append(keep_on_card)
+            return real_result(out, keep_on_card)
+
+        with mock.patch.object(sgs, "_result_of_block", spy):
+            self._run(decoder, {1: [0]}, active_pool=pool)
+        self.assertEqual(kept, [True, False])  # two blocks run (ranks 0 and 1), the second one ends the pass
+
+        kept.clear()
+        with mock.patch.object(sgs, "_result_of_block", spy), mock.patch.object(sgs, "_ACTIVE_POOL", pool), torch.no_grad():
+            decoder(**_inputs())  # a normal pass: only the last block of the stack gives its result back
+        self.assertEqual(kept, [True] * (len(kept) - 1) + [False])
+        self.assertEqual(len(kept), pool.count)
+
+
 if __name__ == "__main__":
     unittest.main()

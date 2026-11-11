@@ -990,6 +990,19 @@ class StreamPool:
             weights = None
         return (out[0], None, weights) + tuple(out[3:])
 
+    def alignment_pass_ends_at(self, index: int) -> bool:
+        """True for the block after which a lyric-alignment pass stops.
+
+        With an alignment config the decoder leaves its loop after the block of the highest layer it needs (early exit,
+        ``enable_early_exit``): that block is then the last one run, and the code after the loop (``norm_out``,
+        ``proj_out``) runs on the processor. It must hand its result back like the last block of the stack, or the
+        activations stay on the card and that code fails with "Expected all tensors to be on the same device".
+        """
+        if not self.align_heads:
+            return False
+        rank = self.cross_position[index] if index < len(self.cross_position) else None
+        return rank is not None and rank >= max(self.align_heads)
+
     def begin_call(self, layer_idx: int) -> None:
         """A block call whose index does not go up starts a new step: the shared inputs of the previous one are dropped."""
         if layer_idx == 0 and self.lora_dirty:
@@ -1099,7 +1112,7 @@ class StreamedLayer(nn.Module):
         pool.release(index)
         if pool.align_heads is not None:
             out = pool.select_alignment_heads(index, out)
-        keep = pool.keep_on_card and not last
+        keep = pool.keep_on_card and not last and not pool.alignment_pass_ends_at(index)
         if timed:
             stats.add_events((ev_start, ev_ready, ev_run, ev_done))
             if not keep and ev_done is not None:
