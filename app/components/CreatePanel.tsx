@@ -18,6 +18,7 @@ import { VoiceRecorder } from './VoiceRecorder';
 import { LmSettings } from './LmSettings';
 import { ModelMenu } from './ModelMenu';
 import { isTurboModel, isPureBaseModel } from '../utils/modelNames';
+import { withoutModelSettings } from '../utils/modelSettings';
 import { defaultGuidance, isTrackAudioMode, BASE_GUIDANCE, TRACK_TASK_GUIDANCE } from '../utils/guidanceDefaults';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Sparkles, ChevronDown, Settings2, Trash2, Music2, Sliders, Dices, RefreshCw, Plus, Upload, Play, Pause, Loader2, Disc3, Undo2, Wand2, Square, Scissors, Repeat, Gauge, Layers, ArrowRightToLine, Library, Blocks, Split, Puzzle } from 'lucide-react';
@@ -492,7 +493,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   React.useEffect(() => {
     if (!token || settingsLoadedOnceRef.current) return;
     settingsLoadedOnceRef.current = true;
-    settingsApi.get(token).then(s => {
+    settingsApi.get(token).then(raw => {
+      // Shift, DCW (and on a Turbo the sampler) come from the model, not from the last session: see withoutModelSettings.
+      const s = withoutModelSettings(raw, selectedModel);
       if (s.instrumental !== undefined) setInstrumental(s.instrumental as boolean);
       if (s.vocalLanguage !== undefined) setVocalLanguage(s.vocalLanguage as string);
       if (s.vocalGender !== undefined) setVocalGender(s.vocalGender as VocalGender);
