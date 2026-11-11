@@ -360,6 +360,32 @@ class TestEnsureVaeModelAbsolutePath(unittest.TestCase):
         self.assertIn("does not exist", msg)
         self.assertNotIn("Unknown VAE variant", msg)
 
+class TestModelCodeSync(unittest.TestCase):
+    """The bf16 XL checkpoints get the engine's model code, like the official XL folders."""
+
+    def setUp(self):
+        self.mod = _load_module()
+
+    def test_bf16_xl_checkpoints_use_the_xl_code(self):
+        self.assertEqual(self.mod._CHECKPOINT_TO_VARIANT["acestep-v15-xl-turbo-bf16"], "xl_turbo")
+        self.assertEqual(self.mod._CHECKPOINT_TO_VARIANT["acestep-v15-xl-base-bf16"], "xl_base")
+
+    def test_every_variant_has_its_code(self):
+        models = Path(os.path.dirname(__file__)) / "models"
+        for name, variant in self.mod._CHECKPOINT_TO_VARIANT.items():
+            with self.subTest(name=name):
+                self.assertTrue(list((models / variant).glob("modeling_*.py")), f"no model code for {name} ({variant})")
+
+    def test_the_code_of_a_bf16_folder_is_replaced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "acestep-v15-xl-turbo-bf16"
+            target.mkdir()
+            (target / "modeling_acestep_v15_xl_turbo.py").write_text("# stock code shipped with the weights\n")
+            mismatched = self.mod._check_code_mismatch("acestep-v15-xl-turbo-bf16", tmp)
+            self.assertIn("modeling_acestep_v15_xl_turbo.py", mismatched)
+            synced = self.mod._sync_model_code_files("acestep-v15-xl-turbo-bf16", tmp)
+            self.assertIn("modeling_acestep_v15_xl_turbo.py", synced)
+            self.assertEqual(self.mod._check_code_mismatch("acestep-v15-xl-turbo-bf16", tmp), [])
 
 if __name__ == "__main__":
     unittest.main()

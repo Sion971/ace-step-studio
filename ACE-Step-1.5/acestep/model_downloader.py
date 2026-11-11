@@ -66,6 +66,10 @@ _CHECKPOINT_TO_VARIANT: Dict[str, str] = {
     "acestep-v15-xl-base": "xl_base",
     "acestep-v15-xl-sft": "xl_sft",
     "acestep-v15-xl-turbo": "xl_turbo",
+    # bf16 copies of the XL weights (marcorez8/...): same architecture, so they get the engine's code too. Without this
+    # they ran the code shipped with the weights, which lacks DCW, the extra samplers, retake and stopping a generation.
+    "acestep-v15-xl-base-bf16": "xl_base",
+    "acestep-v15-xl-turbo-bf16": "xl_turbo",
 }
 
 
