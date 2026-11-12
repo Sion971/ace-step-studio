@@ -19,6 +19,7 @@ import { LmSettings } from './LmSettings';
 import { ModelMenu } from './ModelMenu';
 import { isTurboModel, isPureBaseModel } from '../utils/modelNames';
 import { withoutModelSettings } from '../utils/modelSettings';
+import { getModelPrefs, rememberModelPref } from '../utils/modelPrefs';
 import { defaultGuidance, isTrackAudioMode, BASE_GUIDANCE, TRACK_TASK_GUIDANCE } from '../utils/guidanceDefaults';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Sparkles, ChevronDown, Settings2, Trash2, Music2, Sliders, Dices, RefreshCw, Plus, Upload, Play, Pause, Loader2, Disc3, Undo2, Wand2, Square, Scissors, Repeat, Gauge, Layers, ArrowRightToLine, Library, Blocks, Split, Puzzle } from 'lucide-react';
@@ -773,6 +774,15 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       setGuidanceScale(defaultGuidance(false, trackStart));
       setUseAdg(true);
       setShift(1.0); // base and SFT: even schedule (about 50 steps)
+    }
+    // Steps and guidance the user set by hand for this model come back (see modelPrefs).
+    const prefs = getModelPrefs(selectedModel);
+    if (prefs.inferenceSteps !== undefined) {
+      setInferenceSteps(Math.min(Math.max(1, Math.round(prefs.inferenceSteps)), turbo ? 20 : 200));
+    }
+    if (prefs.guidanceScale !== undefined && !turbo) {
+      guidanceAutoRef.current = false;
+      setGuidanceScale(prefs.guidanceScale);
     }
     // LM backend: XL models (~19GB) don't fit with vLLM (~9GB) on 24GB
     if (selectedModel.includes('xl')) {
@@ -2877,7 +2887,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               min={1}
               max={isTurboModel(selectedModel) ? 20 : 200}
               step={1}
-              onChange={setInferenceSteps}
+              onChange={(v) => { setInferenceSteps(v); rememberModelPref(selectedModel, { inferenceSteps: v }); }}
               helpText={t('moreStepsBetterQuality')}
               title={tf('hintInferenceSteps', 'More steps usually improves quality but slows generation.')}
             />
@@ -2889,7 +2899,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               min={0}
               max={selectedModel.includes('merge') ? 100 : 20}
               step={0.1}
-              onChange={(v) => { guidanceAutoRef.current = false; setGuidanceScale(v); }}
+              onChange={(v) => { guidanceAutoRef.current = false; setGuidanceScale(v); rememberModelPref(selectedModel, { guidanceScale: v }); }}
               formatDisplay={(val) => val.toFixed(1)}
               helpText={t('howCloselyFollowPrompt')}
               title={tf('hintGuidanceScale', 'How strongly the model follows the prompt. Higher = stricter, lower = freer. 0 = no guidance (turbo).')}
