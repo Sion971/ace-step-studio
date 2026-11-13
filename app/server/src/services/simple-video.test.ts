@@ -64,8 +64,9 @@ describe('buildSimpleVideoArgs', () => {
 
   it('loops the still under the song with the lyrics and stops at the end of the song', () => {
     const a = buildSimpleVideoArgs(base);
-    expect(a.slice(0, 9)).toEqual(['-hide_banner', '-loglevel', 'error', '-loop', '1', '-framerate', '25', '-i', 'still.png']);
-    expect(a[a.indexOf('-filter_complex') + 1]).toBe('[0:v]ass=lyrics.ass[lyr];[lyr]format=yuv420p[vout]');
+    expect(a.slice(0, 9)).toEqual(['-hide_banner', '-loglevel', 'error', '-loop', '1', '-framerate', '1', '-i', 'still.png']);
+    // The still is read once a second and repeated at the video frame rate.
+    expect(a[a.indexOf('-filter_complex') + 1]).toBe('[0:v]format=yuv420p,fps=25[base];[base]ass=lyrics.ass[lyr];[lyr]format=yuv420p[vout]');
     expect(a).toContain('libx264');
     expect(a[a.indexOf('-t') + 1]).toBe('200.00');
   });
@@ -82,6 +83,6 @@ describe('buildSimpleVideoArgs', () => {
   it('makes a silent video without lyrics when there is neither', () => {
     const a = buildSimpleVideoArgs({ ...base, audioPath: null, assFile: null });
     expect(a).not.toContain('1:a');
-    expect(a[a.indexOf('-filter_complex') + 1]).toBe('[0:v]format=yuv420p[vout]');
+    expect(a[a.indexOf('-filter_complex') + 1]).toBe('[0:v]format=yuv420p,fps=25[base];[base]format=yuv420p[vout]');
   });
 });

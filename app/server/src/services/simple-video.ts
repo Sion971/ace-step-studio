@@ -137,10 +137,12 @@ export interface SimpleVideoArgs {
 
 /** ffmpeg's arguments for the video: the still looped, an optional slow zoom and waveform, the lyrics, the song. */
 export function buildSimpleVideoArgs(a: SimpleVideoArgs): string[] {
-  const args = ['-hide_banner', '-loglevel', 'error', '-loop', '1', '-framerate', String(a.fps), '-i', a.stillPath];
+  // The still is read once a second and repeated by the fps filter, in YUV from the start: reading and converting the
+  // JPEG for every frame took most of the render time.
+  const args = ['-hide_banner', '-loglevel', 'error', '-loop', '1', '-framerate', '1', '-i', a.stillPath];
   if (a.audioPath) args.push('-i', a.audioPath);
-  const chain: string[] = [];
-  let label = '0:v';
+  const chain: string[] = [`[0:v]format=yuv420p,fps=${a.fps}[base]`];
+  let label = 'base';
   if (a.zoom) {
     // A push of 8 % over the whole song, centred: slow enough not to distract, enough to look alive.
     const frames = Math.max(1, Math.round(a.duration * a.fps));
@@ -149,8 +151,8 @@ export function buildSimpleVideoArgs(a: SimpleVideoArgs): string[] {
   }
   if (a.waveform && a.audioPath) {
     const h = Math.round(a.height * 0.1);
-    chain.push(`[1:a]showwaves=s=${a.width}x${h}:mode=cline:rate=${a.fps}:colors=white@0.55,format=rgba[wave]`);
-    chain.push(`[${label}][wave]overlay=0:H-h-${Math.round(a.height * 0.015)}:shortest=1[waved]`);
+    chain.push(`[1:a]showwaves=s=${a.width}x${h}:mode=cline:rate=${a.fps}:colors=white@0.55,format=yuva420p[wave]`);
+    chain.push(`[${label}][wave]overlay=0:H-h-${Math.round(a.height * 0.015)}:shortest=1:format=yuv420[waved]`);
     label = 'waved';
   }
   if (a.assFile) {

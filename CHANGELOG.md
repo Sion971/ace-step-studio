@@ -7,6 +7,13 @@
 - Song side panel: "Realign the lyrics (Whisper)". The synchronised lyrics (LRC) the engine makes come from the model's attention and are often wrong at the start of a song: the first lines of a verse all at 00:00.00 (in a video they stayed frozen on the wrong lines until the first real time, 44 s in one song), or the first sung line placed in the middle of an instrumental intro (the karaoke started too early, by a different amount each time). The button has Whisper listen to the song (in the language saved with it) and gives each written line the time of its first word heard; the written lyrics are not changed, lines Whisper did not hear get a time between their neighbours, and a repeated chorus gets the time of each pass. When Whisper recognises less than a quarter of the words, the LRC is left as it was. The player and the Video Studio use the new times. Server: `POST /api/songs/:id/realign-lyrics` (refused while a LoRA training runs); alignment in `services/lyrics-align.ts` (tests).
 - Imported audio: the analysis now keeps the lyrics Whisper heard with their times as synchronised lyrics (LRC), so a video made straight from an import shows its lyrics (the Video Studio found no LRC, even with the lyrics switch on: an import has none from the engine). Audio imported and analysed before this change needs a new analysis ("Analyse" button) to get it.
 
+### Changed
+- Quick video: about 3 to 4 times less filter work. The still is read once a second and repeated by ffmpeg, in YUV from the start, where it was read and converted from the JPEG for every frame (with RGBA blending for the waveform). On the build machine the filters of 60 s of 9:16 video with waveform and karaoke went from 19.7 s to 5.5 s; on the tested RTX machine a 246 s song took 55.7 s (waveform) and 68.7 s (waveform and karaoke) before the change.
+- Quick video: new choice of background, "Blurred cover + cover" (as before) or "Full cover" (the cover alone, sharp, filling the frame, the title at the top on a light shade), and a "Title and artist" switch to leave the text off the picture.
+
+### Fixed
+- Quick video: a long title was cut with an ellipsis ("Jésus, Tu es mon Roc (Psa…"). It now gets a smaller font (down to 75 %), then two balanced lines, and is cut only if two lines are still not enough (`fitTitle`, tests).
+
 ## 2026-11-02 to 2026-11-11
 
 ### Added

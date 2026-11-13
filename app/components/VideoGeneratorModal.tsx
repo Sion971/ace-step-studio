@@ -207,6 +207,8 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
   const [quickNextLine, setQuickNextLine] = useState(true);
   const [quickZoom, setQuickZoom] = useState(false);
   const [quickWaveform, setQuickWaveform] = useState(false);
+  const [quickBackground, setQuickBackground] = useState<'blurred' | 'full'>('blurred');
+  const [quickShowTitle, setQuickShowTitle] = useState(true);
   const [quickSeconds, setQuickSeconds] = useState<number | null>(null);
   const [quickNote, setQuickNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
@@ -640,6 +642,8 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
       const still = await composeCoverStill({
         coverUrl: customAlbumArt || song.coverUrl || '',
         title, artist, width, height,
+        background: quickBackground,
+        showTitle: quickShowTitle,
         colors: [config.secondaryColor, config.primaryColor],
       });
       const lrc = lyricsEnabled && song.lrcContent && song.lrcContent.trim() ? song.lrcContent : null;
@@ -2983,7 +2987,19 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
                          {t('quickVideoTitle')}
                      </div>
                      <p className="text-[10px] text-zinc-500 leading-snug">{t('quickVideoHint')}</p>
+                     <div className="grid grid-cols-2 gap-1">
+                         {(['blurred', 'full'] as const).map(bg => (
+                             <button
+                                 key={bg}
+                                 onClick={() => setQuickBackground(bg)}
+                                 className={`py-1.5 rounded text-[11px] font-bold ${quickBackground === bg ? 'bg-pink-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
+                             >
+                                 {bg === 'blurred' ? t('quickVideoBgBlurred') : t('quickVideoBgFull')}
+                             </button>
+                         ))}
+                     </div>
                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-300">
+                         <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" className="accent-pink-500" checked={quickShowTitle} onChange={e => setQuickShowTitle(e.target.checked)} />{t('quickVideoShowTitle')}</label>
                          <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" className="accent-pink-500" checked={quickNextLine} onChange={e => setQuickNextLine(e.target.checked)} />{t('quickVideoNextLine')}</label>
                          <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" className="accent-pink-500" checked={quickZoom} onChange={e => setQuickZoom(e.target.checked)} />{t('quickVideoZoom')}</label>
                          <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" className="accent-pink-500" checked={quickWaveform} onChange={e => setQuickWaveform(e.target.checked)} />{t('quickVideoWaveform')}</label>

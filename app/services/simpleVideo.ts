@@ -46,10 +46,45 @@ function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number):
   return `${t.trimEnd()}…`;
 }
 
+export interface TitleFit {
+  lines: string[];
+  size: number;
+}
+
+/**
+ * The title in full: first a smaller font (down to 75 %), then on two lines, cut only if two lines are still not enough.
+ * `measure(text, size)` gives the width of a text at a font size.
+ */
+export function fitTitle(text: string, maxWidth: number, size: number, measure: (text: string, size: number) => number): TitleFit {
+  const title = text.trim();
+  for (let s = size; s >= Math.round(size * 0.75); s -= Math.max(1, Math.round(size * 0.05))) {
+    if (measure(title, s) <= maxWidth) return { lines: [title], size: s };
+  }
+  const small = Math.round(size * 0.75);
+  const words = title.split(/\s+/);
+  // The split that keeps the two lines closest in width.
+  let best: string[] | null = null;
+  let bestWidth = Infinity;
+  for (let i = 1; i < words.length; i++) {
+    const a = words.slice(0, i).join(' ');
+    const b = words.slice(i).join(' ');
+    const widest = Math.max(measure(a, small), measure(b, small));
+    if (widest < bestWidth) { bestWidth = widest; best = [a, b]; }
+  }
+  if (best && bestWidth <= maxWidth) return { lines: best, size: small };
+  return { lines: best || [title], size: small };
+}
+
+/** blurred: the cover blurred behind and sharp in the middle. full: the cover alone, sharp, filling the frame. */
+export type StillBackground = 'blurred' | 'full';
+
 export interface StillOptions {
   coverUrl?: string | null;
   title: string;
   artist?: string;
+  background?: StillBackground;
+  /** Write the title and the artist (on by default). */
+  showTitle?: boolean;
   width: number;
   height: number;
   /** Colours of the background when there is no cover. */
@@ -65,7 +100,14 @@ export async function composeCoverStill(o: StillOptions): Promise<string> {
   const cover = await loadImage(o.coverUrl || '');
   const L = stillLayout(o.width, o.height);
 
-  if (cover) {
+  const full = o.background === 'full' && cover;
+  if (full) {
+    // The cover alone, sharp, filling the frame (cropped to the format).
+    const scale = Math.max(o.width / cover.width, o.height / cover.height);
+    const w = cover.width * scale;
+    const h = cover.height * scale;
+    ctx.drawImage(cover, (o.width - w) / 2, (o.height - h) / 2, w, h);
+  } else if (cover) {
     // The cover filling the frame, blurred and darkened.
     const scale = Math.max(o.width / cover.width, o.height / cover.height) * 1.1;
     const w = cover.width * scale;
@@ -89,8 +131,16 @@ export async function composeCoverStill(o: StillOptions): Promise<string> {
   shade.addColorStop(1, 'rgba(0,0,0,0.55)');
   ctx.fillStyle = shade;
   ctx.fillRect(0, 0, o.width, o.height);
+  if (full && o.showTitle !== false) {
+    // On the sharp cover the title goes at the top, on a light shade, so it reads on a bright cover too.
+    const top = ctx.createLinearGradient(0, 0, 0, o.height * 0.3);
+    top.addColorStop(0, 'rgba(0,0,0,0.5)');
+    top.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = top;
+    ctx.fillRect(0, 0, o.width, o.height * 0.3);
+  }
 
-  if (cover) {
+  if (cover && !full) {
     const s = L.coverSize;
     const x = L.coverX - s / 2;
     const y = L.coverY - s / 2;
@@ -114,17 +164,25 @@ export async function composeCoverStill(o: StillOptions): Promise<string> {
     ctx.restore();
   }
 
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
-  ctx.shadowColor = 'rgba(0,0,0,0.7)';
-  ctx.shadowBlur = 8;
-  ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${L.titleSize}px Inter, "Segoe UI", Arial, sans-serif`;
-  ctx.fillText(fitText(ctx, o.title || '', o.width * 0.88), L.coverX, L.titleY);
-  if (o.artist) {
-    ctx.fillStyle = 'rgba(228,228,231,0.85)';
-    ctx.font = `${L.artistSize}px Inter, "Segoe UI", Arial, sans-serif`;
-    ctx.fillText(fitText(ctx, o.artist, o.width * 0.8), L.coverX, L.artistY);
+  if (o.showTitle !== false) {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.shadowColor = 'rgba(0,0,0,0.7)';
+    ctx.shadowBlur = full ? 14 : 8;
+    ctx.fillStyle = '#ffffff';
+    const titleFont = (size: number) => `bold ${size}px Inter, "Segoe UI", Arial, sans-serif`;
+    const fit = fitTitle(o.title || '', o.width * 0.88, L.titleSize, (text, size) => { ctx.font = titleFont(size); return ctx.measureText(text).width; });
+    ctx.font = titleFont(fit.size);
+    // On the full cover the title sits at the top, away from the lyrics; next to the small cover it stays under it.
+    const lineGap = Math.round(fit.size * 1.15);
+    const top = full ? Math.round(o.height * 0.06 + fit.size) : L.titleY;
+    fit.lines.forEach((line, i) => ctx.fillText(fitText(ctx, line, o.width * 0.88), L.coverX, top + i * lineGap));
+    if (o.artist) {
+      ctx.fillStyle = 'rgba(228,228,231,0.85)';
+      ctx.font = `${L.artistSize}px Inter, "Segoe UI", Arial, sans-serif`;
+      const artistY = top + (fit.lines.length - 1) * lineGap + Math.round(L.artistSize * 1.6);
+      ctx.fillText(fitText(ctx, o.artist, o.width * 0.8), L.coverX, artistY);
+    }
   }
   return canvas.toDataURL('image/jpeg', 0.92);
 }
