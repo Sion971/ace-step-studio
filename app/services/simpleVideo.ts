@@ -210,6 +210,10 @@ export interface SimpleVideoRequest {
   zoom: boolean;
   waveform: boolean;
   highlight?: string;
+  /** Bring the sound to -14 LUFS (YouTube and the other platforms). */
+  normalize?: boolean;
+  /** The Mastering window's five settings, applied before the loudness (see services/masteringPresets.ts). */
+  mastering?: { harmonics: number; warmth: number; tone: number; glue: number; width: number };
 }
 
 export class SimpleVideoError extends Error {}
@@ -229,4 +233,19 @@ export async function renderSimpleVideo(req: SimpleVideoRequest, signal?: AbortS
   const blob = await res.blob();
   if (!blob.size) throw new SimpleVideoError('Empty video');
   return { blob, lyricsBurned: res.headers.get('X-Lyrics-Burned') === '1' };
+}
+
+/**
+ * Moves every time of an LRC text by `seconds` (positive: the lyrics come later), never before 0.
+ * Used by the "offset" setting when the synchronised lyrics are a little early or late everywhere.
+ */
+export function shiftLrc(lrc: string, seconds: number): string {
+  if (!seconds) return lrc;
+  return lrc.replace(/\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g, (_, m: string, s: string, f?: string) => {
+    const t = Number(m) * 60 + Number(s) + (f ? Number(f) / 10 ** f.length : 0) + seconds;
+    const cs = Math.max(0, Math.round(t * 100));
+    const mm = Math.floor(cs / 6000);
+    const ss = Math.floor((cs % 6000) / 100);
+    return `[${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}.${String(cs % 100).padStart(2, '0')}]`;
+  });
 }

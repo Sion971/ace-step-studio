@@ -2113,6 +2113,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     const bust = `${coverUrl}${coverUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
     setSongs(prev => prev.map(s => s.id === songId ? { ...s, coverUrl: bust } : s));
     setSelectedSong(prev => prev?.id === songId ? { ...prev, coverUrl: bust } : prev);
+    setSongForVideo(prev => prev?.id === songId ? { ...prev, coverUrl: bust } : prev);
   }, []);
 
   // Handle username setup
@@ -2519,6 +2520,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         isOpen={isVideoModalOpen}
         onClose={() => setIsVideoModalOpen(false)}
         song={songForVideo}
+        onGenerateCover={openCoverRegen}
       />
       {/* Cover regen modal — only mounted while a song is selected for regen.
           Unmounting on close revokes blob URLs (see CoverRegenModal cleanup

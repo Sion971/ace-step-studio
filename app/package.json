@@ -14,9 +14,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ffmpeg/core": "^0.12.6",
-    "@ffmpeg/ffmpeg": "^0.12.15",
-    "@ffmpeg/util": "^0.12.2",
     "@openrouter/sdk": "^0.12.26",
     "@tonejs/midi": "^2.0.28",
     "lucide-react": "^1.52.0",

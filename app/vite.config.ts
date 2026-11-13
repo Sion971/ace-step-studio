@@ -32,9 +32,6 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    optimizeDeps: {
-      exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
-    },
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

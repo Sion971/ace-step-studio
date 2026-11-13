@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-13 (Video Studio rebuilt)
+
+### Changed
+- **Video Studio rebuilt around the quick video.** The window now does one thing: the song's cover and its synchronised lyrics made into an MP4 by ffmpeg on the server, in a few tens of seconds (a 246 s song in 9:16 with waveform and karaoke: 26 s on an RTX 5060 with NVENC). Choices: the cover (the song's, an image from disk, or a new AI cover through the cover window, saved to the song), the format (16:9, 9:16, 1:1), the background (blurred cover + cover, or the cover alone full frame), title and artist (editable, or none), the lyrics (none, line by line, karaoke with its colour, the next line under it, an offset of ±5 s when they are early or late all through the song), slow zoom, waveform, and the sound. The preview is the still the video uses, with the first lyric lines and the waveform drawn over it at the sizes ffmpeg uses.
+- **Sound for YouTube and social media.** By default the sound is levelled to −14 LUFS, peaks under −1 dBTP: measured first (loudnorm, audio only, a few seconds), then one gain for the whole song, its dynamics kept. It can also be left as it is, or mastered with a preset of the Mastering window (light, warm, bright, punchy) and then levelled. The video is encoded as YouTube recommends: H.264 High with B-frames, a keyframe every 2 s, BT.709 colours, AAC 256 kb/s at 48 kHz, index at the start of the file. The server log line gives the measured loudness (`loudness -8.7 -> -14 LUFS`).
+- Making a video can be cancelled; closing the window stops ffmpeg on the server.
+
+### Removed
+- The frame-by-frame render of the Video Studio (canvas in the browser, frames sent to the server, `/api/render-video/start`, `/frames`, `/finish`), its visualiser presets, effects (shake, glitch, VHS, pixelate…), free text layers, background images and videos, the Pexels search and its API key, the `/api/proxy/image`, `/api/proxy/video` and `/api/pexels/*` routes, ffmpeg.wasm (`@ffmpeg/core`, `@ffmpeg/ffmpeg`, `@ffmpeg/util`), and 49 translation keys only they used. It was slow (several minutes for a song) and heavy; anything more elaborate than cover + lyrics is better done in a video editor, from this video or from the song's audio.
+
+### Fixed
+- Quick video: the waveform was dark on a bright cover. ffmpeg's `showwaves` scales its colour by the number of samples drawn on each pixel (`draw=scale`), so the white came out grey and darkened the picture; it is now drawn at full intensity (`draw=full`) at 60 % opacity.
+- Quick video: when the sung line and the next line both wrapped on two lines (long lines in 9:16), libass stacked them itself and the next line went above the sung one. Both are now pinned: the sung line grows upwards from a fixed baseline, the next line grows downwards just under it.
+
 ## 2026-11-13
 
 ### Added

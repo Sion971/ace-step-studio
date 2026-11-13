@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { assColor, buildSimpleVideoArgs, lrcToAss, MAX_HOLD_S, parseLrcEntries } from './simple-video.js';
+import { assColor, buildSimpleVideoArgs, loudnessFilter, loudnessMeasureArgs, lrcToAss, MAX_HOLD_S, parseLoudnorm, parseLrcEntries } from './simple-video.js';
 
 const LRC = `[00:00.00][Intro]
 [00:14.80]Dans la vallée sombre, je ne crains rien
@@ -66,7 +66,7 @@ describe('buildSimpleVideoArgs', () => {
     const a = buildSimpleVideoArgs(base);
     expect(a.slice(0, 9)).toEqual(['-hide_banner', '-loglevel', 'error', '-loop', '1', '-framerate', '1', '-i', 'still.png']);
     // The still is read once a second and repeated at the video frame rate.
-    expect(a[a.indexOf('-filter_complex') + 1]).toBe('[0:v]format=yuv420p,fps=25[base];[base]ass=lyrics.ass[lyr];[lyr]format=yuv420p[vout]');
+    expect(a[a.indexOf('-filter_complex') + 1]).toBe('[0:v]scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,fps=25[base];[base]ass=lyrics.ass[lyr];[lyr]format=yuv420p[vout]');
     expect(a).toContain('libx264');
     expect(a[a.indexOf('-t') + 1]).toBe('200.00');
   });
@@ -83,6 +83,48 @@ describe('buildSimpleVideoArgs', () => {
   it('makes a silent video without lyrics when there is neither', () => {
     const a = buildSimpleVideoArgs({ ...base, audioPath: null, assFile: null });
     expect(a).not.toContain('1:a');
-    expect(a[a.indexOf('-filter_complex') + 1]).toBe('[0:v]format=yuv420p,fps=25[base];[base]format=yuv420p[vout]');
+    expect(a[a.indexOf('-filter_complex') + 1]).toBe('[0:v]scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,fps=25[base];[base]format=yuv420p[vout]');
+  });
+});
+
+describe('lrcToAss places', () => {
+  it('pins the sung line above and the next line under it, so long lines never swap', () => {
+    const ass = lrcToAss('[00:01.00]Qu’importent les douleurs présentes et les combats de demain\n[00:05.00]Tu vois chacune de mes larmes, Tu entends mes soupirs', { width: 1080, height: 1920, style: 'karaoke', nextLine: true, duration: 10 });
+    const first = ass.split('\n').filter((l) => l.startsWith('Dialogue: 0,0:00:01.00'));
+    const lyric = /Lyric,,0,0,0,,\{\\an2\\pos\((\d+),(\d+)\)\}/.exec(first[0])!;
+    const next = /Next,,0,0,0,,\{\\an8\\pos\((\d+),(\d+)\)\}/.exec(first[1])!;
+    expect(lyric[1]).toBe('540');
+    expect(Number(next[2])).toBeGreaterThan(Number(lyric[2]));
+  });
+});
+
+describe('loudness for YouTube', () => {
+  const stderr = `[Parsed_loudnorm_0 @ 0x1] \n{\n\t"input_i" : "-8.73",\n\t"input_tp" : "0.41",\n\t"input_lra" : "5.20",\n\t"input_thresh" : "-18.90",\n\t"output_i" : "-14.02",\n\t"output_tp" : "-1.00",\n\t"output_lra" : "4.80",\n\t"output_thresh" : "-24.10",\n\t"normalization_type" : "dynamic",\n\t"target_offset" : "0.02"\n}\n`;
+
+  it('reads the measure ffmpeg prints, and nothing from other output', () => {
+    expect(parseLoudnorm(stderr)?.input_i).toBe('-8.73');
+    expect(parseLoudnorm('no json here')).toBeNull();
+    expect(parseLoudnorm('{"input_i": "x"}')).toBeNull();
+  });
+
+  it('applies one linear gain from the measure, at 48 kHz', () => {
+    const f = loudnessFilter(parseLoudnorm(stderr));
+    expect(f).toMatch(/^loudnorm=I=-14:TP=-1:LRA=11:measured_I=-8.73:.*linear=true,aresample=48000$/);
+    expect(loudnessFilter(null)).toBe('loudnorm=I=-14:TP=-1:LRA=11,aresample=48000');
+  });
+
+  it('masters first, measures after the mastering, and limits the peaks', () => {
+    expect(loudnessMeasureArgs('a.flac', 'highpass=f=25')).toContain('highpass=f=25,loudnorm=I=-14:TP=-1:LRA=11:print_format=json');
+    const f = loudnessFilter(parseLoudnorm(stderr), 'highpass=f=25');
+    expect(f.startsWith('highpass=f=25,loudnorm=')).toBe(true);
+    expect(f).toMatch(/alimiter=limit=0\.8913:level=disabled$/);
+  });
+
+  it('passes the audio filter and the YouTube settings to ffmpeg', () => {
+    const a = buildSimpleVideoArgs({ stillPath: 's.jpg', audioPath: 'a.flac', assFile: null, outputPath: 'o.mp4', width: 1920, height: 1080, fps: 25, duration: 10, zoom: false, waveform: false, encoder: 'x264', audioFilter: 'loudnorm=I=-14' });
+    expect(a[a.indexOf('-af') + 1]).toBe('loudnorm=I=-14');
+    expect(a.join(' ')).toContain('-c:a aac -b:a 256k -ar 48000');
+    expect(a.join(' ')).toContain('-profile:v high -bf 2 -g 50');
+    expect(a.join(' ')).toContain('-colorspace bt709');
   });
 });

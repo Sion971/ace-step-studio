@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fitTitle, stillLayout } from './simpleVideo';
+import { fitTitle, shiftLrc, stillLayout } from './simpleVideo';
 
 describe('stillLayout', () => {
   for (const [name, w, h] of [['16:9', 1920, 1080], ['9:16', 1080, 1920], ['1:1', 1080, 1080]] as const) {
@@ -37,5 +37,14 @@ describe('fitTitle', () => {
     expect(fit.lines).toHaveLength(2);
     expect(fit.lines.join(' ')).toBe(title);
     for (const line of fit.lines) expect(measure(line, fit.size)).toBeLessThanOrEqual(700);
+  });
+});
+
+describe('shiftLrc', () => {
+  it('moves every time, keeps the text and the section tags, and stops at zero', () => {
+    const lrc = '[00:00.50][Verse 1]\n[00:01.20]Il est mon salut\n[01:59.90]Fin';
+    expect(shiftLrc(lrc, 0.5)).toBe('[00:01.00][Verse 1]\n[00:01.70]Il est mon salut\n[02:00.40]Fin');
+    expect(shiftLrc(lrc, -1)).toBe('[00:00.00][Verse 1]\n[00:00.20]Il est mon salut\n[01:58.90]Fin');
+    expect(shiftLrc(lrc, 0)).toBe(lrc);
   });
 });

@@ -31,7 +31,6 @@ const ADDED_BY_THE_TYPE_CLEANUP = [
   'workspaceNameLabel',
   'dragToReframe',
   'reframeBanner',
-  'videoBgFailed',
   'downloadingModelNamed',
   'loadingModelNamed',
 ] as const;

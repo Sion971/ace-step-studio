@@ -145,7 +145,7 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
 | **MIDI Conversion** | Turn any stem into MIDI server-side, in seconds, with a piano roll and built-in synthesizer to hear it |
 | **Mastering and Loudness** | Optional mastering (warmth, harmonics, tone, glue, width), then normalization to a streaming platform's LUFS target, with before/after listening at the same volume |
 | **LoRA Training** | Full training pipeline, driven from the UI |
-| **Video Generator** | Create music videos with Pexels backgrounds |
+| **Video Studio** | Cover + synchronised lyrics video (line or karaoke), sound levelled for YouTube |
 | **Covers** | Every song gets a procedural gradient cover, no internet needed. Optionally, an AI cover drawn locally after the audio is done (SDXL Turbo, NVIDIA GPU only, about 7 GB downloaded on first use); no cloud service is involved |
 
 ---
@@ -372,7 +372,7 @@ Generate several variations of the same prompt in one pass to compare results qu
 
 On the training page, **Small-card mode (weights by blocks)** lets a card of 2 GB or more train a LoRA or a LoKr: the model's weights stay in RAM (about 6 GB for the 2B models, 10 GB for XL) and pass through the card block by block. The trained model is the one loaded in the Create tab, and the preprocessed tensors must come from the same model (a 2B LoRA does not fit XL); While a training runs, generation is paused. Leave « Free VRAM during training » ticked unless you know the engine will stay idle.
 
-**Video Generator** — turn a track into a music video with Pexels stock backgrounds.
+**Video Studio** — turn a track into a video: its cover (or an image, or a new AI cover) with the synchronised lyrics, line by line or karaoke, in 16:9, 9:16 or 1:1, sound levelled to −14 LUFS for YouTube and social media. Made by ffmpeg on the server in a few tens of seconds.
 
 ---
 
@@ -406,7 +406,6 @@ More detail in `TROUBLESHOOTING.md`.
 - **[AudioMass](https://github.com/pkalogiros/AudioMass)** — web audio editor
 - **[Demucs](https://github.com/facebookresearch/demucs)** — audio source separation
 - **[basic-pitch](https://github.com/spotify/basic-pitch)** — audio-to-MIDI conversion
-- **[Pexels](https://www.pexels.com)** — stock video backgrounds
 
 Built with [Claude](https://claude.ai) (Anthropic) as a development pair — most of this fork's Linux port, features, and this very README were worked through together, session by session.
 

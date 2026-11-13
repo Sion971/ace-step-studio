@@ -106,18 +106,72 @@ export function lrcToAss(lrc: string, o: AssOptions): string {
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
   ];
+  // Fixed places, so libass never stacks the two lines itself (it swapped them when both wrapped on two lines): the sung
+  // line grows upwards from its baseline, the next line grows downwards just under it.
+  const cx = Math.round(o.width / 2);
+  const lyricBottom = o.height - marginV - (o.nextLine ? Math.round(nextSize * 1.3) : 0);
+  const nextTop = lyricBottom + Math.round(nextSize * 0.3);
   const events: string[] = [];
   lines.forEach((line, i) => {
     const next = lines[i + 1];
     const limit = next ? next.time : o.duration && o.duration > line.time ? o.duration : line.time + MAX_HOLD_S;
     const end = Math.max(line.time + MIN_HOLD_S, Math.min(limit, line.time + MAX_HOLD_S));
     const text = o.style === 'karaoke' ? karaokeText(line.text, Math.min(end - line.time, MAX_HOLD_S) * 0.9) : escapeAss(line.text);
-    events.push(`Dialogue: 0,${assTime(line.time)},${assTime(end)},Lyric,,0,0,0,,${text}`);
+    events.push(`Dialogue: 0,${assTime(line.time)},${assTime(end)},Lyric,,0,0,0,,{\\an2\\pos(${cx},${lyricBottom})}${text}`);
     if (o.nextLine && next) {
-      events.push(`Dialogue: 0,${assTime(line.time)},${assTime(end)},Next,,0,0,0,,${escapeAss(next.text)}`);
+      events.push(`Dialogue: 0,${assTime(line.time)},${assTime(end)},Next,,0,0,0,,{\\an8\\pos(${cx},${nextTop})}${escapeAss(next.text)}`);
     }
   });
   return [...header, ...events, ''].join('\n');
+}
+
+/** Loudness asked by YouTube and the other platforms (they turn louder songs down to about this). */
+export const LOUDNESS = { I: -14, TP: -1, LRA: 11 } as const;
+
+export interface LoudnessMeasure {
+  input_i: string;
+  input_tp: string;
+  input_lra: string;
+  input_thresh: string;
+  target_offset: string;
+}
+
+/** The JSON block that ffmpeg's loudnorm filter prints at the end of a measuring pass, or null. */
+export function parseLoudnorm(stderr: string): LoudnessMeasure | null {
+  const start = stderr.lastIndexOf('{');
+  const end = stderr.lastIndexOf('}');
+  if (start < 0 || end < start) return null;
+  try {
+    const o = JSON.parse(stderr.slice(start, end + 1));
+    const keys: (keyof LoudnessMeasure)[] = ['input_i', 'input_tp', 'input_lra', 'input_thresh', 'target_offset'];
+    if (!keys.every((k) => typeof o[k] === 'string' && Number.isFinite(Number(o[k])))) return null;
+    return o as LoudnessMeasure;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Arguments of the measuring pass (audio only: a few seconds for a song). `mastering` is the chain of the Mastering window
+ * (services/mastering.ts), measured after it like there.
+ */
+export function loudnessMeasureArgs(audioPath: string, mastering = ''): string[] {
+  const prefix = mastering ? `${mastering},` : '';
+  return ['-hide_banner', '-nostats', '-i', audioPath, '-vn', '-af', `${prefix}loudnorm=I=${LOUDNESS.I}:TP=${LOUDNESS.TP}:LRA=${LOUDNESS.LRA}:print_format=json`, '-f', 'null', '-'];
+}
+
+/**
+ * The audio filter that brings the song to -14 LUFS with peaks under -1 dBTP. With a measure, one linear gain (the
+ * song's dynamics are kept); without one, loudnorm's own single pass.
+ */
+export function loudnessFilter(m: LoudnessMeasure | null, mastering = ''): string {
+  const base = `${mastering ? `${mastering},` : ''}loudnorm=I=${LOUDNESS.I}:TP=${LOUDNESS.TP}:LRA=${LOUDNESS.LRA}`;
+  const measured = m
+    ? `:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true`
+    : '';
+  // After the mastering's saturation a limiter holds the -1 dBTP ceiling, as in the Mastering window.
+  const limiter = mastering ? `,alimiter=limit=${Math.pow(10, LOUDNESS.TP / 20).toFixed(4)}:level=disabled` : '';
+  return `${base}${measured},aresample=48000${limiter}`;
 }
 
 export interface SimpleVideoArgs {
@@ -133,6 +187,8 @@ export interface SimpleVideoArgs {
   zoom: boolean;
   waveform: boolean;
   encoder: 'nvenc' | 'x264';
+  /** Audio filter (loudness), or null to copy the song's level as it is. */
+  audioFilter?: string | null;
 }
 
 /** ffmpeg's arguments for the video: the still looped, an optional slow zoom and waveform, the lyrics, the song. */
@@ -141,7 +197,8 @@ export function buildSimpleVideoArgs(a: SimpleVideoArgs): string[] {
   // JPEG for every frame took most of the render time.
   const args = ['-hide_banner', '-loglevel', 'error', '-loop', '1', '-framerate', '1', '-i', a.stillPath];
   if (a.audioPath) args.push('-i', a.audioPath);
-  const chain: string[] = [`[0:v]format=yuv420p,fps=${a.fps}[base]`];
+  // BT.709 like every HD video, so the colours of the cover are not shifted on YouTube.
+  const chain: string[] = [`[0:v]scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,fps=${a.fps}[base]`];
   let label = 'base';
   if (a.zoom) {
     // A push of 8 % over the whole song, centred: slow enough not to distract, enough to look alive.
@@ -151,7 +208,7 @@ export function buildSimpleVideoArgs(a: SimpleVideoArgs): string[] {
   }
   if (a.waveform && a.audioPath) {
     const h = Math.round(a.height * 0.1);
-    chain.push(`[1:a]showwaves=s=${a.width}x${h}:mode=cline:rate=${a.fps}:colors=white@0.55,format=yuva420p[wave]`);
+    chain.push(`[1:a]showwaves=s=${a.width}x${h}:mode=cline:draw=full:rate=${a.fps}:colors=white@0.6,format=yuva420p[wave]`);
     chain.push(`[${label}][wave]overlay=0:H-h-${Math.round(a.height * 0.015)}:shortest=1:format=yuv420[waved]`);
     label = 'waved';
   }
@@ -161,9 +218,16 @@ export function buildSimpleVideoArgs(a: SimpleVideoArgs): string[] {
   }
   chain.push(`[${label}]format=yuv420p[vout]`);
   args.push('-filter_complex', chain.join(';'), '-map', '[vout]');
-  if (a.audioPath) args.push('-map', '1:a', '-c:a', 'aac', '-b:a', '192k');
+  if (a.audioPath) {
+    args.push('-map', '1:a');
+    if (a.audioFilter) args.push('-af', a.audioFilter);
+    args.push('-c:a', 'aac', '-b:a', '256k', '-ar', '48000');
+  }
+  // What YouTube recommends for an upload: H.264 High, B-frames, a keyframe every 2 s, BT.709, moov atom at the start.
   if (a.encoder === 'nvenc') args.push('-c:v', 'h264_nvenc', '-preset', 'p4', '-rc', 'vbr', '-cq', '26');
   else args.push('-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'stillimage', '-crf', '22');
+  args.push('-profile:v', 'high', '-bf', '2', '-g', String(a.fps * 2));
+  args.push('-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv');
   args.push('-r', String(a.fps), '-t', a.duration.toFixed(2), '-movflags', '+faststart', '-y', a.outputPath);
   return args;
 }

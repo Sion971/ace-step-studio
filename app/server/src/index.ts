@@ -80,9 +80,6 @@ app.use(helmet({
       // retombe sur `defaultSrc: 'self'` et bloque la vidéo : fond noir
       // en prévisualisation comme au rendu, sans autre signal qu'une
       // ligne de CSP dans la console.
-      // `https:` — vidéos distantes (Pexels). Attention : autorisé ici ne
-      // veut pas dire exploitable — le CDN doit aussi renvoyer les en-têtes
-      // CORS, sinon `crossOrigin='anonymous'` fera échouer le chargement.
       mediaSrc: ["'self'", 'data:', 'blob:', 'https:', 'http://localhost:*'],
       objectSrc: ["'none'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.tailwindcss.com', 'https://esm.sh'],
@@ -305,172 +302,6 @@ app.get('/song/:id', async (req, res) => {
   }
 });
 
-// Image proxy for CORS
-app.get('/api/proxy/image', async (req, res) => {
-  const url = req.query.url as string;
-  if (!url) {
-    res.status(400).json({ error: 'URL required' });
-    return;
-  }
-
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      res.status(response.status).json({ error: 'Failed to fetch image' });
-      return;
-    }
-
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
-    const buffer = await response.arrayBuffer();
-
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.send(Buffer.from(buffer));
-  } catch (error) {
-    console.error('Image proxy error:', error);
-    res.status(500).json({ error: 'Failed to proxy image' });
-  }
-});
-
-// Pexels API proxy - accepts API key from header or uses server config
-app.get('/api/pexels/photos', async (req, res) => {
-  const query = req.query.query as string;
-  if (!query) {
-    res.status(400).json({ error: 'Query required' });
-    return;
-  }
-
-  // Accept API key from header (user-provided) or fall back to server config
-  const apiKey = req.headers['x-pexels-api-key'] as string || config.pexels.apiKey;
-
-  if (!apiKey) {
-    res.status(400).json({ error: 'Pexels API key not configured. Please set your API key in the Video Generator settings.' });
-    return;
-  }
-
-  try {
-    const response = await fetch(
-      `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=20&orientation=landscape`,
-      { headers: { Authorization: apiKey } }
-    );
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        res.status(401).json({ error: 'Invalid Pexels API key' });
-        return;
-      }
-      res.status(response.status).json({ error: 'Pexels API error' });
-      return;
-    }
-
-    const data = await response.json();
-    res.json(data);
-  } catch (error) {
-    console.error('Pexels photos error:', error);
-    res.status(500).json({ error: 'Failed to fetch from Pexels' });
-  }
-});
-
-app.get('/api/pexels/videos', async (req, res) => {
-  const query = req.query.query as string;
-  if (!query) {
-    res.status(400).json({ error: 'Query required' });
-    return;
-  }
-
-  // Accept API key from header (user-provided) or fall back to server config
-  const apiKey = req.headers['x-pexels-api-key'] as string || config.pexels.apiKey;
-
-  if (!apiKey) {
-    res.status(400).json({ error: 'Pexels API key not configured. Please set your API key in the Video Generator settings.' });
-    return;
-  }
-
-  try {
-    const response = await fetch(
-      `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=15&orientation=landscape`,
-      { headers: { Authorization: apiKey } }
-    );
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        res.status(401).json({ error: 'Invalid Pexels API key' });
-        return;
-      }
-      res.status(response.status).json({ error: 'Pexels API error' });
-      return;
-    }
-
-    const data = await response.json();
-    res.json(data);
-  } catch (error) {
-    console.error('Pexels videos error:', error);
-    res.status(500).json({ error: 'Failed to fetch from Pexels' });
-  }
-});
-
-// Video proxy for CORS — les URL retournees par /api/pexels/videos pointent
-// vers le CDN Pexels, qui ne renvoie pas d'en-tetes CORS. Le navigateur peut
-// donc afficher la video (elle passe par cette route en <video src>), mais
-// pas la lire pixel par pixel sur un <canvas> pour l'export — le canvas
-// devient "tainted" et toDataURL() leve une SecurityError. Voir
-// TROUBLESHOOTING #26 pour l'historique complet du probleme de fond noir.
-//
-// Diffuse en flux plutot qu'en tampon complet (contrairement au proxy
-// d'image ci-dessus) : une video Pexels pese facilement plusieurs dizaines
-// de Mo, et charger ca entierement en RAM avant de le renvoyer serait une
-// repetition du probleme documente en #25 (accumulation memoire).
-app.get('/api/proxy/video', async (req, res) => {
-  const url = req.query.url as string;
-  if (!url) {
-    res.status(400).json({ error: 'URL required' });
-    return;
-  }
-  // Restreint aux domaines Pexels connus : ce proxy ne doit pas devenir un
-  // relais generique capable de recuperer n'importe quelle URL distante pour
-  // le compte du serveur (SSRF).
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    res.status(400).json({ error: 'Invalid URL' });
-    return;
-  }
-  const allowedHosts = ['videos.pexels.com', 'player.vimeo.com'];
-  if (!allowedHosts.some(h => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`))) {
-    res.status(400).json({ error: 'URL host not allowed' });
-    return;
-  }
-  try {
-    // Transmet Range pour permettre la lecture en avance rapide / le seek
-    // sans devoir retelecharger tout le fichier depuis le debut.
-    const upstreamHeaders: Record<string, string> = {};
-    if (req.headers.range) upstreamHeaders['Range'] = req.headers.range as string;
-
-    const response = await fetch(url, { headers: upstreamHeaders });
-    if (!response.ok || !response.body) {
-      res.status(response.status || 502).json({ error: 'Failed to fetch video' });
-      return;
-    }
-
-    res.status(response.status); // 200 ou 206 (Partial Content) selon Range
-    const passthroughHeaders = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
-    for (const h of passthroughHeaders) {
-      const v = response.headers.get(h);
-      if (v) res.setHeader(h, v);
-    }
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-
-    // @ts-ignore — Response.body (Web ReadableStream) se pipe vers un
-    // ServerResponse Node via Readable.fromWeb, disponible en Node >= 17.
-    const { Readable } = await import('node:stream');
-    Readable.fromWeb(response.body as any).pipe(res);
-  } catch (error) {
-    console.error('Video proxy error:', error);
-    if (!res.headersSent) res.status(500).json({ error: 'Failed to proxy video' });
-  }
-});
-
 // Search endpoint
 app.get('/api/search', async (req, res) => {
   const query = (req.query.q as string)?.trim();
@@ -565,7 +396,8 @@ const presence = new Presence({
   onQuit: () => void shutdownStudio(),
 });
 app.use('/api/presence', createPresenceRouter(presence));
-app.use('/api/render-video', express.json({ limit: '500mb' }), renderVideoRoutes);
+// One still picture (a JPEG data URL of a few MB) and the lyrics.
+app.use('/api/render-video', express.json({ limit: '50mb' }), renderVideoRoutes);
 app.use('/api/tools', toolsRoutes);
 app.use('/api/midi', midiRoutes);
 app.use('/api/demucs', demucsRoutes);

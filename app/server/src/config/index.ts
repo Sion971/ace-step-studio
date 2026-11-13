@@ -79,11 +79,6 @@ export const config = {
     apiUrl: process.env.ACESTEP_API_URL || 'http://localhost:8001',
   },
 
-  // Pexels (optional - for video backgrounds)
-  pexels: {
-    apiKey: process.env.PEXELS_API_KEY || '',
-  },
-
   // Frontend URL
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
 
