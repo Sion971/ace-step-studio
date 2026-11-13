@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Video, Loader2, Upload, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { X, Video, Loader2, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { useI18n } from '../context/I18nContext';
 import { Song } from '../types';
 import { fillTemplate } from '../utils/fillTemplate';
@@ -48,7 +48,6 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
 
   const [aspect, setAspect] = useState<AspectRatio>('16:9');
   const [background, setBackground] = useState<StillBackground>('blurred');
-  const [customCover, setCustomCover] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
   const [showTitle, setShowTitle] = useState(true);
@@ -64,24 +63,19 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
   const [seconds, setSeconds] = useState<number | null>(null);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const fileRef = useRef<HTMLInputElement | null>(null);
 
   const hasLrc = Boolean(song?.lrcContent && song.lrcContent.trim());
-  const coverUrl = customCover || song?.coverUrl || '';
+  const coverUrl = song?.coverUrl || '';
 
   // A new song: its title and artist, its own cover, lyrics on when it has synchronised lyrics.
   useEffect(() => {
     if (!song) return;
     setTitle(song.title || '');
     setArtist(song.creator || '');
-    setCustomCover(null);
     setLyricsMode(song.lrcContent && song.lrcContent.trim() ? 'karaoke' : 'none');
     setOffset(0);
     setNote(null);
   }, [song?.id]);
-
-  // A cover saved from the cover window replaces the uploaded one.
-  useEffect(() => { setCustomCover(null); }, [song?.coverUrl]);
 
   // The preview is the still the video will use (lyrics and waveform are added by ffmpeg).
   useEffect(() => {
@@ -109,15 +103,9 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
   const sample = firstLines(song.lrcContent);
   // Lyric size and bottom margin as in lrcToAss, in % of the picture width / height.
   const portraitish = height > width;
-  const lyricPx = (Math.min(width, height) * (portraitish ? 0.052 : 0.06) / width) * 100;
+  // An ASS font size is the height of the whole line, about 0.8 of a CSS font size.
+  const lyricPx = (Math.min(width, height) * (portraitish ? 0.052 : 0.06) / width) * 100 * 0.8;
   const marginPct = (portraitish ? 0.16 : 0.09) * 100;
-
-  const pickImage = (file: File | undefined) => {
-    if (!file || !file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = () => setCustomCover(typeof reader.result === 'string' ? reader.result : null);
-    reader.readAsDataURL(file);
-  };
 
   const makeVideo = async () => {
     if (busy) return;
@@ -167,7 +155,6 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
     `py-1.5 px-2 rounded text-[11px] font-bold transition-colors ${active ? 'bg-pink-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`;
   const check = 'flex items-center gap-1.5 cursor-pointer text-[11px] text-zinc-300';
   const section = 'text-[10px] font-bold uppercase tracking-wider text-zinc-500';
-  const previewFrame = aspect === '16:9' ? 'aspect-video w-full' : aspect === '1:1' ? 'aspect-square h-full max-h-full' : 'aspect-[9/16] h-full max-h-full';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-0 md:p-4 animate-in fade-in duration-200">
@@ -185,14 +172,16 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
 
         <div className="flex-1 min-h-0 flex flex-col md:flex-row">
           {/* Preview */}
-          <div className="md:flex-1 min-h-0 h-[40vh] md:h-auto bg-black flex items-center justify-center p-4">
-            <div className={`${previewFrame} max-w-full flex items-center justify-center`}>
+          <div className="md:flex-1 min-w-0 min-h-0 h-[40vh] md:h-auto bg-black p-4">
+            {/* The preview fits the free space whatever the format: the box is sized from the space (a size container), never
+                from the picture, so the settings column keeps its width. */}
+            <div className="w-full h-full flex items-center justify-center" style={{ containerType: 'size' }}>
               {preview ? (
                 // The lyrics drawn over the still like ffmpeg will (same sizes and places as server/src/services/simple-video.ts).
-                <div className="relative max-w-full max-h-full" style={{ containerType: 'inline-size', aspectRatio: `${width} / ${height}`, height: aspect === '16:9' ? undefined : '100%', width: aspect === '16:9' ? '100%' : undefined }}>
+                <div className="relative" style={{ containerType: 'inline-size', width: `min(100cqw, ${(100 * width) / height}cqh)`, aspectRatio: `${width} / ${height}` }}>
                   <img src={preview} alt="" className="absolute inset-0 w-full h-full object-contain rounded shadow-2xl" />
                   {lyricsMode !== 'none' && sample.length > 0 && (
-                    <div className="absolute inset-x-[3%] text-center leading-tight pointer-events-none" style={{ bottom: `${marginPct}%` }}>
+                    <div className="absolute text-center leading-tight pointer-events-none" style={{ bottom: `${marginPct}%`, left: `${(6000 / width)}%`, right: `${(6000 / width)}%`, fontFamily: 'Arial, Helvetica, sans-serif' }}>
                       <div className="font-bold" style={{ fontSize: `${lyricPx}cqw`, textShadow: '0 0 0.12em #000, 0 0 0.12em #000' }}>
                         {lyricsMode === 'karaoke'
                           ? <><span style={{ color: highlight }}>{sample[0].slice(0, Math.ceil(sample[0].length * 0.45))}</span><span className="text-white">{sample[0].slice(Math.ceil(sample[0].length * 0.45))}</span></>
@@ -216,23 +205,17 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
           </div>
 
           {/* Settings */}
-          <div className="md:w-80 border-t md:border-t-0 md:border-l border-zinc-800 overflow-y-auto p-4 space-y-4">
+          <div className="md:w-80 md:shrink-0 border-t md:border-t-0 md:border-l border-zinc-800 overflow-y-auto p-4 space-y-4">
             <p className="text-[11px] text-zinc-500 leading-snug">{t('quickVideoHint')}</p>
 
             <div className="space-y-1.5">
               <div className={section}>{t('videoCover')}</div>
-              <div className="grid grid-cols-1 gap-1">
-                <button className={chip(!customCover)} onClick={() => setCustomCover(null)}>{t('videoCoverSong')}</button>
-                <button className={`${chip(Boolean(customCover))} flex items-center justify-center gap-1.5`} onClick={() => fileRef.current?.click()}>
-                  <Upload size={12} />{t('videoCoverUpload')}
+              {/* The cover window imports an image or makes one with the AI, and saves it to the song: the preview follows. */}
+              {onGenerateCover && (
+                <button className={`${chip(false)} w-full flex items-center justify-center gap-1.5`} onClick={() => onGenerateCover(song)}>
+                  <Sparkles size={12} />{t('videoCoverGenerate')}
                 </button>
-                {onGenerateCover && (
-                  <button className={`${chip(false)} flex items-center justify-center gap-1.5`} onClick={() => onGenerateCover(song)}>
-                    <Sparkles size={12} />{t('videoCoverGenerate')}
-                  </button>
-                )}
-              </div>
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => { pickImage(e.target.files?.[0]); e.target.value = ''; }} />
+              )}
             </div>
 
             <div className="space-y-1.5">

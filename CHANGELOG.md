@@ -7,6 +7,11 @@
 - **Sound for YouTube and social media.** By default the sound is levelled to −14 LUFS, peaks under −1 dBTP: measured first (loudnorm, audio only, a few seconds), then one gain for the whole song, its dynamics kept. It can also be left as it is, or mastered with a preset of the Mastering window (light, warm, bright, punchy) and then levelled. The video is encoded as YouTube recommends: H.264 High with B-frames, a keyframe every 2 s, BT.709 colours, AAC 256 kb/s at 48 kHz, index at the start of the file. The server log line gives the measured loudness (`loudness -8.7 -> -14 LUFS`).
 - Making a video can be cancelled; closing the window stops ffmpeg on the server.
 
+### Fixed (after the first test)
+- Video Studio: in 1:1 the preview took the width of the settings column, which shrank to a narrow strip. The preview is now sized from the free space (a size container), so the column keeps its width in every format.
+- Video Studio: the cover had two ways in ("Upload an image" in the window, and "Upload" in the cover window). A single button, "Upload or make a cover (AI)", opens the cover window, which saves the image to the song; the preview follows.
+- Video Studio, 1:1: the cover is a little smaller and higher, so a lyric line on two lines no longer comes close to the artist. The lyrics in the preview are now drawn at the size libass uses (they looked bigger than in the video).
+
 ### Removed
 - The frame-by-frame render of the Video Studio (canvas in the browser, frames sent to the server, `/api/render-video/start`, `/frames`, `/finish`), its visualiser presets, effects (shake, glitch, VHS, pixelate…), free text layers, background images and videos, the Pexels search and its API key, the `/api/proxy/image`, `/api/proxy/video` and `/api/pexels/*` routes, ffmpeg.wasm (`@ffmpeg/core`, `@ffmpeg/ffmpeg`, `@ffmpeg/util`), and 49 translation keys only they used. It was slow (several minutes for a song) and heavy; anything more elaborate than cover + lyrics is better done in a video editor, from this video or from the song's audio.
 
