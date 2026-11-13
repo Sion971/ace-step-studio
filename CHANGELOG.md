@@ -2,6 +2,9 @@
 
 ## 2026-11-13 (imported covers)
 
+### Fixed
+- Video Studio: a song renamed in the Create tab kept its old title in the Video Studio until the page was reloaded (the window kept the title it had read the first time it opened that song). It now takes the song's current title each time it opens and when the song is renamed; the app also passes the rename to the window (`VideoGeneratorModal.test.tsx`).
+
 ### Added
 - Imported audio: the picture embedded in the file (the cover of an MP3's ID3 tag, of an M4A or a FLAC) becomes the import's cover, shown in the library, the player and the Video Studio. ffmpeg takes it out at import (`services/audio-cover.ts`, tests on real files); a real video track (an imported MP4 clip) gives no cover. Imports made before are looked at once, in the background, the next time the library is loaded (they show their cover after a refresh). New column `reference_tracks.cover_key` ('' = looked, none found).
 - Imported audio: the cover window ("Upload or make a cover (AI)", also from the Video Studio) now saves to the import (`POST /api/reference-tracks/:id/cover`); it went to the songs and failed for an import.

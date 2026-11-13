@@ -424,6 +424,8 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     if (selectedSong?.id === updatedSong.id) {
       setSelectedSong(updatedSong);
     }
+    // The Video Studio keeps the song it was opened with: a new title must reach it too.
+    setSongForVideo(prev => prev?.id === updatedSong.id ? { ...prev, ...updatedSong } : prev);
   };
 
   // Navigate to Profile Handler

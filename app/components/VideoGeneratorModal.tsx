@@ -67,10 +67,17 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
   const hasLrc = Boolean(song?.lrcContent && song.lrcContent.trim());
   const coverUrl = song?.coverUrl || '';
 
-  // A new song: its title and artist, its own cover, lyrics on when it has synchronised lyrics.
+  // Each time the window opens, and when the song is renamed: its current title and artist (a title typed here only lasts
+  // while the window is open).
+  useEffect(() => {
+    if (!isOpen || !song) return;
+    setTitle(song.title || '');
+    if (song.creator) setArtist(song.creator);
+  }, [isOpen, song?.id, song?.title, song?.creator]);
+
+  // A new song: its artist, lyrics on when it has synchronised lyrics.
   useEffect(() => {
     if (!song) return;
-    setTitle(song.title || '');
     setArtist(song.creator || '');
     setLyricsMode(song.lrcContent && song.lrcContent.trim() ? 'karaoke' : 'none');
     setOffset(0);
