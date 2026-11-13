@@ -181,7 +181,7 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
                 <div className="relative" style={{ containerType: 'inline-size', width: `min(100cqw, ${(100 * width) / height}cqh)`, aspectRatio: `${width} / ${height}` }}>
                   <img src={preview} alt="" className="absolute inset-0 w-full h-full object-contain rounded shadow-2xl" />
                   {lyricsMode !== 'none' && sample.length > 0 && (
-                    <div className="absolute text-center leading-tight pointer-events-none" style={{ bottom: `${marginPct}%`, left: `${(6000 / width)}%`, right: `${(6000 / width)}%`, fontFamily: 'Arial, Helvetica, sans-serif' }}>
+                    <div className="absolute text-center leading-tight pointer-events-none" style={{ bottom: `${waveform ? Math.max(marginPct, 14.5) : marginPct}%`, left: `${(6000 / width)}%`, right: `${(6000 / width)}%`, fontFamily: 'Arial, Helvetica, sans-serif' }}>
                       <div className="font-bold" style={{ fontSize: `${lyricPx}cqw`, textShadow: '0 0 0.12em #000, 0 0 0.12em #000' }}>
                         {lyricsMode === 'karaoke'
                           ? <><span style={{ color: highlight }}>{sample[0].slice(0, Math.ceil(sample[0].length * 0.45))}</span><span className="text-white">{sample[0].slice(Math.ceil(sample[0].length * 0.45))}</span></>

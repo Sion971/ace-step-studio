@@ -20,8 +20,8 @@ export interface StillLayout {
 export function stillLayout(width: number, height: number): StillLayout {
   const portrait = height > width * 1.2;
   const square = !portrait && width < height * 1.2;
-  const coverSize = Math.round(portrait ? width * 0.78 : square ? height * 0.40 : height * 0.44);
-  const coverY = Math.round(portrait ? height * 0.30 : square ? height * 0.28 : height * 0.36);
+  const coverSize = Math.round(portrait ? width * 0.78 : square ? height * 0.36 : height * 0.44);
+  const coverY = Math.round(portrait ? height * 0.30 : square ? height * 0.25 : height * 0.36);
   const below = coverY + coverSize / 2;
   const titleSize = Math.round(Math.min(width, height) * (portrait ? 0.06 : 0.055));
   const artistSize = Math.round(titleSize * 0.62);

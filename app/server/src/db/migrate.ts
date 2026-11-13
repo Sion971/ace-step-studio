@@ -149,6 +149,8 @@ function migrate(): void {
     db.exec(migrations);
     // Add dit_model column if not exists
     try { db.exec('ALTER TABLE reference_tracks ADD COLUMN analysis TEXT'); } catch {}
+    // Cover of an import (the picture embedded in the file, or one set from the cover window); '' = looked, none found.
+    try { db.exec('ALTER TABLE reference_tracks ADD COLUMN cover_key TEXT'); } catch {}
     try { db.exec('ALTER TABLE songs ADD COLUMN dit_model TEXT'); } catch {}
     try { db.exec('ALTER TABLE songs ADD COLUMN lm_model TEXT'); } catch {}
     try { db.exec('ALTER TABLE songs ADD COLUMN lm_backend TEXT'); } catch {}

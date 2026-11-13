@@ -225,7 +225,7 @@ router.post('/simple', async (req: Request, res: Response) => {
     if (typeof lrc === 'string' && lrc.trim()) {
       if (hasAssFilter(ffmpegPath)) {
         const style: SimpleLyricsStyle = lyricsStyle === 'karaoke' ? 'karaoke' : 'line';
-        await writeFile(path.join(dir, 'lyrics.ass'), lrcToAss(lrc, { width: w, height: h, style, nextLine: Boolean(nextLine), duration: seconds, highlight }), 'utf8');
+        await writeFile(path.join(dir, 'lyrics.ass'), lrcToAss(lrc, { width: w, height: h, style, nextLine: Boolean(nextLine), duration: seconds, highlight, waveform: Boolean(waveform) }), 'utf8');
         assFile = 'lyrics.ass';
         lyricsBurned = true;
       } else {

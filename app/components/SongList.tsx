@@ -986,7 +986,7 @@ const SongItem: React.FC<SongItemProps> = ({
 };
 
 const UploadItem: React.FC<{
-    track: { id: string; filename: string; audio_url: string; duration?: number | null; analysis?: AudioAnalysis | null };
+    track: { id: string; filename: string; audio_url: string; cover_url?: string | null; duration?: number | null; analysis?: AudioAnalysis | null };
     onPlay: () => void;
     onUseAsReference?: () => void;
     onCoverSong?: () => void;

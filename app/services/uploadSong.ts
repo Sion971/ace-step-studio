@@ -9,6 +9,8 @@ export interface UploadTrackLike {
   id: string;
   filename: string;
   audio_url: string;
+  /** The picture embedded in the file, or one set from the cover window ('' when none). */
+  cover_url?: string | null;
   duration?: number | null;
   analysis?: AudioAnalysis | null;
 }
@@ -23,7 +25,7 @@ export function uploadToSong(track: UploadTrackLike, createdAt: Date = new Date(
     title: track.filename.replace(/\.[^/.]+$/, ''),
     lyrics: a?.lyrics || '',
     style: a?.caption || 'Upload',
-    coverUrl: '',
+    coverUrl: track.cover_url || '',
     duration: seconds ? mmss(seconds) : '--:--',
     createdAt,
     tags: [],

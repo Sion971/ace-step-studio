@@ -128,3 +128,26 @@ describe('loudness for YouTube', () => {
     expect(a.join(' ')).toContain('-colorspace bt709');
   });
 });
+
+describe('lyrics above the waveform', () => {
+  const lrc = '[00:01.00]Tu ne m’as pas livré à l’ennemi qui voulait me briser\n[00:05.00]Mais Tu as mis mes pieds au large, fidèle à Ta promesse.\n[00:09.00]Fin';
+  const pos = (ass: string, style: string) => ass.split('\n').filter((l) => l.startsWith('Dialogue: 0,0:00:01.00') && l.includes(`${style},,`))
+    .map((l) => Number(/\\pos\(\d+,(\d+)\)/.exec(l)![1]))[0];
+
+  it('moves both lines up when a wrapped next line would run into the waveform', () => {
+    const plain = lrcToAss(lrc, { width: 1080, height: 1080, style: 'karaoke', nextLine: true, duration: 12 });
+    const waved = lrcToAss(lrc, { width: 1080, height: 1080, style: 'karaoke', nextLine: true, duration: 12, waveform: true });
+    expect(pos(waved, 'Lyric')).toBeLessThan(pos(plain, 'Lyric'));
+    // The next line (two lines of 47 px at 1.2) ends above the top of the waveform (1080 - 13.5 %).
+    expect(pos(waved, 'Next') + 2 * Math.round(1080 * 0.06 * 0.72) * 1.2).toBeLessThanOrEqual(1080 - 1080 * 0.135 + 1);
+  });
+
+  it('keeps the usual place when there is room', () => {
+    const short = '[00:01.00]Il est mon salut\n[00:05.00]Mon Roc\n[00:09.00]Fin';
+    // 9:16 has a wide bottom margin: a short next line stays where it always was, waveform or not.
+    const a = lrcToAss(short, { width: 1080, height: 1920, style: 'line', nextLine: true, duration: 12 });
+    const b = lrcToAss(short, { width: 1080, height: 1920, style: 'line', nextLine: true, duration: 12, waveform: true });
+    expect(pos(b, 'Lyric')).toBe(pos(a, 'Lyric'));
+    expect(pos(a, 'Lyric')).toBe(1920 - Math.round(1920 * 0.16) - Math.round(Math.round(Math.round(1080 * 0.052) * 0.72) * 1.3));
+  });
+});

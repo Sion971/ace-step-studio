@@ -17,6 +17,13 @@ export interface AssOptions {
   duration?: number;
   /** Colour of the sung part in karaoke, "#rrggbb". */
   highlight?: string;
+  /** The waveform is drawn along the bottom: the lyrics stay above it. */
+  waveform?: boolean;
+}
+
+/** Lines a text takes once libass wraps it (Arial: a character is about 0.52 of the font size wide on average). */
+export function wrappedLines(text: string, fontSize: number, width: number): number {
+  return Math.max(1, Math.ceil((text.length * fontSize * 0.52) / Math.max(1, width)));
 }
 
 export interface LrcEntry { time: number; text: string }
@@ -109,13 +116,19 @@ export function lrcToAss(lrc: string, o: AssOptions): string {
   // Fixed places, so libass never stacks the two lines itself (it swapped them when both wrapped on two lines): the sung
   // line grows upwards from its baseline, the next line grows downwards just under it.
   const cx = Math.round(o.width / 2);
-  const lyricBottom = o.height - marginV - (o.nextLine ? Math.round(nextSize * 1.3) : 0);
-  const nextTop = lyricBottom + Math.round(nextSize * 0.3);
+  const defaultBottom = o.height - marginV - (o.nextLine ? Math.round(nextSize * 1.3) : 0);
+  // Nothing goes below this: the top of the waveform (10 % high, 1.5 % from the bottom) or a small margin.
+  const floor = o.height - Math.round(o.height * (o.waveform ? 0.135 : 0.03));
+  const textWidth = o.width - 120;
   const events: string[] = [];
   lines.forEach((line, i) => {
     const next = lines[i + 1];
     const limit = next ? next.time : o.duration && o.duration > line.time ? o.duration : line.time + MAX_HOLD_S;
     const end = Math.max(line.time + MIN_HOLD_S, Math.min(limit, line.time + MAX_HOLD_S));
+    // A next line that wraps would run into the waveform or off the picture: both lines move up just enough.
+    const nextHeight = o.nextLine && next ? Math.round(wrappedLines(next.text, nextSize, textWidth) * nextSize * 1.2) : 0;
+    const lyricBottom = Math.min(defaultBottom, floor - nextHeight - Math.round(nextSize * 0.3));
+    const nextTop = lyricBottom + Math.round(nextSize * 0.3);
     const text = o.style === 'karaoke' ? karaokeText(line.text, Math.min(end - line.time, MAX_HOLD_S) * 0.9) : escapeAss(line.text);
     events.push(`Dialogue: 0,${assTime(line.time)},${assTime(end)},Lyric,,0,0,0,,{\\an2\\pos(${cx},${lyricBottom})}${text}`);
     if (o.nextLine && next) {

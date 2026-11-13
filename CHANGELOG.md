@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-13 (imported covers)
+
+### Added
+- Imported audio: the picture embedded in the file (the cover of an MP3's ID3 tag, of an M4A or a FLAC) becomes the import's cover, shown in the library, the player and the Video Studio. ffmpeg takes it out at import (`services/audio-cover.ts`, tests on real files); a real video track (an imported MP4 clip) gives no cover. Imports made before are looked at once, in the background, the next time the library is loaded (they show their cover after a refresh). New column `reference_tracks.cover_key` ('' = looked, none found).
+- Imported audio: the cover window ("Upload or make a cover (AI)", also from the Video Studio) now saves to the import (`POST /api/reference-tracks/:id/cover`); it went to the songs and failed for an import.
+
+### Fixed
+- Video Studio: with the waveform, a next lyric line on two lines ran over the waveform (seen in 1:1). The lines are placed from an estimate of how libass will wrap them, and move up just enough to stay above the waveform; the 1:1 cover is a little smaller and higher to leave them room. In 16:9 the next line also touched the waveform, and now sits above it.
+
 ## 2026-11-13 (Video Studio rebuilt)
 
 ### Changed

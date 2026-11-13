@@ -360,6 +360,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     tags: string[] | null;
     created_at: string;
     audio_url: string;
+    cover_url?: string | null;
   }
 
   const showToast = (message: string, type: ToastType = 'success') => {
@@ -2114,6 +2115,11 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     setSongs(prev => prev.map(s => s.id === songId ? { ...s, coverUrl: bust } : s));
     setSelectedSong(prev => prev?.id === songId ? { ...prev, coverUrl: bust } : prev);
     setSongForVideo(prev => prev?.id === songId ? { ...prev, coverUrl: bust } : prev);
+    // An import's cover: the library list draws imports from the reference tracks.
+    if (songId.startsWith('upload_')) {
+      const trackId = songId.slice('upload_'.length);
+      setReferenceTracks(prev => prev.map(t => t.id === trackId ? { ...t, cover_url: bust } : t));
+    }
   }, []);
 
   // Handle username setup

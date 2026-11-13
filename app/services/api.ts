@@ -374,7 +374,9 @@ export const songsApi = {
     const fd = new FormData();
     // Backend looks for the field name "cover" in coverUpload.single('cover').
     fd.append('cover', blob);
-    const res = await fetch(`/api/songs/${id}/regen-cover`, {
+    // An imported audio (shown as "upload_<id>") keeps its cover with the import, not in the songs.
+    const url = id.startsWith('upload_') ? `/api/reference-tracks/${id.slice('upload_'.length)}/cover` : `/api/songs/${id}/regen-cover`;
+    const res = await fetch(url, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: fd,
