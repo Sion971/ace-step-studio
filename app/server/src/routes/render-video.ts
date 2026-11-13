@@ -6,6 +6,7 @@ import path from 'path';
 import os from 'os';
 import { pipeline } from 'stream/promises';
 import { fileURLToPath } from 'url';
+import { buildSimpleVideoArgs, lrcToAss, type SimpleLyricsStyle } from '../services/simple-video.js';
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -137,6 +138,44 @@ function hasNvenc(ffmpegPath: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** Whether this ffmpeg can burn ASS subtitles (built with libass). */
+const assSupport = new Map<string, boolean>();
+function hasAssFilter(ffmpegPath: string): boolean {
+  if (!assSupport.has(ffmpegPath)) {
+    try {
+      const out = execSync(`"${ffmpegPath}" -hide_banner -filters 2>&1`, { encoding: 'utf-8', timeout: 5000 });
+      assSupport.set(ffmpegPath, /\sass\s/.test(out));
+    } catch {
+      assSupport.set(ffmpegPath, false);
+    }
+  }
+  return assSupport.get(ffmpegPath)!;
+}
+
+function spawnFfmpeg(ffmpegPath: string, args: string[], cwd?: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const proc = spawn(ffmpegPath, args, { stdio: 'pipe', cwd });
+    let stderr = '';
+    proc.stderr?.on('data', d => {
+      stderr += d.toString();
+      if (stderr.length > 8192) stderr = stderr.slice(-4096);
+    });
+    proc.on('close', code => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(-500)}`));
+    });
+    proc.on('error', reject);
+  });
+}
+
+/** The song's file on disk for an audio URL of this Studio ("/audio/..."), or null. */
+function localAudioFile(audioUrl: unknown): string | null {
+  if (typeof audioUrl !== 'string' || !audioUrl.startsWith('/audio/')) return null;
+  const root = path.resolve(__dirname, '../../public');
+  const file = path.resolve(root, '.' + decodeURIComponent(audioUrl.split('?')[0]));
+  return file.startsWith(root + path.sep) && existsSync(file) ? file : null;
 }
 
 // Active render sessions
@@ -296,6 +335,75 @@ router.post('/finish', async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
     rm(session.dir, { recursive: true, force: true }).catch(() => {});
     sessions.delete(sessionId);
+  }
+});
+
+// "Cover + lyrics": one still picture from the browser, looped by ffmpeg under the song with the lyrics burnt in as
+// subtitles. No frame is drawn in the browser, so a whole song takes seconds instead of minutes.
+router.post('/simple', async (req: Request, res: Response) => {
+  const { still, audioUrl, lrc, width, height, duration, fps = 25, lyricsStyle = 'line', nextLine = true, zoom = false, waveform = false, highlight } = req.body || {};
+  const w = Number(width);
+  const h = Number(height);
+  const seconds = Number(duration);
+  const rate = Math.min(60, Math.max(10, Math.round(Number(fps) || 25)));
+  const match = typeof still === 'string' ? /^data:image\/(png|jpeg);base64,(.+)$/.exec(still) : null;
+  if (!match || !(w >= 320 && w <= 3840 && h >= 320 && h <= 3840) || !(seconds > 0 && seconds <= 3600)) {
+    res.status(400).json({ error: 'A still picture (PNG or JPEG data URL), a size and a duration are needed.' });
+    return;
+  }
+  const dir = path.join(TMP_BASE, `simple_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+  const cleanup = () => { rm(dir, { recursive: true, force: true }).catch(() => {}); };
+  try {
+    await mkdir(dir, { recursive: true });
+    const stillFile = `still.${match[1] === 'png' ? 'png' : 'jpg'}`;
+    await writeFile(path.join(dir, stillFile), Buffer.from(match[2], 'base64'));
+    const ffmpegPath = await findFfmpeg();
+    const audioFile = localAudioFile(audioUrl);
+    if (!audioFile) console.warn(`[Render] simple: no audio file for audioUrl="${audioUrl}" — silent video.`);
+    let assFile: string | null = null;
+    let lyricsBurned = false;
+    if (typeof lrc === 'string' && lrc.trim()) {
+      if (hasAssFilter(ffmpegPath)) {
+        const style: SimpleLyricsStyle = lyricsStyle === 'karaoke' ? 'karaoke' : 'line';
+        await writeFile(path.join(dir, 'lyrics.ass'), lrcToAss(lrc, { width: w, height: h, style, nextLine: Boolean(nextLine), duration: seconds, highlight }), 'utf8');
+        assFile = 'lyrics.ass';
+        lyricsBurned = true;
+      } else {
+        console.warn('[Render] simple: this ffmpeg has no libass ("ass" filter): the video is made without the lyrics.');
+      }
+    }
+    const outputPath = path.join(dir, 'output.mp4');
+    const args = (encoder: 'nvenc' | 'x264') => buildSimpleVideoArgs({
+      stillPath: stillFile, audioPath: audioFile, assFile, outputPath, width: w, height: h, fps: rate,
+      duration: seconds, zoom: Boolean(zoom), waveform: Boolean(waveform), encoder,
+    });
+    const started = Date.now();
+    let encoder: 'nvenc' | 'x264' = hasNvenc(ffmpegPath) ? 'nvenc' : 'x264';
+    try {
+      await spawnFfmpeg(ffmpegPath, args(encoder), dir);
+    } catch (e: any) {
+      if (encoder !== 'nvenc') throw e;
+      console.warn('[Render] simple: NVENC failed, falling back to libx264:', e.message);
+      encoder = 'x264';
+      await spawnFfmpeg(ffmpegPath, args(encoder), dir);
+    }
+    const { size } = statSync(outputPath);
+    console.log(`[Render] simple: ${w}x${h}, ${seconds.toFixed(0)} s of song in ${((Date.now() - started) / 1000).toFixed(1)} s (${encoder}${zoom ? ', zoom' : ''}${waveform ? ', waveform' : ''}${lyricsBurned ? `, lyrics ${lyricsStyle}` : ', no lyrics'}), ${(size / 1024 / 1024).toFixed(1)} MB`);
+    res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('Content-Length', String(size));
+    res.setHeader('X-Lyrics-Burned', lyricsBurned ? '1' : '0');
+    res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"');
+    res.on('close', cleanup);
+    const stream = createReadStream(outputPath);
+    stream.on('error', err => {
+      console.error('[Render] simple: stream error:', err);
+      res.destroy();
+    });
+    stream.pipe(res);
+  } catch (error: any) {
+    console.error('[Render] simple: failed:', error.message);
+    cleanup();
+    if (!res.headersSent) res.status(500).json({ error: error.message });
   }
 });
 

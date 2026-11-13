@@ -9,6 +9,7 @@ import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { useResponsive } from '../context/ResponsiveContext';
 import type { TranslationKey } from '../i18n/translations';
 import { fillTemplate } from '../utils/fillTemplate';
+import { audioDuration, composeCoverStill, renderSimpleVideo } from '../services/simpleVideo';
 
 interface VideoGeneratorModalProps {
   isOpen: boolean;
@@ -202,6 +203,12 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [exportStage, setExportStage] = useState<'idle' | 'capturing' | 'encoding'>('idle');
+  // Quick video (cover + lyrics, made by ffmpeg on the server): its options, the seconds spent, and the last result line.
+  const [quickNextLine, setQuickNextLine] = useState(true);
+  const [quickZoom, setQuickZoom] = useState(false);
+  const [quickWaveform, setQuickWaveform] = useState(false);
+  const [quickSeconds, setQuickSeconds] = useState<number | null>(null);
+  const [quickNote, setQuickNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
   const [ffmpegLoading, setFfmpegLoading] = useState(false);
 
@@ -614,6 +621,53 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
       setPlaybackDuration(audioRef.current.duration || 0);
     }
     setIsPlaying(!isPlaying);
+  };
+
+  const startQuickVideo = async () => {
+    if (!song || quickSeconds !== null || isExporting) return;
+    const audioUrl = resolveAudioUrl(song);
+    if (!audioUrl) return;
+    setQuickNote(null);
+    setQuickSeconds(0);
+    const started = Date.now();
+    const tick = setInterval(() => setQuickSeconds(Math.round((Date.now() - started) / 1000)), 1000);
+    try {
+      const { width, height } = RESOLUTIONS[config.aspectRatio];
+      const duration = await audioDuration(audioUrl);
+      if (!duration) throw new Error(fillTemplate(t('videoAudioEmpty'), { url: audioUrl }));
+      const title = textLayersRef.current[0]?.text ?? song.title ?? '';
+      const artist = textLayersRef.current[1]?.text ?? song.creator ?? '';
+      const still = await composeCoverStill({
+        coverUrl: customAlbumArt || song.coverUrl || '',
+        title, artist, width, height,
+        colors: [config.secondaryColor, config.primaryColor],
+      });
+      const lrc = lyricsEnabled && song.lrcContent && song.lrcContent.trim() ? song.lrcContent : null;
+      const { blob, lyricsBurned } = await renderSimpleVideo({
+        still, audioUrl, lrc, width, height, duration,
+        lyricsStyle: lyricsStyle === 'karaoke' ? 'karaoke' : 'line',
+        nextLine: quickNextLine, zoom: quickZoom, waveform: quickWaveform,
+        highlight: config.primaryColor,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `${song.title || 'video'}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+      const seconds = Math.round((Date.now() - started) / 1000);
+      const notes = [fillTemplate(t('quickVideoDone'), { seconds })];
+      if (lyricsEnabled && !lrc) notes.push(t('quickVideoNoLrc'));
+      if (lrc && !lyricsBurned) notes.push(t('quickVideoNoLibass'));
+      setQuickNote({ ok: true, text: notes.join(' ') });
+    } catch (e) {
+      setQuickNote({ ok: false, text: `${t('quickVideoFailed')} ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      clearInterval(tick);
+      setQuickSeconds(null);
+    }
   };
 
   const startRecording = async () => {
@@ -2922,6 +2976,31 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
                          {t('videoBgFailed') || "La vidéo de fond n'a pas pu être chargée — une image est utilisée à la place. Causes fréquentes : codec non lu par le navigateur, ou source distante sans en-têtes CORS."}
                      </p>
                  )}
+                 {/* Quick video: cover + lyrics, made by ffmpeg on the server */}
+                 <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
+                     <div className="flex items-center gap-2 text-xs font-bold text-white">
+                         <ImageIcon size={14} className="text-pink-400" />
+                         {t('quickVideoTitle')}
+                     </div>
+                     <p className="text-[10px] text-zinc-500 leading-snug">{t('quickVideoHint')}</p>
+                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-300">
+                         <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" className="accent-pink-500" checked={quickNextLine} onChange={e => setQuickNextLine(e.target.checked)} />{t('quickVideoNextLine')}</label>
+                         <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" className="accent-pink-500" checked={quickZoom} onChange={e => setQuickZoom(e.target.checked)} />{t('quickVideoZoom')}</label>
+                         <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" className="accent-pink-500" checked={quickWaveform} onChange={e => setQuickWaveform(e.target.checked)} />{t('quickVideoWaveform')}</label>
+                     </div>
+                     <button
+                         onClick={startQuickVideo}
+                         disabled={quickSeconds !== null || isExporting}
+                         className="w-full h-10 bg-pink-600 hover:bg-pink-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 text-sm disabled:opacity-60 disabled:cursor-wait"
+                     >
+                         {quickSeconds !== null ? <Loader2 className="animate-spin" size={16} /> : <Download size={16} />}
+                         {quickSeconds !== null ? fillTemplate(t('quickVideoRendering'), { seconds: quickSeconds }) : t('quickVideoButton')}
+                     </button>
+                     {quickNote && (
+                         <p className={`text-[11px] leading-snug ${quickNote.ok ? 'text-green-400' : 'text-red-400'}`}>{quickNote.text}</p>
+                     )}
+                 </div>
+
                  {ffmpegLoading ? (
                      <div className="w-full bg-zinc-800 rounded-xl h-12 flex items-center justify-center px-4">
                          <div className="flex items-center gap-2 text-white font-bold text-sm">
@@ -2952,7 +3031,7 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
                  ) : (
                     <button
                         onClick={startRecording}
-                        disabled={ffmpegLoading}
+                        disabled={ffmpegLoading || quickSeconds !== null}
                         className="w-full h-12 bg-white text-black font-bold rounded-xl flex items-center justify-center gap-2 hover:scale-105 transition-transform disabled:opacity-50"
                     >
                         <Download size={18} />
