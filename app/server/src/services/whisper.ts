@@ -7,6 +7,7 @@ import { promises as fs } from 'fs';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { structureLyrics, wordsToLines, type TimedLine, type TimedWord } from './lyrics-structure.js';
+import { toLrc } from './lyrics-align.js';
 
 const EXE = process.platform === 'win32' ? '.exe' : '';
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -55,6 +56,8 @@ export interface WhisperResult {
   text: string;
   /** The language Whisper recognised ("fr", "en"...), or "". */
   language: string;
+  /** The same phrases as synchronised lyrics (LRC), each at the time it is heard; absent when Whisper gave no times. */
+  lrc?: string;
 }
 
 /** What Whisper's JSON file says: the lyrics (phrases, grouped into sections) and the language. */
@@ -74,7 +77,13 @@ export function parseWhisperJson(raw: string): WhisperResult | null {
     // The [Verse] / [Chorus] tags are only a guess: WHISPER_SECTIONS=1 turns them on, otherwise the stanzas are just separated by a blank line.
     const structured = structureLyrics(timed, process.env.WHISPER_SECTIONS === '1');
     const text = structured || (timed.length ? '' : typeof data.text === 'string' ? data.text.trim() : '');
-    return { text, language: typeof data.language === 'string' ? data.language : '' };
+    // An imported audio has no LRC from the engine: the phrases Whisper heard, with their times, make one.
+    const lrc = toLrc(timed
+      .filter((l) => Number.isFinite(l.start) && l.text.trim())
+      .map((l) => ({ time: l.start, text: l.text.trim(), isSection: false, heard: true })));
+    const result: WhisperResult = { text, language: typeof data.language === 'string' ? data.language : '' };
+    if (lrc) result.lrc = lrc;
+    return result;
   } catch {
     return null;
   }
@@ -85,12 +94,51 @@ let queue: Promise<unknown> = Promise.resolve();
 
 /** null: Whisper is missing or failed. A result with an empty text: it ran and heard no words. */
 export const transcribeWithWhisperDetailed = (buffer: Buffer, originalFilename: string, signal?: AbortSignal): Promise<WhisperResult | null> => {
-  const run = queue.then(() => runWhisper(buffer, originalFilename, signal));
+  const run = queue.then(async () => {
+    const raw = await runWhisper(buffer, originalFilename, signal);
+    return raw === null ? null : parseWhisperJson(raw);
+  });
   queue = run.catch(() => undefined);
   return run;
 };
 
-const runWhisper = async (buffer: Buffer, originalFilename: string, signal?: AbortSignal): Promise<WhisperResult | null> => {
+export interface WhisperWords {
+  /** Every word heard, with its start and end in seconds. */
+  words: TimedWord[];
+  /** The language Whisper recognised, or "". */
+  language: string;
+}
+
+/** The words of Whisper's JSON file, in order, with their times. */
+export function parseWhisperWords(raw: string): WhisperWords | null {
+  try {
+    const data = JSON.parse(raw) as { language?: unknown; segments?: Array<{ words?: Array<{ word?: unknown; start?: unknown; end?: unknown }> }> };
+    const segments = Array.isArray(data.segments) ? data.segments : [];
+    const words: TimedWord[] = segments.flatMap((s) => (Array.isArray(s?.words) ? s.words : []))
+      .map((w) => ({ start: Number(w?.start), end: Number(w?.end), word: typeof w?.word === 'string' ? w.word : '' }))
+      .filter((w) => w.word.trim() && Number.isFinite(w.start) && Number.isFinite(w.end));
+    return { words, language: typeof data.language === 'string' ? data.language : '' };
+  } catch {
+    return null;
+  }
+}
+
+/** Whisper's language codes are ISO 639-1 ("fr", "en"...); "unknown" or anything else lets Whisper detect it. */
+export const whisperLanguageArgs = (language?: string | null): string[] =>
+  language && /^[a-z]{2,3}$/.test(language) && language !== 'unknown' ? ['--language', language] : [];
+
+/** The words of a song with their times, for timing its written lyrics. null: Whisper is missing or failed. */
+export const transcribeWordsWithWhisper = (buffer: Buffer, originalFilename: string, language?: string | null, signal?: AbortSignal): Promise<WhisperWords | null> => {
+  const run = queue.then(async () => {
+    const raw = await runWhisper(buffer, originalFilename, signal, whisperLanguageArgs(language));
+    return raw === null ? null : parseWhisperWords(raw);
+  });
+  queue = run.catch(() => undefined);
+  return run;
+};
+
+/** Runs Whisper on the audio and returns its JSON file as text, or null when Whisper is missing or failed. */
+const runWhisper = async (buffer: Buffer, originalFilename: string, signal?: AbortSignal, extraArgs: string[] = []): Promise<string | null> => {
   const whisperCmd = await findWhisperExecutable();
   if (!whisperCmd) return null;
 
@@ -110,7 +158,8 @@ const runWhisper = async (buffer: Buffer, originalFilename: string, signal?: Abo
       '--word_timestamps', 'True',
       '--output_format', 'json',
       '--output_dir', outputDir,
-      '--fp16', 'False'
+      '--fp16', 'False',
+      ...extraArgs
     ];
 
     await new Promise<void>((resolve, reject) => {
@@ -141,7 +190,7 @@ const runWhisper = async (buffer: Buffer, originalFilename: string, signal?: Abo
     const files = await fs.readdir(outputDir);
     const jsonFile = files.find((file) => file.endsWith('.json'));
     if (!jsonFile) return null;
-    return parseWhisperJson(await fs.readFile(path.join(outputDir, jsonFile), 'utf8'));
+    return await fs.readFile(path.join(outputDir, jsonFile), 'utf8');
   } catch (error) {
     console.warn('Whisper transcription failed:', error);
     return null;

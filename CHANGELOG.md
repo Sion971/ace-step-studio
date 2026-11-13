@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-13
+
+### Added
+- Song side panel: "Realign the lyrics (Whisper)". The synchronised lyrics (LRC) the engine makes come from the model's attention and are often wrong at the start of a song: the first lines of a verse all at 00:00.00 (in a video they stayed frozen on the wrong lines until the first real time, 44 s in one song), or the first sung line placed in the middle of an instrumental intro (the karaoke started too early, by a different amount each time). The button has Whisper listen to the song (in the language saved with it) and gives each written line the time of its first word heard; the written lyrics are not changed, lines Whisper did not hear get a time between their neighbours, and a repeated chorus gets the time of each pass. When Whisper recognises less than a quarter of the words, the LRC is left as it was. The player and the Video Studio use the new times. Server: `POST /api/songs/:id/realign-lyrics` (refused while a LoRA training runs); alignment in `services/lyrics-align.ts` (tests).
+- Imported audio: the analysis now keeps the lyrics Whisper heard with their times as synchronised lyrics (LRC), so a video made straight from an import shows its lyrics (the Video Studio found no LRC, even with the lyrics switch on: an import has none from the engine). Audio imported and analysed before this change needs a new analysis ("Analyse" button) to get it.
+
 ## 2026-11-02 to 2026-11-11
 
 ### Added

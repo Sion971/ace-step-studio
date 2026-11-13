@@ -277,6 +277,13 @@ export const fr = {
     enterPexelsApiKey: 'Entrez votre clé API Pexels...',
     searchBackgrounds: 'Rechercher des arrières-plans...',
     downloadLrc: 'Télécharger les paroles (.LRC)',
+    realignLyrics: "Recaler les paroles (Whisper)",
+    realignLyricsRunning: "Écoute du morceau…",
+    realignLyricsDone: "Paroles recalées : {heard} lignes sur {total} entendues.",
+    realignLyricsNoWhisper: "Whisper n'est pas installé : relance l'installateur.",
+    realignLyricsTooFew: "Whisper a reconnu trop peu de mots des paroles : le minutage n'a pas été changé.",
+    realignLyricsFailed: "Le recalage des paroles a échoué :",
+    realignLyricsHint: "Cale chaque ligne des paroles synchronisées sur ce que Whisper entend dans le morceau. Les paroles écrites ne changent pas.",
 
     // Video Studio
     videoStudio: 'Studio Vidéo',

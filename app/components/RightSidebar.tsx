@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Song } from '../types';
-import { Heart, Share2, Play, Pause, MoreHorizontal, X, Copy, Wand2, MoreVertical, Download, Repeat, Video, Music, Link as LinkIcon, Sparkles, Globe, Lock, Trash2, Edit3, Layers, ChevronDown, ClipboardCopy, ImagePlus } from 'lucide-react';
+import { Heart, Share2, Play, Pause, MoreHorizontal, X, Copy, Wand2, MoreVertical, Download, Repeat, Video, Music, Link as LinkIcon, Sparkles, Globe, Lock, Trash2, Edit3, Layers, ChevronDown, ClipboardCopy, ImagePlus, AudioLines } from 'lucide-react';
 import { songsApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useI18n } from '../context/I18nContext';
@@ -34,6 +34,9 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
     const { t } = useI18n();
     const [showMenu, setShowMenu] = useState(false);
     const [isOwner, setIsOwner] = useState(false);
+    // Realigning the synchronised lyrics with Whisper: running, then the result line under the button.
+    const [realigning, setRealigning] = useState(false);
+    const [realignNote, setRealignNote] = useState<{ ok: boolean; text: string } | null>(null);
     const [tagsExpanded, setTagsExpanded] = useState(false);
     const [shareModalOpen, setShareModalOpen] = useState(false);
     const [showStemModal, setShowStemModal] = useState(false);
@@ -49,6 +52,9 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
             setIsOwner(user?.id === song.userId);
         }
     }, [song, user]);
+
+    // The result line of a realignment belongs to the song it was made for.
+    useEffect(() => { setRealignNote(null); }, [song?.id]);
 
     useEffect(() => {
         if (song) {
@@ -625,6 +631,45 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
                             <Download size={14} />
                             {t('downloadLrc') || 'Download LRC'}
                         </button>
+                    )}
+
+                    {/* Realign the synchronised lyrics with Whisper (the engine's LRC is often wrong at the start) */}
+                    {isOwner && song.lyrics && song.lyrics.trim().length > 0 && !/^\[instrumental\]$/i.test(song.lyrics.trim()) && (
+                        <div className="space-y-1">
+                            <button
+                                disabled={realigning || !token}
+                                title={t('realignLyricsHint')}
+                                onClick={async () => {
+                                    if (!token) return;
+                                    setRealigning(true);
+                                    setRealignNote(null);
+                                    try {
+                                        const r = await songsApi.realignLyrics(song.id, token);
+                                        onSongUpdate?.({ ...song, lrcContent: r.lrcContent });
+                                        setRealignNote({ ok: true, text: t('realignLyricsDone').replace('{heard}', String(r.heardLines)).replace('{total}', String(r.totalLines)) });
+                                    } catch (e) {
+                                        const code = (e as { code?: string })?.code;
+                                        const reason = e instanceof Error ? e.message.replace(/^\d{3}:\s*/, '') : '';
+                                        setRealignNote({
+                                            ok: false,
+                                            text: code === 'NO_WHISPER' ? t('realignLyricsNoWhisper')
+                                                : code === 'TOO_FEW_WORDS' ? t('realignLyricsTooFew')
+                                                : code === 'training_running' ? t('trainingRunningBusy')
+                                                : `${t('realignLyricsFailed')} ${reason}`,
+                                        });
+                                    } finally {
+                                        setRealigning(false);
+                                    }
+                                }}
+                                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-600 dark:text-zinc-400 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-wait"
+                            >
+                                <AudioLines size={14} className={realigning ? 'animate-pulse' : ''} />
+                                {realigning ? t('realignLyricsRunning') : t('realignLyrics')}
+                            </button>
+                            {realignNote && (
+                                <p className={`text-[11px] px-1 ${realignNote.ok ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>{realignNote.text}</p>
+                            )}
+                        </div>
                     )}
 
                     {/* Lyrics Section */}

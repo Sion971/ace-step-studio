@@ -57,6 +57,14 @@ describe('parseWhisperJson', () => {
     ] });
     expect(parseWhisperJson(raw)?.text).toBe('[Verse 1]\nDieu est esprit\n\n[Verse 2]\nil faut');
   });
+  it('also gives the phrases as synchronised lyrics (LRC) at the times they are heard', () => {
+    const raw = JSON.stringify({ language: 'fr', segments: [
+      { start: 0, end: 20, text: ' Dieu est esprit il faut', words: [{ word: ' Dieu', start: 12.3, end: 12.6 }, { word: ' est', start: 12.7, end: 12.9 }, { word: ' esprit', start: 13, end: 13.4 }, { word: ' il', start: 61.5, end: 61.7 }, { word: ' faut', start: 61.8, end: 62 }] },
+    ] });
+    expect(parseWhisperJson(raw)?.lrc).toBe('[00:12.30]Dieu est esprit\n[01:01.50]il faut');
+    // No times, no LRC.
+    expect(parseWhisperJson('{"text":" salut ","language":"fr"}')?.lrc).toBeUndefined();
+  });
   it('falls back on the whole text, and gives up on garbage', () => {
     expect(parseWhisperJson('{"text":" salut ","language":"fr"}')).toEqual({ text: 'salut', language: 'fr' });
     expect(parseWhisperJson('not json')).toBeNull();

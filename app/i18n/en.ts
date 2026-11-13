@@ -268,6 +268,13 @@ export const en = {
     enterPexelsApiKey: 'Enter your Pexels API key...',
     searchBackgrounds: 'Search for backgrounds...',
     downloadLrc: 'Download LRC (Lyrics)',
+    realignLyrics: "Realign the lyrics (Whisper)",
+    realignLyricsRunning: "Listening to the song…",
+    realignLyricsDone: "Lyrics realigned: {heard} of {total} lines heard.",
+    realignLyricsNoWhisper: "Whisper is not installed: run the installer again.",
+    realignLyricsTooFew: "Whisper heard too few words of the lyrics: the timing was left as it was.",
+    realignLyricsFailed: "Realigning the lyrics failed:",
+    realignLyricsHint: "Times each line of the synchronised lyrics from what Whisper hears in the song. The written lyrics are not changed.",
 
     // Video Studio
     videoStudio: 'Video Studio',

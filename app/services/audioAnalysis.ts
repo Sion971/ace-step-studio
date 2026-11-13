@@ -15,6 +15,8 @@ export interface AudioAnalysis {
   timeSignature: string;
   /** Whisper: a real transcription. model: the language model's estimate (often wrong). */
   lyricsSource?: 'whisper' | 'model';
+  /** Whisper's lyrics with their times (LRC): the synchronised lyrics of an imported audio. */
+  lrc?: string;
 }
 
 export type AnalysisFieldId = 'caption' | 'lyrics' | 'bpm' | 'keyScale' | 'timeSignature' | 'duration' | 'language';

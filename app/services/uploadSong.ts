@@ -28,6 +28,8 @@ export function uploadToSong(track: UploadTrackLike, createdAt: Date = new Date(
     createdAt,
     tags: [],
     audioUrl: track.audio_url,
+    // Whisper's timed lyrics, so that the Video Studio and the player show them (an import has no LRC from the engine).
+    lrcContent: a?.lrc || undefined,
     isPublic: false,
     bpm: a?.bpm || undefined,
     keyScale: a?.keyScale || undefined,

@@ -18,6 +18,8 @@ export interface AudioAnalysis {
   timeSignature: string;
   /** Where the lyrics and the language come from: Whisper (a real transcription) or, when absent, the language model (an estimate). */
   lyricsSource?: 'whisper' | 'model';
+  /** The lyrics heard by Whisper as synchronised lyrics (LRC), for the video and the player of an imported audio. */
+  lrc?: string;
 }
 
 const text = (v: unknown): string => (typeof v === 'string' && v.trim().toUpperCase() !== 'N/A' ? v.trim() : '');
@@ -62,7 +64,7 @@ export interface WhisperDeps {
   /** The audio file's bytes and name, or null when it cannot be read. */
   readAudio: () => Promise<{ buffer: Buffer; name: string } | null>;
   /** null: Whisper is missing or failed. */
-  transcribe: (buffer: Buffer, name: string) => Promise<{ text: string; language: string } | null>;
+  transcribe: (buffer: Buffer, name: string) => Promise<{ text: string; language: string; lrc?: string } | null>;
 }
 
 /**
@@ -80,6 +82,7 @@ export async function withWhisperLyrics(analysis: AudioAnalysis, deps: WhisperDe
         lyrics: heard.text,
         language: heard.language || analysis.language,
         lyricsSource: 'whisper',
+        ...(heard.text && heard.lrc ? { lrc: heard.lrc } : {}),
         available: analysis.available || Boolean(heard.text || heard.language),
       };
     }

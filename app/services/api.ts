@@ -386,6 +386,10 @@ export const songsApi = {
     return res.json();
   },
 
+  // Time the synchronised lyrics again from what Whisper hears in the song (the engine's LRC is often wrong at the start).
+  realignLyrics: (id: string, token: string): Promise<{ lrcContent: string; matchedWords: number; totalWords: number; heardLines: number; totalLines: number }> =>
+    api(`/api/songs/${id}/realign-lyrics`, { method: 'POST', token }),
+
   // Can this machine make AI covers? (No in processor mode, or when the local image model cannot start.)
   coverAiStatus: (token: string): Promise<{ available: boolean; reason?: string; detail?: string }> =>
     api('/api/songs/cover-ai-status', { token }),

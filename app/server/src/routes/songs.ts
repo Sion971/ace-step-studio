@@ -8,6 +8,10 @@ import { parseExportFormat, stretchAudio, transcodeAudio } from '../services/aud
 import { getStorageProvider } from '../services/storage/factory.js';
 import { updateMp3Cover } from '../services/id3-tagger.js';
 import { aiCover, AiCoverError } from '../services/ai-cover.js';
+import { findWhisperExecutable, transcribeWordsWithWhisper } from '../services/whisper.js';
+import { alignLyrics } from '../services/lyrics-align.js';
+import { audioKeyFromUrl, songVocalLanguage } from '../services/song-fields.js';
+import { blockWhileTraining } from '../middleware/training-busy.js';
 
 // 10MB cap — a 512×512 AI cover is about 60KB; this leaves room for a photo the user uploads.
 const coverUpload = multer({
@@ -527,6 +531,66 @@ router.patch('/:id', authMiddleware, async (req: AuthenticatedRequest, res: Resp
     res.json({ song: result.rows[0] });
   } catch (error) {
     console.error('Update song error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/** Under this share of lyric words heard, Whisper heard too little for its times to be trusted. */
+const MIN_HEARD_SHARE = 0.25;
+
+// Time the synchronised lyrics (LRC) again from what Whisper hears in the song. The engine's own LRC comes from the
+// model's attention and often packs the first lines at 00:00 or starts them during the intro.
+router.post('/:id/realign-lyrics', authMiddleware, blockWhileTraining, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const found = await pool.query('SELECT user_id, lyrics, audio_url, duration, generation_params FROM songs WHERE id = $1', [req.params.id]);
+    if (found.rows.length === 0) {
+      res.status(404).json({ error: 'Song not found' });
+      return;
+    }
+    const song = found.rows[0];
+    if (song.user_id !== req.user!.id) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+    const lyrics = typeof song.lyrics === 'string' ? song.lyrics.trim() : '';
+    if (!lyrics || /^\[instrumental\]$/i.test(lyrics)) {
+      res.status(422).json({ error: 'This song has no lyrics to time.', code: 'NO_LYRICS' });
+      return;
+    }
+    if (!(await findWhisperExecutable())) {
+      res.status(503).json({ error: 'Whisper is not installed: run the installer again, or pip install openai-whisper in the Studio environment.', code: 'NO_WHISPER' });
+      return;
+    }
+    const key = audioKeyFromUrl(song.audio_url);
+    const storage = getStorageProvider();
+    if (!key || !storage.read) {
+      res.status(422).json({ error: 'The audio file of this song cannot be read here.', code: 'NO_AUDIO' });
+      return;
+    }
+    const audio = await storage.read(key);
+    const language = songVocalLanguage(song.generation_params);
+    const started = Date.now();
+    const heard = await transcribeWordsWithWhisper(audio, key, language);
+    if (!heard) {
+      res.status(502).json({ error: 'Whisper failed on this song (see the server terminal).', code: 'WHISPER_FAILED' });
+      return;
+    }
+    const result = alignLyrics(lyrics, heard.words, Number(song.duration) || undefined);
+    const share = result.totalWords ? result.matchedWords / result.totalWords : 0;
+    const heardLines = result.lines.filter((l) => !l.isSection && l.heard).length;
+    const sungLines = result.lines.filter((l) => !l.isSection).length;
+    console.log(`[Lyrics] realigned "${req.params.id}" with Whisper in ${((Date.now() - started) / 1000).toFixed(1)} s: ${result.matchedWords}/${result.totalWords} words, ${heardLines}/${sungLines} lines heard (language ${language || 'auto'} -> ${heard.language || '?'})`);
+    if (share < MIN_HEARD_SHARE) {
+      res.status(422).json({
+        error: `Whisper recognised only ${result.matchedWords} of ${result.totalWords} words of the lyrics: the synchronised lyrics were left as they were.`,
+        code: 'TOO_FEW_WORDS', matchedWords: result.matchedWords, totalWords: result.totalWords,
+      });
+      return;
+    }
+    await pool.query('UPDATE songs SET lrc_content = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [result.lrc, req.params.id]);
+    res.json({ lrcContent: result.lrc, matchedWords: result.matchedWords, totalWords: result.totalWords, heardLines, totalLines: sungLines });
+  } catch (error) {
+    console.error('Realign lyrics error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

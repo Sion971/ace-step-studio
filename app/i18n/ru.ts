@@ -269,6 +269,13 @@ export const ru = {
     enterPexelsApiKey: 'Введите ваш Pexels API ключ...',
     searchBackgrounds: 'Поиск фонов...',
     downloadLrc: 'Скачать LRC (текст песни)',
+    realignLyrics: "Выровнять текст по времени (Whisper)",
+    realignLyricsRunning: "Прослушивание песни…",
+    realignLyricsDone: "Текст выровнен: распознано {heard} из {total} строк.",
+    realignLyricsNoWhisper: "Whisper не установлен: запустите установщик ещё раз.",
+    realignLyricsTooFew: "Whisper распознал слишком мало слов текста: тайминг оставлен без изменений.",
+    realignLyricsFailed: "Не удалось выровнять текст:",
+    realignLyricsHint: "Задаёт время каждой строки синхронизированного текста по тому, что Whisper слышит в песне. Сам текст не меняется.",
 
     // Video Studio
     videoStudio: 'Видео Студия',
