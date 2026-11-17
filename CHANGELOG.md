@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-17
+
+### Fixed
+- A song started right after choosing another model in the Create tab failed with "Model not fully initialized" (seen twice in a row: with the 2B Base, then with a merge). The model is reloaded inside the running engine, so the engine kept answering and the Studio sent the song before the new model was ready. Generations now wait for the model change to finish, up to 5 minutes (`services/model-switch.ts`, 4 tests).
+
 ## 2026-11-16
 
 ### Added

@@ -1223,6 +1223,9 @@ router.post('/switch-model', authMiddleware, blockWhileTraining, async (req: Aut
 
   // Pause health checks during model switch to prevent zombie kill
   pipelineManager.pauseHealthCheck();
+  // Generations sent meanwhile wait for the new model (services/model-switch.ts).
+  const { beginModelSwitch } = await import('../services/model-switch.js');
+  const endModelSwitch = beginModelSwitch();
 
   // Check if DiT is actually changing
   const ditBasename = (n: string) => n.replace(/^.*\//, '').replace(/[\\/]+$/, '');
@@ -1284,6 +1287,8 @@ router.post('/switch-model', authMiddleware, blockWhileTraining, async (req: Aut
     modelLoadingStatus = { state: 'error', model: error.message };
     pipelineManager.resumeHealthCheck();
     res.status(500).json({ error: `Model switch failed: ${error.message}` });
+  } finally {
+    endModelSwitch();
   }
 });
 

@@ -14,6 +14,7 @@ import { clampLevel, mixSkipReason, mixStemWithSource, shouldMix } from './track
 import { classifyGenerationFailure, friendlyTimeoutMessage, friendlyCudaRestartMessage, CudaFailureTracker } from './generation-errors.js';
 import { aiCover, waitForCoverBeforeGeneration } from './ai-cover.js';
 import { pipelineManager } from './pipeline-manager.js';
+import { isModelSwitching, waitForModelSwitch } from './model-switch.js';
 import { getGradioClient, resetGradioClient, isGradioAvailable, callInitServiceWrapper, fetchCurrentInitServiceValues, MAIN_MODEL_PATH_COMPONENT_ID } from './gradio-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -708,6 +709,17 @@ async function processGeneration(
     if (!gradioUp) {
       job.status = 'failed';
       job.error = 'Gradio pipeline not available after 2 minutes';
+      return;
+    }
+  }
+
+  // A model being loaded (the model was just changed in the Create tab): the engine answers but cannot generate yet.
+  if (isModelSwitching()) {
+    job.stage = 'Ожидание загрузки модели...';
+    console.log(`[${jobId}] Waiting for the model change to finish before generating...`);
+    if (!(await waitForModelSwitch(5 * 60_000))) {
+      job.status = 'failed';
+      job.error = 'The model was still loading after 5 minutes';
       return;
     }
   }
