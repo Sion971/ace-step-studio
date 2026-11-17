@@ -35,3 +35,13 @@ describe('model change in progress', () => {
     expect(isModelSwitching()).toBe(false);
   });
 });
+
+describe('the waiting label', () => {
+  it('is a translation key, not Russian text shown as it is (seen on 2026-11-17)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('./acestep.ts', import.meta.url), 'utf8');
+    const stages = [...source.matchAll(/job\.stage = '([^']*)'/g)].map((m) => m[1]);
+    expect(stages).toContain('modelLoading');
+    for (const stage of stages) expect(stage).not.toMatch(/[А-Яа-яЁё]/);
+  });
+});

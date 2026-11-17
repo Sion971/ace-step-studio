@@ -700,7 +700,7 @@ async function processGeneration(
   // Wait for Gradio if it's loading/switching
   let gradioUp = await isGradioAvailable();
   if (!gradioUp) {
-    job.stage = 'Ожидание загрузки модели...';
+    job.stage = 'modelLoading'; // i18n key (SongList shows t(stage)): "Chargement du modèle..."
     for (let i = 0; i < 60; i++) {
       await new Promise(r => setTimeout(r, 2000));
       gradioUp = await isGradioAvailable();
@@ -715,7 +715,7 @@ async function processGeneration(
 
   // A model being loaded (the model was just changed in the Create tab): the engine answers but cannot generate yet.
   if (isModelSwitching()) {
-    job.stage = 'Ожидание загрузки модели...';
+    job.stage = 'modelLoading'; // i18n key (SongList shows t(stage)): "Chargement du modèle..."
     console.log(`[${jobId}] Waiting for the model change to finish before generating...`);
     if (!(await waitForModelSwitch(5 * 60_000))) {
       job.status = 'failed';
