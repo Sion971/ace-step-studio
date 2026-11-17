@@ -540,6 +540,7 @@ export const SongList: React.FC<SongListProps> = ({
                                     onPlay={() => onPlay(uploadToSong(item.track, item.createdAt))}
                                     onUseAsReference={() => onUseUploadAsReference?.(item.track)}
                                     onCoverSong={() => onCoverUpload?.(item.track)}
+                                    onOpenVideo={onOpenVideo ? () => onOpenVideo(uploadToSong(item.track, item.createdAt)) : undefined}
                                 />
                             )
                         ))
@@ -990,7 +991,9 @@ const UploadItem: React.FC<{
     onPlay: () => void;
     onUseAsReference?: () => void;
     onCoverSong?: () => void;
-}> = ({ track, onPlay, onUseAsReference, onCoverSong }) => {
+    /** Video Studio for the import (its cover and its timed lyrics from the analysis). */
+    onOpenVideo?: () => void;
+}> = ({ track, onPlay, onUseAsReference, onCoverSong, onOpenVideo }) => {
     return (
         <SongItem
             song={uploadToSong(track)}
@@ -1006,7 +1009,7 @@ const UploadItem: React.FC<{
             onToggleSelect={() => undefined}
             onToggleLike={() => undefined}
             onAddToPlaylist={() => undefined}
-            onOpenVideo={() => undefined}
+            onOpenVideo={() => onOpenVideo?.()}
             onShowDetails={() => undefined}
             onNavigateToProfile={() => undefined}
             onReusePrompt={undefined}

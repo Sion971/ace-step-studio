@@ -35,6 +35,7 @@ export const STUDIO_MODELS: Record<string, ModelSpec & { vramMin: number }> = {
   'acestep-v15-xl-turbo': { family: 'turbo', size: 'XL', vramMin: 12 },
   'acestep-v15-xl-turbo-bf16': { family: 'turbo', size: 'XL', vramMin: 8 },
   'acestep-v15-xl-merge-sft-turbo': { family: 'other', size: 'XL', vramMin: 12 },
+  'acestep-v15-xl-merge-base-turbo30': { family: 'other', size: 'XL', vramMin: 8 },
 };
 
 /** What can be read from a model name written by a person ("AceStep v1.5 Turbo (2B)") or by the Studio ("acestep-v15-xl-base"). */

@@ -370,6 +370,9 @@ class TestModelCodeSync(unittest.TestCase):
         self.assertEqual(self.mod._CHECKPOINT_TO_VARIANT["acestep-v15-xl-turbo-bf16"], "xl_turbo")
         self.assertEqual(self.mod._CHECKPOINT_TO_VARIANT["acestep-v15-xl-base-bf16"], "xl_base")
 
+    def test_the_base_turbo_merge_uses_the_xl_base_code(self):
+        self.assertEqual(self.mod._CHECKPOINT_TO_VARIANT["acestep-v15-xl-merge-base-turbo30"], "xl_base")
+
     def test_every_variant_has_its_code(self):
         models = Path(os.path.dirname(__file__)) / "models"
         for name, variant in self.mod._CHECKPOINT_TO_VARIANT.items():

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MODEL_DOWNLOADS, LISTED_DIT_MODELS, downloadArgs, isDownloadableModel } from './model-downloads.js';
+import { MODEL_DOWNLOADS, LISTED_DIT_MODELS, downloadArgs, downloadPlan, isDownloadableModel } from './model-downloads.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const source = (relative: string) => readFileSync(path.join(here, relative), 'utf-8');
@@ -52,6 +52,16 @@ describe('downloading', () => {
     expect(downloadArgs('acestep-v15-turbo', CHECKPOINTS)).toEqual(['download', 'ACE-Step/Ace-Step1.5', '--include', 'acestep-v15-turbo/*', '--local-dir', CHECKPOINTS]);
   });
 
+  it('the Base+Turbo merge is a folder deep in its repository: only that folder (not the GGUF copy), staged, then moved to checkpoints/<model>', () => {
+    const plan = downloadPlan('acestep-v15-xl-merge-base-turbo30', CHECKPOINTS)!;
+    const staging = path.join(CHECKPOINTS, '.download-acestep-v15-xl-merge-base-turbo30');
+    expect(plan.args).toEqual(['download', 'Astral01/Ace-Step_v1.5_XL_Base_Turbo_0.3_Merge', '--include', 'safetensors/acestep-v15-merge-base-turbo-xl-ta-0.3/*', '--local-dir', staging]);
+    expect(plan.moveFrom).toBe(path.join(staging, 'safetensors', 'acestep-v15-merge-base-turbo-xl-ta-0.3'));
+    expect(plan.staging).toBe(staging);
+    // The other models need no move.
+    expect(downloadPlan('acestep-v15-base', CHECKPOINTS)!.moveFrom).toBeUndefined();
+  });
+
   it('an unknown model has no source, and a name that is a property of every object is not a model', () => {
     for (const unknown of ['my-finetune', '', 'acestep-v15-nope', '../etc', 'constructor', '__proto__', 'hasOwnProperty']) {
       expect(isDownloadableModel(unknown), unknown).toBe(false);
@@ -66,8 +76,12 @@ describe('the routes use this table, not a copy of it', () => {
   it('routes/generate.ts takes the list and the sources from here', () => {
     expect(generate).toContain("from '../services/model-downloads.js'");
     expect(generate).toContain('[...LISTED_DIT_MODELS]');
-    expect(generate).toContain('downloadArgs(model');
+    expect(generate).toContain('downloadPlan(model');
     expect(generate).toContain('isDownloadableModel(model)');
+  });
+
+  it('never renames a shard of a sharded model (the merge comes in 4 shards and an index)', () => {
+    expect(generate).toContain("!existsSync(path.join(modelDir, 'model.safetensors.index.json'))");
   });
 
   it('and no longer holds a table of its own, nor the "XL only" list that hid the 2B models', () => {

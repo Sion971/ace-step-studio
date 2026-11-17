@@ -327,6 +327,7 @@ export const en = {
     modelDescBf16: '4B BF16, compact',
     modelDescXlBaseBf16: '4B BF16 base, compact',
     modelDescMerge: '4B SFT+Turbo merge, community',
+    modelDescMergeBaseTurbo: "4B Base 70% + Turbo 30% merge, community",
     // 2B family — the only models comfortable under 8 GB of VRAM
     modelDescBase: '2B, versatile',
     modelDescSft2b: '2B, refined',

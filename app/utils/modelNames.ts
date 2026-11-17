@@ -26,6 +26,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   'acestep-v15-xl-turbo-bf16': 'XL Turbo BF16',
   'acestep-v15-xl-base-bf16': 'XL Base BF16',
   'acestep-v15-xl-merge-sft-turbo': 'XL Merge SFT+Turbo',
+  'acestep-v15-xl-merge-base-turbo30': 'XL Merge Base+Turbo 30%',
 };
 
 /**
@@ -116,6 +117,12 @@ export const MODEL_INFO: Record<string, ModelInfoEntry> = {
   'acestep-v15-xl-merge-sft-turbo': {
     size: '19.9 GB', steps: 50, vramMin: 12,
     descKey: 'modelDescMerge', descFallback: '4B SFT+Turbo merge',
+  },
+  // Community merge 70 % Base + 30 % Turbo (Astral01): 4 shards in bf16. Tested on an RTX 5060 8 GB in small-card mode; 24 steps,
+  // guidance 3, shift 1 was judged the best compromise (fuller than the Turbo, lyrics followed, unlike the XL Base bf16).
+  'acestep-v15-xl-merge-base-turbo30': {
+    size: '10 GB', steps: 24, vramMin: 8,
+    descKey: 'modelDescMergeBaseTurbo', descFallback: '4B Base 70% + Turbo 30% merge, community',
   },
 };
 

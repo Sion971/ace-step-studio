@@ -10,7 +10,7 @@ import { config } from '../config/index.js';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { blockWhileTraining } from '../middleware/training-busy.js';
 import { getGradioClient } from '../services/gradio-client.js';
-import { LISTED_DIT_MODELS, LISTED_LM_MODELS, downloadArgs, isDownloadableModel, isLmModel } from '../services/model-downloads.js';
+import { LISTED_DIT_MODELS, LISTED_LM_MODELS, downloadArgs, downloadPlan, isDownloadableModel, isLmModel } from '../services/model-downloads.js';
 import {
   generateMusicViaAPI,
   getJobStatus,
@@ -1302,6 +1302,7 @@ router.get('/download-model', authMiddleware, async (req: AuthenticatedRequest, 
 
   const ACESTEP_DIR = process.env.ACESTEP_PATH || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../ACE-Step-1.5');
   const modelDir = path.join(ACESTEP_DIR, 'checkpoints', model);
+  const plan = downloadPlan(model, path.join(ACESTEP_DIR, 'checkpoints'))!;
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
@@ -1317,7 +1318,7 @@ router.get('/download-model', authMiddleware, async (req: AuthenticatedRequest, 
   const { spawn } = await import('child_process');
   const pythonPath = resolvePythonPath(ACESTEP_DIR);
   const proc = spawn(pythonPath, [
-    '-m', 'huggingface_hub.commands.huggingface_cli', ...downloadArgs(model, path.join(ACESTEP_DIR, 'checkpoints'))!,
+    '-m', 'huggingface_hub.commands.huggingface_cli', ...plan.args,
   ], {
     env: { ...process.env, PYTHONIOENCODING: 'utf-8', HF_HUB_ENABLE_HF_TRANSFER: '1' },
   });
@@ -1340,9 +1341,17 @@ router.get('/download-model', authMiddleware, async (req: AuthenticatedRequest, 
     if (code === 0) {
       // Post-process: rename safetensors + copy config from reference model
       try {
-        const { readdirSync, existsSync, copyFileSync, renameSync } = await import('fs');
-        // Rename first .safetensors to model.safetensors if needed
-        if (!existsSync(path.join(modelDir, 'model.safetensors'))) {
+        const { readdirSync, existsSync, copyFileSync, renameSync, mkdirSync, rmSync } = await import('fs');
+        // A model kept in a folder of its repository: its files move from the staging folder to checkpoints/<model>.
+        if (plan.moveFrom && plan.staging) {
+          mkdirSync(modelDir, { recursive: true });
+          for (const f of readdirSync(plan.moveFrom)) renameSync(path.join(plan.moveFrom, f), path.join(modelDir, f));
+          rmSync(plan.staging, { recursive: true, force: true });
+          send({ status: 'progress', message: `Moved to checkpoints/${model}` });
+        }
+        // Rename a single .safetensors to model.safetensors if needed. Never a shard of a sharded model: its index names every
+        // shard, and renaming the first one would break the model.
+        if (!existsSync(path.join(modelDir, 'model.safetensors')) && !existsSync(path.join(modelDir, 'model.safetensors.index.json'))) {
           const files = readdirSync(modelDir).filter(f => f.endsWith('.safetensors'));
           if (files.length > 0) {
             renameSync(path.join(modelDir, files[0]), path.join(modelDir, 'model.safetensors'));
@@ -1481,6 +1490,7 @@ router.get('/models', async (_req, res: Response) => {
       'acestep-v15-xl-turbo-bf16',
       'acestep-v15-xl-base-bf16',
       'acestep-v15-xl-merge-sft-turbo',
+      'acestep-v15-xl-merge-base-turbo30',
     ]);
 
     const models = ALL_DIT_MODELS.map(name => ({

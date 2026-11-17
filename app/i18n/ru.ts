@@ -328,6 +328,7 @@ export const ru = {
     modelDescBf16: '4B BF16, компактная',
     modelDescXlBaseBf16: '4B BF16 базовая, компактная',
     modelDescMerge: '4B SFT+Turbo мерж, комьюнити',
+    modelDescMergeBaseTurbo: "4B слияние Base 70% + Turbo 30%, сообщество",
     inQueue: 'в очереди',
     uploadForCover: 'Загрузить аудио для Cover / Remix',
     samplerMode: 'Сэмплер',

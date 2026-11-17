@@ -70,6 +70,9 @@ _CHECKPOINT_TO_VARIANT: Dict[str, str] = {
     # they ran the code shipped with the weights, which lacks DCW, the extra samplers, retake and stopping a generation.
     "acestep-v15-xl-base-bf16": "xl_base",
     "acestep-v15-xl-turbo-bf16": "xl_turbo",
+    # Community merge 70 % XL Base + 30 % XL Turbo (Astral01): an XL Base architecture (config model_version "base", is_turbo
+    # false). Its folder ships the stock xl_base code, which imports an apg_guidance.py it does not include.
+    "acestep-v15-xl-merge-base-turbo30": "xl_base",
 }
 
 

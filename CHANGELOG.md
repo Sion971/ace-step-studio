@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-16
+
+### Added
+- **XL Merge Base+Turbo 30%** in the model menu, with its download: the community merge of Astral01 (70 % XL Base, 30 % XL Turbo, bf16, 10 GB in 4 shards, from `Astral01/Ace-Step_v1.5_XL_Base_Turbo_0.3_Merge`). Only its safetensors folder is fetched (the repository also holds a GGUF copy), into a hidden staging folder, then moved to `checkpoints/acestep-v15-xl-merge-base-turbo30` (`downloadPlan`, tests). A folder already installed under that name is found as before and now shows as a known model. The engine gives it its own XL Base code (`_CHECKPOINT_TO_VARIANT`): the code shipped with the weights imports a file the folder lacks. Shown for cards of 8 GB and more; tested on an RTX 5060 8 GB in small-card mode, 24 steps, guidance 3, shift 1.
+
+### Fixed
+- An imported audio could not be made into a video: the video buttons of its row (and of its "…" menu) did nothing. They open the Video Studio with the import, its cover and its timed lyrics (`SongList.uploadVideo.test.tsx`).
+- Downloading a model in several shards renamed the first shard to `model.safetensors`, which broke the model (its index names every shard). The rename is now only done for a model in a single file.
+
 ## 2026-11-13 (imported covers)
 
 ### Fixed

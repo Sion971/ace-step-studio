@@ -15,6 +15,10 @@
 // The language models (LM) are listed in a second table: same download mechanism, but they are not DiT models (no menu of DiT models, no post-processing of the download).
 //  - acestep-5Hz-lm-0.6B and acestep-5Hz-lm-4B have a repository each (SUBMODEL_REGISTRY of the engine's model_downloader.py).
 //  - acestep-5Hz-lm-1.7B is a folder of the main repository ACE-Step/Ace-Step1.5 (about 3.5 GB), fetched alone like the 2B turbo.
+//
+// The community XL Base/Turbo merge (70 % Base, 30 % Turbo, "task arithmetic") of Astral01 keeps its model deep in the repository
+// (safetensors/acestep-v15-merge-base-turbo-xl-ta-0.3/: config, 4 shards of 2.49 GB, index, model code, silence latent; the repository
+// also holds a GGUF copy, not wanted): only that folder is fetched, into a staging folder, then moved to checkpoints/<model>.
 
 import path from 'path';
 
@@ -23,6 +27,8 @@ export interface ModelDownload {
   repo: string;
   /** Only this part of the repository (a `--include` pattern). Its files carry their own folder: they go to checkpoints/, not to checkpoints/<model>/. */
   include?: string;
+  /** The model is this folder of the repository (not its root): fetched alone, then moved to checkpoints/<model>. */
+  folder?: string;
 }
 
 /** Download source of every model the Studio can fetch. The key is the folder name in checkpoints/, never prefixed by an organisation. */
@@ -35,6 +41,7 @@ export const MODEL_DOWNLOADS: Record<string, ModelDownload> = {
   'acestep-v15-xl-turbo-bf16': { repo: 'marcorez8/acestep-v15-xl-turbo-bf16' },
   'acestep-v15-xl-base-bf16': { repo: 'marcorez8/acestep-v15-xl-base-bf16' },
   'acestep-v15-xl-merge-sft-turbo': { repo: 'jeankassio/acestep_v1.5_merge_sft_turbo_xl' },
+  'acestep-v15-xl-merge-base-turbo30': { repo: 'Astral01/Ace-Step_v1.5_XL_Base_Turbo_0.3_Merge', folder: 'safetensors/acestep-v15-merge-base-turbo-xl-ta-0.3' },
   // 2B
   'acestep-v15-turbo': { repo: 'ACE-Step/Ace-Step1.5', include: 'acestep-v15-turbo/*' },
   'acestep-v15-sft': { repo: 'ACE-Step/acestep-v15-sft' },
@@ -62,6 +69,7 @@ export const LISTED_DIT_MODELS: readonly string[] = [
   'acestep-v15-xl-turbo-bf16',
   'acestep-v15-xl-base-bf16',
   'acestep-v15-xl-merge-sft-turbo',
+  'acestep-v15-xl-merge-base-turbo30',
   'acestep-v15-turbo',
   'acestep-v15-sft',
   'acestep-v15-base',
@@ -75,8 +83,26 @@ export const isDownloadableModel = (model: string): boolean => Object.prototype.
  * Own-repository models go to checkpoints/<model>; a model that is a folder of a larger repository (`include`) is fetched alone, into checkpoints/.
  */
 export function downloadArgs(model: string, checkpointsDir: string): string[] | null {
+  return downloadPlan(model, checkpointsDir)?.args ?? null;
+}
+
+export interface DownloadPlan {
+  /** Arguments of huggingface-cli. */
+  args: string[];
+  /** For a model kept in a folder of its repository: where the files land, to be moved to checkpoints/<model>, and the staging folder to remove after. */
+  moveFrom?: string;
+  staging?: string;
+}
+
+/** How to download `model`: the huggingface-cli arguments, and for a model kept deep in its repository, the move that finishes it. */
+export function downloadPlan(model: string, checkpointsDir: string): DownloadPlan | null {
   if (!isDownloadableModel(model)) return null;
-  const { repo, include } = isLmModel(model) ? LM_DOWNLOADS[model] : MODEL_DOWNLOADS[model];
-  if (include) return ['download', repo, '--include', include, '--local-dir', checkpointsDir];
-  return ['download', repo, '--local-dir', path.join(checkpointsDir, model)];
+  const { repo, include, folder } = isLmModel(model) ? LM_DOWNLOADS[model] : MODEL_DOWNLOADS[model];
+  if (folder) {
+    // A hidden staging folder next to the models: the menu scan skips it (no weights at its top), and a failed download leaves no half model.
+    const staging = path.join(checkpointsDir, `.download-${model}`);
+    return { args: ['download', repo, '--include', `${folder}/*`, '--local-dir', staging], moveFrom: path.join(staging, ...folder.split('/')), staging };
+  }
+  if (include) return { args: ['download', repo, '--include', include, '--local-dir', checkpointsDir] };
+  return { args: ['download', repo, '--local-dir', path.join(checkpointsDir, model)] };
 }
