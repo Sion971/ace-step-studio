@@ -73,6 +73,39 @@ describe('AudioAnalysisDialog', () => {
     expect(setters.setLyrics).toHaveBeenCalledWith('[Chorus]\nMerci Seigneur pour chaque grâce');
   });
 
+  it('keeps the corrected lyrics with the imported audio, so its video shows them', async () => {
+    const calls: Array<{ url: string; body: any }> = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: any) => {
+      calls.push({ url, body: JSON.parse(init.body) });
+      const body = url.endsWith('/lyrics') ? { saved: true, retimed: true } : { analysis: { ...full, lyricsSource: 'whisper' }, saved: true };
+      return { ok: true, status: 200, statusText: 'ok', json: async () => body };
+    }));
+    const { AudioAnalysisDialog } = await import('./AudioAnalysisDialog');
+    const { I18nProvider } = await import('../context/I18nContext');
+    const setters = { setStyle: vi.fn(), setLyrics: vi.fn(), setBpm: vi.fn(), setKeyScale: vi.fn(), setTimeSignature: vi.fn(), setDuration: vi.fn(), setVocalLanguage: vi.fn() };
+    const onSaved = vi.fn();
+    const host = document.createElement('div'); document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root!.render(<I18nProvider><AudioAnalysisDialog audioUrl="/audio/a.mp3" title="a" token="t" filled={{}} setters={setters} onSaved={onSaved} autoOpen onAutoOpenChange={() => {}} onClose={() => {}} /></I18nProvider>);
+    });
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    onSaved.mockClear();
+    await type(document.querySelector('[data-testid="analysis-lyrics-text"]') as HTMLTextAreaElement, 'Merci Seigneur pour chaque grâce');
+    await act(async () => { (document.querySelector('[data-testid="analysis-apply"]') as HTMLButtonElement).click(); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(calls.at(-1)).toEqual({ url: '/api/audio-analysis/lyrics', body: { audioUrl: '/audio/a.mp3', lyrics: 'Merci Seigneur pour chaque grâce' } });
+    expect(onSaved).toHaveBeenCalled();
+  });
+
+  it('sends nothing more when the lyrics were not corrected', async () => {
+    await mount({ status: 200, body: { analysis: { ...full, lyricsSource: 'whisper' }, saved: true } });
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    const before = fetchMock.mock.calls.length;
+    await act(async () => { (document.querySelector('[data-testid="analysis-apply"]') as HTMLButtonElement).click(); });
+    expect(fetchMock.mock.calls.length).toBe(before);
+  });
+
   it('ticks a field when its text is corrected, and can go back to what was heard', async () => {
     const { setters } = await mount({ status: 200, body: { analysis: full } });
     // The model's lyrics (no Whisper) start unchecked; correcting them ticks them.

@@ -4,9 +4,9 @@ import { prepareAudioFile, hasUnfinishedGeneration, resolveAudioPath } from '../
 import { getGradioClient } from '../services/gradio-client.js';
 import { promises as fsp } from 'fs';
 import path from 'path';
-import { analyzeAudio, withWhisperLyrics } from '../services/audio-analysis.js';
-import { transcribeWithWhisperDetailed } from '../services/whisper.js';
-import { findTrackIdByUrl, saveTrackAnalysis } from '../services/track-analysis.js';
+import { analyzeAudio, compactWords, expandWords, withWhisperLyrics } from '../services/audio-analysis.js';
+import { transcribeWithWhisperDetailed, transcribeWordsWithWhisper } from '../services/whisper.js';
+import { findTrackIdByUrl, loadTrackAnalysis, saveTrackAnalysis, withCorrectedLyrics } from '../services/track-analysis.js';
 
 const router = Router();
 
@@ -58,6 +58,49 @@ router.post('/', authMiddleware, async (req: AuthenticatedRequest, res: Response
     res.status(500).json({ error: error instanceof Error ? error.message : 'Analysis failed' });
   } finally {
     busy = false;
+  }
+});
+
+// POST /api/audio-analysis/lyrics  { audioUrl, lyrics }  ->  { saved, retimed, matchedWords, totalWords }
+// The lyrics corrected by hand in the analysis window, kept with the imported audio: its analysis takes the corrected text, and its
+// synchronised lyrics (used by the video and the player) are timed again from the words Whisper heard. An analysis made before the
+// words were kept gets them from one more Whisper run (about half a minute for a song).
+router.post('/lyrics', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  const audioUrl = typeof req.body?.audioUrl === 'string' ? req.body.audioUrl : '';
+  const lyrics = typeof req.body?.lyrics === 'string' ? req.body.lyrics.trim() : '';
+  if (!audioUrl || !lyrics) {
+    res.status(400).json({ error: 'audioUrl and lyrics are required' });
+    return;
+  }
+  try {
+    const trackId = req.user ? await findTrackIdByUrl(req.user.id, audioUrl) : null;
+    if (!trackId) {
+      // Not an imported audio (a created song...): nothing is kept, the form already has the text.
+      res.json({ saved: false, retimed: false, matchedWords: 0, totalWords: 0 });
+      return;
+    }
+    const stored = await loadTrackAnalysis(trackId);
+    if (!stored) {
+      res.json({ saved: false, retimed: false, matchedWords: 0, totalWords: 0 });
+      return;
+    }
+    let analysis = stored;
+    if (!analysis.words?.length) {
+      const file = resolveAudioPath(audioUrl);
+      try {
+        const heard = await transcribeWordsWithWhisper(await fsp.readFile(file), path.basename(file), analysis.language);
+        if (heard?.words.length) analysis = { ...analysis, words: compactWords(heard.words) };
+      } catch (error) {
+        console.warn('[Analysis] Whisper words for the corrected lyrics failed:', error);
+      }
+    }
+    const result = withCorrectedLyrics(analysis, lyrics, expandWords(analysis.words || []));
+    await saveTrackAnalysis(trackId, result.analysis);
+    console.log(`[Analysis] corrected lyrics kept with the import: ${result.retimed ? `timed again, ${result.matchedWords}/${result.totalWords} words found` : 'text only (previous timing kept)'}`);
+    res.json({ saved: true, retimed: result.retimed, matchedWords: result.matchedWords, totalWords: result.totalWords });
+  } catch (error) {
+    console.error('[Analysis] corrected lyrics not saved:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Not saved' });
   }
 });
 

@@ -20,7 +20,19 @@ export interface AudioAnalysis {
   lyricsSource?: 'whisper' | 'model';
   /** The lyrics heard by Whisper as synchronised lyrics (LRC), for the video and the player of an imported audio. */
   lrc?: string;
+  /** The words Whisper heard, as [start in seconds, word]: lyrics corrected by hand are timed again from them (lyrics-align.ts). */
+  words?: Array<[number, string]>;
+  /** The lyrics were corrected by hand in the analysis window (the LRC then follows the corrected text). */
+  lyricsEdited?: boolean;
 }
+
+/** The words of a Whisper result in the compact form kept with the analysis (times to the hundredth of a second). */
+export const compactWords = (words: Array<{ start: number; word: string }>): Array<[number, string]> =>
+  words.map((w) => [Math.round(w.start * 100) / 100, w.word]);
+
+/** Back to the form lyrics-align.ts reads. */
+export const expandWords = (words: Array<[number, string]>): Array<{ start: number; end: number; word: string }> =>
+  words.filter((w) => Array.isArray(w) && Number.isFinite(w[0]) && typeof w[1] === 'string').map(([start, word]) => ({ start, end: start, word }));
 
 const text = (v: unknown): string => (typeof v === 'string' && v.trim().toUpperCase() !== 'N/A' ? v.trim() : '');
 const num = (v: unknown): number | null => {
@@ -64,7 +76,7 @@ export interface WhisperDeps {
   /** The audio file's bytes and name, or null when it cannot be read. */
   readAudio: () => Promise<{ buffer: Buffer; name: string } | null>;
   /** null: Whisper is missing or failed. */
-  transcribe: (buffer: Buffer, name: string) => Promise<{ text: string; language: string; lrc?: string } | null>;
+  transcribe: (buffer: Buffer, name: string) => Promise<{ text: string; language: string; lrc?: string; words?: Array<{ start: number; word: string }> } | null>;
 }
 
 /**
@@ -83,6 +95,7 @@ export async function withWhisperLyrics(analysis: AudioAnalysis, deps: WhisperDe
         language: heard.language || analysis.language,
         lyricsSource: 'whisper',
         ...(heard.text && heard.lrc ? { lrc: heard.lrc } : {}),
+        ...(heard.text && heard.words?.length ? { words: compactWords(heard.words) } : {}),
         available: analysis.available || Boolean(heard.text || heard.language),
       };
     }

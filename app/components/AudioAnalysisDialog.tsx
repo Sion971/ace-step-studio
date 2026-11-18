@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useI18n } from '../context/I18nContext';
 import { formatTimeSignature } from '../services/timeSignature';
 import {
-  analyzeAudio, applyAnalysis, availableFields, AnalysisError, isApproximate,
+  analyzeAudio, applyAnalysis, availableFields, AnalysisError, isApproximate, saveCorrectedLyrics,
   type AnalysisFieldId, type AnalysisSetters, type AudioAnalysis,
 } from '../services/audioAnalysis';
 
@@ -50,6 +50,8 @@ export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, f
   const [chosen, setChosen] = useState<Set<AnalysisFieldId>>(new Set());
   // The texts as the user corrected them (lyrics, style); the analysis itself keeps what was heard.
   const [edited, setEdited] = useState<Partial<Record<'lyrics' | 'caption', string>>>({});
+  // The analysis was kept with an imported audio: corrected lyrics are kept with it too (and time its video's lyrics).
+  const [keptWithTrack, setKeptWithTrack] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -58,6 +60,7 @@ export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, f
       .then(({ analysis: a, saved }) => {
         setAnalysis(a);
         setEdited({});
+        setKeptWithTrack(saved);
         setChosen(new Set(availableFields(a).filter((id) => !filled[id] && !isApproximate(id, a))));
         setState('done');
         if (saved) onSaved?.();
@@ -84,7 +87,16 @@ export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, f
     setChosen((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
   };
   const apply = () => {
-    if (analysis) applyAnalysis({ ...analysis, lyrics: textOf('lyrics'), caption: textOf('caption') }, chosen, setters);
+    if (analysis) {
+      const lyrics = textOf('lyrics');
+      applyAnalysis({ ...analysis, lyrics, caption: textOf('caption') }, chosen, setters);
+      // Corrected lyrics of an imported audio also go to the import: its video then shows them, timed from the words heard.
+      if (keptWithTrack && chosen.has('lyrics') && lyrics.trim() && lyrics !== analysis.lyrics) {
+        saveCorrectedLyrics(audioUrl, lyrics, token)
+          .then(({ saved }) => { if (saved) onSaved?.(); })
+          .catch((e) => console.warn('[Analysis] corrected lyrics not kept with the import:', e));
+      }
+    }
     onClose();
   };
 

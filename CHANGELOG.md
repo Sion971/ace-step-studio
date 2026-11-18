@@ -3,7 +3,7 @@
 ## 2026-11-18
 
 ### Added
-- Audio analysis window (when you import or record an audio): the **lyrics** heard by Whisper and the **style** can be corrected in the window before "Apply the checked fields": wrong words, [Verse] / [Chorus] tags, a passage to leave out. Correcting a text ticks its box; "Undo my changes" brings back what was heard. Only the form receives the corrected text: the import's saved analysis, and the timed lyrics a video uses, stay as Whisper heard them (tests).
+- Audio analysis window (when you import or record an audio): the **lyrics** heard by Whisper and the **style** can be corrected in the window before "Apply the checked fields": wrong words, [Verse] / [Chorus] tags, a passage to leave out. Correcting a text ticks its box; "Undo my changes" brings back what was heard. For an imported audio, the corrected lyrics are also kept with the import: its analysis takes the corrected text, and its synchronised lyrics (used by its video and the player) are timed again from the words Whisper heard (`withCorrectedLyrics`, `POST /api/audio-analysis/lyrics`). The analysis now keeps those words, so no second Whisper run is needed; an import analysed before this change gets them from one more Whisper run (about half a minute). When too few of the corrected words were heard, the text is kept and the previous timing stays (tests).
 
 ## 2026-11-17
 

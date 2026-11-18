@@ -41,6 +41,21 @@ export async function analyzeAudio(audioUrl: string, token: string, signal?: Abo
   return { analysis: body.analysis as AudioAnalysis, saved: Boolean(body.saved) };
 }
 
+/**
+ * Keeps lyrics corrected by hand with the imported audio: its analysis takes the corrected text and its synchronised lyrics (the
+ * video's) are timed again from the words Whisper heard. `retimed` false: too few words found, the previous timing is kept.
+ */
+export async function saveCorrectedLyrics(audioUrl: string, lyrics: string, token: string): Promise<{ saved: boolean; retimed: boolean }> {
+  const response = await fetch('/api/audio-analysis/lyrics', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ audioUrl, lyrics }),
+  });
+  const body = await response.json().catch(() => ({} as { saved?: boolean; retimed?: boolean; error?: string }));
+  if (!response.ok) throw new AnalysisError('failed', body.error || response.statusText);
+  return { saved: Boolean(body.saved), retimed: Boolean(body.retimed) };
+}
+
 /** The language model's lyrics and language are an estimate (often wrong outside English / Chinese): not checked by default. */
 export const APPROXIMATE_FIELDS: ReadonlySet<AnalysisFieldId> = new Set(['lyrics', 'language']);
 

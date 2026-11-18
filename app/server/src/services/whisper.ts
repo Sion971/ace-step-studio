@@ -58,6 +58,8 @@ export interface WhisperResult {
   language: string;
   /** The same phrases as synchronised lyrics (LRC), each at the time it is heard; absent when Whisper gave no times. */
   lrc?: string;
+  /** Every word heard with its time: lets lyrics corrected by hand be timed again without running Whisper a second time. */
+  words?: TimedWord[];
 }
 
 /** What Whisper's JSON file says: the lyrics (phrases, grouped into sections) and the language. */
@@ -83,6 +85,7 @@ export function parseWhisperJson(raw: string): WhisperResult | null {
       .map((l) => ({ time: l.start, text: l.text.trim(), isSection: false, heard: true })));
     const result: WhisperResult = { text, language: typeof data.language === 'string' ? data.language : '' };
     if (lrc) result.lrc = lrc;
+    if (words.length) result.words = words;
     return result;
   } catch {
     return null;
