@@ -325,6 +325,7 @@ export const zh = {
     modelDescXlBaseBf16: '4B BF16 基础版，紧凑',
     modelDescMerge: '4B SFT+Turbo 合并, 社区',
     modelDescMergeBaseTurbo: "4B Base 70% + Turbo 30% 融合，社区",
+    modelDescMergeBaseTurbo2B: "2B Base 70% + Turbo 30% 融合",
     inQueue: '排队中',
     uploadForCover: '上传音频进行翻唱 / 混音',
     samplerMode: '采样器',

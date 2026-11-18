@@ -19,6 +19,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   'acestep-v15-base': 'Base',
   'acestep-v15-sft': 'SFT',
   'acestep-v15-turbo': 'Turbo',
+  'acestep-v15-merge-base-turbo30': 'Merge Base+Turbo 30%',
   // Famille XL (DiT 4B)
   'acestep-v15-xl-base': 'XL Base',
   'acestep-v15-xl-sft': 'XL SFT',
@@ -84,6 +85,12 @@ export const MODEL_INFO: Record<string, ModelInfoEntry> = {
   'acestep-v15-base': {
     size: '4.5 GB', steps: 50, vramMin: 6,
     descKey: 'modelDescBase', descFallback: '2B, versatile',
+  },
+  // 2B merge 70 % Base + 30 % Turbo: follows the lyrics where the 2B Base does not; 24 steps, guidance 3-5, shift 1, ADG.
+  // RTX 5060: 30.6 s of DiT for 225 s of music at 24 steps (Turbo 8 steps: 5.4 s).
+  'acestep-v15-merge-base-turbo30': {
+    size: '4.8 GB', steps: 24, vramMin: 6,
+    descKey: 'modelDescMergeBaseTurbo2B', descFallback: '2B Base 70% + Turbo 30% merge',
   },
   'acestep-v15-sft': {
     size: '4.5 GB', steps: 50, vramMin: 6,

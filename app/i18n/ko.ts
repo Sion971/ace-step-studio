@@ -325,6 +325,7 @@ export const ko = {
     modelDescXlBaseBf16: '4B BF16 베이스, 컴팩트',
     modelDescMerge: '4B SFT+Turbo 병합, 커뮤니티',
     modelDescMergeBaseTurbo: "4B Base 70% + Turbo 30% 병합, 커뮤니티",
+    modelDescMergeBaseTurbo2B: "2B Base 70% + Turbo 30% 병합",
     inQueue: '대기 중',
     uploadForCover: '커버 / 리믹스를 위해 오디오 업로드',
     samplerMode: '샘플러',

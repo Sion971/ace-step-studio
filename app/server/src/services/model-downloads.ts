@@ -46,6 +46,8 @@ export const MODEL_DOWNLOADS: Record<string, ModelDownload> = {
   'acestep-v15-turbo': { repo: 'ACE-Step/Ace-Step1.5', include: 'acestep-v15-turbo/*' },
   'acestep-v15-sft': { repo: 'ACE-Step/acestep-v15-sft' },
   'acestep-v15-base': { repo: 'ACE-Step/acestep-v15-base' },
+  // 2B merge 70 % Base + 30 % Turbo, made and checked on the Studio (2026-11-17), published by its maintainer.
+  'acestep-v15-merge-base-turbo30': { repo: 'Sion971/ACE-Step-v1.5-2B-Base-Turbo-0.3-Merge' },
 };
 
 /** Download source of every language model the Studio can fetch (folder name in checkpoints/ -> source). */
@@ -73,6 +75,7 @@ export const LISTED_DIT_MODELS: readonly string[] = [
   'acestep-v15-turbo',
   'acestep-v15-sft',
   'acestep-v15-base',
+  'acestep-v15-merge-base-turbo30',
 ];
 
 /** Whether the Studio knows where to download `model` from. An own-property test: a name such as "constructor" is not a model. */

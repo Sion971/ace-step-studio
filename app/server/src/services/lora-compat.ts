@@ -27,6 +27,7 @@ export interface ModelSpec {
  */
 export const STUDIO_MODELS: Record<string, ModelSpec & { vramMin: number }> = {
   'acestep-v15-base': { family: 'base', size: '2B', vramMin: 6 },
+  'acestep-v15-merge-base-turbo30': { family: 'other', size: '2B', vramMin: 6 },
   'acestep-v15-sft': { family: 'sft', size: '2B', vramMin: 6 },
   'acestep-v15-turbo': { family: 'turbo', size: '2B', vramMin: 6 },
   'acestep-v15-xl-base': { family: 'base', size: 'XL', vramMin: 12 },

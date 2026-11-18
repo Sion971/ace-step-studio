@@ -73,6 +73,8 @@ _CHECKPOINT_TO_VARIANT: Dict[str, str] = {
     # Community merge 70 % XL Base + 30 % XL Turbo (Astral01): an XL Base architecture (config model_version "base", is_turbo
     # false). Its folder ships the stock xl_base code, which imports an apg_guidance.py it does not include.
     "acestep-v15-xl-merge-base-turbo30": "xl_base",
+    # 2B merge 70 % Base + 30 % Turbo made by the Studio's merge script: a 2B Base architecture.
+    "acestep-v15-merge-base-turbo30": "base",
 }
 
 

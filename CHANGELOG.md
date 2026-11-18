@@ -2,6 +2,9 @@
 
 ## 2026-11-17
 
+### Added
+- **Merge Base+Turbo 30%** (2B) in the model menu, with its download from Hugging Face (`Sion971/ACE-Step-v1.5-2B-Base-Turbo-0.3-Merge`): 70 % 2B Base + 30 % 2B Turbo, bf16, 4.8 GB, made with the maintainer's merge script. It follows the lyrics where the 2B Base does not; 24 steps, guidance 3-5, shift 1, ADG. On an RTX 5060, 30.6 s of DiT for 225 s of music (2B Turbo 8 steps: 5.4 s). The engine gives it its 2B Base code.
+
 ### Fixed
 - A song started right after choosing another model in the Create tab failed with "Model not fully initialized" (seen twice in a row: with the 2B Base, then with a merge). The model is reloaded inside the running engine, so the engine kept answering and the Studio sent the song before the new model was ready. Generations now wait for the model change to finish, up to 5 minutes (`services/model-switch.ts`, 4 tests).
 - While a song waited for the model, its card showed "Ожидание загрузки модели..." in Russian, a label left from the upstream project. It now shows the translated "Loading the model..." (`modelLoading`), as when the engine itself is still starting (test).

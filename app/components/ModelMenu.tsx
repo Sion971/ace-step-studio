@@ -60,6 +60,7 @@ const FIXED_ORDER = [
   'acestep-v15-turbo',
   'acestep-v15-sft',
   'acestep-v15-base',
+  'acestep-v15-merge-base-turbo30',
 ];
 
 /**

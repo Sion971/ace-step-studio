@@ -325,6 +325,7 @@ export const ja = {
   modelDescXlBaseBf16: '4B BF16 ベース、コンパクト',
   modelDescMerge: '4B SFT+Turbo マージ、コミュニティ',
   modelDescMergeBaseTurbo: "4B Base 70%＋Turbo 30% マージ（コミュニティ）",
+  modelDescMergeBaseTurbo2B: "2B Base 70%＋Turbo 30% マージ",
   inQueue: 'キュー内',
   uploadForCover: 'カバー / リミックス用にオーディオをアップロード',
   samplerMode: 'サンプラー',
