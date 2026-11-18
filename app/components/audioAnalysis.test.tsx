@@ -58,6 +58,38 @@ describe('AudioAnalysisDialog', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  // Types into a React text field the way a person does (React tracks the value it set itself).
+  const type = async (el: HTMLTextAreaElement, value: string) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+    await act(async () => { setter.call(el, value); el.dispatchEvent(new Event('input', { bubbles: true })); });
+  };
+
+  it('lets the lyrics heard by Whisper be corrected before they go to the form', async () => {
+    const { setters } = await mount({ status: 200, body: { analysis: { ...full, lyrics: 'Merci seigneur pour chaque gras', lyricsSource: 'whisper' } } });
+    const box = document.querySelector('[data-testid="analysis-lyrics-text"]') as HTMLTextAreaElement;
+    expect(box.value).toBe('Merci seigneur pour chaque gras');
+    await type(box, '[Chorus]\nMerci Seigneur pour chaque grâce');
+    await act(async () => { (document.querySelector('[data-testid="analysis-apply"]') as HTMLButtonElement).click(); });
+    expect(setters.setLyrics).toHaveBeenCalledWith('[Chorus]\nMerci Seigneur pour chaque grâce');
+  });
+
+  it('ticks a field when its text is corrected, and can go back to what was heard', async () => {
+    const { setters } = await mount({ status: 200, body: { analysis: full } });
+    // The model's lyrics (no Whisper) start unchecked; correcting them ticks them.
+    const lyricsBox = document.querySelector('[data-testid="analysis-lyrics"]') as HTMLInputElement;
+    expect(lyricsBox.checked).toBe(false);
+    const box = document.querySelector('[data-testid="analysis-lyrics-text"]') as HTMLTextAreaElement;
+    await type(box, 'corrigé');
+    expect(lyricsBox.checked).toBe(true);
+    await act(async () => { (document.querySelector('[data-testid="analysis-lyrics-reset"]') as HTMLButtonElement).click(); });
+    expect((document.querySelector('[data-testid="analysis-lyrics-text"]') as HTMLTextAreaElement).value).toBe('[Verse]\nla la');
+    // The style can be corrected too.
+    await type(document.querySelector('[data-testid="analysis-caption-text"]') as HTMLTextAreaElement, 'gospel, nylon guitar, French vocals');
+    await act(async () => { (document.querySelector('[data-testid="analysis-apply"]') as HTMLButtonElement).click(); });
+    expect(setters.setStyle).toHaveBeenCalledWith('gospel, nylon guitar, French vocals');
+    expect(setters.setLyrics).toHaveBeenCalledWith('[Verse]\nla la');
+  });
+
   it('starts with the already-filled fields unchecked', async () => {
     await mount({ status: 200, body: { analysis: full } }, { caption: true });
     expect((document.querySelector('[data-testid="analysis-caption"]') as HTMLInputElement).checked).toBe(false);

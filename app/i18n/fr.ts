@@ -1469,6 +1469,8 @@ export const fr = {
     analysisNoModel: "Rien n'a pu être lu : le modèle de langage du moteur n'est pas chargé (désactivé par --no-lm ou INIT_LLM=false). Relance sans ce réglage.",
     analysisApproximate: "estimation du modèle, souvent fausse",
     analysisWhisper: "transcription Whisper",
+    analysisResetText: "Annuler mes corrections",
+    analysisEditHint: "Tu peux corriger les mots mal entendus par Whisper, ajouter des balises [Verse] / [Chorus] ou retirer un passage avant d'appliquer.",
     analysisNoWhisper: "Whisper est introuvable (ou a échoué) : ces paroles sont inventées par le modèle. Pour une vraie transcription, installe-le dans l'environnement du Studio (pip install openai-whisper) puis relance.",
     createHiddenStyle: "style",
     createHiddenLyrics: "paroles",

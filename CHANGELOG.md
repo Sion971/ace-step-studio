@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-18
+
+### Added
+- Audio analysis window (when you import or record an audio): the **lyrics** heard by Whisper and the **style** can be corrected in the window before "Apply the checked fields": wrong words, [Verse] / [Chorus] tags, a passage to leave out. Correcting a text ticks its box; "Undo my changes" brings back what was heard. Only the form receives the corrected text: the import's saved analysis, and the timed lyrics a video uses, stay as Whisper heard them (tests).
+
 ## 2026-11-17
 
 ### Added

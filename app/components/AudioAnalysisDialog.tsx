@@ -26,6 +26,9 @@ const LABELS = {
   timeSignature: 'analysisSignature', duration: 'analysisDuration', language: 'analysisLanguage',
 } as const;
 
+/** The fields whose text can be corrected here before it goes to the form: Whisper mishears words, the style is a guess. */
+const EDITABLE = new Set<AnalysisFieldId>(['lyrics', 'caption']);
+
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 
 function show(id: AnalysisFieldId, a: AudioAnalysis): string {
@@ -45,6 +48,8 @@ export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, f
   const [state, setState] = useState<'running' | 'done' | 'busy' | 'failed'>('running');
   const [analysis, setAnalysis] = useState<AudioAnalysis | null>(null);
   const [chosen, setChosen] = useState<Set<AnalysisFieldId>>(new Set());
+  // The texts as the user corrected them (lyrics, style); the analysis itself keeps what was heard.
+  const [edited, setEdited] = useState<Partial<Record<'lyrics' | 'caption', string>>>({});
 
   useEffect(() => {
     const controller = new AbortController();
@@ -52,6 +57,7 @@ export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, f
     analyzeAudio(audioUrl, token, controller.signal)
       .then(({ analysis: a, saved }) => {
         setAnalysis(a);
+        setEdited({});
         setChosen(new Set(availableFields(a).filter((id) => !filled[id] && !isApproximate(id, a))));
         setState('done');
         if (saved) onSaved?.();
@@ -71,8 +77,14 @@ export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, f
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
+  const textOf = (id: 'lyrics' | 'caption') => edited[id] ?? (analysis ? analysis[id] : '');
+  const editText = (id: 'lyrics' | 'caption', value: string) => {
+    setEdited((prev) => ({ ...prev, [id]: value }));
+    // Correcting a text means wanting it: its box is ticked.
+    setChosen((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+  };
   const apply = () => {
-    if (analysis) applyAnalysis(analysis, chosen, setters);
+    if (analysis) applyAnalysis({ ...analysis, lyrics: textOf('lyrics'), caption: textOf('caption') }, chosen, setters);
     onClose();
   };
 
@@ -80,7 +92,7 @@ export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, f
   return createPortal(
     <div className="fixed inset-0 z-[130] flex items-center justify-center" role="dialog" aria-modal="true" data-testid="audio-analysis">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-[92%] max-w-lg max-h-[85vh] flex flex-col rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 shadow-2xl overflow-hidden">
+      <div className="relative w-[92%] max-w-xl max-h-[85vh] flex flex-col rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 shadow-2xl overflow-hidden">
         <div className="p-5 pb-3">
           <h3 className="text-xl font-semibold text-zinc-900 dark:text-white">{t('analysisTitle')}</h3>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 truncate">{title}</p>
@@ -109,22 +121,61 @@ export const AudioAnalysisDialog: React.FC<Props> = ({ audioUrl, title, token, f
           )}
           {state === 'done' && fields.length > 0 && (
             <ul className="space-y-2">
-              {fields.map((id) => (
-                <li key={id}>
-                  <label className="flex items-start gap-3 p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-white/5 cursor-pointer">
-                    <input type="checkbox" className="mt-1" checked={chosen.has(id)} onChange={() => toggle(id)} data-testid={`analysis-${id}`} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                        {t(LABELS[id])}
-                        {filled[id] && <span className="normal-case tracking-normal"> · {t('analysisAlreadyFilled')}</span>}
-                        {isApproximate(id, analysis) && <span className="normal-case tracking-normal"> · {t('analysisApproximate')}</span>}
-                        {(id === 'lyrics' || id === 'language') && analysis.lyricsSource === 'whisper' && <span className="normal-case tracking-normal"> · {t('analysisWhisper')}</span>}
+              {fields.map((id) => {
+                const header = (
+                  <span className="block text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    {t(LABELS[id])}
+                    {filled[id] && <span className="normal-case tracking-normal"> · {t('analysisAlreadyFilled')}</span>}
+                    {isApproximate(id, analysis) && <span className="normal-case tracking-normal"> · {t('analysisApproximate')}</span>}
+                    {(id === 'lyrics' || id === 'language') && analysis.lyricsSource === 'whisper' && <span className="normal-case tracking-normal"> · {t('analysisWhisper')}</span>}
+                  </span>
+                );
+                const checkbox = <input type="checkbox" className="mt-1" checked={chosen.has(id)} onChange={() => toggle(id)} data-testid={`analysis-${id}`} />;
+                if (EDITABLE.has(id)) {
+                  // Lyrics and style can be corrected here, before they go to the form (Whisper mishears some words).
+                  const key = id as 'lyrics' | 'caption';
+                  const changed = edited[key] !== undefined && edited[key] !== analysis[key];
+                  return (
+                    <li key={id}>
+                      <div className="flex items-start gap-3 p-2 rounded-lg">
+                        {checkbox}
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-2">
+                            {header}
+                            {changed && (
+                              <button type="button" onClick={() => setEdited((prev) => ({ ...prev, [key]: undefined }))} data-testid={`analysis-${id}-reset`}
+                                className="text-[11px] text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-white underline shrink-0">
+                                {t('analysisResetText')}
+                              </button>
+                            )}
+                          </span>
+                          <textarea
+                            value={textOf(key)}
+                            onChange={(e) => editText(key, e.target.value)}
+                            rows={id === 'lyrics' ? 8 : 2}
+                            spellCheck
+                            aria-label={t(LABELS[id])}
+                            data-testid={`analysis-${id}-text`}
+                            className="mt-1 w-full rounded-lg border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-black/30 px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-100 resize-y focus:outline-none focus:border-zinc-400 dark:focus:border-white/30"
+                          />
+                          {id === 'lyrics' && <span className="block text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">{t('analysisEditHint')}</span>}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                }
+                return (
+                  <li key={id}>
+                    <label className="flex items-start gap-3 p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-white/5 cursor-pointer">
+                      {checkbox}
+                      <span className="min-w-0 flex-1">
+                        {header}
+                        <span className="block break-words">{show(id, analysis)}</span>
                       </span>
-                      <span className={`block ${id === 'lyrics' ? 'whitespace-pre-wrap max-h-40 overflow-y-auto' : 'break-words'}`}>{show(id, analysis)}</span>
-                    </span>
-                  </label>
-                </li>
-              ))}
+                    </label>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

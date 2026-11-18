@@ -1446,6 +1446,8 @@ export const ru = {
     analysisNoModel: "Ничего не удалось прочитать: языковая модель движка не загружена (отключена через --no-lm или INIT_LLM=false). Запустите без этой настройки.",
     analysisApproximate: "оценка модели, часто неверная",
     analysisWhisper: "расшифровка Whisper",
+    analysisResetText: "Отменить мои правки",
+    analysisEditHint: "Перед применением можно исправить слова, которые Whisper расслышал неверно, добавить теги [Verse] / [Chorus] или убрать отрывок.",
     analysisNoWhisper: "Whisper не найден (или завершился с ошибкой): этот текст придуман моделью. Для настоящей расшифровки установите его в окружение Studio (pip install openai-whisper) и перезапустите.",
     createHiddenStyle: "стиль",
     createHiddenLyrics: "текст",
