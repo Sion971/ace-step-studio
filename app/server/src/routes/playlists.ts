@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { pool } from '../db/pool.js';
 import { authMiddleware, optionalAuthMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { getStorageProvider } from '../services/storage/factory.js';
+import { importTrackId, importRowsAsSongs } from '../services/playlist-imports.js';
 
 const router = Router();
 
@@ -44,11 +45,11 @@ router.post('/', authMiddleware, async (req: AuthenticatedRequest, res: Response
 router.get('/', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
         const result = await pool.query(
-            `SELECT p.*, COUNT(ps.song_id) as song_count
+            `SELECT p.*,
+                    (SELECT COUNT(*) FROM playlist_songs ps WHERE ps.playlist_id = p.id)
+                  + (SELECT COUNT(*) FROM playlist_tracks pt WHERE pt.playlist_id = p.id) as song_count
              FROM playlists p
-             LEFT JOIN playlist_songs ps ON p.id = ps.playlist_id
              WHERE p.user_id = $1
-             GROUP BY p.id
              ORDER BY p.created_at DESC`,
             [req.user!.id]
         );
@@ -116,7 +117,18 @@ router.get('/workspace-song-ids', authMiddleware, async (req: AuthenticatedReque
              WHERE p.user_id = $1 AND p.kind = 'workspace'`,
             [req.user!.id]
         );
-        res.json({ songIds: result.rows.map((r: { song_id: string }) => r.song_id) });
+        // Imported audio in a workspace, under the id the interface gives them ("upload_<id>").
+        const tracks = await pool.query(
+            `SELECT DISTINCT pt.track_id
+             FROM playlist_tracks pt
+             JOIN playlists p ON p.id = pt.playlist_id
+             WHERE p.user_id = $1 AND p.kind = 'workspace'`,
+            [req.user!.id]
+        );
+        res.json({ songIds: [
+            ...result.rows.map((r: { song_id: string }) => r.song_id),
+            ...tracks.rows.map((r: { track_id: string }) => `upload_${r.track_id}`),
+        ] });
     } catch (error) {
         console.error('Get workspace song ids error:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -137,13 +149,18 @@ router.get('/workspace-song-ids', authMiddleware, async (req: AuthenticatedReque
 router.delete('/remove-song-from-workspaces/:songId', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { songId } = req.params;
+        const trackId = importTrackId(songId);
         await pool.query(
-            `DELETE FROM playlist_songs
-             WHERE song_id = $1
-               AND playlist_id IN (
-                 SELECT id FROM playlists WHERE user_id = $2 AND kind = 'workspace'
-               )`,
-            [songId, req.user!.id]
+            trackId
+                ? `DELETE FROM playlist_tracks
+                   WHERE track_id = $1
+                     AND playlist_id IN (SELECT id FROM playlists WHERE user_id = $2 AND kind = 'workspace')`
+                : `DELETE FROM playlist_songs
+                   WHERE song_id = $1
+                     AND playlist_id IN (
+                       SELECT id FROM playlists WHERE user_id = $2 AND kind = 'workspace'
+                     )`,
+            [trackId || songId, req.user!.id]
         );
         res.json({ success: true });
     } catch (error) {
@@ -188,12 +205,27 @@ router.get('/:id', optionalAuthMiddleware, async (req: AuthenticatedRequest, res
             [req.params.id]
         );
 
-        const songs = await Promise.all(
+        const created = await Promise.all(
             songsResult.rows.map(async (row) => ({
                 ...row,
                 audio_url: await resolveAccessibleAudioUrl(row.audio_url, row.is_public),
             }))
         );
+        // Imported audio stays private: shown only to the playlist's owner.
+        let imports: any[] = [];
+        if (req.user && req.user.id === playlist.user_id) {
+            const tracksResult = await pool.query(
+                `SELECT rt.id, rt.filename, rt.storage_key, rt.duration, rt.analysis, rt.cover_key, rt.user_id, rt.created_at,
+                        u.username as creator, pt.added_at, pt.position
+                 FROM playlist_tracks pt
+                 JOIN reference_tracks rt ON pt.track_id = rt.id
+                 JOIN users u ON rt.user_id = u.id
+                 WHERE pt.playlist_id = $1`,
+                [req.params.id]
+            );
+            imports = importRowsAsSongs(tracksResult.rows, getStorageProvider());
+        }
+        const songs = [...created, ...imports].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 
         res.json({
             playlist,
@@ -215,12 +247,31 @@ router.post('/:id/songs', authMiddleware, async (req: AuthenticatedRequest, res:
         if (playlistCheck.rows.length === 0) return res.status(404).json({ error: 'Playlist not found' });
         if (playlistCheck.rows[0].user_id !== req.user!.id) return res.status(403).json({ error: 'Access denied' });
 
-        // Get max position
+        // Get max position (songs and imports share them)
         const positionResult = await pool.query(
-            'SELECT MAX(position) as max_pos FROM playlist_songs WHERE playlist_id = $1',
-            [req.params.id]
+            `SELECT MAX(pos) as max_pos FROM (
+               SELECT MAX(position) as pos FROM playlist_songs WHERE playlist_id = $1
+               UNION ALL SELECT MAX(position) FROM playlist_tracks WHERE playlist_id = $2
+             )`,
+            // Two placeholders: the SQLite pool turns each $n into a "?" in order (a repeated $1 would lack a value).
+            [req.params.id, req.params.id]
         );
         const position = (positionResult.rows[0].max_pos || 0) + 1;
+
+        // An imported audio ("upload_<id>"): only its owner can file it.
+        const trackId = importTrackId(String(songId || ''));
+        if (trackId) {
+            const own = await pool.query('SELECT user_id FROM reference_tracks WHERE id = $1', [trackId]);
+            if (own.rows.length === 0) return res.status(404).json({ error: 'Track not found' });
+            if (own.rows[0].user_id !== req.user!.id) return res.status(403).json({ error: 'Access denied' });
+            await pool.query(
+                `INSERT INTO playlist_tracks (playlist_id, track_id, position)
+                 VALUES ($1, $2, $3)
+                 ON CONFLICT (playlist_id, track_id) DO NOTHING`,
+                [req.params.id, trackId, position]
+            );
+            return res.json({ success: true });
+        }
 
         await pool.query(
             `INSERT INTO playlist_songs (playlist_id, song_id, position)
@@ -244,9 +295,12 @@ router.delete('/:id/songs/:songId', authMiddleware, async (req: AuthenticatedReq
         if (playlistCheck.rows.length === 0) return res.status(404).json({ error: 'Playlist not found' });
         if (playlistCheck.rows[0].user_id !== req.user!.id) return res.status(403).json({ error: 'Access denied' });
 
+        const trackId = importTrackId(req.params.songId);
         await pool.query(
-            'DELETE FROM playlist_songs WHERE playlist_id = $1 AND song_id = $2',
-            [req.params.id, req.params.songId]
+            trackId
+                ? 'DELETE FROM playlist_tracks WHERE playlist_id = $1 AND track_id = $2'
+                : 'DELETE FROM playlist_songs WHERE playlist_id = $1 AND song_id = $2',
+            [req.params.id, trackId || req.params.songId]
         );
 
         res.json({ success: true });

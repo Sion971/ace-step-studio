@@ -151,6 +151,15 @@ function migrate(): void {
     try { db.exec('ALTER TABLE reference_tracks ADD COLUMN analysis TEXT'); } catch {}
     // Cover of an import (the picture embedded in the file, or one set from the cover window); '' = looked, none found.
     try { db.exec('ALTER TABLE reference_tracks ADD COLUMN cover_key TEXT'); } catch {}
+    // Imported audio in playlists and workspaces. playlist_songs points at songs, and an import is a reference track (shown as
+    // "upload_<id>"), so it has its own junction table; both share the positions of a playlist.
+    db.exec(`CREATE TABLE IF NOT EXISTS playlist_tracks (
+      playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+      track_id TEXT NOT NULL REFERENCES reference_tracks(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL DEFAULT 0,
+      added_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (playlist_id, track_id)
+    )`);
     try { db.exec('ALTER TABLE songs ADD COLUMN dit_model TEXT'); } catch {}
     try { db.exec('ALTER TABLE songs ADD COLUMN lm_model TEXT'); } catch {}
     try { db.exec('ALTER TABLE songs ADD COLUMN lm_backend TEXT'); } catch {}

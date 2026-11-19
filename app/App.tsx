@@ -2253,6 +2253,9 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         const displayedSongs = activeWorkspaceFilter
           ? songs.filter(s => activeWorkspaceSongIds?.has(s.id))
           : songs.filter(s => !songsInAnyWorkspace.has(s.id));
+        // Imports follow the same rule (the interface knows them as "upload_<id>").
+        const inView = (id: string) => activeWorkspaceFilter ? Boolean(activeWorkspaceSongIds?.has(id)) : !songsInAnyWorkspace.has(id);
+        const displayedTracks = referenceTracks.filter(t => inView(`upload_${t.id}`));
         return (
           <div className="flex h-full overflow-hidden relative w-full">
             {/* Create Panel */}
@@ -2325,7 +2328,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
                 selectedSong={selectedSong}
                 likedSongIds={likedSongIds}
                 isPlaying={isPlaying}
-                referenceTracks={referenceTracks}
+                referenceTracks={displayedTracks}
                 activeWorkspaceName={activeWorkspaceFilter?.name}
                 onBackToWorkspaces={handleBackToWorkspaces}
                 onClearWorkspaceFilter={handleClearWorkspaceFilter}

@@ -46,5 +46,7 @@ export function mapPlaylistSong(s: any): PlaylistSong {
     creator: s.creator,
     createdAt: parseServerDate(s.created_at),
     addedAt: s.added_at,
+    // An imported audio brings the timed lyrics of its analysis (its video and the player use them).
+    ...(s.lrc_content ? { lrcContent: s.lrc_content } : {}),
   };
 }

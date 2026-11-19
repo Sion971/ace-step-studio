@@ -541,6 +541,8 @@ export const SongList: React.FC<SongListProps> = ({
                                     onUseAsReference={() => onUseUploadAsReference?.(item.track)}
                                     onCoverSong={() => onCoverUpload?.(item.track)}
                                     onOpenVideo={onOpenVideo ? () => onOpenVideo(uploadToSong(item.track, item.createdAt)) : undefined}
+                                    onAddToPlaylist={() => onAddToPlaylist(uploadToSong(item.track, item.createdAt))}
+                                    onAddToWorkspace={onAddToWorkspace ? () => onAddToWorkspace(uploadToSong(item.track, item.createdAt)) : undefined}
                                 />
                             )
                         ))
@@ -993,7 +995,10 @@ const UploadItem: React.FC<{
     onCoverSong?: () => void;
     /** Video Studio for the import (its cover and its timed lyrics from the analysis). */
     onOpenVideo?: () => void;
-}> = ({ track, onPlay, onUseAsReference, onCoverSong, onOpenVideo }) => {
+    /** Playlists and workspaces take imports too (the server keeps them apart from the created songs). */
+    onAddToPlaylist?: () => void;
+    onAddToWorkspace?: () => void;
+}> = ({ track, onPlay, onUseAsReference, onCoverSong, onOpenVideo, onAddToPlaylist, onAddToWorkspace }) => {
     return (
         <SongItem
             song={uploadToSong(track)}
@@ -1008,7 +1013,8 @@ const UploadItem: React.FC<{
             onSelect={() => onPlay()}
             onToggleSelect={() => undefined}
             onToggleLike={() => undefined}
-            onAddToPlaylist={() => undefined}
+            onAddToPlaylist={() => onAddToPlaylist?.()}
+            onAddToWorkspace={onAddToWorkspace}
             onOpenVideo={() => onOpenVideo?.()}
             onShowDetails={() => undefined}
             onNavigateToProfile={() => undefined}
