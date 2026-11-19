@@ -275,6 +275,8 @@ interface GenerateBody {
   flowEditNMax?: number;
   flowEditNAvg?: number;
   loraLoaded?: boolean;
+  /** The workspace open when the song was asked for: its songs go into it (services/workspace-file.ts). */
+  workspaceId?: string;
 
   // OpenRouter
   openrouterModel?: string;
@@ -442,6 +444,7 @@ router.post('/', authMiddleware, blockWhileTraining, async (req: AuthenticatedRe
       flowEditNMax,
       flowEditNAvg,
       loraLoaded,
+      workspaceId,
     } = req.body as GenerateBody;
 
     if (!customMode && !songDescription) {
@@ -546,6 +549,7 @@ router.post('/', authMiddleware, blockWhileTraining, async (req: AuthenticatedRe
       flowEditNMax,
       flowEditNAvg,
       loraLoaded,
+      workspaceId: typeof workspaceId === 'string' && workspaceId ? workspaceId : undefined,
     };
 
     // Create job record in database
@@ -766,6 +770,16 @@ router.get('/status/:jobId', authMiddleware, async (req: AuthenticatedRequest, r
 
             aceStatus.result.audioUrls = localPaths;
             cleanupJob(job.acestep_task_id);
+
+            // Made while a workspace was open: the songs go into it, not into "My workspace".
+            if (params?.workspaceId && insertedSongIds.length) {
+              try {
+                const { fileSongsInWorkspace } = await import('../services/workspace-file.js');
+                await fileSongsInWorkspace(req.user!.id, params.workspaceId, insertedSongIds);
+              } catch (error) {
+                console.warn('[Generate] songs not filed in their workspace:', error);
+              }
+            }
 
             // Local AI cover — only when the interface asked for it. Pure fire-and-forget: the status response goes
             // out immediately, and cover_url is UPDATEd whenever the background generation finishes, however long it

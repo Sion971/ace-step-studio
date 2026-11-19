@@ -145,8 +145,11 @@ function AppContent() {
   // caller can stash it on the eventual `onGenerate` payload (`_tempId`).
 const createTempSongForClick = useCallback((descriptionPreview: string, ditModel?: string): string => {
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const workspaceId = activeWorkspaceIdRef.current;
+    tempWorkspaceRef.current.set(tempId, workspaceId);
     const tempSong: Song = {
       id: tempId,
+      workspaceId,
       title: descriptionPreview.slice(0, 60) || (t('generating') || 'Generating…'),
       lyrics: '',
       style: '',
@@ -253,6 +256,14 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
   // Espace de travail actif dans l'onglet Creer (voir handleSelectWorkspace).
   // null = aucun filtre, la liste affiche tout comme avant.
   const [activeWorkspaceFilter, setActiveWorkspaceFilter] = useState<Playlist | null>(null);
+  // The workspace open right now, and the one each card being made was asked from (a song goes into the workspace that
+  // was open at the click, even if another one is open when it is done).
+  const activeWorkspaceIdRef = useRef<string | undefined>(undefined);
+  activeWorkspaceIdRef.current = activeWorkspaceFilter?.id;
+  const tempWorkspaceRef = useRef<Map<string, string | undefined>>(new Map());
+  // Set below, where these refreshers are defined (the job polling is defined before them).
+  const refreshWorkspaceSongIdsRef = useRef<(() => Promise<void>) | null>(null);
+  const refreshActiveWorkspaceSongIdsRef = useRef<((id: string) => Promise<void>) | null>(null);
   // Identifiants reellement charges pour cet espace — separes de
   // activeWorkspaceFilter car GET /playlists (liste) ne renvoie qu'un
   // COUNT, jamais les chansons elles-memes (verifie dans playlists.ts
@@ -276,6 +287,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     }
   }, [token]);
 
+  refreshWorkspaceSongIdsRef.current = refreshWorkspaceSongIds;
   useEffect(() => {
     refreshWorkspaceSongIds();
   }, [refreshWorkspaceSongIds]);
@@ -1210,6 +1222,10 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
 
         if (status.status === 'succeeded' && status.result) {
           cleanupJob(jobId, tempId);
+          // The server may have filed the songs in a workspace: know it before they show, or they flash in "My workspace".
+          await refreshWorkspaceSongIdsRef.current?.();
+          const openWorkspace = activeWorkspaceIdRef.current;
+          if (openWorkspace) await refreshActiveWorkspaceSongIdsRef.current?.(openWorkspace);
           await refreshSongsList();
           if (status.coverPending) watchCover(jobId);
 
@@ -1276,6 +1292,10 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     // here as before.
     const preCreatedId = params._tempId;
     const tempId = preCreatedId || `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const workspaceId = preCreatedId && tempWorkspaceRef.current.has(preCreatedId)
+      ? tempWorkspaceRef.current.get(preCreatedId)
+      : activeWorkspaceIdRef.current;
+    tempWorkspaceRef.current.delete(tempId);
     if (preCreatedId) {
       // On ne peut PAS lire `songs` (fermeture figee au dernier rendu) pour
       // retrouver la carte que CreatePanel vient de creer juste avant cet
@@ -1301,6 +1321,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     } else {
       const tempSong: Song = {
         id: tempId,
+        workspaceId,
         title: params.title || t('generating') || 'Generating...',
         lyrics: '',
         style: params.style,
@@ -1457,6 +1478,8 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         cover: params.cover,
         // Pre-created placeholder card id (instant feedback at click time).
         _tempId: params._tempId,
+        // The workspace open at the click: the server files the finished songs in it.
+        workspaceId,
       }, token);
 
       // Store jobId on the temp song so cancel button works
@@ -1848,6 +1871,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
       console.error('Failed to refresh active workspace songs:', e);
     }
   }, [token]);
+  refreshActiveWorkspaceSongIdsRef.current = refreshActiveWorkspaceSongIds;
 
   // Songs of one named workspace, for the Studio tab's workspace selector.
   const loadStudioWorkspaceSongs = useCallback(async (workspaceId: string): Promise<Song[]> => {
@@ -2250,9 +2274,10 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
         // exclut tout ce qui appartient DEJA a un espace nomme : une
         // chanson rangee ailleurs ne doit pas rester visible aussi dans la
         // vue par defaut.
+        // A card being made shows in the workspace it was asked from (its id is not in any workspace yet).
         const displayedSongs = activeWorkspaceFilter
-          ? songs.filter(s => activeWorkspaceSongIds?.has(s.id))
-          : songs.filter(s => !songsInAnyWorkspace.has(s.id));
+          ? songs.filter(s => s.isGenerating ? s.workspaceId === activeWorkspaceFilter.id : activeWorkspaceSongIds?.has(s.id))
+          : songs.filter(s => s.isGenerating ? !s.workspaceId : !songsInAnyWorkspace.has(s.id));
         // Imports follow the same rule (the interface knows them as "upload_<id>").
         const inView = (id: string) => activeWorkspaceFilter ? Boolean(activeWorkspaceSongIds?.has(id)) : !songsInAnyWorkspace.has(id);
         const displayedTracks = referenceTracks.filter(t => inView(`upload_${t.id}`));

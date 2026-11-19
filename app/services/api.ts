@@ -440,6 +440,8 @@ interface Comment {
 
 // Generation API
 export interface GenerationParams {
+  /** The workspace open when the song was asked for: the server files the finished songs in it. */
+  workspaceId?: string;
   // Mode
   customMode: boolean;
   songDescription?: string;

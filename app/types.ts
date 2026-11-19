@@ -7,6 +7,8 @@ export interface Song {
   duration: string;
   createdAt: Date;
   isGenerating?: boolean;
+  /** Card of a song being made: the workspace open when it was asked for (the finished song is filed there by the server). */
+  workspaceId?: string;
   jobId?: string; // Active generation job ID for cancel
   queuePosition?: number; // Position in queue (undefined = actively generating, number = waiting in queue)
   progress?: number;

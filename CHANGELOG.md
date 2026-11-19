@@ -6,6 +6,9 @@
 - **Imported audio in playlists and workspaces.** The "Add to playlist" / "Add to workspace" actions of an import did nothing. An import can now be filed like a created song: it shows in the playlist page (with its cover, lyrics and timed lyrics) and, in a workspace, moves out of "My workspace" like the songs do. Imports have their own table, `playlist_tracks` (the songs' table only takes created songs), sharing the playlist's order; deleting the import removes it from its playlists. In a public playlist, imports are shown only to their owner (tests).
 - Audio analysis window (when you import or record an audio): the **lyrics** heard by Whisper and the **style** can be corrected in the window before "Apply the checked fields": wrong words, [Verse] / [Chorus] tags, a passage to leave out. Correcting a text ticks its box; "Undo my changes" brings back what was heard. For an imported audio, the corrected lyrics are also kept with the import: its analysis takes the corrected text, and its synchronised lyrics (used by its video and the player) are timed again from the words Whisper heard (`withCorrectedLyrics`, `POST /api/audio-analysis/lyrics`). The analysis now keeps those words, so no second Whisper run is needed; an import analysed before this change gets them from one more Whisper run (about half a minute). When too few of the corrected words were heard, the text is kept and the previous timing stays (tests).
 
+### Fixed
+- A song made while a workspace was open went to "My workspace" (the default view) instead of the open workspace. The interface now sends the workspace open at the click with the generation, the server files the finished songs in it (`services/workspace-file.ts`, only the user's own workspaces), and the card of the song being made shows in that workspace (tests).
+
 ## 2026-11-17
 
 ### Added
