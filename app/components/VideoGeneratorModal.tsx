@@ -54,6 +54,8 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
   const [lyricsMode, setLyricsMode] = useState<LyricsMode>('karaoke');
   const [nextLine, setNextLine] = useState(true);
   const [highlight, setHighlight] = useState('#ec4899');
+  // Karaoke word by word, timed on the voice (Whisper); off: each line is lit evenly.
+  const [wordTiming, setWordTiming] = useState(true);
   const [offset, setOffset] = useState(0);
   const [zoom, setZoom] = useState(false);
   const [waveform, setWaveform] = useState(false);
@@ -130,12 +132,14 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
       if (!duration) throw new Error(fillTemplate(t('videoAudioEmpty'), { url: audioUrl }));
       const still = await composeCoverStill({ coverUrl, title, artist, width, height, background, showTitle });
       const lrc = lyricsMode !== 'none' && hasLrc ? shiftLrc(song.lrcContent!, offset) : null;
-      const { blob, lyricsBurned } = await renderSimpleVideo({
+      const karaoke = lyricsMode === 'karaoke';
+      const { blob, lyricsBurned, wordTiming: wordSource } = await renderSimpleVideo({
         still, audioUrl, lrc, width, height, duration,
         lyricsStyle: lyricsMode === 'karaoke' ? 'karaoke' : 'line',
         nextLine, zoom, waveform, highlight,
         normalize: sound !== 'asis',
         mastering: MASTERING_PRESETS.find(p => p.id === sound)?.settings,
+        wordTiming: karaoke && wordTiming,
       }, abort.signal);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -147,6 +151,7 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
       setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
       const notes = [fillTemplate(t('quickVideoDone'), { seconds: Math.round((Date.now() - started) / 1000) })];
       if (lrc && !lyricsBurned) notes.push(t('quickVideoNoLibass'));
+      else if (lrc && karaoke && wordTiming && wordSource === 'none') notes.push(t('videoWordTimingNone'));
       setNote({ ok: true, text: notes.join(' ') });
     } catch (e) {
       if (abort.signal.aborted) setNote(null);
@@ -265,6 +270,12 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
               {lyricsMode !== 'none' && (
                 <div className="space-y-1.5">
                   <label className={check}><input type="checkbox" className="accent-pink-500" checked={nextLine} onChange={e => setNextLine(e.target.checked)} />{t('quickVideoNextLine')}</label>
+"                  {lyricsMode === 'karaoke' && (
+                    <label className={check} title={t('videoWordTimingHint')}>
+                      <input type="checkbox" className="accent-pink-500" checked={wordTiming} onChange={e => setWordTiming(e.target.checked)} />
+                      {t('videoWordTiming')}
+                    </label>
+                  )}
                   {lyricsMode === 'karaoke' && (
                     <label className={check}>
                       <input type="color" value={highlight} onChange={e => setHighlight(e.target.value)} className="w-6 h-5 bg-transparent border-0 p-0 cursor-pointer" />
@@ -305,7 +316,7 @@ export const VideoGeneratorModal: React.FC<VideoGeneratorModalProps> = ({ isOpen
 
         <div className="border-t border-zinc-800 p-3 flex flex-col md:flex-row md:items-center gap-2">
           <div className={`flex-1 text-[11px] leading-snug ${note ? (note.ok ? 'text-emerald-400' : 'text-red-400') : 'text-zinc-500'}`}>
-            {note ? note.text : busy ? fillTemplate(t('quickVideoRendering'), { seconds }) : ''}
+            {note ? note.text : busy ? `${fillTemplate(t('quickVideoRendering'), { seconds })}${lyricsMode === 'karaoke' && wordTiming && hasLrc ? ` ${t('videoWordTimingWorking')}` : ''}` : ''}
           </div>
           {busy && (
             <button onClick={() => abortRef.current?.abort()} className="px-4 py-2 rounded-lg text-xs font-bold bg-zinc-800 text-zinc-300 hover:bg-zinc-700">

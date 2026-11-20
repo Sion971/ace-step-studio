@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fitTitle, shiftLrc, stillLayout } from './simpleVideo';
 
 describe('stillLayout', () => {
@@ -46,5 +46,20 @@ describe('shiftLrc', () => {
     expect(shiftLrc(lrc, 0.5)).toBe('[00:01.00][Verse 1]\n[00:01.70]Il est mon salut\n[02:00.40]Fin');
     expect(shiftLrc(lrc, -1)).toBe('[00:00.00][Verse 1]\n[00:00.20]Il est mon salut\n[01:58.90]Fin');
     expect(shiftLrc(lrc, 0)).toBe(lrc);
+  });
+});
+
+describe('renderSimpleVideo word timing', () => {
+  it('sends the word-by-word choice and reads where the word times came from', async () => {
+    const { renderSimpleVideo } = await import('./simpleVideo');
+    let sent: any = null;
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: any) => {
+      sent = JSON.parse(init.body);
+      return new Response(new Blob(['mp4']), { status: 200, headers: { 'X-Lyrics-Burned': '1', 'X-Word-Timing': 'whisper' } });
+    }));
+    const r = await renderSimpleVideo({ still: 'data:image/png;base64,AA==', audioUrl: '/audio/a.flac', lrc: '[00:01.00]x', width: 1080, height: 1080, duration: 10, lyricsStyle: 'karaoke', nextLine: true, zoom: false, waveform: false, wordTiming: true });
+    expect(sent.wordTiming).toBe(true);
+    expect(r).toMatchObject({ lyricsBurned: true, wordTiming: 'whisper' });
+    vi.unstubAllGlobals();
   });
 });

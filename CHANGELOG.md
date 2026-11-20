@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-19
+
+### Added
+- **Word-by-word karaoke** in the Video Studio ("Word by word, on the voice", on by default in karaoke): each word lights up when it is sung, over about its own length, instead of the line being lit evenly. The word times come from Whisper: an import uses the words its analysis kept; another song is heard once (about half a minute, not while a LoRA training runs) and its words are kept next to the audio (`<audio>.words.json`) for the next videos. Inside a line, words not heard (or heard outside the line) are placed between their neighbours; a line with no word heard keeps the even split (`services/word-timing.ts`, `services/video-words.ts`, tests; checked on frames rendered by ffmpeg). The render log says where the words came from (`words: 412 from whisper in 31.0 s`).
+
+### Changed
+- README: the introduction says where this fork stands now that timoncool's 2.0 is a rewrite on another stack (Tauri, Rust, acestep.cpp, no Python), and lists what this fork is about; Demucs is no longer described as Linux only.
+
 ## 2026-11-18
 
 ### Added

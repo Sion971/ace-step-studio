@@ -7,6 +7,7 @@ import os from 'os';
 import { pipeline } from 'stream/promises';
 import { fileURLToPath } from 'url';
 import { buildMasteringFilter, parseMasteringSettings } from '../services/mastering.js';
+import type { WordSource } from '../services/video-words.js';
 import { buildSimpleVideoArgs, loudnessFilter, loudnessMeasureArgs, lrcToAss, parseLoudnorm, type LoudnessMeasure, type SimpleLyricsStyle } from '../services/simple-video.js';
 
 const router = Router();
@@ -198,7 +199,7 @@ function localAudioFile(audioUrl: unknown): string | null {
 // "Cover + lyrics": one still picture from the browser, looped by ffmpeg under the song with the lyrics burnt in as
 // subtitles. No frame is drawn in the browser, so a whole song takes seconds instead of minutes.
 router.post('/simple', async (req: Request, res: Response) => {
-  const { still, audioUrl, lrc, width, height, duration, fps = 25, lyricsStyle = 'line', nextLine = true, zoom = false, waveform = false, highlight, normalize = true, mastering } = req.body || {};
+  const { still, audioUrl, lrc, width, height, duration, fps = 25, lyricsStyle = 'line', nextLine = true, zoom = false, waveform = false, highlight, normalize = true, mastering, wordTiming = true } = req.body || {};
   const w = Number(width);
   const h = Number(height);
   const seconds = Number(duration);
@@ -222,10 +223,30 @@ router.post('/simple', async (req: Request, res: Response) => {
     if (!audioFile) console.warn(`[Render] simple: no audio file for audioUrl="${audioUrl}" — silent video.`);
     let assFile: string | null = null;
     let lyricsBurned = false;
+    let wordSource: WordSource = 'none';
+    let wordNote = '';
     if (typeof lrc === 'string' && lrc.trim()) {
       if (hasAssFilter(ffmpegPath)) {
         const style: SimpleLyricsStyle = lyricsStyle === 'karaoke' ? 'karaoke' : 'line';
-        await writeFile(path.join(dir, 'lyrics.ass'), lrcToAss(lrc, { width: w, height: h, style, nextLine: Boolean(nextLine), duration: seconds, highlight, waveform: Boolean(waveform) }), 'utf8');
+        // Word-by-word karaoke: each word lights up when it is heard (the words of the import's analysis, of an earlier
+        // video, or of one Whisper run).
+        let heardWords: Array<{ start: number; end: number; word: string }> = [];
+        if (style === 'karaoke' && wordTiming !== false && audioFile) {
+          const wordsStarted = Date.now();
+          let found: { words: typeof heardWords; source: WordSource } = { words: [], source: 'none' };
+          try {
+            // Loaded when needed: it reads the database, which the rest of this route never does.
+            const { findHeardWords } = await import('../services/video-words.js');
+            found = await findHeardWords(String(audioUrl), audioFile, { whisper: true, signal: cancel.signal });
+          } catch (error) {
+            console.warn('[Render] simple: no word timing:', error instanceof Error ? error.message : error);
+          }
+          heardWords = found.words;
+          wordSource = found.source;
+          wordNote = found.source === 'none' ? ', words: none (even split)'
+            : `, words: ${found.words.length} from ${found.source}${found.source === 'whisper' ? ` in ${((Date.now() - wordsStarted) / 1000).toFixed(1)} s` : ''}`;
+        }
+        await writeFile(path.join(dir, 'lyrics.ass'), lrcToAss(lrc, { width: w, height: h, style, nextLine: Boolean(nextLine), duration: seconds, highlight, waveform: Boolean(waveform), heardWords }), 'utf8');
         assFile = 'lyrics.ass';
         lyricsBurned = true;
       } else {
@@ -258,10 +279,11 @@ router.post('/simple', async (req: Request, res: Response) => {
       await spawnFfmpeg(ffmpegPath, args(encoder), dir, cancel.signal);
     }
     const { size } = statSync(outputPath);
-    console.log(`[Render] simple: ${w}x${h}, ${seconds.toFixed(0)} s of song in ${((Date.now() - started) / 1000).toFixed(1)} s (${encoder}${zoom ? ', zoom' : ''}${waveform ? ', waveform' : ''}${lyricsBurned ? `, lyrics ${lyricsStyle}` : ', no lyrics'}${loudnessNote}), ${(size / 1024 / 1024).toFixed(1)} MB`);
+    console.log(`[Render] simple: ${w}x${h}, ${seconds.toFixed(0)} s of song in ${((Date.now() - started) / 1000).toFixed(1)} s (${encoder}${zoom ? ', zoom' : ''}${waveform ? ', waveform' : ''}${lyricsBurned ? `, lyrics ${lyricsStyle}${wordNote}` : ', no lyrics'}${loudnessNote}), ${(size / 1024 / 1024).toFixed(1)} MB`);
     res.setHeader('Content-Type', 'video/mp4');
     res.setHeader('Content-Length', String(size));
     res.setHeader('X-Lyrics-Burned', lyricsBurned ? '1' : '0');
+    res.setHeader('X-Word-Timing', wordSource);
     res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"');
     res.on('close', cleanup);
     const stream = createReadStream(outputPath);

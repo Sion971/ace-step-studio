@@ -5,6 +5,9 @@
 // itself (libass), so nothing is drawn frame by frame in the browser and nothing is sent but one picture: a few tens of
 // seconds for a whole song instead of several minutes.
 
+import type { TimedWord } from './lyrics-structure.js';
+import { wordStartsPerLine } from './word-timing.js';
+
 export type SimpleLyricsStyle = 'line' | 'karaoke';
 
 export interface AssOptions {
@@ -19,6 +22,8 @@ export interface AssOptions {
   highlight?: string;
   /** The waveform is drawn along the bottom: the lyrics stay above it. */
   waveform?: boolean;
+  /** Karaoke: the words Whisper heard, so each word lights up when it is sung (word-timing.ts). */
+  heardWords?: TimedWord[];
 }
 
 /** Lines a text takes once libass wraps it (Arial: a character is about 0.52 of the font size wide on average). */
@@ -88,9 +93,42 @@ function karaokeText(text: string, seconds: number): string {
   }).join(' ');
 }
 
+/**
+ * Karaoke tags from the time each word is sung: a silent wait before the first word, then each word lights up over about
+ * its own length and the rest of the gap to the next word waits; the last word gets the average gap (within the line).
+ */
+export function karaokeTextFromWords(text: string, lineStart: number, starts: number[], lineEnd: number): string {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length !== starts.length || !words.length) return karaokeText(text, (lineEnd - lineStart) * 0.9);
+  const cs = (s: number) => Math.max(1, Math.round(s * 100));
+  const gaps = starts.slice(1).map((t, i) => t - starts[i]);
+  const average = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : 0.5;
+  const lastLength = Math.max(0.25, Math.min(average * 1.2, lineEnd - starts[starts.length - 1]));
+  const lead = starts[0] - lineStart;
+  // A word lights up over about the time it takes to sing it (a held note or a breath after it waits, unlit, for the next
+  // word): never longer than the gap to the next word, at least a quarter of a second.
+  const fillOf = (w: string, gap: number) => Math.min(gap, Math.max(0.25, w.length * 0.09));
+  let wait = lead >= 0.05 ? lead : 0;
+  const parts = words.map((w, i) => {
+    const gap = i < gaps.length ? gaps[i] : lastLength;
+    const fill = fillOf(w, gap);
+    const part = `${wait >= 0.05 ? `{\\k${cs(wait)}}` : ''}{\\kf${cs(fill)}}${escapeAss(w)}`;
+    wait = gap - fill;
+    return part;
+  });
+  return parts.join(' ');
+}
+
 /** The ASS subtitle file for the lyrics of the video. */
 export function lrcToAss(lrc: string, o: AssOptions): string {
   const lines = parseLrcEntries(lrc);
+  // When each line stops being shown: the next line, the end of the song, or MAX_HOLD_S at most.
+  const ends = lines.map((line, i) => {
+    const next = lines[i + 1];
+    const limit = next ? next.time : o.duration && o.duration > line.time ? o.duration : line.time + MAX_HOLD_S;
+    return Math.max(line.time + MIN_HOLD_S, Math.min(limit, line.time + MAX_HOLD_S));
+  });
+  const wordStarts = o.style === 'karaoke' && o.heardWords?.length ? wordStartsPerLine(lines, ends, o.heardWords) : [];
   const fontSize = Math.round(Math.min(o.width, o.height) * (o.height > o.width ? 0.052 : 0.06));
   const nextSize = Math.round(fontSize * 0.72);
   const marginV = Math.round(o.height * (o.height > o.width ? 0.16 : 0.09));
@@ -123,13 +161,15 @@ export function lrcToAss(lrc: string, o: AssOptions): string {
   const events: string[] = [];
   lines.forEach((line, i) => {
     const next = lines[i + 1];
-    const limit = next ? next.time : o.duration && o.duration > line.time ? o.duration : line.time + MAX_HOLD_S;
-    const end = Math.max(line.time + MIN_HOLD_S, Math.min(limit, line.time + MAX_HOLD_S));
+    const end = ends[i];
     // A next line that wraps would run into the waveform or off the picture: both lines move up just enough.
     const nextHeight = o.nextLine && next ? Math.round(wrappedLines(next.text, nextSize, textWidth) * nextSize * 1.2) : 0;
     const lyricBottom = Math.min(defaultBottom, floor - nextHeight - Math.round(nextSize * 0.3));
     const nextTop = lyricBottom + Math.round(nextSize * 0.3);
-    const text = o.style === 'karaoke' ? karaokeText(line.text, Math.min(end - line.time, MAX_HOLD_S) * 0.9) : escapeAss(line.text);
+    const starts = wordStarts[i];
+    const text = o.style !== 'karaoke' ? escapeAss(line.text)
+      : starts ? karaokeTextFromWords(line.text, line.time, starts, end)
+      : karaokeText(line.text, Math.min(end - line.time, MAX_HOLD_S) * 0.9);
     events.push(`Dialogue: 0,${assTime(line.time)},${assTime(end)},Lyric,,0,0,0,,{\\an2\\pos(${cx},${lyricBottom})}${text}`);
     if (o.nextLine && next) {
       events.push(`Dialogue: 0,${assTime(line.time)},${assTime(end)},Next,,0,0,0,,{\\an8\\pos(${cx},${nextTop})}${escapeAss(next.text)}`);

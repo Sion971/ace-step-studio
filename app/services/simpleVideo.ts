@@ -214,12 +214,17 @@ export interface SimpleVideoRequest {
   normalize?: boolean;
   /** The Mastering window's five settings, applied before the loudness (see services/masteringPresets.ts). */
   mastering?: { harmonics: number; warmth: number; tone: number; glue: number; width: number };
+  /** Karaoke: light each word when it is sung, from the words Whisper heard (false: even split over the line). */
+  wordTiming?: boolean;
 }
+
+/** Where the karaoke's word times came from: the import's analysis, an earlier video, Whisper now, or none (even split). */
+export type WordTimingSource = 'analysis' | 'cache' | 'whisper' | 'none';
 
 export class SimpleVideoError extends Error {}
 
 /** Asks the server for the video; returns it with whether the lyrics could be burnt in. */
-export async function renderSimpleVideo(req: SimpleVideoRequest, signal?: AbortSignal): Promise<{ blob: Blob; lyricsBurned: boolean }> {
+export async function renderSimpleVideo(req: SimpleVideoRequest, signal?: AbortSignal): Promise<{ blob: Blob; lyricsBurned: boolean; wordTiming: WordTimingSource }> {
   const res = await fetch('/api/render-video/simple', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -232,7 +237,9 @@ export async function renderSimpleVideo(req: SimpleVideoRequest, signal?: AbortS
   }
   const blob = await res.blob();
   if (!blob.size) throw new SimpleVideoError('Empty video');
-  return { blob, lyricsBurned: res.headers.get('X-Lyrics-Burned') === '1' };
+  const source = res.headers.get('X-Word-Timing');
+  const wordTiming: WordTimingSource = source === 'analysis' || source === 'cache' || source === 'whisper' ? source : 'none';
+  return { blob, lyricsBurned: res.headers.get('X-Lyrics-Burned') === '1', wordTiming };
 }
 
 /**
