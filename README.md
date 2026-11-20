@@ -19,21 +19,24 @@
 
 ## About this fork
 
-This is a fork of [timoncool/ACE-Step-Studio](https://github.com/timoncool/ACE-Step-Studio), itself built on [AmbsdOP's ACE-Step UI](https://github.com/fspecii/ace-step-ui). It's been substantially reworked and extended — developed primarily on Linux Mint with an NVIDIA RTX GPU, with genuine Windows support built out in parallel rather than tacked on afterward.
+This is a fork of [timoncool/ACE-Step-Studio](https://github.com/timoncool/ACE-Step-Studio) 1.x, itself built on [AmbsdOP's ACE-Step UI](https://github.com/fspecii/ace-step-ui). It is developed primarily on Linux Mint with an NVIDIA RTX GPU, with genuine Windows support built out in parallel rather than tacked on afterward. macOS isn't currently tested or supported.
 
-Both platforms share the same underlying approach: a single [`uv`](https://github.com/astral-sh/uv)-managed Python environment instead of the older embedded-Python-plus-manual-pip setup most Windows installers still rely on. Same fast, reliable dependency resolution, same GPU-aware `flash-attn` handling, same isolated environment for MIDI conversion — one installer per platform, one consistent approach underneath. macOS isn't currently tested or supported.
+**Upstream has since taken another road.** timoncool's 2.0 is a rewrite: a Tauri window and a Rust service around acestep.cpp (a C++/GGML port of ACE-Step 1.5), with nothing in Python, built for Windows first. This fork keeps the 1.x stack and takes it further: React and Express in the browser, SQLite, and the original **Python ACE-Step 1.5 pipeline**, which is what makes block streaming, LoRA training on small cards, flow-edit and DCW possible. The two projects no longer share code; this one is maintained on its own.
 
-**What's different from upstream:**
+Both platforms here share the same setup: one [`uv`](https://github.com/astral-sh/uv)-managed Python environment, a GPU-aware installer per platform (`install.sh`, `install.bat`), and the same isolated environments for MIDI conversion and stem separation.
 
-- **Playlists vs. Workspaces** — a real separation between curated playlists and working sessions, with exclusive workspace membership (a song lives in one workspace at a time) and a virtual "default" view computed by exclusion.
-- **Stem separation, server-side** — [Demucs](https://github.com/facebookresearch/demucs) running in its own isolated environment, in 4 or 6 stems (adding guitar and piano). Synchronized playback with a per-stem mute, and no more browser RAM ceiling on the 6-stem model.
-- **MIDI conversion, server-side** — [basic-pitch](https://github.com/spotify/basic-pitch) running in an isolated Python 3.11 environment (its TensorFlow dependency doesn't ship wheels for newer Python), converting stems to MIDI in seconds rather than tens of minutes in-browser, with a piano roll and built-in synthesizer to hear the result.
-- **Mastering and loudness normalization** — optional mastering (warmth and harmonics, tone, glue compression, stereo width, with presets), then normalization to a streaming platform's LUFS target (Spotify, Apple Music, YouTube, ...) with two-pass `ffmpeg` loudnorm; compare the original and the result at the same volume before downloading.
-- **AudioMass, updated and wired in** — upgraded to the multitrack build, with direct-load support: open a single stem or all of a song's stems together as separate tracks, straight from the browser, no manual export/import round-trip.
-- **Runs on small graphics cards, down to 2 GB** — a *stream* mode keeps the model in RAM and sends it through the card one block at a time, then decodes the audio on the card. Measured on a GTX 1050 2 GB: a DiT step 12.7 s → 1.26 s, audio decoding 170 s → about 10 s, compared to the processor alone. Cards of 4 to 8 GB can choose between this mode and the normal one at install time. See [Which graphics card?](#-which-graphics-card).
-- **LoRA training from the UI** — the full scan → label → preprocess → train pipeline, drivable from React without dropping into Gradio directly.
-- **LoRA training on a small card** — a *small-card mode* keeps the frozen model in RAM and copies one block at a time to the card (and the next one while the current one computes): a LoRA trains in about 1.2 GB of VRAM for the 2B Turbo model, about 2.1 GB for XL. Measured on an RTX 5060 8 GB: 10 epochs of 16 songs in 4 minutes (2B Turbo) or about 10 minutes (XL). It works down to a GTX 1050 2 GB (2B model; slow there, about 14 minutes per epoch). See `TROUBLESHOOTING.md` §63.
-- **One installer per platform, both `uv`-based and GPU-aware** — detects your actual compute capability and compiler version, not just a menu choice, and knows when `flash-attn` will and won't build correctly for your hardware (Blackwell/RTX 50-series needs CUDA 12.8+ to compile it at all on Linux, or a matching prebuilt wheel on Windows — both installers check this before attempting work that's doomed to fail).
+**What this fork is about:**
+
+- **Small graphics cards, down to 2 GB.** A *stream* mode keeps the model in RAM and sends it through the card one block at a time, in bfloat16, without quantization: the **XL model (4B) runs on an 8 GB card** (RTX 5060: about 13 s of DiT for 209 s of music, 8 steps), and the 2B models down to a GTX 1050 2 GB. See [Which graphics card?](#-which-graphics-card).
+- **LoRA and LoKr training on a small card.** The frozen model stays in RAM and goes to the card block by block: a LoRA trains in about 1.2 GB of VRAM for the 2B Turbo, about 2.1 GB for XL, down to a GTX 1050 2 GB (slow there). The whole scan → label → preprocess → train pipeline is in the UI. See `TROUBLESHOOTING.md` §63.
+- **Models and generation.** Turbo, Base and SFT in 2B and XL, community merges, and a **2B Base+Turbo merge made for this Studio** ([on Hugging Face](https://huggingface.co/Sion971/ACE-Step-v1.5-2B-Base-Turbo-0.3-Merge)); DCW, flow-edit, the engine's extra samplers; steps, shift, DCW and guidance set for each model and remembered per model; Lego / Extract / Complete to add or isolate an instrument.
+- **Lyrics you can trust.** The engine's synchronised lyrics (LRC) are often wrong at the start of a song; one button realigns them on what **Whisper** hears. An imported audio is analysed (lyrics, style, BPM, key), and the lyrics and style can be corrected before use; the corrections also time the import's video.
+- **Studio tab.** A multitrack editor ([AudioMass](https://github.com/pkalogiros/AudioMass)) inside the app, with projects saved on the server, tempo matching, an instrument generated by Lego on a new track, and export of the mix to the library.
+- **Video Studio.** The cover and the synchronised lyrics (line by line, or karaoke **word by word on the voice**, timed by Whisper) made into an MP4 by ffmpeg on the server in a few tens of seconds, in 16:9, 9:16 or 1:1, sound levelled to −14 LUFS for YouTube, or mastered first.
+- **Stems, MIDI, mastering.** [Demucs](https://github.com/facebookresearch/demucs) (4 or 6 stems) and [basic-pitch](https://github.com/spotify/basic-pitch) server-side in isolated environments, on Linux and Windows; mastering presets and normalization to a platform's LUFS target, compared at the same volume.
+- **Library for several people.** Accounts, playlists, and **workspaces** (a song lives in one workspace at a time; songs made in a workspace go into it); imported audio is filed like the songs. Use from any device on your network.
+- **Local covers.** A procedural cover for every song, and optionally an AI cover drawn on your card (SDXL Turbo); no cloud service.
+- **French interface**, besides English, Russian, Chinese, Japanese and Korean.
 
 ---
 
@@ -145,7 +148,7 @@ Both platforms share the same underlying approach: a single [`uv`](https://githu
 | **MIDI Conversion** | Turn any stem into MIDI server-side, in seconds, with a piano roll and built-in synthesizer to hear it |
 | **Mastering and Loudness** | Optional mastering (warmth, harmonics, tone, glue, width), then normalization to a streaming platform's LUFS target, with before/after listening at the same volume |
 | **LoRA Training** | Full training pipeline, driven from the UI |
-| **Video Studio** | Cover + synchronised lyrics video (line or karaoke), sound levelled for YouTube |
+| **Video Studio** | Cover + synchronised lyrics video (line, or word-by-word karaoke), sound levelled for YouTube |
 | **Covers** | Every song gets a procedural gradient cover, no internet needed. Optionally, an AI cover drawn locally after the audio is done (SDXL Turbo, NVIDIA GPU only, about 7 GB downloaded on first use); no cloud service is involved |
 
 ---
@@ -362,7 +365,7 @@ Generate several variations of the same prompt in one pass to compare results qu
 
 **Audio Editor (AudioMass, multitrack)** — trim, fade, apply effects. Open a single stem directly from your library, or send all of a song's stems over together as separate tracks in one editor session.
 
-**Stem Extraction (Demucs)** — runs server-side in its own isolated environment (created by the Linux installer; no Windows equivalent yet). Separates into 4 stems (vocals, drums, bass, other) or 6 (adding guitar and piano) — 4 is generally cleaner, 6 is for when there's a real guitar or piano worth isolating. One play button starts every stem in sync, each stem has its own mute, and each can be downloaded, converted to MIDI, or sent straight to the editor.
+**Stem Extraction (Demucs)** — runs server-side in its own isolated environment (created by the installer, on Linux and Windows). Separates into 4 stems (vocals, drums, bass, other) or 6 (adding guitar and piano) — 4 is generally cleaner, 6 is for when there's a real guitar or piano worth isolating. One play button starts every stem in sync, each stem has its own mute, and each can be downloaded, converted to MIDI, or sent straight to the editor.
 
 **MIDI Conversion (basic-pitch)** — runs server-side in its own isolated environment, converts any stem to MIDI in seconds. A piano roll shows the notes and a built-in synthesizer plays them back; the `.mid` file can be downloaded.
 
@@ -372,7 +375,7 @@ Generate several variations of the same prompt in one pass to compare results qu
 
 On the training page, **Small-card mode (weights by blocks)** lets a card of 2 GB or more train a LoRA or a LoKr: the model's weights stay in RAM (about 6 GB for the 2B models, 10 GB for XL) and pass through the card block by block. The trained model is the one loaded in the Create tab, and the preprocessed tensors must come from the same model (a 2B LoRA does not fit XL); While a training runs, generation is paused. Leave « Free VRAM during training » ticked unless you know the engine will stay idle.
 
-**Video Studio** — turn a track into a video: its cover (or an image, or a new AI cover) with the synchronised lyrics, line by line or karaoke, in 16:9, 9:16 or 1:1, sound levelled to −14 LUFS for YouTube and social media. Made by ffmpeg on the server in a few tens of seconds.
+**Video Studio** — turn a track into a video: its cover (or an image, or a new AI cover) with the synchronised lyrics, line by line or karaoke (each word lights up when it is sung, from the words Whisper heard; about half a minute more the first time for a song), in 16:9, 9:16 or 1:1, sound levelled to −14 LUFS for YouTube and social media. Made by ffmpeg on the server in a few tens of seconds.
 
 ---
 
@@ -400,7 +403,7 @@ More detail in `TROUBLESHOOTING.md`.
 ## 🙏 Credits
 
 - **[ACE-Step](https://github.com/ace-step/ACE-Step-1.5)** — the underlying open source AI music generation model
-- **[timoncool/ACE-Step-Studio](https://github.com/timoncool/ACE-Step-Studio)** — the project this fork is built on
+- **[timoncool/ACE-Step-Studio](https://github.com/timoncool/ACE-Step-Studio)** — the project this fork is built on (its 1.x line)
 - **[AmbsdOP/ace-step-ui](https://github.com/fspecii/ace-step-ui)** — the original UI this was in turn based on
 - **[@bdsqlsz](https://space.bilibili.com/29863478)** — Chinese localization, carried over from upstream
 - **[AudioMass](https://github.com/pkalogiros/AudioMass)** — web audio editor
