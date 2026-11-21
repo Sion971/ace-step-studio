@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-21
+
+### Fixed
+- Studio page: songs deleted while a named workspace was shown in its list stayed there until the page was reloaded (the workspace's songs are a copy fetched when it is picked). They now leave the list as soon as they are deleted (`StudioPage.tsx`, test `studioDeleteRefresh.test.tsx`, fails without the fix).
+
 ## 2026-11-19
 
 ### Added

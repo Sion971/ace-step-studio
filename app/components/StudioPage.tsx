@@ -232,11 +232,22 @@ export const StudioPage: React.FC<StudioPageProps> = ({ songs, workspaces = [], 
     return () => { cancelled = true; };
   }, [scope, loadWorkspaceSongs]);
 
+  // A workspace's songs are a copy fetched when it is picked: songs deleted since (they leave `songs`) must leave it too,
+  // or they stay on screen until the page is reloaded.
+  const seenIds = useRef<Set<string>>(new Set());
+  const [goneIds, setGoneIds] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    const now = new Set(songs.map((x) => x.id));
+    const gone = Array.from(seenIds.current).filter((id) => !now.has(id));
+    seenIds.current = now;
+    if (gone.length > 0) setGoneIds((prev) => new Set([...Array.from(prev), ...gone]));
+  }, [songs]);
+
   const scoped = useMemo(() => {
     if (scope === SCOPE_ALL) return songs;
     if (scope === SCOPE_DEFAULT) return songs.filter((s) => !songsInAnyWorkspace?.has(s.id));
-    return workspaceSongs ?? [];
-  }, [scope, songs, songsInAnyWorkspace, workspaceSongs]);
+    return (workspaceSongs ?? []).filter((s) => !goneIds.has(s.id));
+  }, [scope, songs, songsInAnyWorkspace, workspaceSongs, goneIds]);
 
   const matches = useMemo(() => filterStudioSongs(scoped, query), [scoped, query]);
   // The list is newest first: a cap with no way past it hid the older songs (made with earlier models).
