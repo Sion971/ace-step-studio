@@ -79,6 +79,17 @@ export function presetForVram(vramGiB: number | undefined | null, mode?: string)
   return 'vram_24gb_plus';
 }
 
+/**
+ * Small-card mode (weights through the card block by block) ticked by default on cards under 12 GB.
+ * torch reports a "12 GB" card as about 11.6-11.8 GiB, an "11 GB" one as about 10.7 GiB: 11.5 separates them.
+ */
+export const SMALL_CARD_BELOW_GIB = 11.5;
+
+export function smallCardByDefault(vramGiB: number | undefined | null, mode?: string): boolean {
+  if (mode === 'cpu') return false;
+  return typeof vramGiB === 'number' && Number.isFinite(vramGiB) && vramGiB > 0 && vramGiB < SMALL_CARD_BELOW_GIB;
+}
+
 export function findPreset(id: string): TrainingPreset | undefined {
   return TRAINING_PRESETS.find((p) => p.id === id);
 }

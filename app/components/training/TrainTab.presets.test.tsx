@@ -57,6 +57,30 @@ describe('training tab presets', () => {
     expect(select().value).toBe('default');
   });
 
+  // Small-card mode ticked to start with on cards under 12 GB (torch reports a 12 GB card as about 11.7 GiB).
+  const smallCard = () => {
+    const label = [...container.querySelectorAll('label')].find((l) => (l.textContent ?? '').includes('streamBlocks'));
+    return (label?.querySelector('input[type="checkbox"]') as HTMLInputElement).checked;
+  };
+
+  it('ticks the small-card mode on an 8 GB card, not on a 12 GB one nor on a CPU', async () => {
+    serve({ vramGiB: 7.6, mode: 'gpu' });
+    await render();
+    expect(smallCard()).toBe(true);
+    act(() => root.unmount());
+    root = createRoot(container);
+    vi.unstubAllGlobals();
+    serve({ vramGiB: 11.7, mode: 'gpu' });
+    await render();
+    expect(smallCard()).toBe(false);
+    act(() => root.unmount());
+    root = createRoot(container);
+    vi.unstubAllGlobals();
+    serve({ vramGiB: 0, mode: 'cpu' });
+    await render();
+    expect(smallCard()).toBe(false);
+  });
+
   it('shows the new options', async () => {
     serve(undefined);
     await render();

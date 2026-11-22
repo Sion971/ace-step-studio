@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_PRESET_VALUES, TRAINING_PRESETS, presetForVram, findPreset } from './training-presets';
+import { DEFAULT_PRESET_VALUES, TRAINING_PRESETS, presetForVram, findPreset, smallCardByDefault } from './training-presets';
 
 describe('presetForVram', () => {
   it('picks the preset of the card, with the memory torch reports', () => {
@@ -52,5 +52,18 @@ describe('the presets', () => {
       if (p.values.optimizerType) expect(optimizers).toContain(p.values.optimizerType);
       if (p.values.cfgRatio != null) expect(p.values.cfgRatio).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+describe('smallCardByDefault', () => {
+  it('is on under 12 GB and off from a 12 GB card, on a CPU or when the memory is unknown', () => {
+    expect(smallCardByDefault(3.9, 'gpu')).toBe(true);
+    expect(smallCardByDefault(7.5, 'gpu')).toBe(true);
+    expect(smallCardByDefault(10.7, 'gpu')).toBe(true);
+    expect(smallCardByDefault(11.7, 'gpu')).toBe(false);
+    expect(smallCardByDefault(15.6, 'gpu')).toBe(false);
+    expect(smallCardByDefault(7.5, 'cpu')).toBe(false);
+    expect(smallCardByDefault(null)).toBe(false);
+    expect(smallCardByDefault(0)).toBe(false);
   });
 });
