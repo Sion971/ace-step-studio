@@ -21,6 +21,7 @@ import torch
 from acestep.training_v2.optim import build_optimizer, build_scheduler
 from acestep.training_v2.tensorboard_utils import TrainingLogger
 from acestep.training_v2.trainer_helpers import configure_memory_features, save_checkpoint, save_final
+from acestep.training_v2.pause_request import paused_message, should_pause
 from acestep.training_v2.ui import TrainingUpdate
 
 logger = logging.getLogger(__name__)
@@ -225,15 +226,26 @@ def run_basic_training_loop(
             kind="epoch", epoch=epoch + 1, max_epochs=cfg.max_epochs, epoch_time=epoch_time,
         )
 
-        if (epoch + 1) % cfg.save_every_n_epochs == 0:
+        # Pause asked from the Studio: checkpoint this epoch even off the save schedule, then stop.
+        pause = should_pause(epoch + 1, cfg.max_epochs)
+        if (epoch + 1) % cfg.save_every_n_epochs == 0 or pause:
             ckpt_dir = str(output_dir / "checkpoints" / f"epoch_{epoch + 1}_loss_{avg_epoch_loss:.4f}")
             save_checkpoint(trainer, optimizer, scheduler, epoch + 1, global_step, ckpt_dir)
             yield TrainingUpdate(
                 step=global_step, loss=avg_epoch_loss,
-                msg=f"[OK] Checkpoint saved at epoch {epoch + 1}",
+                msg=f"[OK] Checkpoint saved at epoch {epoch + 1}: {ckpt_dir}",
                 kind="checkpoint", epoch=epoch + 1, max_epochs=cfg.max_epochs,
                 checkpoint_path=ckpt_dir,
             )
+            if pause:
+                tb.flush()
+                tb.close()
+                yield TrainingUpdate(
+                    step=global_step, loss=avg_epoch_loss,
+                    msg=paused_message(epoch + 1, cfg.max_epochs, ckpt_dir),
+                    kind="complete", epoch=epoch + 1, max_epochs=cfg.max_epochs,
+                )
+                return
 
         if torch.cuda.is_available():
             torch.cuda.empty_cache()

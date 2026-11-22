@@ -1269,6 +1269,11 @@ export const ru = {
     lossCurve: "Кривая потерь",
     trainStartFailed: "Не удалось запустить",
     trainStopFailed: "Не удалось остановить",
+    pauseTraining: "Пауза после этой эпохи",
+    pauseTrainingPending: "Пауза запрошена…",
+    pauseTrainingHint: "Останавливается после текущей эпохи и сохраняет чекпоинт; «Продолжить обучение» продолжит с него позже.",
+    resumeTraining: "Продолжить обучение",
+    trainPauseFailed: "Не удалось поставить на паузу",
     trainRestartFailed: "Не удалось перезапустить",
 
     // Écrans d'entraînement LoRA : clés demandées sans exister hors du français (dernier lot des textes)

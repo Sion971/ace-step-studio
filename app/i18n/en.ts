@@ -1275,6 +1275,11 @@ export const en = {
     lossCurve: "Loss curve",
     trainStartFailed: "Failed to start",
     trainStopFailed: "Failed to stop",
+    pauseTraining: "Pause after this epoch",
+    pauseTrainingPending: "Pause requested…",
+    pauseTrainingHint: "Stops after the current epoch and saves a checkpoint; \"Resume training\" carries on from it later.",
+    resumeTraining: "Resume training",
+    trainPauseFailed: "Failed to pause",
     trainRestartFailed: "Failed to restart",
 
     // Écrans d'entraînement LoRA : clés demandées sans exister hors du français (dernier lot des textes)

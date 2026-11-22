@@ -51,6 +51,7 @@ from acestep.training_v2.trainer_helpers import (
     verify_saved_adapter,
 )
 from acestep.training_v2.trainer_basic_loop import run_basic_training_loop
+from acestep.training_v2.pause_request import paused_message, should_pause
 
 logger = logging.getLogger(__name__)
 
@@ -560,13 +561,16 @@ class FixedLoRATrainer:
                     kind="epoch", epoch=epoch + 1, max_epochs=cfg.max_epochs, epoch_time=epoch_time,
                 )
 
+            # Pause asked from the Studio: checkpoint this epoch even off the save schedule, then stop.
+            pause = should_pause(epoch + 1, cfg.max_epochs)
+
             # Checkpoint (only rank 0)
-            if is_main and (epoch + 1) % cfg.save_every_n_epochs == 0:
-                ckpt_dir = str(output_dir / "checkpoints" / f"epoch_{epoch + 1}_loss_{avg_epoch_loss:.4f}")
+            ckpt_dir = str(output_dir / "checkpoints" / f"epoch_{epoch + 1}_loss_{avg_epoch_loss:.4f}")
+            if is_main and ((epoch + 1) % cfg.save_every_n_epochs == 0 or pause):
                 self._save_checkpoint(optimizer, scheduler, epoch + 1, global_step, ckpt_dir)
                 yield TrainingUpdate(
                     step=global_step, loss=avg_epoch_loss,
-                    msg=f"[OK] Checkpoint saved at epoch {epoch + 1}",
+                    msg=f"[OK] Checkpoint saved at epoch {epoch + 1}: {ckpt_dir}",
                     kind="checkpoint", epoch=epoch + 1, max_epochs=cfg.max_epochs,
                     checkpoint_path=ckpt_dir,
                 )
@@ -574,6 +578,17 @@ class FixedLoRATrainer:
             # Barrier to sync all ranks before next epoch
             if world_size > 1:
                 self.fabric.barrier()
+
+            if pause:
+                if is_main:
+                    tb.flush()
+                    tb.close()
+                    yield TrainingUpdate(
+                        step=global_step, loss=avg_epoch_loss,
+                        msg=paused_message(epoch + 1, cfg.max_epochs, ckpt_dir),
+                        kind="complete", epoch=epoch + 1, max_epochs=cfg.max_epochs,
+                    )
+                return
 
             # Clear CUDA cache AFTER checkpoint save so serialization
             # temporaries are also freed.

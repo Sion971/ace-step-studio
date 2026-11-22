@@ -1258,6 +1258,11 @@ export const zh = {
     lossCurve: "损失曲线",
     trainStartFailed: "启动失败",
     trainStopFailed: "停止失败",
+    pauseTraining: "本轮结束后暂停",
+    pauseTrainingPending: "已请求暂停…",
+    pauseTrainingHint: "在当前轮次结束时保存检查点并停止；之后点击“继续训练”从该检查点继续。",
+    resumeTraining: "继续训练",
+    trainPauseFailed: "暂停失败",
     trainRestartFailed: "重启失败",
 
     // Écrans d'entraînement LoRA : clés demandées sans exister hors du français (dernier lot des textes)

@@ -846,6 +846,19 @@ router.post('/stop', authMiddleware, async (_req: AuthenticatedRequest, res: Res
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/training/pause — stops after the current epoch with a checkpoint to resume from
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/pause', authMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const paused = trainingRunner.pause();
+    res.json({ status: paused ? 'Pause requested' : 'No training run to pause', paused });
+  } catch (error) {
+    console.error('[Training] Pause error:', error);
+    res.status(500).json({ error: trainingErrorMessage(error, 'Failed to pause training') });
+  }
+});
+
 // GET /api/training/status — état courant (polling depuis le front)
 router.get('/status', authMiddleware, (_req: AuthenticatedRequest, res: Response) => {
   res.json(trainingRunner.getStatus());

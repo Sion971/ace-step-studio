@@ -1258,6 +1258,11 @@ export const ja = {
     lossCurve: "損失曲線",
     trainStartFailed: "開始に失敗しました",
     trainStopFailed: "停止に失敗しました",
+    pauseTraining: "このエポック後に一時停止",
+    pauseTrainingPending: "一時停止を要求しました…",
+    pauseTrainingHint: "現在のエポック終了時にチェックポイントを保存して停止します。後で「トレーニングを再開」でそこから続けられます。",
+    resumeTraining: "トレーニングを再開",
+    trainPauseFailed: "一時停止に失敗しました",
     trainRestartFailed: "再起動に失敗しました",
 
     // Écrans d'entraînement LoRA : clés demandées sans exister hors du français (dernier lot des textes)

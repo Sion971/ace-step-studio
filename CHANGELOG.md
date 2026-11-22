@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-22
+
+### Added
+- **Pause a LoRA / LoKr training after the current epoch** (Train tab, "Pause after this epoch" next to Stop; idea from the fork Martinezjpo-git/ace-step-studio, rewritten here). The Studio creates the file named by `ACESTEP_TRAINING_PAUSE_FILE`; the training loops (`trainer_fixed.py` and the basic loop) look for it once per epoch, after the epoch's last optimiser step, save a checkpoint even off the save schedule and exit (`acestep/training_v2/pause_request.py`). The run is then "paused": its checkpoint goes into "Resume from" and the start button reads "Resume training". A pause asked during the last epoch simply lets the run finish. Stop still stops at once, without a checkpoint.
+
+### Changed
+- Train tab: on cards under 12 GB (below 11.5 GiB as torch reports it, so a 12 GB card is left out), the small-card mode is ticked to start with, like the preset for the card is chosen; it stays as the user sets it once a field is touched.
+- The checkpoint line now gives the folder (`[OK] Checkpoint saved at epoch 10: lora_output/checkpoints/…`), and the Train tab reads the last checkpoint from it: it was missing for LoKr runs and for Windows paths (`\`).
+
 ## 2026-11-21
 
 ### Fixed

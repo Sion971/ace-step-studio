@@ -13,13 +13,13 @@
  * ==========================================================================*/
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { FolderOpen, Play, Square, RotateCw, Copy, Check } from 'lucide-react';
+import { FolderOpen, Play, Square, Pause, RotateCw, Copy, Check } from 'lucide-react';
 import { trainingApi } from '../../services/api';
 import { Section, FieldRow, ParamSlider } from './TrainingUIComponents';
 import { fillTemplate } from '../../utils/fillTemplate';
 import { markLogLines } from './logLines';
 import {
-  ATTENTION_TYPES, DEFAULT_PRESET_VALUES, SCHEDULER_TYPES, TRAINING_PRESETS, findPreset, presetForVram, type PresetValues,
+  ATTENTION_TYPES, DEFAULT_PRESET_VALUES, SCHEDULER_TYPES, TRAINING_PRESETS, findPreset, presetForVram, smallCardByDefault, type PresetValues,
 } from '../../services/training-presets';
 
 /* ----------------------------------------------------------------------------
@@ -28,7 +28,7 @@ import {
 
 type PipelineStepKey = 'upload' | 'edit' | 'save' | 'preprocess' | 'train' | 'export';
 
-type TrainingState = 'idle' | 'starting' | 'running' | 'completed' | 'error' | 'stopped';
+type TrainingState = 'idle' | 'starting' | 'running' | 'paused' | 'completed' | 'error' | 'stopped';
 
 interface TrainingStatus {
   state: TrainingState;
@@ -47,6 +47,8 @@ interface TrainingStatus {
   log: string;
   lastError: string | null;
   outputPath: string | null;
+  /** A pause was asked: the run stops after the current epoch, with a checkpoint. */
+  pauseRequested?: boolean;
 }
 
 interface TrainTabProps {
@@ -234,6 +236,10 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
         if (typeof profile.vramGiB === 'number') setDetectedVram(profile.vramGiB);
         const id = presetForVram(profile.vramGiB, profile.mode);
         if (id && !touchedRef.current) applyPreset(id);
+        // Under 12 GB the small-card mode is ticked to start with (the user can still untick it).
+        if (!touchedRef.current && smallCardByDefault(profile.vramGiB, profile.mode)) {
+          setParams(p => (p.streamBlocks ? p : { ...p, streamBlocks: true }));
+        }
       } catch {
         /* serveur indisponible : on garde les valeurs du Studio */
       }
@@ -282,6 +288,8 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
   const logRef = useRef<HTMLPreElement>(null);
   const logLines = useMemo(() => markLogLines(status?.log ?? ''), [status?.log]);
   const markedRef = useRef(false);
+  /** Checkpoint already put into "Resume from" after a pause (so a later edit of the field is not overwritten). */
+  const pausedFilledRef = useRef<string | null>(null);
 
   const isActive = status ? ACTIVE_STATES.includes(status.state) : false;
 
@@ -307,6 +315,12 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
           if (cancelled) return;
           engineStateRef.current = engine;
           setEngineState(engine);
+        }
+        // Paused: the checkpoint it stopped on goes into "Resume from", so "Resume" carries on from there.
+        if (s.state === 'paused' && s.lastCheckpoint && pausedFilledRef.current !== s.lastCheckpoint) {
+          pausedFilledRef.current = s.lastCheckpoint;
+          const ckpt = s.lastCheckpoint;
+          setParams(p => (p.resumeCheckpoint === ckpt ? p : { ...p, resumeCheckpoint: ckpt }));
         }
         if (s.state === 'completed' && !markedRef.current) {
           markedRef.current = true;
@@ -350,6 +364,18 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
       setActionError(error instanceof Error ? error.message : t('trainStartFailed'));
     }
   }, [token, params, t]);
+
+  const handlePause = useCallback(async () => {
+    if (!token) return;
+    setActionError('');
+    try {
+      await trainingApi.pauseTraining(token);
+      const fresh = await trainingApi.trainingStatus(token);
+      setStatus(fresh);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : t('trainPauseFailed'));
+    }
+  }, [token, t]);
 
   const handleStop = useCallback(async () => {
     if (!token) return;
@@ -711,17 +737,34 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
             className="flex-1 py-2.5 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
           >
             <Play size={16} />
-            {t('startTraining') || "Lancer l'entraînement"}
+            {status?.state === 'paused' && params.resumeCheckpoint.trim()
+              ? (t('resumeTraining') || "Reprendre l'entraînement")
+              : (t('startTraining') || "Lancer l'entraînement")}
           </button>
         ) : (
-          <button
-            type="button"
-            onClick={handleStop}
-            className="flex-1 py-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-500 dark:text-red-400 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
-          >
-            <Square size={16} />
-            {t('stopTraining') || "Arrêter l'entraînement"}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={handlePause}
+              disabled={!!status?.pauseRequested}
+              title={t('pauseTrainingHint')}
+              data-testid="train-pause"
+              className="flex-1 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-600 dark:text-amber-400 rounded-lg text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              <Pause size={16} />
+              {status?.pauseRequested
+                ? (t('pauseTrainingPending') || 'Pause demandée…')
+                : (t('pauseTraining') || "Pause en fin d'époque")}
+            </button>
+            <button
+              type="button"
+              onClick={handleStop}
+              className="px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-500 dark:text-red-400 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+            >
+              <Square size={16} />
+              {t('stopTraining') || "Arrêter l'entraînement"}
+            </button>
+          </>
         )}
 
         {!isActive && (engineState === 'stopped' || engineState === 'error') && (
@@ -764,6 +807,7 @@ export const TrainTab: React.FC<TrainTabProps> = ({ token, t, markStep }) => {
                   className={`h-full rounded-full transition-all duration-500 ${
                     status.state === 'error' ? 'bg-red-500'
                       : status.state === 'completed' ? 'bg-green-500'
+                      : status.state === 'paused' ? 'bg-amber-500'
                       : 'bg-gradient-to-r from-pink-500 to-purple-600'
                   }`}
                   style={{ width: `${progressPct}%` }}

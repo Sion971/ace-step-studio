@@ -1342,6 +1342,11 @@ export const fr = {
     lossCurve: "Courbe de perte",
     trainStartFailed: "Échec du démarrage",
     trainStopFailed: "Échec de l'arrêt",
+    pauseTraining: "Pause en fin d'époque",
+    pauseTrainingPending: "Pause demandée…",
+    pauseTrainingHint: "S'arrête à la fin de l'époque en cours en enregistrant un checkpoint ; « Reprendre l'entraînement » repart de là plus tard.",
+    resumeTraining: "Reprendre l'entraînement",
+    trainPauseFailed: "Échec de la pause",
     trainRestartFailed: "Échec du redémarrage",
 
     // Écrans d'entraînement LoRA : clés demandées sans exister hors du français (dernier lot des textes)

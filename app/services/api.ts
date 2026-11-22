@@ -972,7 +972,7 @@ export interface TrainingParams {
 
 /** État renvoyé par GET /api/training/status (interrogé en polling). */
 export interface TrainingStatus {
-  state: 'idle' | 'starting' | 'running' | 'completed' | 'error' | 'stopped';
+  state: 'idle' | 'starting' | 'running' | 'paused' | 'completed' | 'error' | 'stopped';
   message: string;
   pid: number | null;
   epoch: number;
@@ -988,6 +988,8 @@ export interface TrainingStatus {
   log: string;
   lastError: string | null;
   outputPath: string | null;
+  /** A pause was asked: the run stops after the current epoch, with a checkpoint. */
+  pauseRequested?: boolean;
 }
 
 // Helper: build proxy URL for training audio files
@@ -1165,6 +1167,9 @@ export const trainingApi = {
 
    stopTraining: (token: string): Promise<{ status: string; stopped: boolean }> =>
      api('/api/training/stop', { method: 'POST', token }),
+
+   pauseTraining: (token: string): Promise<{ status: string; paused: boolean }> =>
+     api('/api/training/pause', { method: 'POST', token }),
 
    restartPipeline: (token: string): Promise<{ status: string }> =>
      api('/api/training/restart-pipeline', { method: 'POST', token }),

@@ -14,14 +14,16 @@
  */
 
 import { spawn, ChildProcess } from 'child_process';
-import { existsSync } from 'fs';
+import { existsSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
 import path from 'path';
 
 /* ---------------------------------------------------------------------------
  * Types
  * -------------------------------------------------------------------------*/
 
-export type TrainingState = 'idle' | 'starting' | 'running' | 'completed' | 'error' | 'stopped';
+/** paused: stopped on request after an epoch, with a checkpoint to resume from (lastCheckpoint). */
+export type TrainingState = 'idle' | 'starting' | 'running' | 'paused' | 'completed' | 'error' | 'stopped';
 
 export interface TrainingMetricPoint {
   epoch: number;
@@ -90,6 +92,8 @@ export interface TrainingStatus {
   log: string;
   lastError: string | null;
   outputPath: string | null;
+  /** A pause was asked: the run stops after the current epoch, with a checkpoint. */
+  pauseRequested: boolean;
 }
 
 /* ---------------------------------------------------------------------------
@@ -112,8 +116,14 @@ export interface TrainingStatus {
 /** `[OK] Epoch 1/20 in 2.9s, Loss: 0.9480` */
 const RE_EPOCH = /\[OK\]\s*Epoch\s+(\d+)\s*\/\s*(\d+)\s+in\s+([\d.]+)s,\s*Loss:\s*([\d.]+)/i;
 
-/** `[OK] LoRA adapter saved to lora_output/checkpoints/epoch_10_loss_0.5288` */
-const RE_CHECKPOINT = /LoRA adapter saved to\s+(\S*checkpoints\/\S+)/i;
+/** `[OK] LoRA adapter saved to lora_output/checkpoints/epoch_10_loss_0.5288` (LoRA only; `/` or `\` on Windows) */
+const RE_CHECKPOINT = /LoRA adapter saved to\s+(\S*checkpoints[\\/]\S+)/i;
+
+/** `[OK] Checkpoint saved at epoch 10: lora_output/checkpoints/epoch_10_loss_0.5288` (LoRA and LoKr) */
+const RE_CHECKPOINT_AT = /\[OK\]\s*Checkpoint saved at epoch\s+\d+:\s*(.+?)\s*$/i;
+
+/** `[PAUSED] Training paused after epoch 4/20. Resume from: lora_output/checkpoints/epoch_4_loss_0.5000` */
+const RE_PAUSED = /\[PAUSED\][^\n]*Resume from:\s*(.+?)\s*$/i;
 
 /** `[OK] Training complete! LoRA saved to lora_output/final` */
 const RE_FINAL = /Training complete!\s*LoRA saved to\s+(\S+)/i;
@@ -151,6 +161,10 @@ class TrainingRunner {
   private log = '';
   private stdoutTail = '';
   private finishListeners: Array<() => void> = [];
+  /** File whose creation asks train.py to pause after the current epoch (ACESTEP_TRAINING_PAUSE_FILE). */
+  private pauseFile: string | null = null;
+  private pauseRequested = false;
+  private pausedAt: string | null = null;
 
   /* -- État --------------------------------------------------------------- */
 
@@ -193,6 +207,7 @@ class TrainingRunner {
       log: this.log,
       lastError: this.lastError,
       outputPath: this.outputPath,
+      pauseRequested: this.pauseRequested && this.isRunning(),
     };
   }
 
@@ -209,6 +224,8 @@ class TrainingRunner {
     this.log = '';
     this.stdoutTail = '';
     this.lastError = null;
+    this.pauseRequested = false;
+    this.pausedAt = null;
     this.startedAt = Date.now();
   }
 
@@ -300,10 +317,12 @@ class TrainingRunner {
     this.message = "Démarrage de l'entraînement...";
     this.appendLog(`$ ${pythonPath} ${args.join(' ')}\n`);
 
+    this.clearPauseFile();
+    this.pauseFile = path.join(tmpdir(), `acestep-training-pause-${process.pid}-${Date.now()}`);
     this.process = spawn(pythonPath, args, {
       cwd: aceStepDir,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, PYTHONUNBUFFERED: '1' },
+      env: { ...process.env, PYTHONUNBUFFERED: '1', ACESTEP_TRAINING_PAUSE_FILE: this.pauseFile },
     });
 
     console.log(`[Training] spawn pid=${this.process.pid ?? 'AUCUN'}`);
@@ -317,14 +336,20 @@ class TrainingRunner {
       this.lastError = err.message;
       this.message = `Lancement impossible : ${err.message}`;
       this.process = null;
+      this.clearPauseFile();
       this.notifyFinished();
     });
 
     this.process.on('close', (code: number | null, signal: string | null) => {
       this.process = null;
+      this.clearPauseFile();
       if (signal === 'SIGTERM' || this.state === 'stopped') {
         this.state = 'stopped';
         this.message = 'Entraînement arrêté';
+      } else if (code === 0 && this.pausedAt) {
+        this.state = 'paused';
+        this.lastCheckpoint = this.pausedAt;
+        this.message = `En pause après l'époque ${this.epoch}/${this.totalEpochs} — reprise possible depuis le checkpoint`;
       } else if (code === 0) {
         this.state = 'completed';
         this.message = this.outputPath
@@ -371,6 +396,18 @@ class TrainingRunner {
         if (this.bestLoss == null || loss < this.bestLoss) this.bestLoss = loss;
         this.pushMetric({ epoch, loss });
       }
+      return;
+    }
+
+    const mPaused = RE_PAUSED.exec(line);
+    if (mPaused) {
+      this.pausedAt = mPaused[1];
+      return;
+    }
+
+    const mCkptAt = RE_CHECKPOINT_AT.exec(line);
+    if (mCkptAt) {
+      this.lastCheckpoint = mCkptAt[1];
       return;
     }
 
@@ -424,6 +461,28 @@ class TrainingRunner {
 
   private tailLog(chars: number): string {
     return this.log.slice(Math.max(0, this.log.length - chars));
+  }
+
+  /* -- Pause -------------------------------------------------------------- */
+
+  /**
+   * Asks the run to stop after the current epoch: train.py sees the file, saves a checkpoint (even off the save schedule)
+   * and exits; the state then becomes 'paused' with that checkpoint in lastCheckpoint.
+   */
+  pause(): boolean {
+    if (!this.process || !this.isRunning() || !this.pauseFile) return false;
+    if (!this.pauseRequested) {
+      writeFileSync(this.pauseFile, String(Date.now()));
+      this.pauseRequested = true;
+      this.message = "Pause demandée — fin de l'époque en cours, puis checkpoint";
+    }
+    return true;
+  }
+
+  private clearPauseFile(): void {
+    if (!this.pauseFile) return;
+    try { rmSync(this.pauseFile, { force: true }); } catch { /* already gone */ }
+    this.pauseFile = null;
   }
 
   /* -- Arrêt --------------------------------------------------------------- */

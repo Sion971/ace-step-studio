@@ -1258,6 +1258,11 @@ export const ko = {
     lossCurve: "손실 곡선",
     trainStartFailed: "시작에 실패했습니다",
     trainStopFailed: "중지에 실패했습니다",
+    pauseTraining: "이번 에포크 후 일시정지",
+    pauseTrainingPending: "일시정지 요청됨…",
+    pauseTrainingHint: "현재 에포크가 끝나면 체크포인트를 저장하고 멈춥니다. 나중에 \"훈련 재개\"로 이어서 진행합니다.",
+    resumeTraining: "훈련 재개",
+    trainPauseFailed: "일시정지에 실패했습니다",
     trainRestartFailed: "다시 시작에 실패했습니다",
 
     // Écrans d'entraînement LoRA : clés demandées sans exister hors du français (dernier lot des textes)
