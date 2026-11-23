@@ -46,7 +46,7 @@ import { buildCoverPrompt } from '../services/cover/prompts';
 import { formatTimeSignature } from '../services/timeSignature';
 import { cleanText } from '../utils/cleanText';
 import { AudioAnalysisDialog } from './AudioAnalysisDialog';
-import { isDurationLockedBySource, type CoverMeta } from './coverPrefill';
+import { coverMetaFromSong, isDurationLockedBySource, type CoverMeta } from './coverPrefill';
 
 interface ReferenceTrack {
   id: string;
@@ -919,18 +919,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       pendingAudioSelection.target,
       pendingAudioSelection.url,
       pendingAudioSelection.title,
-      pendingAudioSelection.mode
+      pendingAudioSelection.mode,
+      pendingAudioSelection.meta
     );
-    // A cover starts from the source's words and musical facts; the style stays the user's.
-    const meta = pendingAudioSelection.meta;
-    if (meta) {
-      if (meta.instrumental !== undefined) setInstrumental(meta.instrumental);
-      if (meta.lyrics) setLyrics(meta.lyrics);
-      if (meta.bpm) setBpm(meta.bpm);
-      if (meta.keyScale && KEY_SIGNATURES.includes(meta.keyScale)) setKeyScale(meta.keyScale);
-      if (meta.timeSignature && TIME_SIGNATURES.includes(meta.timeSignature)) setTimeSignature(meta.timeSignature);
-      if (meta.language) setVocalLanguage(meta.language);
-    }
     onAudioSelectionApplied?.();
   }, [pendingAudioSelection, onAudioSelectionApplied]);
 
@@ -1509,7 +1500,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // Emplacement UNIQUE : charger un audio vide systematiquement l'autre case.
   // Le pipeline n'arbitre que sur `taskType`, donc garder les deux remplies
   // rendait l'une des deux silencieusement inerte.
-  const applyAudioTargetUrl = (target: 'reference' | 'source', url: string, title?: string, mode?: AudioModeId) => {
+  const applyAudioTargetUrl = (target: 'reference' | 'source', url: string, title?: string, mode?: AudioModeId, meta?: CoverMeta) => {
     // Si l'appelant precise un mode explicite (ex: "Reprendre la chanson"
     // vise toujours 'cover'), on bascule audioMode AVANT de deriver
     // taskType — sinon taskType dependait du mode DEJA actif au moment du
@@ -1537,6 +1528,23 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     const effectiveAudioMode = mode && AUDIO_MODE_MAP[mode] ? mode : audioMode;
     const activeMode = AUDIO_MODE_MAP[effectiveAudioMode];
     setTaskType(activeMode.field === target ? activeMode.taskType : 'text2music');
+    // A cover starts from the source's words and musical facts; the style stays the user's. Every way of loading the
+    // source comes through here (the song's Cover action, the library window, a song dropped on the field), so the
+    // song is looked up by its audio when the caller did not pass its details.
+    if (target === 'source' && activeMode.field === 'source' && activeMode.taskType === 'cover') {
+      const song = meta ? undefined : createdSongs.find(s => s.audioUrl === url);
+      const m = meta ?? (song ? coverMetaFromSong(song) : undefined);
+      if (m) applyCoverMeta(m);
+    }
+  };
+
+  const applyCoverMeta = (meta: CoverMeta) => {
+    if (meta.instrumental !== undefined) setInstrumental(meta.instrumental);
+    if (meta.lyrics) setLyrics(meta.lyrics);
+    if (meta.bpm) setBpm(meta.bpm);
+    if (meta.keyScale && KEY_SIGNATURES.includes(meta.keyScale)) setKeyScale(meta.keyScale);
+    if (meta.timeSignature && TIME_SIGNATURES.includes(meta.timeSignature)) setTimeSignature(meta.timeSignature);
+    if (meta.language) setVocalLanguage(meta.language);
   };
 
   // Changement de mode : on deplace le fichier deja charge vers la case que le
