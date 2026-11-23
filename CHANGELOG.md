@@ -5,6 +5,9 @@
 ### Fixed
 - **The same seed now gives the same song.** In single-song generation (batch 1, the usual case) the 5Hz LM drew its metadata, caption rewrite and audio codes from unseeded random generators: only batch mode applied the seeds, per item and in Phase 2 only (`generate_with_stop_condition`, "TODO: not used yet"). So reusing a seed gave other codes, hence another song. Measured on an RTX 5060 before the fix: two runs at the same seed, caption and settings gave a spectral correlation of 0.82 between the two tracks. The song's seed now seeds the sampling before Phase 1 and, for a single song, again before Phase 2, so the codes do not depend on how long Phase 1 ran. A negative seed still means random. Test `acestep/llm_seed_test.py` fails without the fix.
 
+### Changed
+- 5Hz LM, audio-code phase (CUDA graph steps, NVIDIA): the output layer is computed only on the tokens that phase can sample, the audio codes and the end token, read at run time from the constrained processor's own mask (64,001 of 217,204 rows on the current LMs). The other tokens were set to -inf before sampling anyway, so the sampled tokens keep the same scores, up to the rounding of the product. On the 1.7B this layer is about a quarter of the weights read per token. The rows are copied once per generation (about 0.26 GB on the card while the LM runs). The check step of the graph compares those rows only. `ACESTEP_LM_HEAD_ROWS=0` computes the whole layer as before. The usual (non-graph) steps are unchanged. Measured on an RTX 5060 (XL turbo + LM 1.7B, 120 s, 3 runs): model step in this phase 16.9 to 15.4 ms per token, Phase 2 11.1 to 10.2 s, a whole song 25.9 to 24.9 s. Because of the rounding, a seed gives another song than before this change (a close call between two codes can go the other way), but the same song every time.
+
 ## 2026-11-22
 
 ### Added

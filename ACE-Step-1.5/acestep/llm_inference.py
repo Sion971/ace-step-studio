@@ -515,6 +515,24 @@ class LLMHandler:
         elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             torch.mps.manual_seed(seed)
 
+    @staticmethod
+    def _codes_head_rows(constrained_processor, device) -> Optional[torch.Tensor]:
+        """Tokens the audio-code phase can sample (audio codes and end token), read from the processor's own mask.
+
+        Read at run time, so a model with another codebook works the same. None when there is no such mask.
+        """
+        mask = getattr(constrained_processor, "non_audio_code_mask", None) if constrained_processor is not None else None
+        if mask is None:
+            return None
+        rows = (mask[0] == 0).nonzero(as_tuple=False).squeeze(1)
+        return rows.to(device) if rows.numel() else None
+
+    @staticmethod
+    def _in_codes_phase(constrained_processor) -> bool:
+        from acestep.constrained_logits_processor import FSMState
+
+        return constrained_processor is not None and constrained_processor.state == FSMState.CODES_GENERATION
+
     def _forward_pass(
         self,
         model: Any,
@@ -2610,17 +2628,20 @@ class LLMHandler:
         logits_processor = self._build_logits_processor(repetition_penalty)
 
         lm_graph = lm_cuda_graph.create(model, device, max_new_tokens) if use_cache else None  # off unless asked for
+        if lm_graph is not None:
+            lm_graph.set_head_rows(self._codes_head_rows(constrained_processor, device))
         profile = StepProfile("constrained decoding", device)
         profile.begin()
         with torch.inference_mode():
             for step in tqdm(range(max_new_tokens), desc="LLM Constrained Decoding", unit="token", disable=self.disable_tqdm):
-                # Forward pass
+                # Forward pass (in the audio-code phase the graph computes only the rows that can be sampled)
+                codes_rows = self._in_codes_phase(constrained_processor)
                 if lm_graph is not None and lm_graph.ready:
-                    outputs = lm_graph.step(generated_ids)
+                    outputs = lm_graph.step(generated_ids, codes_rows)
                 else:
                     outputs = self._forward_pass(model, generated_ids, model_kwargs, past_key_values, use_cache)
                     if lm_graph is not None:
-                        lm_graph.check(outputs, generated_ids)
+                        lm_graph.check(outputs, generated_ids, codes_rows)
                 profile.lap("model")
 
                 # Get logits for the last position
@@ -2751,17 +2772,21 @@ class LLMHandler:
         valid_cache = None  # (mask tensor, indices of its allowed tokens): the mask does not change during a phase
 
         lm_graph = lm_cuda_graph.create(model, device, max_new_tokens) if use_cache else None  # off unless asked for
+        if lm_graph is not None:
+            lm_graph.set_head_rows(self._codes_head_rows(constrained_processor, device))
         profile = StepProfile("CFG decoding", device)
         profile.begin()
         with torch.inference_mode():
             for step in tqdm(range(max_new_tokens), desc="LLM CFG Generation", unit="token", disable=self.disable_tqdm):
-                # Forward pass for the entire batch (conditional + unconditional)
+                # Forward pass for the entire batch (conditional + unconditional); in the audio-code phase the graph
+                # computes only the rows that can be sampled
+                codes_rows = self._in_codes_phase(constrained_processor)
                 if lm_graph is not None and lm_graph.ready:
-                    outputs = lm_graph.step(generated_ids)
+                    outputs = lm_graph.step(generated_ids, codes_rows)
                 else:
                     outputs = self._forward_pass(model, generated_ids, model_kwargs, past_key_values, use_cache)
                     if lm_graph is not None:
-                        lm_graph.check(outputs, generated_ids)
+                        lm_graph.check(outputs, generated_ids, codes_rows)
                 profile.lap("model")
 
                 # Get logits for the last position

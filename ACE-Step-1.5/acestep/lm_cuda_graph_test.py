@@ -102,7 +102,7 @@ class WindowFallbackTests(unittest.TestCase):
         model, decoder, generated, mask, cache = self._decoder()
         calls = []
 
-        def capture(window):
+        def capture(window, rows=False):
             calls.append(window)
             if len(calls) > 1:
                 raise RuntimeError("no more graphs")
@@ -327,14 +327,154 @@ class LoopTests(unittest.TestCase):
         states = []
         original = lm_cuda_graph.LmGraph.step
 
-        def spy(self, generated_ids):
+        def spy(self, generated_ids, rows=False):
             states.append(self.state)
-            return original(self, generated_ids)
+            return original(self, generated_ids, rows)
 
         with patch.object(lm_cuda_graph.LmGraph, "step", spy):
             self._run("cfg", True)
         self.assertGreater(len(states), 3)
         self.assertEqual(set(states), {"ready"})
+
+
+ALLOWED = [EOS] + list(range(20, 52))  # the "audio codes" of the tiny model, and its end token
+
+
+class _CodesProcessor:
+    """Stands for the constrained processor in its audio-code phase: only ALLOWED can be sampled."""
+
+    def __init__(self, vocab=64):
+        from acestep.constrained_logits_processor import FSMState
+
+        self.state = FSMState.CODES_GENERATION
+        self.non_audio_code_mask = torch.full((1, vocab), float("-inf"))
+        self.non_audio_code_mask[0, ALLOWED] = 0
+        self.seen = []
+
+    def __call__(self, input_ids, scores):
+        return scores + self.non_audio_code_mask.to(scores.dtype)
+
+    def update_state(self, token_id):
+        self.seen.append(token_id)
+
+
+@unittest.skipIf(_IMPORT_ERROR is not None, f"dependencies missing: {_IMPORT_ERROR}")
+class HeadRowsTests(unittest.TestCase):
+    """Audio-code phase: the output layer on the allowed rows only, -inf elsewhere, the same scores on those rows."""
+
+    def test_rows_step_gives_the_scores_of_the_allowed_rows_and_minus_inf_elsewhere(self):
+        model = _tiny_model()
+        ids, mask = _prompt(2)
+        rows = torch.tensor(ALLOWED)
+        others = torch.tensor([t for t in range(64) if t not in ALLOWED])
+        with torch.inference_mode():
+            out = model(input_ids=ids, attention_mask=mask, use_cache=True)
+            cache = out.past_key_values
+            token = out.logits[:, -1, :].argmax(-1, keepdim=True)
+            generated = torch.cat([ids, token], dim=1)
+            mask = torch.cat([mask, torch.ones((2, 1), dtype=mask.dtype)], dim=1)
+            decoder = lm_cuda_graph.GraphDecoder.build(model, cache, mask, token, 9, capture=False, window_step=4)
+            decoder.set_head_rows(rows)
+            for step in range(8):
+                usual = model(input_ids=generated[:, -1:], attention_mask=mask, past_key_values=cache, use_cache=True)
+                cache = usual.past_key_values
+                result = decoder.step(generated, rows=step % 3 != 2)  # the whole layer now and then, as the loop may ask
+                if step % 3 != 2:
+                    self.assertTrue(torch.allclose(usual.logits[:, :, rows], result.logits[:, :, rows], atol=1e-4))
+                    self.assertTrue(bool(torch.isneginf(result.logits[:, :, others]).all()))
+                else:
+                    self.assertTrue(torch.allclose(usual.logits, result.logits, atol=1e-4))
+                token = usual.logits[:, -1, rows].argmax(-1, keepdim=True)
+                token = rows[token]
+                generated = torch.cat([generated, token], dim=1)
+                mask = torch.cat([mask, torch.ones((2, 1), dtype=mask.dtype)], dim=1)
+        self.assertEqual(tuple(decoder.head_weight.shape), (len(ALLOWED), 32))
+        decoder.release()
+        self.assertIsNone(decoder.head_weight)
+
+    def test_models_whose_layer_cannot_be_cut_keep_the_whole_layer(self):
+        model = _tiny_model()
+        self.assertIsNone(lm_cuda_graph.head_rows_problem(model))
+        model.lm_head.bias = torch.nn.Parameter(torch.zeros(64))
+        self.assertIn("bias", lm_cuda_graph.head_rows_problem(model))
+        self.assertIsNotNone(lm_cuda_graph.head_rows_problem(MagicMock(spec=[])))
+
+    def test_the_variable_turns_the_rows_off(self):
+        graph = lm_cuda_graph.LmGraph(_tiny_model(), 12, capture=False)
+        with patch.dict("os.environ", {"ACESTEP_LM_HEAD_ROWS": "0"}):
+            graph.set_head_rows(torch.tensor(ALLOWED))
+        self.assertIsNone(graph.head_rows)
+        graph.set_head_rows(torch.tensor(ALLOWED))
+        self.assertIsNotNone(graph.head_rows)
+
+    def test_the_check_compares_the_allowed_rows_only(self):
+        model = _tiny_model()
+        ids, mask = _prompt(2)
+        with torch.inference_mode():
+            out = model(input_ids=ids, attention_mask=mask, use_cache=True)
+            token = out.logits[:, -1, :].argmax(-1, keepdim=True)
+            generated = torch.cat([ids, token], dim=1)
+            mask = torch.cat([mask, torch.ones((2, 1), dtype=mask.dtype)], dim=1)
+            graph = lm_cuda_graph.LmGraph(model, 12, capture=False)
+            graph.set_head_rows(torch.tensor(ALLOWED))
+            graph.end_step(out, mask, generated)
+            usual = model(input_ids=generated[:, -1:], attention_mask=mask, past_key_values=out.past_key_values,
+                          use_cache=True)
+            graph.check(usual, generated, rows=True)
+        self.assertTrue(graph.ready)
+
+
+@unittest.skipIf(_IMPORT_ERROR is not None, f"dependencies missing: {_IMPORT_ERROR}")
+class HeadRowsLoopTests(LoopTests):
+    """Both loops in the audio-code phase give the same tokens with the graph (rows of the layer) and without it."""
+
+    def _run_codes(self, kind, with_graph):
+        handler = self._handler()
+        made, processor = [], _CodesProcessor()
+
+        def create(model, device, max_new_tokens):
+            if not with_graph:
+                return None
+            graph = lm_cuda_graph.LmGraph(model, max_new_tokens, capture=False, window_step=4)
+            made.append(graph)
+            return graph
+
+        ids, mask = _prompt(2 if kind == "plain" else 4)
+        with patch.object(lm_cuda_graph, "create", create), torch.inference_mode():
+            if kind == "plain":
+                out = handler._generate_with_constrained_decoding(
+                    input_ids=ids, attention_mask=mask, max_new_tokens=14, temperature=0.0, top_k=None, top_p=None,
+                    repetition_penalty=1.0, pad_token_id=EOS, streamer=None, constrained_processor=processor)
+            else:
+                out = handler._generate_with_cfg_custom(
+                    batch_input_ids=ids, batch_attention_mask=mask, max_new_tokens=14, temperature=0.0,
+                    cfg_scale=1.5, top_k=None, top_p=None, repetition_penalty=1.0, pad_token_id=EOS, streamer=None,
+                    constrained_processor=processor)
+        return out.tolist(), made, processor
+
+    def _same(self, kind):
+        rows_used = []
+        original = lm_cuda_graph.GraphDecoder.step
+
+        def spy(self, generated_ids, rows=False):
+            result = original(self, generated_ids, rows)
+            rows_used.append(self.head_weight is not None and rows)
+            return result
+
+        usual, _, p1 = self._run_codes(kind, False)
+        with patch.object(lm_cuda_graph.GraphDecoder, "step", spy):
+            driven, made, p2 = self._run_codes(kind, True)
+        self.assertEqual(usual, driven)
+        self.assertEqual(p1.seen, p2.seen)
+        self.assertTrue(all(t in ALLOWED for t in p2.seen))
+        self.assertGreater(len(rows_used), 3)
+        self.assertTrue(all(rows_used))
+
+    def test_plain_loop_codes(self):
+        self._same("plain")
+
+    def test_cfg_loop_codes(self):
+        self._same("cfg")
 
 
 class SideStreamTests(unittest.TestCase):

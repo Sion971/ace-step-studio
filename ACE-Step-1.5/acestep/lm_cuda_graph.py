@@ -19,6 +19,12 @@ How it works (the prompt pass and the first token stay exactly as they were):
 
 The sampled tokens may differ from the usual loop's on a close call: the attention runs over a longer, masked buffer,
 which changes the rounding. The result is as valid, not identical.
+
+Audio-code phase (``set_head_rows``): there the constrained decoding only lets the audio codes and the end token through,
+every other token of the 217k vocabulary is set to -inf before sampling. The step can then compute the output layer
+(lm_head, about a quarter of the weights read per token on the 1.7B) for those rows only and write -inf in the others:
+the tokens that can be sampled get the same scores, up to the rounding of the product. The loops ask for it per step,
+only while the processor is in that phase; ``ACESTEP_LM_HEAD_ROWS=0`` turns it off.
 """
 
 import os
@@ -27,9 +33,11 @@ from types import SimpleNamespace
 from typing import Any, Optional
 
 import torch
+import torch.nn.functional as F
 from loguru import logger
 
-ENV_GRAPH = "ACESTEP_LM_CUDA_GRAPH"  # 0 turns it off; 1 turns it on where it is not on by default (ROCm)
+ENV_GRAPH = "ACESTEP_LM_CUDA_GRAPH"
+ENV_HEAD_ROWS = "ACESTEP_LM_HEAD_ROWS"  # 0 turns the audio-code rows of the output layer off (whole vocabulary)  # 0 turns it off; 1 turns it on where it is not on by default (ROCm)
 MIN_STEPS = 48  # a generation shorter than this does not pay back the capture
 CHECK_ABS = 0.25  # logits of the graph and of the usual step may differ by this much plus
 CHECK_REL = 0.03  # this share of the largest logit (bf16 keeps about 3 significant digits)
@@ -45,6 +53,28 @@ def requested() -> bool:
     if value in ("1", "true", "yes", "on"):
         return True
     return torch.version.cuda is not None  # unset: on for NVIDIA, off elsewhere
+
+
+def head_rows_requested() -> bool:
+    return os.environ.get(ENV_HEAD_ROWS, "").strip().lower() not in ("0", "false", "no", "off")
+
+
+def head_rows_problem(model) -> Optional[str]:
+    """Why the output layer of this model cannot be computed on a subset of rows (None when it can)."""
+    base = getattr(model, "model", None)
+    if base is None or not callable(base):
+        return "no inner model"
+    getter = getattr(model, "get_output_embeddings", None)
+    head = getter() if callable(getter) else None
+    if not isinstance(head, torch.nn.Linear):
+        return "the output layer is not a plain linear layer"
+    if head.bias is not None:
+        return "the output layer has a bias"
+    config = getattr(model, "config", None)
+    for name in ("final_logit_softcapping", "logit_scale", "output_multiplier_scale"):
+        if getattr(config, name, None):
+            return f"the model rescales its logits ({name})"
+    return None
 
 
 def logits_match(reference: torch.Tensor, candidate: torch.Tensor):
@@ -107,6 +137,10 @@ class GraphDecoder:
         self.views = {}
         self.capture_seconds = 0.0
         self.eager_steps = 0
+        self.rows: Optional[torch.Tensor] = None  # allowed rows of the output layer, set by set_head_rows
+        self.head_weight: Optional[torch.Tensor] = None  # those rows of the output layer, copied once
+        self.full: Optional[torch.Tensor] = None  # [batch, vocab] scores: -inf outside the rows, rewritten in place
+        self.head_off: Optional[str] = None  # why the rows cannot be used (then every step computes the whole layer)
 
     @classmethod
     def build(cls, model, dynamic_cache, attention_mask: torch.Tensor, last_token: torch.Tensor,
@@ -147,6 +181,35 @@ class GraphDecoder:
             width - 1, capture, window_step,
         )
 
+    def set_head_rows(self, rows: Optional[torch.Tensor]) -> None:
+        """The rows of the output layer that can be sampled in the audio-code phase (None: always the whole layer)."""
+        if rows is None or self.rows is not None:
+            return
+        self.head_off = head_rows_problem(self.model)
+        if self.head_off is None:
+            self.rows = rows.to(device=self.ids.device, dtype=torch.long)
+
+    def _prepare_rows(self) -> bool:
+        """Copy the allowed rows of the output layer once; False when they cannot be used."""
+        if self.rows is None or self.head_off is not None:
+            return False
+        if self.head_weight is not None:
+            return True
+        try:
+            weight = self.model.get_output_embeddings().weight
+            self.head_weight = weight.index_select(0, self.rows).contiguous()
+            self.full = torch.full((self.ids.shape[0], weight.shape[0]), float("-inf"), dtype=weight.dtype,
+                                   device=weight.device)
+        except Exception as exc:
+            self.head_off = f"{type(exc).__name__}: {exc}"
+            self.head_weight = self.full = None
+            logger.warning("[lm_graph] audio-code rows of the output layer not used: {}", self.head_off)
+            return False
+        logger.info("[lm_graph] audio-code phase: output layer computed on {} of {} rows ({:.2f} GB copied once)",
+                    self.head_weight.shape[0], self.full.shape[1],
+                    self.head_weight.numel() * self.head_weight.element_size() / 1024 ** 3)
+        return True
+
     def _window(self) -> int:
         """Positions the attention reads at this step: the next multiple of ``window_step`` that holds the token."""
         need = self.next_position + 1
@@ -170,20 +233,29 @@ class GraphDecoder:
             self.views[window] = view
         return view
 
-    def _forward(self, window: int) -> torch.Tensor:
-        """One token: open the mask column of this position, run the model, move to the next position."""
+    def _forward(self, window: int, rows: bool = False) -> torch.Tensor:
+        """One token: open the mask column of this position, run the model, move to the next position.
+
+        With ``rows`` the output layer is computed on the allowed rows only, written into ``self.full`` (-inf elsewhere).
+        """
         self.mask.index_fill_(3, self.position, True)
-        out = self.model(
+        inputs = dict(
             input_ids=self.ids,
             attention_mask=self.mask[:, :, :, :window],
             past_key_values=self._view(window),
             cache_position=self.position,
             use_cache=True,
         )
+        if rows:
+            hidden = self.model.model(**inputs).last_hidden_state[:, -1, :]
+            self.full.index_copy_(1, self.rows, F.linear(hidden, self.head_weight))
+            logits = self.full
+        else:
+            logits = self.model(**inputs).logits[:, -1, :]
         self.position.add_(1)
-        return out.logits[:, -1, :]
+        return logits
 
-    def _capture(self, window: int) -> "_Captured":
+    def _capture(self, window: int, rows: bool = False) -> "_Captured":
         start = time.perf_counter()
         first = self.position.clone()
         opened = self.mask.clone()
@@ -192,7 +264,7 @@ class GraphDecoder:
         try:
             with torch.cuda.stream(side):
                 for _ in range(WARMUP_STEPS if not self.captured else 2):
-                    self._forward(window)
+                    self._forward(window, rows)
             torch.cuda.current_stream().wait_stream(side)
             torch.cuda.synchronize()
         finally:
@@ -202,21 +274,26 @@ class GraphDecoder:
             self.mask.copy_(opened)
         graph = torch.cuda.CUDAGraph()
         with torch.cuda.graph(graph):
-            logits = self._forward(window)
+            logits = self._forward(window, rows)
         torch.cuda.synchronize()
         self.capture_seconds += time.perf_counter() - start
         return _Captured(graph, logits)
 
-    def step(self, generated_ids: torch.Tensor) -> Any:
-        """Logits of the next token, shaped like the output of the usual forward ([batch, 1, vocab])."""
+    def step(self, generated_ids: torch.Tensor, rows: bool = False) -> Any:
+        """Logits of the next token, shaped like the output of the usual forward ([batch, 1, vocab]).
+
+        ``rows``: the loop is in the audio-code phase, only the rows given to ``set_head_rows`` can be sampled.
+        """
+        rows = bool(rows) and self._prepare_rows()
         self.ids.copy_(generated_ids[:, -1:])
         window = self._window()
+        key = (window, rows)
         entry = None
         if not self.eager_only:
-            entry = self.captured.get(window)
+            entry = self.captured.get(key)
             if entry is None:
                 try:
-                    entry = self._capture(window)
+                    entry = self._capture(window, rows)
                 except Exception as exc:
                     if not self.captured:
                         raise  # the very first capture: the caller still has the usual cache and falls back to it
@@ -225,12 +302,12 @@ class GraphDecoder:
                     self.eager_only = True
                     entry = None
                 else:
-                    self.captured[window] = entry
+                    self.captured[key] = entry
         if entry is not None:
             entry.graph.replay()
             logits = entry.logits
         else:
-            logits = self._forward(window)
+            logits = self._forward(window, rows)
             self.eager_steps += 1
         self.next_position += 1
         return SimpleNamespace(logits=logits.clone().unsqueeze(1))
@@ -249,6 +326,7 @@ class GraphDecoder:
             for layer in getattr(self.cache, "layers", []):
                 layer.keys = layer.values = None
         self.cache = self.mask = self.ids = self.position = None
+        self.rows = self.head_weight = self.full = None
 
     def summary(self) -> str:
         return (f"{len(self.captured)} graph(s), capture {self.capture_seconds:.2f} s in all, "
@@ -266,6 +344,7 @@ class LmGraph:
         self.decoder: Optional[GraphDecoder] = None
         self.state = "new"  # new -> checking -> ready, or off at any moment
         self.card_before = _card_mb()
+        self.head_rows: Optional[torch.Tensor] = None
 
     @property
     def ready(self) -> bool:
@@ -294,17 +373,31 @@ class LmGraph:
                 self.model, outputs.past_key_values, attention_mask, generated_ids[:, -1:],
                 self.max_new_tokens, capture=self.capture, window_step=self.window_step,
             )
+            self.decoder.set_head_rows(self.head_rows)
             self.state = "checking"
         except Exception as exc:
             self._give_up(f"{type(exc).__name__}: {exc}")
 
-    def check(self, outputs: Any, generated_ids: torch.Tensor) -> None:
-        """After the usual second step: the graph runs the same step and both logits are compared."""
+    def set_head_rows(self, rows: Optional[torch.Tensor]) -> None:
+        """Rows of the output layer allowed in the audio-code phase (see the module notes); None leaves the layer whole."""
+        self.head_rows = rows if head_rows_requested() else None
+        if self.decoder is not None:
+            self.decoder.set_head_rows(self.head_rows)
+
+    def check(self, outputs: Any, generated_ids: torch.Tensor, rows: bool = False) -> None:
+        """After the usual second step: the graph runs the same step and both logits are compared.
+
+        With ``rows`` only the allowed rows are compared: the graph leaves the others at -inf.
+        """
         if self.state != "checking":
             return
         try:
-            result = self.decoder.step(generated_ids)
-            ok, diff = logits_match(outputs.logits[:, -1, :], result.logits[:, -1, :])
+            result = self.decoder.step(generated_ids, rows)
+            reference, candidate = outputs.logits[:, -1, :], result.logits[:, -1, :]
+            if rows and self.decoder.head_weight is not None:
+                reference = reference.index_select(1, self.decoder.rows)
+                candidate = candidate.index_select(1, self.decoder.rows)
+            ok, diff = logits_match(reference, candidate)
         except Exception as exc:
             self._give_up(f"{type(exc).__name__}: {exc}")
             return
@@ -315,8 +408,8 @@ class LmGraph:
         logger.info("[lm_graph] CUDA graph active: first capture {:.2f} s, largest logit difference on the check step "
                     "{:.3f}", self.decoder.capture_seconds, diff)
 
-    def step(self, generated_ids: torch.Tensor) -> Any:
-        return self.decoder.step(generated_ids)
+    def step(self, generated_ids: torch.Tensor, rows: bool = False) -> Any:
+        return self.decoder.step(generated_ids, rows)
 
     def close(self) -> None:
         """End of the generation: log, release the decoder, and say what the card held before, at the end and after."""
