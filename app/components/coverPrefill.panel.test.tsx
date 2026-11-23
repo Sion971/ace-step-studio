@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../context/I18nContext';
 import type { Song } from '../types';
+import { en } from '../i18n/en';
 
 vi.mock('../context/AuthContext', () => ({
   useAuth: () => ({ isAuthenticated: true, token: 'tok', user: { id: 'u1', username: 'me' } }),
@@ -51,5 +52,23 @@ describe('Cover source loaded from the library or by drag', () => {
     const areas = Array.from(container.querySelectorAll('textarea')).map(a => a.value);
     expect(areas.some(v => v.includes('Dans le vent du soir'))).toBe(true);
     expect(container.querySelector('[data-testid="source-duration"]')).not.toBeNull();
+  });
+
+  it('fills the lyrics when an audio loaded in Inspiration is switched to Cover', async () => {
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <CreatePanel onGenerate={() => {}} isGenerating={false} createdSongs={[SONG]}
+            pendingAudioSelection={{ target: 'reference', url: '/audio/s1.mp3', title: 'Pas sur la route', mode: 'inspiration' }} />
+        </I18nProvider>,
+      );
+    });
+    const lyricsShown = () => Array.from(container.querySelectorAll('textarea')).some(a => a.value.includes('Dans le vent du soir'));
+    expect(lyricsShown()).toBe(false);
+    const modeButton = Array.from(container.querySelectorAll('button')).find(b => b.title.startsWith(en.audioModeInspiration))!;
+    await act(async () => { modeButton.click(); });
+    const coverItem = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.startsWith(en.audioModeCover))!;
+    await act(async () => { coverItem.click(); });
+    expect(lyricsShown()).toBe(true);
   });
 });

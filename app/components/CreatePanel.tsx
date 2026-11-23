@@ -1532,10 +1532,15 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     // source comes through here (the song's Cover action, the library window, a song dropped on the field), so the
     // song is looked up by its audio when the caller did not pass its details.
     if (target === 'source' && activeMode.field === 'source' && activeMode.taskType === 'cover') {
-      const song = meta ? undefined : createdSongs.find(s => s.audioUrl === url);
-      const m = meta ?? (song ? coverMetaFromSong(song) : undefined);
-      if (m) applyCoverMeta(m);
+      if (meta) applyCoverMeta(meta);
+      else prefillCoverFromSong(url);
     }
+  };
+
+  // The source's details, found among the user's songs by its audio.
+  const prefillCoverFromSong = (url: string) => {
+    const song = createdSongs.find(s => s.audioUrl === url);
+    if (song) applyCoverMeta(coverMetaFromSong(song));
   };
 
   const applyCoverMeta = (meta: CoverMeta) => {
@@ -1597,6 +1602,12 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       }
     }
     setTaskType(currentUrl ? next.taskType : 'text2music');
+    // Switching to Cover with an audio already loaded (e.g. in Inspiration): the audio moves to the source field, and
+    // the cover takes the song's words as if it had been loaded there. Moving between two cover modes keeps the
+    // lyrics as the user left them.
+    if (currentUrl && next.field === 'source' && next.taskType === 'cover' && prev.taskType !== 'cover') {
+      prefillCoverFromSong(currentUrl);
+    }
   };
 
   const formatTime = (time: number) => {
