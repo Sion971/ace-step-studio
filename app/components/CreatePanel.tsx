@@ -46,6 +46,7 @@ import { buildCoverPrompt } from '../services/cover/prompts';
 import { formatTimeSignature } from '../services/timeSignature';
 import { cleanText } from '../utils/cleanText';
 import { AudioAnalysisDialog } from './AudioAnalysisDialog';
+import { isDurationLockedBySource, type CoverMeta } from './coverPrefill';
 
 interface ReferenceTrack {
   id: string;
@@ -144,7 +145,7 @@ interface CreatePanelProps {
   activeJobCount?: number;
   initialData?: { song: Song, timestamp: number } | null;
   createdSongs?: Song[];
-  pendingAudioSelection?: { target: 'reference' | 'source'; url: string; title?: string; mode?: AudioModeId } | null;
+  pendingAudioSelection?: { target: 'reference' | 'source'; url: string; title?: string; mode?: AudioModeId; meta?: CoverMeta } | null;
   onAudioSelectionApplied?: () => void;
   /** Notifie le parent (App.tsx) qu'une nouvelle chanson vient d'etre creee
    *  directement (voir VoiceRecorder — enregistrement au micro, hors
@@ -920,6 +921,16 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       pendingAudioSelection.title,
       pendingAudioSelection.mode
     );
+    // A cover starts from the source's words and musical facts; the style stays the user's.
+    const meta = pendingAudioSelection.meta;
+    if (meta) {
+      if (meta.instrumental !== undefined) setInstrumental(meta.instrumental);
+      if (meta.lyrics) setLyrics(meta.lyrics);
+      if (meta.bpm) setBpm(meta.bpm);
+      if (meta.keyScale && KEY_SIGNATURES.includes(meta.keyScale)) setKeyScale(meta.keyScale);
+      if (meta.timeSignature && TIME_SIGNATURES.includes(meta.timeSignature)) setTimeSignature(meta.timeSignature);
+      if (meta.language) setVocalLanguage(meta.language);
+    }
     onAudioSelectionApplied?.();
   }, [pendingAudioSelection, onAudioSelectionApplied]);
 
@@ -1606,6 +1617,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const activeAudioPlaying = isReferenceTarget ? referencePlaying : sourcePlaying;
   const activeAudioTime = isReferenceTarget ? referenceTime : sourceTime;
   const activeAudioDuration = isReferenceTarget ? referenceDuration : sourceDuration;
+  // A cover, a repaint or a track task keeps the source's length: the slider would have no effect.
+  const durationLockedBySource = isDurationLockedBySource(taskType, !!sourceAudioUrl);
   const activeAudioElRef = isReferenceTarget ? referenceAudioRef : sourceAudioRef;
   const activeAudioInputRef = isReferenceTarget ? referenceInputRef : sourceInputRef;
   const isRepaintMode = audioMode === 'repaint';
@@ -2752,6 +2765,16 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             {t('quickSettings')}
           </h3>
 
+          {durationLockedBySource ? (
+            <div className="flex items-center justify-between text-xs" data-testid="source-duration">
+              <span className="font-medium text-zinc-600 dark:text-zinc-400">{t('duration')}</span>
+              <span className="text-zinc-500">
+                {sourceDuration > 0
+                  ? t('durationFromSource').replace('{{time}}', formatTime(sourceDuration))
+                  : t('durationFromSourcePending')}
+              </span>
+            </div>
+          ) : (
           <EditableSlider
             label={t('duration')}
             value={duration}
@@ -2764,6 +2787,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             autoLabel={t('auto')}
             helpText={`${t('auto')} - ${Math.round(activeMaxDuration / 60)} ${t('min')}`}
           />
+          )}
 
           <EditableSlider
             label="BPM"
@@ -2774,6 +2798,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             onChange={setBpm}
             formatDisplay={(val) => !val ? 'Auto' : String(val)}
             autoLabel="Auto"
+            helpText={durationLockedBySource ? t('tempoFollowsSource') : undefined}
           />
 
           <div className="grid grid-cols-2 gap-3">

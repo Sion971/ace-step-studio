@@ -82,6 +82,7 @@ import { ConfirmDialog } from './components/ConfirmDialog';
 
 import { parseServerDate } from './utils/serverDate';
 import { withFreshCover } from './utils/freshCover';
+import { coverMetaFromSong, type CoverMeta } from './components/coverPrefill';
 function AppContent() {
   // i18n
   const { t } = useI18n();
@@ -299,7 +300,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
   // useState local depuis cette prop fonctionne de facon fiable.
   const [libraryInitialTab, setLibraryInitialTab] = useState<'all' | 'workspaces' | 'playlists' | 'liked' | 'uploads'>('all');
   const [showLeftSidebar, setShowLeftSidebar] = useState(true);
-  const [pendingAudioSelection, setPendingAudioSelection] = useState<{ target: 'reference' | 'source'; url: string; title?: string; mode?: AudioModeId } | null>(null);
+  const [pendingAudioSelection, setPendingAudioSelection] = useState<{ target: 'reference' | 'source'; url: string; title?: string; mode?: AudioModeId; meta?: CoverMeta } | null>(null);
 
   // Mobile UI Toggle
   const [mobileShowList, setMobileShowList] = useState(false);
@@ -2069,7 +2070,8 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     // l'intention reelle de "Reprendre la chanson (Cover)". L'audio se
     // chargeait bien, mais la section Cover ne s'affichait jamais quand on
     // declenchait l'action depuis un autre mode que Cover.
-    setPendingAudioSelection({ target: 'source', url: song.audioUrl, title: song.title, mode: 'cover' });
+    // meta: the cover keeps the source's lyrics, tempo, key and language; only the style changes.
+    setPendingAudioSelection({ target: 'source', url: song.audioUrl, title: song.title, mode: 'cover', meta: coverMetaFromSong(song) });
     setCurrentView('create');
     setMobileShowList(false);
   };
