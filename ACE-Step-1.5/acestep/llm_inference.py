@@ -492,6 +492,29 @@ class LLMHandler:
             for token_id in ids:
                 constrained_processor.update_state(token_id)
 
+    @staticmethod
+    def _first_seed(seeds) -> Optional[int]:
+        """The first usable seed of ``seeds`` (a list, a single int, or None); negative values mean "random"."""
+        if isinstance(seeds, (list, tuple)):
+            seeds = seeds[0] if seeds else None
+        try:
+            seed = int(seeds) if seeds is not None else None
+        except (TypeError, ValueError):
+            return None
+        return seed if seed is not None and seed >= 0 else None
+
+    @staticmethod
+    def _seed_lm_sampling(seed: Optional[int]) -> None:
+        """Seed the generators the token sampling draws from (processor and card), as the batch path does per item."""
+        if seed is None:
+            return
+        seed = seed % (2 ** 63)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            torch.mps.manual_seed(seed)
+
     def _forward_pass(
         self,
         model: Any,
@@ -1334,8 +1357,8 @@ class LLMHandler:
             use_cot_language: Whether to generate language in CoT (default True).
             batch_size: Optional batch size for batch generation. If None or 1, returns single result.
                        If > 1, returns batch results (lists).
-            seeds: Optional list of seeds for batch generation (for reproducibility).
-                  Only used when batch_size > 1. TODO: not used yet
+            seeds: Seeds of the songs (for reproducibility). The first one seeds the sampling of Phase 1 and, for a
+                  single song, of Phase 2; in batch mode each item's Phase 2 uses its own seed.
 
         Returns:
             Dictionary containing:
@@ -1380,6 +1403,10 @@ class LLMHandler:
             else:
                 seeds = seeds[:actual_batch_size]
 
+        # The song's seed also drives the LM's sampling. Without this a single song (batch 1, the usual case) drew its
+        # metadata and audio codes from an unseeded generator: the same seed gave other codes, so another song.
+        first_seed = self._first_seed(seeds)
+
         # ========== PHASE 1: CoT Generation ==========
         # Skip CoT if all metadata are user-provided OR caption is already formatted
         progress(0.1, f"Phase 1: Generating CoT metadata (once for all items)...")
@@ -1392,6 +1419,7 @@ class LLMHandler:
 
             # Build formatted prompt for CoT phase
             formatted_prompt = self.build_formatted_prompt(caption, lyrics, generation_phase="cot")
+            self._seed_lm_sampling(first_seed)
 
             logger.info(f"generate_with_stop_condition: formatted_prompt={formatted_prompt}")
             # Generate CoT (stop at </think>)
@@ -1619,7 +1647,8 @@ class LLMHandler:
                 },
             }
         else:
-            # Single mode: generate codes for one item
+            # Single mode: generate codes for one item (seeded again, so the codes do not depend on Phase 1's length)
+            self._seed_lm_sampling(first_seed)
             codes_output_text, status = self.generate_from_formatted_prompt(
                 formatted_prompt=formatted_prompt_with_cot,
                 cfg={

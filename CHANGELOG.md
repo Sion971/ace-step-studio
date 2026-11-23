@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-23
+
+### Fixed
+- **The same seed now gives the same song.** In single-song generation (batch 1, the usual case) the 5Hz LM drew its metadata, caption rewrite and audio codes from unseeded random generators: only batch mode applied the seeds, per item and in Phase 2 only (`generate_with_stop_condition`, "TODO: not used yet"). So reusing a seed gave other codes, hence another song. Measured on an RTX 5060 before the fix: two runs at the same seed, caption and settings gave a spectral correlation of 0.82 between the two tracks. The song's seed now seeds the sampling before Phase 1 and, for a single song, again before Phase 2, so the codes do not depend on how long Phase 1 ran. A negative seed still means random. Test `acestep/llm_seed_test.py` fails without the fix.
+
 ## 2026-11-22
 
 ### Added
