@@ -652,6 +652,22 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     }
   }, [isAuthenticated, token]);
 
+  // An import made in the Create panel (an upload, a reversed copy) goes into the workspace open, like a generated
+  // song; it is filed before the lists are refreshed, so it does not show in "My workspace" meanwhile.
+  const handleImportCreated = useCallback(async (trackId: string) => {
+    const workspaceId = activeWorkspaceIdRef.current;
+    if (workspaceId && token) {
+      try {
+        await playlistsApi.addSong(workspaceId, `upload_${trackId}`, token);
+      } catch (error) {
+        console.error('Failed to file the import in the workspace:', error);
+      }
+      await refreshWorkspaceSongIdsRef.current?.();
+      await refreshActiveWorkspaceSongIdsRef.current?.(workspaceId);
+    }
+    await loadReferenceTracks();
+  }, [token, loadReferenceTracks]);
+
   // Load reference tracks for Library
   useEffect(() => {
     loadReferenceTracks();
@@ -2304,6 +2320,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
             >
               <CreatePanel
                 onReferenceTracksChanged={loadReferenceTracks}
+                onImportCreated={handleImportCreated}
                 onGenerate={handleGenerate}
                 isGenerating={isGenerating}
                 activeJobCount={totalGenerationSlots(activeJobCount, pendingClickCount)}

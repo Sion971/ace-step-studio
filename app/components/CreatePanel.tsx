@@ -69,6 +69,8 @@ interface CreatePanelProps {
   /** Told whenever the list of uploaded audio changes here (upload, delete, length filled in), so that the parent's own copy of the list
    *  (the workspace list, the library) follows at once instead of at the next visit. */
   onReferenceTracksChanged?: () => void;
+  /** A new import was made in the panel (upload, reversed copy): file it in the workspace open, then list it. */
+  onImportCreated?: (trackId: string) => Promise<void> | void;
   /** Returns a promise that resolves when all currently-running generation
    *  jobs have completed. Used to serialize bulk clicks: the next click's
    *  LLM pre-flight + POST happen only after the previous track is fully
@@ -104,6 +106,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   onAudioSelectionApplied,
   onSongCreated,
   onReferenceTracksChanged,
+  onImportCreated,
   waitForJobsToDrain,
   incrementPendingClicks,
   decrementPendingClicks,
@@ -555,7 +558,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     showAudioModal, sourceAudioRef, sourceAudioTitle, sourceAudioUrl, sourceDuration, sourceInputRef, toggleAudio,
     uploadError, uploadReferenceTrack, useReferenceTrack, isReversing, reverseError,
   } = useAudioSource({
-    token, createdSongs, importedSongs, onReferenceTracksChanged, pendingAudioSelection, onAudioSelectionApplied,
+    token, createdSongs, importedSongs, onReferenceTracksChanged, onImportCreated, pendingAudioSelection, onAudioSelectionApplied,
     setTaskType, setAudioCoverStrength, setCoverNoiseStrength, offerAnalysis, analysisAuto,
     reversedSuffix: t('reversedSuffix'),
     title, setTitle, lyrics, setLyrics, bpm, setBpm, keyScale, setKeyScale, timeSignature, setTimeSignature,

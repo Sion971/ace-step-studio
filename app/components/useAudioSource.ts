@@ -25,6 +25,8 @@ export interface UseAudioSourceOptions {
   createdSongs: Song[];
   importedSongs: Song[];
   onReferenceTracksChanged?: () => void;
+  /** A new import was made here (an upload, a reversed copy): the app files it in the workspace open, then lists it. */
+  onImportCreated?: (trackId: string) => Promise<void> | void;
   pendingAudioSelection?: PendingAudioSelection | null;
   onAudioSelectionApplied?: () => void;
   setTaskType: Setter<string>;
@@ -53,7 +55,7 @@ export interface UseAudioSourceOptions {
 }
 
 export function useAudioSource({
-  token, createdSongs, importedSongs, onReferenceTracksChanged, pendingAudioSelection, onAudioSelectionApplied,
+  token, createdSongs, importedSongs, onReferenceTracksChanged, onImportCreated, pendingAudioSelection, onAudioSelectionApplied,
   setTaskType, setAudioCoverStrength, setCoverNoiseStrength, offerAnalysis, analysisAuto, reversedSuffix,
   title, setTitle, lyrics, setLyrics, bpm, setBpm, keyScale, setKeyScale, timeSignature, setTimeSignature,
   vocalLanguage, setVocalLanguage, instrumental, setInstrumental,
@@ -237,7 +239,7 @@ export function useAudioSource({
 
       const data = await response.json();
       setReferenceTracks(prev => [data.track, ...prev]);
-      onReferenceTracksChanged?.();
+      announceNewImport(data.track.id);
 
       // Also set as current reference/source
       applyAudioTargetUrl(selectedTarget, data.track.audio_url, data.track.filename);
@@ -394,6 +396,13 @@ export function useAudioSource({
     }
   };
 
+  // A new import goes into the workspace open (the app files it there before listing it, so it does not show in
+  // "My workspace" meanwhile). Without that callback, the list is simply refreshed.
+  const announceNewImport = (trackId: string | undefined) => {
+    if (trackId && onImportCreated) void onImportCreated(trackId);
+    else onReferenceTracksChanged?.();
+  };
+
   // The source's details, found among the user's songs or imported audios by its audio.
   const songOfAudio = (url: string) => createdSongs.find(s => s.audioUrl === url) ?? importedSongs.find(s => s.audioUrl === url);
   const prefillCoverFromSong = (url: string) => {
@@ -425,7 +434,7 @@ export function useAudioSource({
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.track?.audio_url) throw new Error(data.details || data.error || response.statusText);
       setReferenceTracks(prev => [data.track, ...prev]);
-      onReferenceTracksChanged?.();
+      announceNewImport(data.track.id);
       if (run !== reverseRunRef.current) return;
       setSourceAudioUrl(data.track.audio_url);
       setSourceAudioTitle(name);

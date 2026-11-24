@@ -128,6 +128,7 @@ describe('Cover source loaded from the library or by drag', () => {
 
   it('Reverse: the source becomes the reversed copy made by the server, with the original song\'s lyrics', async () => {
     localStorage.setItem('ace-title', 'Mon titre');
+    const onImportCreated = vi.fn();
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (url === '/api/reference-tracks/reverse') {
         expect(JSON.parse(String(init?.body))).toEqual({ audioUrl: '/audio/s1.mp3', filename: 'Pas sur la route (reversed)' });
@@ -139,7 +140,7 @@ describe('Cover source loaded from the library or by drag', () => {
     await act(async () => {
       root.render(
         <I18nProvider>
-          <CreatePanel onGenerate={() => {}} isGenerating={false} createdSongs={[SONG]}
+          <CreatePanel onGenerate={() => {}} isGenerating={false} createdSongs={[SONG]} onImportCreated={onImportCreated}
             pendingAudioSelection={{ target: 'source', url: '/audio/s1.mp3', title: 'Pas sur la route', mode: 'reverse' }} />
         </I18nProvider>,
       );
@@ -153,6 +154,8 @@ describe('Cover source loaded from the library or by drag', () => {
     const areas = Array.from(container.querySelectorAll('textarea')).map(a => a.value);
     expect(areas.some(v => v.includes('Dans le vent du soir'))).toBe(true);
     expect(container.querySelector('[data-reversing]')).toBeNull();
+    // The copy is handed to the app, which files it in the workspace open.
+    expect(onImportCreated).toHaveBeenCalledWith('r1');
     // The song to make is named after the reversed copy; removing the source gives the title back.
     const titleInput = () => Array.from(container.querySelectorAll('input')).find(i => i.value.includes('(reversed)') || i.value === 'Mon titre');
     expect(titleInput()?.value).toBe('Pas sur la route (reversed)');
@@ -198,5 +201,24 @@ describe('Cover source loaded from the library or by drag', () => {
     const call = fetchMock.mock.calls.find(c => c[0] === '/api/reference-tracks/reverse')!;
     expect(JSON.parse(String((call[1] as RequestInit).body)).audioUrl).toBe('/audio/s1.mp3');
     expect(Array.from(container.querySelectorAll('audio')).map(a => a.getAttribute('src'))).toContain('/audio/ref/r1.flac');
+  });
+
+  it('an audio uploaded in the panel is handed to the app, to go into the workspace open', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => url === '/api/reference-tracks'
+      ? new Response(JSON.stringify({ track: { id: 'u9', filename: 'mon.wav', audio_url: '/audio/ref/u9.wav' } }), { status: 201, headers: { 'Content-Type': 'application/json' } })
+      : new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    const onImportCreated = vi.fn();
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <CreatePanel onGenerate={() => {}} isGenerating={false} createdSongs={[SONG]} onImportCreated={onImportCreated} />
+        </I18nProvider>,
+      );
+    });
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(input, 'files', { value: [new File(['x'], 'mon.wav', { type: 'audio/wav' })] });
+    await act(async () => { input.dispatchEvent(new Event('change', { bubbles: true })); });
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect(onImportCreated).toHaveBeenCalledWith('u9');
   });
 });
