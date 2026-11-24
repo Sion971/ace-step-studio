@@ -5,7 +5,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 // `true` : le profil de l'utilisateur. `false` : le panneau Créer.
 const OPEN_ON_PROFILE = true;
 import { Sidebar } from './components/Sidebar';
-import { CreatePanel, type AudioModeId } from './components/CreatePanel'; // <-- Ajout des accolades {}
+import { CreatePanel } from './components/CreatePanel';
+import type { AudioModeId } from './components/audioModes';
 import { SongList } from './components/SongList';
 import { RightSidebar } from './components/RightSidebar';
 import { Player } from './components/Player';

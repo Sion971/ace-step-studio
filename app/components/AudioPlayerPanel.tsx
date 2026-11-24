@@ -1,6 +1,6 @@
 import React from 'react';
 import { AudioWaveform } from './AudioWaveform';
-import type { AudioModeDef } from './CreatePanel';
+import type { AudioModeDef } from './audioModes';
 
 interface AudioPlayerPanelProps {
   activeAudioUrl: string;

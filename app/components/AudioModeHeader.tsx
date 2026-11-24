@@ -1,6 +1,6 @@
 import React from 'react';
 import { Plus, ChevronDown, Library, Upload } from 'lucide-react';
-import { AUDIO_MODES, type AudioModeDef, type AudioModeId } from './CreatePanel';
+import { AUDIO_MODES, type AudioModeDef, type AudioModeId } from './audioModes';
 
 interface AudioModeHeaderProps {
   activeAudioUrl: string;
