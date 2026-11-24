@@ -11,11 +11,12 @@ import { zh } from '../i18n/zh';
 describe('coverMetaFromSong', () => {
   it('carries the lyrics, tempo, key, time signature and language of a generated song', () => {
     const meta = coverMetaFromSong({
+      title: 'Je suis la voix',
       lyrics: '[Verse]\nJe suis la voix',
       bpm: 92.4, keyScale: 'D minor', timeSignature: '4',
       generationParams: { vocalLanguage: 'fr', style: 'chanson' },
     });
-    expect(meta).toEqual({ lyrics: '[Verse]\nJe suis la voix', instrumental: false, bpm: 92, keyScale: 'D minor', timeSignature: '4', language: 'fr' });
+    expect(meta).toEqual({ title: 'Je suis la voix', lyrics: '[Verse]\nJe suis la voix', instrumental: false, bpm: 92, keyScale: 'D minor', timeSignature: '4', language: 'fr' });
   });
 
   it('falls back on the generation parameters and reads 4/4 as 4', () => {
@@ -41,11 +42,11 @@ describe('coverSongFromImport', () => {
         keyScale: 'E major', language: 'en', timeSignature: '4' },
     });
     expect(song.audioUrl).toBe('/audio/ref/t1.mp3');
-    expect(coverMetaFromSong(song)).toEqual({ lyrics: '[Chorus]\nI will sing', instrumental: false, bpm: 83, keyScale: 'E major', timeSignature: '4', language: 'en' });
+    expect(coverMetaFromSong(song)).toEqual({ title: 'Je chanterai Tes merveilles', lyrics: '[Chorus]\nI will sing', instrumental: false, bpm: 83, keyScale: 'E major', timeSignature: '4', language: 'en' });
   });
 
   it('gives nothing for an import not analysed', () => {
-    expect(coverMetaFromSong(coverSongFromImport({ id: 't2', filename: 'x.wav', audio_url: '/audio/ref/t2.wav' }))).toEqual({});
+    expect(coverMetaFromSong(coverSongFromImport({ id: 't2', filename: 'x.wav', audio_url: '/audio/ref/t2.wav' }))).toEqual({ title: 'x' });
   });
 });
 

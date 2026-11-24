@@ -8,7 +8,7 @@ import type { LibraryTab, ReferenceTrack } from './AudioLibraryModal';
 import { coverMetaFromSong, type CoverMeta } from './coverPrefill';
 import { KEY_SIGNATURES, TIME_SIGNATURES } from './musicalOptions';
 
-interface CoverFields { lyrics: string; bpm: number; keyScale: string; timeSignature: string; vocalLanguage: string; instrumental: boolean }
+interface CoverFields { title: string; lyrics: string; bpm: number; keyScale: string; timeSignature: string; vocalLanguage: string; instrumental: boolean }
 
 type Setter<T> = (value: T) => void;
 
@@ -36,6 +36,8 @@ export interface UseAudioSourceOptions {
   /** The word added to the title of a reversed audio: "Title (reversed)". */
   reversedSuffix: string;
   /** The fields a cover fills from its source (and gives back when the source is removed). */
+  title: string;
+  setTitle: Setter<string>;
   lyrics: string;
   setLyrics: (val: string | ((prev: string) => string)) => void;
   bpm: number;
@@ -53,7 +55,7 @@ export interface UseAudioSourceOptions {
 export function useAudioSource({
   token, createdSongs, importedSongs, onReferenceTracksChanged, pendingAudioSelection, onAudioSelectionApplied,
   setTaskType, setAudioCoverStrength, setCoverNoiseStrength, offerAnalysis, analysisAuto, reversedSuffix,
-  lyrics, setLyrics, bpm, setBpm, keyScale, setKeyScale, timeSignature, setTimeSignature,
+  title, setTitle, lyrics, setLyrics, bpm, setBpm, keyScale, setKeyScale, timeSignature, setTimeSignature,
   vocalLanguage, setVocalLanguage, instrumental, setInstrumental,
 }: UseAudioSourceOptions) {
   const [referenceAudioUrl, setReferenceAudioUrl] = useState('');
@@ -430,7 +432,8 @@ export function useAudioSource({
       setSourceTime(0);
       setSourceDuration(0);
       setTaskType(AUDIO_MODE_MAP.reverse.taskType);
-      if (originalMeta) applyCoverMeta(originalMeta);
+      // The song made from it is named after the reversed copy: "Title (reversed)".
+      applyCoverMeta({ ...originalMeta, title: name });
     } catch (err) {
       if (run === reverseRunRef.current) setReverseError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -439,8 +442,9 @@ export function useAudioSource({
   };
 
   const applyCoverMeta = (meta: CoverMeta) => {
-    const current: CoverFields = { lyrics, bpm, keyScale, timeSignature, vocalLanguage, instrumental };
+    const current: CoverFields = { title, lyrics, bpm, keyScale, timeSignature, vocalLanguage, instrumental };
     const after: CoverFields = { ...current };
+    if (meta.title) after.title = meta.title;
     if (meta.instrumental !== undefined) after.instrumental = meta.instrumental;
     if (meta.lyrics) after.lyrics = meta.lyrics;
     if (meta.bpm) after.bpm = meta.bpm;
@@ -449,6 +453,7 @@ export function useAudioSource({
     if (meta.language) after.vocalLanguage = meta.language;
     // Kept so that removing the source gives the fields back; a second source keeps the fields from before the first.
     coverUndoRef.current = { before: coverUndoRef.current?.before ?? current, after };
+    setTitle(after.title);
     setInstrumental(after.instrumental);
     if (after.lyrics !== current.lyrics) setLyrics(after.lyrics);
     setBpm(after.bpm);
@@ -463,6 +468,7 @@ export function useAudioSource({
     coverUndoRef.current = null;
     if (!undo) return;
     const { before, after } = undo;
+    if (title === after.title) setTitle(before.title);
     if (lyrics === after.lyrics && lyrics !== before.lyrics) setLyrics(before.lyrics);
     if (bpm === after.bpm) setBpm(before.bpm);
     if (keyScale === after.keyScale) setKeyScale(before.keyScale);

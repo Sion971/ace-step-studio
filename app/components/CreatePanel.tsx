@@ -558,7 +558,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     token, createdSongs, importedSongs, onReferenceTracksChanged, pendingAudioSelection, onAudioSelectionApplied,
     setTaskType, setAudioCoverStrength, setCoverNoiseStrength, offerAnalysis, analysisAuto,
     reversedSuffix: t('reversedSuffix'),
-    lyrics, setLyrics, bpm, setBpm, keyScale, setKeyScale, timeSignature, setTimeSignature,
+    title, setTitle, lyrics, setLyrics, bpm, setBpm, keyScale, setKeyScale, timeSignature, setTimeSignature,
     vocalLanguage, setVocalLanguage, instrumental, setInstrumental,
   });
 

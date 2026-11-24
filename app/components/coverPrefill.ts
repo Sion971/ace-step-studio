@@ -1,4 +1,4 @@
-// What a cover takes from the song it starts from.
+// What a cover takes from the song it starts from: its title too, as a cover keeps the name of the song it covers.
 //
 // The engine keeps the source's length and tempo for a cover, so only the words and the musical facts are carried over:
 // the lyrics, the BPM, the key, the time signature and the language. The style is left to the user, since changing it is
@@ -8,6 +8,8 @@ import type { Song } from '../types';
 import { uploadToSong, type UploadTrackLike } from '../services/uploadSong';
 
 export interface CoverMeta {
+  /** The title of the song to make: the original's for a cover, "Title (reversed)" for Reverse. */
+  title?: string;
   lyrics?: string;
   instrumental?: boolean;
   bpm?: number;
@@ -17,6 +19,7 @@ export interface CoverMeta {
 }
 
 interface SongLike {
+  title?: string | null;
   lyrics?: string | null;
   bpm?: number | null;
   keyScale?: string | null;
@@ -37,6 +40,9 @@ const text = (v: unknown): string | undefined => (typeof v === 'string' && v.tri
 export const coverMetaFromSong = (song: SongLike): CoverMeta => {
   const p = song.generationParams && typeof song.generationParams === 'object' ? song.generationParams : {};
   const meta: CoverMeta = {};
+
+  const title = text(song.title);
+  if (title) meta.title = title;
 
   const lyrics = text(song.lyrics) ?? text(p.lyrics);
   if (lyrics) {

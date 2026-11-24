@@ -52,6 +52,7 @@ describe('Cover source loaded from the library or by drag', () => {
     const areas = Array.from(container.querySelectorAll('textarea')).map(a => a.value);
     expect(areas.some(v => v.includes('Dans le vent du soir'))).toBe(true);
     expect(container.querySelector('[data-testid="source-duration"]')).not.toBeNull();
+    expect(Array.from(container.querySelectorAll('input')).some(i => i.value === 'Pas sur la route')).toBe(true);
   });
 
   it('gives the fields back when the source is removed', async () => {
@@ -126,6 +127,7 @@ describe('Cover source loaded from the library or by drag', () => {
   });
 
   it('Reverse: the source becomes the reversed copy made by the server, with the original song\'s lyrics', async () => {
+    localStorage.setItem('ace-title', 'Mon titre');
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (url === '/api/reference-tracks/reverse') {
         expect(JSON.parse(String(init?.body))).toEqual({ audioUrl: '/audio/s1.mp3', filename: 'Pas sur la route (reversed)' });
@@ -151,6 +153,11 @@ describe('Cover source loaded from the library or by drag', () => {
     const areas = Array.from(container.querySelectorAll('textarea')).map(a => a.value);
     expect(areas.some(v => v.includes('Dans le vent du soir'))).toBe(true);
     expect(container.querySelector('[data-reversing]')).toBeNull();
+    // The song to make is named after the reversed copy; removing the source gives the title back.
+    const titleInput = () => Array.from(container.querySelectorAll('input')).find(i => i.value.includes('(reversed)') || i.value === 'Mon titre');
+    expect(titleInput()?.value).toBe('Pas sur la route (reversed)');
+    await act(async () => { container.querySelector<HTMLButtonElement>('[data-clear-audio]')!.click(); });
+    expect(titleInput()?.value).toBe('Mon titre');
   });
 
   it('Reverse: an error of the server is shown and nothing is loaded', async () => {
@@ -172,7 +179,7 @@ describe('Cover source loaded from the library or by drag', () => {
   });
 
   it('Reverse: switching to it with an audio loaded reverses that audio', async () => {
-    const fetchMock = vi.fn(async (url: string) => url === '/api/reference-tracks/reverse'
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => url === '/api/reference-tracks/reverse'
       ? new Response(JSON.stringify({ track: { id: 'r1', filename: 'x.flac', audio_url: '/audio/ref/r1.flac' } }), { status: 201, headers: { 'Content-Type': 'application/json' } })
       : new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
     vi.stubGlobal('fetch', fetchMock);
