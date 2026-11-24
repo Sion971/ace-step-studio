@@ -11,7 +11,7 @@ import { AlbumCover } from './AlbumCover';
 import { songsApi } from '../services/api';
 
 import { parseServerDate } from '../utils/serverDate';
-import { uploadToSong } from '../services/uploadSong';
+import { uploadToSong, type UploadTrackLike } from '../services/uploadSong';
 import type { AudioAnalysis } from '../services/audioAnalysis';
 interface SongListProps {
     songs: Song[];
@@ -36,7 +36,7 @@ interface SongListProps {
     onUseAsReference?: (song: Song) => void;
     onCoverSong?: (song: Song) => void;
     onUseUploadAsReference?: (track: { audio_url: string; filename: string }) => void;
-    onCoverUpload?: (track: { audio_url: string; filename: string }) => void;
+    onCoverUpload?: (track: UploadTrackLike) => void;
     onCancelJob?: (jobId: string) => void;
     onResetJob?: (jobId: string) => void;
     onCancelAll?: () => void;

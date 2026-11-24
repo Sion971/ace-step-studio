@@ -54,6 +54,37 @@ describe('Cover source loaded from the library or by drag', () => {
     expect(container.querySelector('[data-testid="source-duration"]')).not.toBeNull();
   });
 
+  it('gives the fields back when the source is removed', async () => {
+    localStorage.setItem('ace-lyrics', 'mes paroles a moi');
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <CreatePanel onGenerate={() => {}} isGenerating={false} createdSongs={[SONG]}
+            pendingAudioSelection={{ target: 'source', url: '/audio/s1.mp3', title: 'Pas sur la route', mode: 'cover' }} />
+        </I18nProvider>,
+      );
+    });
+    const values = () => Array.from(container.querySelectorAll('textarea')).map(a => a.value);
+    expect(values().some(v => v.includes('Dans le vent du soir'))).toBe(true);
+    await act(async () => { container.querySelector<HTMLButtonElement>('[data-clear-audio]')!.click(); });
+    expect(values().some(v => v.includes('Dans le vent du soir'))).toBe(false);
+    expect(values()).toContain('mes paroles a moi');
+  });
+
+  it('fills the lyrics from an analysed import found by its audio', async () => {
+    const imported = { ...SONG, id: 'upload_t1', audioUrl: '/audio/ref/t1.mp3', lyrics: '[Chorus]\nI will sing of the wonders' } as Song;
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <CreatePanel onGenerate={() => {}} isGenerating={false} createdSongs={[SONG]} importedSongs={[imported]}
+            pendingAudioSelection={{ target: 'source', url: '/audio/ref/t1.mp3', title: 'Je chanterai', mode: 'cover' }} />
+        </I18nProvider>,
+      );
+    });
+    const areas = Array.from(container.querySelectorAll('textarea')).map(a => a.value);
+    expect(areas.some(v => v.includes('I will sing of the wonders'))).toBe(true);
+  });
+
   it('fills the lyrics when an audio loaded in Inspiration is switched to Cover', async () => {
     await act(async () => {
       root.render(

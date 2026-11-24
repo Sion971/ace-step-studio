@@ -48,6 +48,8 @@ import { cleanText } from '../utils/cleanText';
 import { AudioAnalysisDialog } from './AudioAnalysisDialog';
 import { coverMetaFromSong, isDurationLockedBySource, type CoverMeta } from './coverPrefill';
 
+interface CoverFields { lyrics: string; bpm: number; keyScale: string; timeSignature: string; vocalLanguage: string; instrumental: boolean }
+
 interface ReferenceTrack {
   id: string;
   filename: string;
@@ -145,6 +147,8 @@ interface CreatePanelProps {
   activeJobCount?: number;
   initialData?: { song: Song, timestamp: number } | null;
   createdSongs?: Song[];
+  /** The imported audios shown as songs (with their analysis): a cover of one takes its lyrics too. */
+  importedSongs?: Song[];
   pendingAudioSelection?: { target: 'reference' | 'source'; url: string; title?: string; mode?: AudioModeId; meta?: CoverMeta } | null;
   onAudioSelectionApplied?: () => void;
   /** Notifie le parent (App.tsx) qu'une nouvelle chanson vient d'etre creee
@@ -207,6 +211,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   activeJobCount = 0,
   initialData,
   createdSongs = [],
+  importedSongs = [],
   pendingAudioSelection,
   onAudioSelectionApplied,
   onSongCreated,
@@ -683,6 +688,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   const [sourceTime, setSourceTime] = useState(0);
   const [referenceDuration, setReferenceDuration] = useState(0);
   const [sourceDuration, setSourceDuration] = useState(0);
+  // What a cover's source filled in, and the fields as they were before: see applyCoverMeta / undoCoverMeta.
+  const coverUndoRef = useRef<{ before: CoverFields; after: CoverFields } | null>(null);
 
   // Reference tracks modal state
   const [referenceTracks, setReferenceTracks] = useState<ReferenceTrack[]>([]);
@@ -1537,19 +1544,43 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     }
   };
 
-  // The source's details, found among the user's songs by its audio.
+  // The source's details, found among the user's songs or imported audios by its audio.
   const prefillCoverFromSong = (url: string) => {
-    const song = createdSongs.find(s => s.audioUrl === url);
+    const song = createdSongs.find(s => s.audioUrl === url) ?? importedSongs.find(s => s.audioUrl === url);
     if (song) applyCoverMeta(coverMetaFromSong(song));
   };
 
   const applyCoverMeta = (meta: CoverMeta) => {
-    if (meta.instrumental !== undefined) setInstrumental(meta.instrumental);
-    if (meta.lyrics) setLyrics(meta.lyrics);
-    if (meta.bpm) setBpm(meta.bpm);
-    if (meta.keyScale && KEY_SIGNATURES.includes(meta.keyScale)) setKeyScale(meta.keyScale);
-    if (meta.timeSignature && TIME_SIGNATURES.includes(meta.timeSignature)) setTimeSignature(meta.timeSignature);
-    if (meta.language) setVocalLanguage(meta.language);
+    const current: CoverFields = { lyrics, bpm, keyScale, timeSignature, vocalLanguage, instrumental };
+    const after: CoverFields = { ...current };
+    if (meta.instrumental !== undefined) after.instrumental = meta.instrumental;
+    if (meta.lyrics) after.lyrics = meta.lyrics;
+    if (meta.bpm) after.bpm = meta.bpm;
+    if (meta.keyScale && KEY_SIGNATURES.includes(meta.keyScale)) after.keyScale = meta.keyScale;
+    if (meta.timeSignature && TIME_SIGNATURES.includes(meta.timeSignature)) after.timeSignature = meta.timeSignature;
+    if (meta.language) after.vocalLanguage = meta.language;
+    // Kept so that removing the source gives the fields back; a second source keeps the fields from before the first.
+    coverUndoRef.current = { before: coverUndoRef.current?.before ?? current, after };
+    setInstrumental(after.instrumental);
+    if (after.lyrics !== current.lyrics) setLyrics(after.lyrics);
+    setBpm(after.bpm);
+    setKeyScale(after.keyScale);
+    setTimeSignature(after.timeSignature);
+    setVocalLanguage(after.vocalLanguage);
+  };
+
+  // Removing the cover's source puts back what the cover filled in, field by field, unless the user changed it since.
+  const undoCoverMeta = () => {
+    const undo = coverUndoRef.current;
+    coverUndoRef.current = null;
+    if (!undo) return;
+    const { before, after } = undo;
+    if (lyrics === after.lyrics && lyrics !== before.lyrics) setLyrics(before.lyrics);
+    if (bpm === after.bpm) setBpm(before.bpm);
+    if (keyScale === after.keyScale) setKeyScale(before.keyScale);
+    if (timeSignature === after.timeSignature) setTimeSignature(before.timeSignature);
+    if (vocalLanguage === after.vocalLanguage) setVocalLanguage(before.vocalLanguage);
+    if (instrumental === after.instrumental) setInstrumental(before.instrumental);
   };
 
   // Changement de mode : on deplace le fichier deja charge vers la case que le
@@ -1657,7 +1688,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       : null;
 
   const clearActiveAudio = () => {
-    if (isReferenceTarget) clearReferenceSlot(); else clearSourceSlot();
+    if (isReferenceTarget) clearReferenceSlot(); else { clearSourceSlot(); undoCoverMeta(); }
     setTaskType('text2music');
   };
 

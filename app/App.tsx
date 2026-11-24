@@ -82,7 +82,9 @@ import { ConfirmDialog } from './components/ConfirmDialog';
 
 import { parseServerDate } from './utils/serverDate';
 import { withFreshCover } from './utils/freshCover';
-import { coverMetaFromSong, type CoverMeta } from './components/coverPrefill';
+import { coverMetaFromSong, coverSongFromImport, type CoverMeta } from './components/coverPrefill';
+import type { UploadTrackLike } from './services/uploadSong';
+import type { AudioAnalysis } from './services/audioAnalysis';
 function AppContent() {
   // i18n
   const { t } = useI18n();
@@ -231,6 +233,8 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
   const workspaces = playlists.filter(p => p.kind === 'workspace');
   const [likedSongIds, setLikedSongIds] = useState<Set<string>>(new Set());
   const [referenceTracks, setReferenceTracks] = useState<ReferenceTrack[]>([]);
+  // The imports as cover sources: the Create panel finds one by its audio and takes its analysed lyrics.
+  const importedSongsForCover = useMemo(() => referenceTracks.map(t => coverSongFromImport(t)), [referenceTracks]);
   const [playQueue, setPlayQueue] = useState<Song[]>([]);
   const [queueIndex, setQueueIndex] = useState(-1);
 
@@ -374,6 +378,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     created_at: string;
     audio_url: string;
     cover_url?: string | null;
+    analysis?: AudioAnalysis | null;
   }
 
   const showToast = (message: string, type: ToastType = 'success') => {
@@ -2086,11 +2091,14 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
     setMobileShowList(false);
   };
 
-  const handleCoverUpload = (track: { audio_url: string; filename: string }) => {
+  const handleCoverUpload = (track: UploadTrackLike) => {
+    // Like a song's Cover: the Cover mode, and the lyrics, tempo, key and language of the import's analysis.
     setPendingAudioSelection({
       target: 'source',
       url: track.audio_url,
       title: track.filename.replace(/\.[^/.]+$/, ''),
+      mode: 'cover',
+      meta: coverMetaFromSong(coverSongFromImport(track)),
     });
     setCurrentView('create');
     setMobileShowList(false);
@@ -2300,6 +2308,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
                 activeJobCount={totalGenerationSlots(activeJobCount, pendingClickCount)}
                 initialData={reuseData}
                 createdSongs={songs}
+                importedSongs={importedSongsForCover}
                 pendingAudioSelection={pendingAudioSelection}
                 onAudioSelectionApplied={() => setPendingAudioSelection(null)}
                 onSongCreated={(song: any) => {

@@ -155,6 +155,7 @@ export const AudioPlayerPanel: React.FC<AudioPlayerPanelProps> = ({
             )}
             <button
               type="button"
+              data-clear-audio
               onClick={onClearAudio}
               className="p-1.5 rounded-full hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-400 hover:text-zinc-600 dark:hover:text-white transition-colors"
             >

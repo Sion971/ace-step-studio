@@ -4,6 +4,9 @@
 // the lyrics, the BPM, the key, the time signature and the language. The style is left to the user, since changing it is
 // the point of a cover.
 
+import type { Song } from '../types';
+import { uploadToSong, type UploadTrackLike } from '../services/uploadSong';
+
 export interface CoverMeta {
   lyrics?: string;
   instrumental?: boolean;
@@ -57,4 +60,12 @@ export const coverMetaFromSong = (song: SongLike): CoverMeta => {
   if (language && language !== 'unknown') meta.language = language;
 
   return meta;
+};
+
+// An imported audio as a cover source: the song the list shows for it (lyrics, BPM, key and time signature from its
+// analysis), with the analysis' language, which that song does not carry.
+export const coverSongFromImport = (track: UploadTrackLike): Song => {
+  const song = uploadToSong(track);
+  const language = track.analysis && track.analysis.available ? track.analysis.language : undefined;
+  return language ? { ...song, generationParams: { vocalLanguage: language } } : song;
 };

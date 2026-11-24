@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { coverMetaFromSong, isDurationLockedBySource } from './coverPrefill';
+import { coverMetaFromSong, coverSongFromImport, isDurationLockedBySource } from './coverPrefill';
 import { en } from '../i18n/en';
 import { fr } from '../i18n/fr';
 import { ja } from '../i18n/ja';
@@ -30,6 +30,22 @@ describe('coverMetaFromSong', () => {
 
   it('gives nothing for an import without analysis, so the panel keeps what is there', () => {
     expect(coverMetaFromSong({ lyrics: '  ', bpm: 0, generationParams: { vocalLanguage: 'unknown' } })).toEqual({});
+  });
+});
+
+describe('coverSongFromImport', () => {
+  it('takes an analysed import\'s lyrics, tempo, key, time signature and language', () => {
+    const song = coverSongFromImport({
+      id: 't1', filename: 'Je chanterai Tes merveilles.mp3', audio_url: '/audio/ref/t1.mp3',
+      analysis: { available: true, status: 'ok', caption: 'pop rock', lyrics: '[Chorus]\nI will sing', bpm: 83, duration: 160,
+        keyScale: 'E major', language: 'en', timeSignature: '4' },
+    });
+    expect(song.audioUrl).toBe('/audio/ref/t1.mp3');
+    expect(coverMetaFromSong(song)).toEqual({ lyrics: '[Chorus]\nI will sing', instrumental: false, bpm: 83, keyScale: 'E major', timeSignature: '4', language: 'en' });
+  });
+
+  it('gives nothing for an import not analysed', () => {
+    expect(coverMetaFromSong(coverSongFromImport({ id: 't2', filename: 'x.wav', audio_url: '/audio/ref/t2.wav' }))).toEqual({});
   });
 });
 
