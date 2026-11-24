@@ -226,6 +226,18 @@ def cmd_stretch(a):
     write(a.out, np.stack([phase_vocoder(x[:, c], r) for c in range(x.shape[1])], axis=1), rate)
 
 
+def cmd_vinyl(a):
+    """Played `ratio` times faster with the pitch following (a record sped up): resampled to 1/ratio of its length."""
+    x, rate = read(a.input)
+    r = a.ratio
+    if not (0.25 <= r <= 4):
+        raise SystemExit('ratio must be between 0.25 and 4')
+    n = max(1, int(round(len(x) / r)))
+    pos = np.linspace(0, len(x) - 1, n)
+    idx = np.arange(len(x))
+    write(a.out, np.stack([np.interp(pos, idx, x[:, c]) for c in range(x.shape[1])], axis=1), rate)
+
+
 def cmd_reverse(a):
     x, rate = read(a.input)
     write(a.out, x[::-1].copy(), rate)
@@ -292,13 +304,14 @@ def main():
     m.add_argument('--out', required=True); m.add_argument('--level', type=float, default=80)
     t = sub.add_parser('stretch'); t.add_argument('--input', required=True); t.add_argument('--out', required=True)
     t.add_argument('--ratio', type=float, required=True)
+    y = sub.add_parser('vinyl'); y.add_argument('--input', required=True); y.add_argument('--out', required=True); y.add_argument('--ratio', type=float, required=True)
     v = sub.add_parser('reverse'); v.add_argument('--input', required=True); v.add_argument('--out', required=True)
     l = sub.add_parser('loudnorm'); l.add_argument('--input', required=True); l.add_argument('--out', required=True)
     l.add_argument('--target-i', type=float, default=-14); l.add_argument('--target-tp', type=float, default=-1.0)
     for name, default in (('harmonics', 0), ('warmth', 0), ('tone', 0), ('glue', 0), ('width', 0)):
         l.add_argument('--' + name, type=float, default=default)
     a = p.parse_args()
-    {'mix': cmd_mix, 'stretch': cmd_stretch, 'reverse': cmd_reverse, 'loudnorm': cmd_loudnorm}[a.cmd](a)
+    {'mix': cmd_mix, 'stretch': cmd_stretch, 'reverse': cmd_reverse, 'vinyl': cmd_vinyl, 'loudnorm': cmd_loudnorm}[a.cmd](a)
 
 
 if __name__ == '__main__':

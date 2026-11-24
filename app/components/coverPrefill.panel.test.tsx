@@ -221,4 +221,47 @@ describe('Cover source loaded from the library or by drag', () => {
     await act(async () => { await new Promise(r => setTimeout(r, 0)); });
     expect(onImportCreated).toHaveBeenCalledWith('u9');
   });
+
+  it('Speed: the copy at ×1.25 keeps the lyrics and key, gets the tempo times 1.25; another factor starts from the original', async () => {
+    const bodies: any[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/reference-tracks/speed') {
+        const body = JSON.parse(String(init?.body));
+        bodies.push(body);
+        const n = bodies.length;
+        return new Response(JSON.stringify({ track: { id: `v${n}`, filename: `${body.filename}.flac`, audio_url: `/audio/ref/v${n}.flac` } }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }));
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <CreatePanel onGenerate={() => {}} isGenerating={false} createdSongs={[SONG]}
+            pendingAudioSelection={{ target: 'source', url: '/audio/s1.mp3', title: 'Pas sur la route', mode: 'speed' }} />
+        </I18nProvider>,
+      );
+    });
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect(bodies[0]).toEqual({ audioUrl: '/audio/s1.mp3', filename: 'Pas sur la route (×1.25)', factor: 1.25, keepPitch: true });
+    const inputs = () => Array.from(container.querySelectorAll('input')).map(i => i.value);
+    const selects = () => Array.from(container.querySelectorAll('select')).map(s => s.value);
+    expect(inputs()).toContain('Pas sur la route (×1.25)');
+    expect(container.textContent).toContain('105'); // 84 BPM × 1.25
+    expect(selects()).toContain('D minor');
+    expect(Array.from(container.querySelectorAll('textarea')).some(a => a.value.includes('Dans le vent du soir'))).toBe(true);
+    expect(Array.from(container.querySelectorAll('audio')).map(a => a.getAttribute('src'))).toContain('/audio/ref/v1.flac');
+
+    const factorButton = (label: string) => Array.from(container.querySelectorAll('[data-speed-options] button')).find(b => b.textContent === label) as HTMLButtonElement;
+    await act(async () => { factorButton('×0.9').click(); });
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect(bodies[1]).toEqual({ audioUrl: '/audio/s1.mp3', filename: 'Pas sur la route (×0.9)', factor: 0.9, keepPitch: true });
+    expect(inputs()).toContain('Pas sur la route (×0.9)');
+
+    // Pitch following the speed: the key is no longer the original's, it goes back to Auto.
+    const keep = container.querySelector<HTMLInputElement>('[data-speed-options] input[type="checkbox"]')!;
+    await act(async () => { keep.click(); });
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect(bodies[2]).toMatchObject({ audioUrl: '/audio/s1.mp3', factor: 0.9, keepPitch: false });
+    expect(selects()).not.toContain('D minor');
+  });
 });

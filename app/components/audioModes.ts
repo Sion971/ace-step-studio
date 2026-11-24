@@ -63,7 +63,7 @@ export const AUDIO_MODES: AudioModeDef[] = [
     icon: Repeat, available: true },
   { id: 'speed',       group: 'edit',  field: 'source',    taskType: 'cover',
     labelKey: 'audioModeSpeed', shortKey: 'audioModeSpeed', descKey: 'audioModeSpeedDesc',
-    icon: Gauge, available: false },
+    icon: Gauge, available: true },
   // --- PISTES (modele base pur uniquement : voir isPureBaseModel) ---------
   { id: 'lego',        group: 'tracks', field: 'source',   taskType: 'lego',
     labelKey: 'audioModeLego', shortKey: 'audioModeLego', descKey: 'audioModeLegoDesc',

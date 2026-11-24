@@ -160,3 +160,32 @@ export async function reverseAudio(data: Buffer, inputName: string, deps: { ffmp
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 }
+
+/**
+ * The file played `factor` times faster (1.25 = a quarter faster, 0.9 = a tenth slower), as a FLAC without the original's tags. With
+ * `keepPitch`, only the tempo changes (ffmpeg atempo); without it, the pitch follows the speed, like a record played faster (resampled
+ * at 48 kHz, its rate raised by the factor, then back to 48 kHz). Used by the "Speed" mode of the Create tab, which makes a cover of it.
+ */
+export async function speedAudio(data: Buffer, inputName: string, factor: number, keepPitch: boolean, deps: { ffmpeg: (args: string[]) => Promise<void>; python: (input: string, output: string, factor: number, keepPitch: boolean) => Promise<void> } = { ffmpeg: run, python: (i, o, f, k) => runFallbackTool([k ? 'stretch' : 'vinyl', '--input', i, '--out', o, '--ratio', String(f)]).then(() => undefined) }): Promise<Buffer> {
+  if (!(factor >= 0.5 && factor <= 2)) throw new Error('The speed factor must be between 0.5 and 2');
+  const filter = keepPitch ? atempoChain(factor) : `aresample=48000,asetrate=${Math.round(48000 * factor)},aresample=48000`;
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'studio-speed-'));
+  try {
+    const input = path.join(dir, `in${path.extname(inputName).replace(/[^.\w]/g, '') || '.wav'}`);
+    const output = path.join(dir, 'out.flac');
+    await writeFile(input, data);
+    try {
+      await deps.ffmpeg(['-y', '-hide_banner', '-loglevel', 'error', '-i', input, '-vn', '-map_metadata', '-1', '-af', filter, ...CODEC_ARGS.flac, output]);
+    } catch (ffmpegError) {
+      console.warn(`[audio] ffmpeg could not change the speed (${oneLine(ffmpegError)}); using the engine's Python instead.`);
+      try {
+        await deps.python(input, output, factor, keepPitch);
+      } catch (pythonError) {
+        throw new Error(`${oneLine(ffmpegError)} | ${oneLine(pythonError)}`);
+      }
+    }
+    return await readFile(output);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}

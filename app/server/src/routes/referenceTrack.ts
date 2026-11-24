@@ -9,7 +9,7 @@ import { getStorageProvider } from '../services/storage/factory.js';
 import { withAnalysis } from '../services/track-analysis.js';
 import { findWhisperExecutable, transcribeWithWhisper } from '../services/whisper.js';
 import { coverKeyFor, extractEmbeddedCover } from '../services/audio-cover.js';
-import { reverseAudio } from '../services/audio-transcode.js';
+import { reverseAudio, speedAudio } from '../services/audio-transcode.js';
 import { localAudioFile } from '../services/local-audio.js';
 import { getAudioDuration } from '../services/audio-duration.js';
 
@@ -164,13 +164,16 @@ router.post('/', authMiddleware, upload.single('audio'), async (req: Authenticat
   }
 });
 
-// "Reverse" mode of the Create tab: the audio played backwards becomes a new import (a FLAC, without the original's tags), which the
-// panel then loads as the source of a cover. The picture embedded in the original, if any, becomes the new import's cover.
-router.post('/reverse', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+// "Reverse" and "Speed" modes of the Create tab: a processed copy of an audio of the Studio (played backwards, faster or slower)
+// becomes a new import (a FLAC, without the original's tags), which the panel then loads as the source of a cover. The picture
+// embedded in the original, if any, becomes the new import's cover.
+async function importProcessedCopy(
+  req: AuthenticatedRequest, res: Response, what: string, process: (data: Buffer, file: string) => Promise<Buffer>,
+): Promise<void> {
   try {
     const file = localAudioFile(req.body?.audioUrl, AUDIO_DIR);
     if (!file) {
-      res.status(400).json({ error: 'Only an audio of the Studio can be reversed' });
+      res.status(400).json({ error: `Only an audio of the Studio can be ${what}` });
       return;
     }
     let original: Buffer;
@@ -180,21 +183,21 @@ router.post('/reverse', authMiddleware, async (req: AuthenticatedRequest, res: R
       res.status(404).json({ error: 'Audio file not found' });
       return;
     }
-    const reversed = await reverseAudio(original, file);
+    const processed = await process(original, file);
 
     const userId = req.user!.id;
     const asked = typeof req.body?.filename === 'string' ? req.body.filename.trim().slice(0, 200) : '';
     const filename = `${(asked || path.basename(file)).replace(/\.[^/.]+$/, '')}.flac`;
     const key = `reference-tracks/${userId}/${Date.now()}.flac`;
     const storage = getStorageProvider();
-    await storage.upload(key, reversed, 'audio/flac');
+    await storage.upload(key, processed, 'audio/flac');
     const seconds = getAudioDuration(path.join(AUDIO_DIR, key));
 
     const result = await pool.query(
       `INSERT INTO reference_tracks (user_id, filename, storage_key, file_size_bytes, tags, duration)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [userId, filename, key, reversed.length, null, seconds > 0 ? Math.round(seconds) : null]
+      [userId, filename, key, processed.length, null, seconds > 0 ? Math.round(seconds) : null]
     );
     const coverKey = await attachEmbeddedCover(result.rows[0].id, key, original, path.extname(file)).catch(() => '');
 
@@ -207,10 +210,24 @@ router.post('/reverse', authMiddleware, async (req: AuthenticatedRequest, res: R
       },
     });
   } catch (error) {
-    console.error('Reverse audio error:', error);
+    console.error(`Audio copy (${what}) error:`, error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    res.status(500).json({ error: 'Failed to reverse the audio', details: errorMessage });
+    res.status(500).json({ error: `The audio could not be ${what}`, details: errorMessage });
   }
+}
+
+router.post('/reverse', authMiddleware, (req: AuthenticatedRequest, res: Response) =>
+  importProcessedCopy(req, res, 'reversed', (data, file) => reverseAudio(data, file)));
+
+// Speed: { factor: 0.5 to 2, keepPitch: true by default (only the tempo changes) }.
+router.post('/speed', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const factor = Number(req.body?.factor);
+  if (!(factor >= 0.5 && factor <= 2)) {
+    res.status(400).json({ error: 'The speed factor must be between 0.5 and 2' });
+    return;
+  }
+  const keepPitch = req.body?.keepPitch !== false;
+  return importProcessedCopy(req, res, 'sped up or slowed down', (data, file) => speedAudio(data, file, factor, keepPitch));
 });
 
 // Set the cover of an import from the cover window (an uploaded picture or one made by the AI).

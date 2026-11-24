@@ -12,6 +12,13 @@ interface CoverFields { title: string; lyrics: string; bpm: number; keyScale: st
 
 type Setter<T> = (value: T) => void;
 
+/** The modes whose source is a copy made by the server first. */
+export type ProcessKind = 'reverse' | 'speed';
+const processKindOf = (mode: AudioModeId): ProcessKind | null => (mode === 'reverse' || mode === 'speed' ? mode : null);
+
+/** The factors offered in Speed mode. */
+export const SPEED_FACTORS = [0.75, 0.9, 1.1, 1.25, 1.5];
+
 export interface PendingAudioSelection {
   target: 'reference' | 'source';
   url: string;
@@ -37,6 +44,8 @@ export interface UseAudioSourceOptions {
   analysisAuto: boolean;
   /** The word added to the title of a reversed audio: "Title (reversed)". */
   reversedSuffix: string;
+  /** How a speed factor is written in a title, e.g. "×1,25". */
+  speedLabel: (factor: number) => string;
   /** The fields a cover fills from its source (and gives back when the source is removed). */
   title: string;
   setTitle: Setter<string>;
@@ -56,7 +65,7 @@ export interface UseAudioSourceOptions {
 
 export function useAudioSource({
   token, createdSongs, importedSongs, onReferenceTracksChanged, onImportCreated, pendingAudioSelection, onAudioSelectionApplied,
-  setTaskType, setAudioCoverStrength, setCoverNoiseStrength, offerAnalysis, analysisAuto, reversedSuffix,
+  setTaskType, setAudioCoverStrength, setCoverNoiseStrength, offerAnalysis, analysisAuto, reversedSuffix, speedLabel,
   title, setTitle, lyrics, setLyrics, bpm, setBpm, keyScale, setKeyScale, timeSignature, setTimeSignature,
   vocalLanguage, setVocalLanguage, instrumental, setInstrumental,
 }: UseAudioSourceOptions) {
@@ -102,11 +111,16 @@ export function useAudioSource({
   const [referenceTracks, setReferenceTracks] = useState<ReferenceTrack[]>([]);
   const [isLoadingTracks, setIsLoadingTracks] = useState(false);
   const [audioModalTab, setAudioModalTab] = useState<LibraryTab>('uploads');
-  // "Reverse" mode: the server is making the reversed copy; the error of the last try. A source removed or replaced
-  // meanwhile makes the result stale (reverseRunRef), and it is then dropped.
-  const [isReversing, setIsReversing] = useState(false);
-  const [reverseError, setReverseError] = useState<string | null>(null);
-  const reverseRunRef = useRef(0);
+  // "Reverse" and "Speed" modes: the server is making a processed copy of the source (which one, while it works); the
+  // error of the last try. A source removed or replaced meanwhile makes the result stale (processRunRef): it is dropped.
+  const [processingKind, setProcessingKind] = useState<ProcessKind | null>(null);
+  const [processError, setProcessError] = useState<{ kind: ProcessKind; message: string } | null>(null);
+  const processRunRef = useRef(0);
+  // Speed mode: the factor (1.25 = a quarter faster) and whether the pitch is kept (else it follows, like a record
+  // played faster). The original behind the copy loaded, so that another factor starts again from it.
+  const [speedFactor, setSpeedFactor] = useState(1.25);
+  const [speedKeepPitch, setSpeedKeepPitch] = useState(true);
+  const speedOriginRef = useRef<{ url: string; title?: string; meta?: CoverMeta } | null>(null);
 
   const getAudioLabel = (url: string) => {
     try {
@@ -362,14 +376,16 @@ export function useAudioSource({
       setAudioMode(mode);
     }
     const effectiveAudioMode = mode && AUDIO_MODE_MAP[mode] ? mode : audioMode;
-    // Reverse mode: what is loaded is the audio played backwards (made by the server), not this one.
-    if (target === 'source' && effectiveAudioMode === 'reverse' && !isReversedImport(url)) {
+    // Reverse and Speed modes: what is loaded is a copy made by the server (played backwards, faster or slower).
+    const kind = processKindOf(effectiveAudioMode);
+    if (target === 'source' && kind && !isProcessedImport(url, kind)) {
       clearReferenceSlot();
       clearSourceSlot();
-      void reverseIntoSource(url, title, meta);
+      void processIntoSource(kind, url, title, meta);
       return;
     }
-    reverseRunRef.current += 1;
+    processRunRef.current += 1;
+    speedOriginRef.current = null;
     const derivedTitle = title ? title.replace(/\.[^/.]+$/, '') : getAudioLabel(url);
     if (target === 'reference') {
       clearSourceSlot();
@@ -410,43 +426,72 @@ export function useAudioSource({
     if (song) applyCoverMeta(coverMetaFromSong(song));
   };
 
-  // An import that is already a reversed copy ("Title (reversed)"): loaded as it is, not turned back.
-  const isReversedImport = (url: string) => {
+  // An import that is already a copy of this kind ("Title (reversed)", "Title (×1,25)"): loaded as it is, not
+  // processed again (which would turn a reversed copy back, or speed a copy up twice).
+  const isProcessedImport = (url: string, kind: ProcessKind) => {
     const song = importedSongs.find(s => s.audioUrl === url);
-    return Boolean(song && song.title.trim().endsWith(`(${reversedSuffix})`));
+    if (!song) return false;
+    const name = song.title.trim();
+    return kind === 'reverse' ? name.endsWith(`(${reversedSuffix})`) : /\(×[\d.,]+\)$/.test(name);
   };
 
-  // Reverse mode. The server makes the reversed copy (a new import, "Title (reversed)"), which becomes the source of a
-  // cover. The cover takes the words, key and tempo of the original song: played backwards it has none of its own.
-  const reverseIntoSource = async (url: string, title: string | undefined, meta: CoverMeta | undefined) => {
-    const run = ++reverseRunRef.current;
-    const originalMeta = meta ?? (songOfAudio(url) ? coverMetaFromSong(songOfAudio(url)!) : undefined);
-    const name = `${(title ? title.replace(/\.[^/.]+$/, '') : getAudioLabel(url))} (${reversedSuffix})`;
-    setReverseError(null);
-    if (!token) { setReverseError('Please sign in to reverse audio.'); return; }
-    setIsReversing(true);
+  // Reverse and Speed modes. The server makes the copy (a new import), which becomes the source of a cover. The cover
+  // takes the words, key and tempo of the original song (played backwards, the copy has none of its own; sped up, its
+  // tempo is the original's times the factor, and its key is lost unless the pitch is kept). The song made is named
+  // after the copy: "Title (reversed)", "Title (×1,25)".
+  const processIntoSource = async (
+    kind: ProcessKind, url: string, title: string | undefined, meta: CoverMeta | undefined,
+    speed = { factor: speedFactor, keepPitch: speedKeepPitch },
+  ) => {
+    const run = ++processRunRef.current;
+    const original = meta ?? (songOfAudio(url) ? coverMetaFromSong(songOfAudio(url)!) : undefined);
+    const base = title ? title.replace(/\.[^/.]+$/, '') : getAudioLabel(url);
+    const name = `${base} (${kind === 'reverse' ? reversedSuffix : speedLabel(speed.factor)})`;
+    speedOriginRef.current = kind === 'speed' ? { url, title, meta } : null;
+    setProcessError(null);
+    if (!token) { setProcessError({ kind, message: 'Please sign in.' }); return; }
+    setProcessingKind(kind);
     try {
-      const response = await fetch('/api/reference-tracks/reverse', {
+      const response = await fetch(`/api/reference-tracks/${kind}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ audioUrl: url, filename: name }),
+        body: JSON.stringify(kind === 'reverse'
+          ? { audioUrl: url, filename: name }
+          : { audioUrl: url, filename: name, factor: speed.factor, keepPitch: speed.keepPitch }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.track?.audio_url) throw new Error(data.details || data.error || response.statusText);
       setReferenceTracks(prev => [data.track, ...prev]);
       announceNewImport(data.track.id);
-      if (run !== reverseRunRef.current) return;
+      if (run !== processRunRef.current) return;
       setSourceAudioUrl(data.track.audio_url);
       setSourceAudioTitle(name);
       setSourceTime(0);
       setSourceDuration(0);
-      setTaskType(AUDIO_MODE_MAP.reverse.taskType);
-      // The song made from it is named after the reversed copy: "Title (reversed)".
-      applyCoverMeta({ ...originalMeta, title: name });
+      setTaskType(AUDIO_MODE_MAP[kind].taskType);
+      const adjusted: CoverMeta = { ...original, title: name };
+      if (kind === 'speed') {
+        if (original?.bpm) adjusted.bpm = Math.round(original.bpm * speed.factor);
+        // Pitch following the speed: the key is no longer the original's, so it goes back to Auto.
+        if (!speed.keepPitch) adjusted.keyScale = '';
+      }
+      applyCoverMeta(adjusted);
     } catch (err) {
-      if (run === reverseRunRef.current) setReverseError(err instanceof Error ? err.message : String(err));
+      if (run === processRunRef.current) setProcessError({ kind, message: err instanceof Error ? err.message : String(err) });
     } finally {
-      if (run === reverseRunRef.current) setIsReversing(false);
+      if (run === processRunRef.current) setProcessingKind(null);
+    }
+  };
+
+  // Speed mode: another factor, or the pitch kept or not. With a copy already loaded, a new one is made from the
+  // original (the earlier copy stays among the imports).
+  const chooseSpeed = (factor: number, keepPitch: boolean) => {
+    setSpeedFactor(factor);
+    setSpeedKeepPitch(keepPitch);
+    const origin = speedOriginRef.current;
+    if (origin && audioMode === 'speed') {
+      clearSourceSlot();
+      void processIntoSource('speed', origin.url, origin.title, origin.meta, { factor, keepPitch });
     }
   };
 
@@ -457,7 +502,8 @@ export function useAudioSource({
     if (meta.instrumental !== undefined) after.instrumental = meta.instrumental;
     if (meta.lyrics) after.lyrics = meta.lyrics;
     if (meta.bpm) after.bpm = meta.bpm;
-    if (meta.keyScale && KEY_SIGNATURES.includes(meta.keyScale)) after.keyScale = meta.keyScale;
+    // '' is Auto: a copy whose key is no longer the original's sets it back explicitly.
+    if (meta.keyScale !== undefined && KEY_SIGNATURES.includes(meta.keyScale)) after.keyScale = meta.keyScale;
     if (meta.timeSignature && TIME_SIGNATURES.includes(meta.timeSignature)) after.timeSignature = meta.timeSignature;
     if (meta.language) after.vocalLanguage = meta.language;
     // Kept so that removing the source gives the fields back; a second source keeps the fields from before the first.
@@ -503,6 +549,8 @@ export function useAudioSource({
     cover: { strength: 0.15, noise: 0.12 },
     // A cover of the audio played backwards: at 0.15 the lyrics are sung, at 0.4 three quarters of them were lost (one listening test).
     reverse: { strength: 0.15, noise: 0.12 },
+    // A cover of the audio sped up or slowed down: the same values as Cover until a listening test says otherwise.
+    speed: { strength: 0.15, noise: 0.12 },
     inspiration: { strength: 0.40, noise: 0 },
   };
 
@@ -544,11 +592,12 @@ export function useAudioSource({
     if (currentUrl && next.field === 'source' && next.taskType === 'cover' && prev.taskType !== 'cover') {
       prefillCoverFromSong(currentUrl);
     }
-    // Switching to Reverse with an audio loaded: that audio is reversed and its copy takes its place.
-    if (currentUrl && id === 'reverse' && prev.id !== 'reverse' && !isReversedImport(currentUrl)) {
+    // Switching to Reverse or Speed with an audio loaded: that audio is processed and its copy takes its place.
+    const kind = processKindOf(id);
+    if (currentUrl && kind && prev.id !== id && !isProcessedImport(currentUrl, kind)) {
       clearReferenceSlot();
       clearSourceSlot();
-      void reverseIntoSource(currentUrl, currentTitle, undefined);
+      void processIntoSource(kind, currentUrl, currentTitle, undefined);
     }
   };
 
@@ -576,9 +625,10 @@ export function useAudioSource({
   const activeAudioInputRef = isReferenceTarget ? referenceInputRef : sourceInputRef;
 
   const clearActiveAudio = () => {
-    reverseRunRef.current += 1;
-    setIsReversing(false);
-    setReverseError(null);
+    processRunRef.current += 1;
+    speedOriginRef.current = null;
+    setProcessingKind(null);
+    setProcessError(null);
     if (isReferenceTarget) clearReferenceSlot(); else { clearSourceSlot(); undoCoverMeta(); }
     setTaskType('text2music');
   };
@@ -655,6 +705,7 @@ export function useAudioSource({
     setReferenceDuration, setReferencePlaying, setReferenceTime, setShowAudioAddMenu, setShowAudioMenu,
     setShowAudioModal, setSourceDuration, setSourcePlaying, setSourceTime, showAudioAddMenu, showAudioMenu,
     showAudioModal, sourceAudioRef, sourceAudioTitle, sourceAudioUrl, sourceDuration, sourceInputRef, toggleAudio,
-    uploadError, uploadReferenceTrack, useReferenceTrack, isReversing, reverseError,
+    uploadError, uploadReferenceTrack, useReferenceTrack, processingKind, processError,
+    speedFactor, speedKeepPitch, chooseSpeed,
   };
 }

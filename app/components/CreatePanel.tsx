@@ -49,7 +49,7 @@ import { AudioAnalysisDialog } from './AudioAnalysisDialog';
 import { isDurationLockedBySource, type CoverMeta } from './coverPrefill';
 import { isTrackTask, type AudioModeId } from './audioModes';
 import { KEY_SIGNATURES, TIME_SIGNATURES } from './musicalOptions';
-import { useAudioSource } from './useAudioSource';
+import { useAudioSource, SPEED_FACTORS } from './useAudioSource';
 
 
 interface CreatePanelProps {
@@ -117,7 +117,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   unregisterPreflightAbort,
 }) => {
   const { isAuthenticated, token, user } = useAuth();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
 
   // `t()` renvoie la clé elle-même quand la traduction manque. Le motif
   // `tf('x', 'repli')` recevait donc toujours une chaîne non vide à gauche et
@@ -556,11 +556,13 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     setReferenceDuration, setReferencePlaying, setReferenceTime, setShowAudioAddMenu, setShowAudioMenu,
     setShowAudioModal, setSourceDuration, setSourcePlaying, setSourceTime, showAudioAddMenu, showAudioMenu,
     showAudioModal, sourceAudioRef, sourceAudioTitle, sourceAudioUrl, sourceDuration, sourceInputRef, toggleAudio,
-    uploadError, uploadReferenceTrack, useReferenceTrack, isReversing, reverseError,
+    uploadError, uploadReferenceTrack, useReferenceTrack, processingKind, processError,
+    speedFactor, speedKeepPitch, chooseSpeed,
   } = useAudioSource({
     token, createdSongs, importedSongs, onReferenceTracksChanged, onImportCreated, pendingAudioSelection, onAudioSelectionApplied,
     setTaskType, setAudioCoverStrength, setCoverNoiseStrength, offerAnalysis, analysisAuto,
     reversedSuffix: t('reversedSuffix'),
+    speedLabel: (factor: number) => `×${factor.toLocaleString(language)}`,
     title, setTitle, lyrics, setLyrics, bpm, setBpm, keyScale, setKeyScale, timeSignature, setTimeSignature,
     vocalLanguage, setVocalLanguage, instrumental, setInstrumental,
   });
@@ -1152,7 +1154,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // gresillement. Le mode reste utilisable, mais l'utilisateur doit savoir
   // qu'il ne fait pas un cover.
   const coverModeMissingSource =
-    (audioMode === 'cover' || audioMode === 'reverse') && !sourceAudioUrl.trim();
+    (audioMode === 'cover' || audioMode === 'reverse' || audioMode === 'speed') && !sourceAudioUrl.trim();
 
   // Regroupe les deux raisons qui doivent griser le bouton Creer. Les
   // messages restent distincts (l'un est une erreur bloquante de charge
@@ -1909,14 +1911,44 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                 tf={tf}
               />
 
-              {isReversing && (
-                <div className="px-2 flex items-center gap-2 text-[11px] text-zinc-500" data-reversing>
-                  <Loader2 size={12} className="animate-spin" />
-                  {t('reversingAudio')}
+              {audioMode === 'speed' && (
+                <div className="px-2 flex flex-wrap items-center gap-1.5 text-[11px]" data-speed-options>
+                  <span className="text-zinc-500 mr-1">{t('speedFactor')}</span>
+                  {SPEED_FACTORS.map(factor => (
+                    <button
+                      key={factor}
+                      type="button"
+                      aria-pressed={speedFactor === factor}
+                      disabled={processingKind !== null}
+                      onClick={() => chooseSpeed(factor, speedKeepPitch)}
+                      className={`px-2 py-0.5 rounded-md border transition-colors disabled:opacity-50 ${speedFactor === factor
+                        ? 'border-pink-500 bg-pink-500/15 text-pink-600 dark:text-pink-300'
+                        : 'border-zinc-300 dark:border-white/10 text-zinc-600 dark:text-zinc-400 hover:border-pink-400'}`}
+                    >
+                      ×{factor.toLocaleString(language)}
+                    </button>
+                  ))}
+                  <label className="ml-2 flex items-center gap-1 text-zinc-600 dark:text-zinc-400 cursor-pointer" title={t('speedKeepPitchHint')}>
+                    <input
+                      type="checkbox"
+                      checked={speedKeepPitch}
+                      disabled={processingKind !== null}
+                      onChange={(e) => chooseSpeed(speedFactor, e.target.checked)}
+                    />
+                    {t('speedKeepPitch')}
+                  </label>
                 </div>
               )}
-              {reverseError && !isReversing && (
-                <div className="px-2 text-[11px] text-rose-500">{t('reverseFailed')} {reverseError}</div>
+              {processingKind && (
+                <div className="px-2 flex items-center gap-2 text-[11px] text-zinc-500" data-reversing>
+                  <Loader2 size={12} className="animate-spin" />
+                  {t(processingKind === 'speed' ? 'changingSpeed' : 'reversingAudio')}
+                </div>
+              )}
+              {processError && !processingKind && (
+                <div className="px-2 text-[11px] text-rose-500">
+                  {t(processError.kind === 'speed' ? 'speedFailed' : 'reverseFailed')} {processError.message}
+                </div>
               )}
 
               {isTrackMode && (

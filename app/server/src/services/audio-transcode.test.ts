@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
-import { parseExportFormat, reverseAudio, transcodeAudio } from './audio-transcode.js';
+import { parseExportFormat, reverseAudio, speedAudio, transcodeAudio } from './audio-transcode.js';
 
 const hasFfmpeg = spawnSync('ffmpeg', ['-version']).status === 0;
 
@@ -141,6 +141,39 @@ describe('reverseAudio', () => {
   it.skipIf(!hasFfmpeg)('really plays a file backwards', async () => {
     const src = wav(1);
     const out = await reverseAudio(src, 'a.wav');
+    expect(out.subarray(0, 4).toString('latin1')).toBe('fLaC');
+  });
+});
+
+describe('speedAudio', () => {
+  const fakeFfmpeg = () => vi.fn(async (args: string[]) => { await writeFile(args[args.length - 1], Buffer.from('fLaC-speed')); });
+
+  it('keeps the pitch with atempo, as a FLAC without the tags or the picture', async () => {
+    const ffmpeg = fakeFfmpeg();
+    expect((await speedAudio(Buffer.from('x'), 'a.mp3', 1.25, true, { ffmpeg, python: vi.fn() })).toString()).toBe('fLaC-speed');
+    const args = ffmpeg.mock.calls[0][0];
+    expect(args).toEqual(expect.arrayContaining(['-vn', '-map_metadata', '-1']));
+    expect(args[args.indexOf('-af') + 1]).toBe('atempo=1.250000');
+    expect(args[args.length - 1]).toMatch(/out\.flac$/);
+  });
+
+  it('lets the pitch follow the speed, like a record, when asked', async () => {
+    const ffmpeg = fakeFfmpeg();
+    await speedAudio(Buffer.from('x'), 'a.mp3', 1.25, false, { ffmpeg, python: vi.fn() });
+    const args = ffmpeg.mock.calls[0][0];
+    expect(args[args.indexOf('-af') + 1]).toBe('aresample=48000,asetrate=60000,aresample=48000');
+  });
+
+  it('refuses a factor outside 0.5 to 2, and falls back on Python without ffmpeg', async () => {
+    await expect(speedAudio(Buffer.from('x'), 'a.wav', 3, true, { ffmpeg: vi.fn(), python: vi.fn() })).rejects.toThrow(/between 0.5 and 2/);
+    const python = vi.fn(async (_i: string, o: string) => { await writeFile(o, Buffer.from('py')); });
+    const out = await speedAudio(Buffer.from('x'), 'a.wav', 0.9, false, { ffmpeg: vi.fn(async () => { throw new Error('EPERM'); }), python });
+    expect(out.toString()).toBe('py');
+    expect(python).toHaveBeenCalledWith(expect.any(String), expect.any(String), 0.9, false);
+  });
+
+  it.skipIf(!hasFfmpeg)('really makes a 1 s file 0.8 s long at ×1.25', async () => {
+    const out = await speedAudio(wav(1), 'a.wav', 1.25, true);
     expect(out.subarray(0, 4).toString('latin1')).toBe('fLaC');
   });
 });
