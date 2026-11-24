@@ -60,7 +60,7 @@ export const AUDIO_MODES: AudioModeDef[] = [
     icon: Scissors, available: false },
   { id: 'reverse',     group: 'edit',  field: 'source',    taskType: 'cover',
     labelKey: 'audioModeReverse', shortKey: 'audioModeReverse', descKey: 'audioModeReverseDesc',
-    icon: Repeat, available: false },
+    icon: Repeat, available: true },
   { id: 'speed',       group: 'edit',  field: 'source',    taskType: 'cover',
     labelKey: 'audioModeSpeed', shortKey: 'audioModeSpeed', descKey: 'audioModeSpeedDesc',
     icon: Gauge, available: false },

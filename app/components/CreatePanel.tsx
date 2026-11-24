@@ -553,10 +553,11 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     setReferenceDuration, setReferencePlaying, setReferenceTime, setShowAudioAddMenu, setShowAudioMenu,
     setShowAudioModal, setSourceDuration, setSourcePlaying, setSourceTime, showAudioAddMenu, showAudioMenu,
     showAudioModal, sourceAudioRef, sourceAudioTitle, sourceAudioUrl, sourceDuration, sourceInputRef, toggleAudio,
-    uploadError, uploadReferenceTrack, useReferenceTrack,
+    uploadError, uploadReferenceTrack, useReferenceTrack, isReversing, reverseError,
   } = useAudioSource({
     token, createdSongs, importedSongs, onReferenceTracksChanged, pendingAudioSelection, onAudioSelectionApplied,
     setTaskType, setAudioCoverStrength, setCoverNoiseStrength, offerAnalysis, analysisAuto,
+    reversedSuffix: t('reversedSuffix'),
     lyrics, setLyrics, bpm, setBpm, keyScale, setKeyScale, timeSignature, setTimeSignature,
     vocalLanguage, setVocalLanguage, instrumental, setInstrumental,
   });
@@ -1148,7 +1149,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // gresillement. Le mode reste utilisable, mais l'utilisateur doit savoir
   // qu'il ne fait pas un cover.
   const coverModeMissingSource =
-    audioMode === 'cover' && !sourceAudioUrl.trim();
+    (audioMode === 'cover' || audioMode === 'reverse') && !sourceAudioUrl.trim();
 
   // Regroupe les deux raisons qui doivent griser le bouton Creer. Les
   // messages restent distincts (l'un est une erreur bloquante de charge
@@ -1904,6 +1905,16 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                 t={t}
                 tf={tf}
               />
+
+              {isReversing && (
+                <div className="px-2 flex items-center gap-2 text-[11px] text-zinc-500" data-reversing>
+                  <Loader2 size={12} className="animate-spin" />
+                  {t('reversingAudio')}
+                </div>
+              )}
+              {reverseError && !isReversing && (
+                <div className="px-2 text-[11px] text-rose-500">{t('reverseFailed')} {reverseError}</div>
+              )}
 
               {isTrackMode && (
                 <TrackPicker

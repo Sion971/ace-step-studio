@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
-import { parseExportFormat, transcodeAudio } from './audio-transcode.js';
+import { parseExportFormat, reverseAudio, transcodeAudio } from './audio-transcode.js';
 
 const hasFfmpeg = spawnSync('ffmpeg', ['-version']).status === 0;
 
@@ -116,5 +116,31 @@ describe('when ffmpeg cannot be run (Smart App Control)', () => {
     const head = mp3.data.subarray(0, 3);
     expect(head.toString('latin1') === 'ID3' || (head[0] === 0xff && (head[1] & 0xe0) === 0xe0)).toBe(true);
     expect(mp3.data.length).toBeLessThan(src.length / 4);
+  });
+});
+
+describe('reverseAudio', () => {
+  it('asks ffmpeg for the audio backwards, as a FLAC, without the tags or the picture', async () => {
+    const ffmpeg = vi.fn(async (args: string[]) => { await writeFile(args[args.length - 1], Buffer.from('fLaC-reversed')); });
+    const python = vi.fn();
+    const out = await reverseAudio(Buffer.from('x'), 'Pas sur la route.mp3', { ffmpeg, python });
+    expect(out.toString()).toBe('fLaC-reversed');
+    const args = ffmpeg.mock.calls[0][0];
+    expect(args).toEqual(expect.arrayContaining(['-vn', '-map_metadata', '-1', '-af', 'areverse']));
+    expect(args[args.indexOf('-i') + 1]).toMatch(/in\.mp3$/);
+    expect(args[args.length - 1]).toMatch(/out\.flac$/);
+    expect(python).not.toHaveBeenCalled();
+  });
+
+  it('falls back on the engine\'s Python when ffmpeg cannot run', async () => {
+    const ffmpeg = vi.fn(async () => { throw new Error('ffmpeg could not be started: EPERM'); });
+    const python = vi.fn(async (_i: string, o: string) => { await writeFile(o, Buffer.from('from-python')); });
+    expect((await reverseAudio(Buffer.from('x'), 'a.wav', { ffmpeg, python })).toString()).toBe('from-python');
+  });
+
+  it.skipIf(!hasFfmpeg)('really plays a file backwards', async () => {
+    const src = wav(1);
+    const out = await reverseAudio(src, 'a.wav');
+    expect(out.subarray(0, 4).toString('latin1')).toBe('fLaC');
   });
 });

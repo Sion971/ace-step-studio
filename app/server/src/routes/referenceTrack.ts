@@ -9,6 +9,9 @@ import { getStorageProvider } from '../services/storage/factory.js';
 import { withAnalysis } from '../services/track-analysis.js';
 import { findWhisperExecutable, transcribeWithWhisper } from '../services/whisper.js';
 import { coverKeyFor, extractEmbeddedCover } from '../services/audio-cover.js';
+import { reverseAudio } from '../services/audio-transcode.js';
+import { localAudioFile } from '../services/local-audio.js';
+import { getAudioDuration } from '../services/audio-duration.js';
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -29,9 +32,9 @@ function coverUrlOf(coverKey: string | null | undefined): string {
   return coverKey ? getStorageProvider().getPublicUrl(coverKey) : '';
 }
 
-/** Takes out the picture embedded in an import's file and records it ('' when there is none, so it is looked for once). */
-async function attachEmbeddedCover(trackId: string, storageKey: string, data: Buffer): Promise<string> {
-  const jpeg = await extractEmbeddedCover(data, path.extname(storageKey));
+/** Takes out the picture embedded in an import's file (or in `data`, a file of type `dataExt`) and records it ('' when there is none, so it is looked for once). */
+async function attachEmbeddedCover(trackId: string, storageKey: string, data: Buffer, dataExt = path.extname(storageKey)): Promise<string> {
+  const jpeg = await extractEmbeddedCover(data, dataExt);
   let coverKey = '';
   if (jpeg) {
     coverKey = coverKeyFor(storageKey);
@@ -158,6 +161,55 @@ router.post('/', authMiddleware, upload.single('audio'), async (req: Authenticat
     console.error('Upload reference track error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     res.status(500).json({ error: 'Failed to upload reference track', details: errorMessage });
+  }
+});
+
+// "Reverse" mode of the Create tab: the audio played backwards becomes a new import (a FLAC, without the original's tags), which the
+// panel then loads as the source of a cover. The picture embedded in the original, if any, becomes the new import's cover.
+router.post('/reverse', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const file = localAudioFile(req.body?.audioUrl, AUDIO_DIR);
+    if (!file) {
+      res.status(400).json({ error: 'Only an audio of the Studio can be reversed' });
+      return;
+    }
+    let original: Buffer;
+    try {
+      original = await fs.readFile(file);
+    } catch {
+      res.status(404).json({ error: 'Audio file not found' });
+      return;
+    }
+    const reversed = await reverseAudio(original, file);
+
+    const userId = req.user!.id;
+    const asked = typeof req.body?.filename === 'string' ? req.body.filename.trim().slice(0, 200) : '';
+    const filename = `${(asked || path.basename(file)).replace(/\.[^/.]+$/, '')}.flac`;
+    const key = `reference-tracks/${userId}/${Date.now()}.flac`;
+    const storage = getStorageProvider();
+    await storage.upload(key, reversed, 'audio/flac');
+    const seconds = getAudioDuration(path.join(AUDIO_DIR, key));
+
+    const result = await pool.query(
+      `INSERT INTO reference_tracks (user_id, filename, storage_key, file_size_bytes, tags, duration)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [userId, filename, key, reversed.length, null, seconds > 0 ? Math.round(seconds) : null]
+    );
+    const coverKey = await attachEmbeddedCover(result.rows[0].id, key, original, path.extname(file)).catch(() => '');
+
+    res.status(201).json({
+      track: {
+        ...result.rows[0],
+        cover_key: coverKey,
+        audio_url: storage.getPublicUrl(key),
+        cover_url: coverUrlOf(coverKey),
+      },
+    });
+  } catch (error) {
+    console.error('Reverse audio error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: 'Failed to reverse the audio', details: errorMessage });
   }
 });
 

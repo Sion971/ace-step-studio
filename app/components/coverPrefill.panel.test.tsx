@@ -124,4 +124,72 @@ describe('Cover source loaded from the library or by drag', () => {
     await act(async () => { coverItem.click(); });
     expect(lyricsShown()).toBe(true);
   });
+
+  it('Reverse: the source becomes the reversed copy made by the server, with the original song\'s lyrics', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/reference-tracks/reverse') {
+        expect(JSON.parse(String(init?.body))).toEqual({ audioUrl: '/audio/s1.mp3', filename: 'Pas sur la route (reversed)' });
+        return new Response(JSON.stringify({ track: { id: 'r1', filename: 'Pas sur la route (reversed).flac', audio_url: '/audio/ref/r1.flac' } }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <CreatePanel onGenerate={() => {}} isGenerating={false} createdSongs={[SONG]}
+            pendingAudioSelection={{ target: 'source', url: '/audio/s1.mp3', title: 'Pas sur la route', mode: 'reverse' }} />
+        </I18nProvider>,
+      );
+    });
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect(fetchMock).toHaveBeenCalledWith('/api/reference-tracks/reverse', expect.anything());
+    const sources = Array.from(container.querySelectorAll('audio')).map(a => a.getAttribute('src'));
+    expect(sources).toContain('/audio/ref/r1.flac');
+    expect(sources).not.toContain('/audio/s1.mp3');
+    expect(container.textContent).toContain('Pas sur la route (reversed)');
+    const areas = Array.from(container.querySelectorAll('textarea')).map(a => a.value);
+    expect(areas.some(v => v.includes('Dans le vent du soir'))).toBe(true);
+    expect(container.querySelector('[data-reversing]')).toBeNull();
+  });
+
+  it('Reverse: an error of the server is shown and nothing is loaded', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => url === '/api/reference-tracks/reverse'
+      ? new Response(JSON.stringify({ error: 'Failed to reverse the audio', details: 'ffmpeg failed' }), { status: 500, headers: { 'Content-Type': 'application/json' } })
+      : new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <CreatePanel onGenerate={() => {}} isGenerating={false} createdSongs={[SONG]}
+            pendingAudioSelection={{ target: 'source', url: '/audio/s1.mp3', title: 'Pas sur la route', mode: 'reverse' }} />
+        </I18nProvider>,
+      );
+    });
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    expect(container.textContent).toContain(en.reverseFailed);
+    expect(container.textContent).toContain('ffmpeg failed');
+    expect(Array.from(container.querySelectorAll('audio')).map(a => a.getAttribute('src'))).not.toContain('/audio/s1.mp3');
+  });
+
+  it('Reverse: switching to it with an audio loaded reverses that audio', async () => {
+    const fetchMock = vi.fn(async (url: string) => url === '/api/reference-tracks/reverse'
+      ? new Response(JSON.stringify({ track: { id: 'r1', filename: 'x.flac', audio_url: '/audio/ref/r1.flac' } }), { status: 201, headers: { 'Content-Type': 'application/json' } })
+      : new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <CreatePanel onGenerate={() => {}} isGenerating={false} createdSongs={[SONG]}
+            pendingAudioSelection={{ target: 'reference', url: '/audio/s1.mp3', title: 'Pas sur la route', mode: 'inspiration' }} />
+        </I18nProvider>,
+      );
+    });
+    const buttons = () => Array.from(container.querySelectorAll('button'));
+    await act(async () => { buttons().find(b => b.title.startsWith(en.audioModeInspiration))!.click(); });
+    await act(async () => { buttons().find(b => b.textContent?.startsWith(en.audioModeReverse))!.click(); });
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    const call = fetchMock.mock.calls.find(c => c[0] === '/api/reference-tracks/reverse')!;
+    expect(JSON.parse(String((call[1] as RequestInit).body)).audioUrl).toBe('/audio/s1.mp3');
+    expect(Array.from(container.querySelectorAll('audio')).map(a => a.getAttribute('src'))).toContain('/audio/ref/r1.flac');
+  });
 });

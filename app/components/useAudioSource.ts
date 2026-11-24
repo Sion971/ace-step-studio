@@ -33,6 +33,8 @@ export interface UseAudioSourceOptions {
   /** Opens the analysis window for an audio just imported, when that option is on. */
   offerAnalysis: (url: string, title?: string) => void;
   analysisAuto: boolean;
+  /** The word added to the title of a reversed audio: "Title (reversed)". */
+  reversedSuffix: string;
   /** The fields a cover fills from its source (and gives back when the source is removed). */
   lyrics: string;
   setLyrics: (val: string | ((prev: string) => string)) => void;
@@ -50,7 +52,7 @@ export interface UseAudioSourceOptions {
 
 export function useAudioSource({
   token, createdSongs, importedSongs, onReferenceTracksChanged, pendingAudioSelection, onAudioSelectionApplied,
-  setTaskType, setAudioCoverStrength, setCoverNoiseStrength, offerAnalysis, analysisAuto,
+  setTaskType, setAudioCoverStrength, setCoverNoiseStrength, offerAnalysis, analysisAuto, reversedSuffix,
   lyrics, setLyrics, bpm, setBpm, keyScale, setKeyScale, timeSignature, setTimeSignature,
   vocalLanguage, setVocalLanguage, instrumental, setInstrumental,
 }: UseAudioSourceOptions) {
@@ -96,6 +98,11 @@ export function useAudioSource({
   const [referenceTracks, setReferenceTracks] = useState<ReferenceTrack[]>([]);
   const [isLoadingTracks, setIsLoadingTracks] = useState(false);
   const [audioModalTab, setAudioModalTab] = useState<LibraryTab>('uploads');
+  // "Reverse" mode: the server is making the reversed copy; the error of the last try. A source removed or replaced
+  // meanwhile makes the result stale (reverseRunRef), and it is then dropped.
+  const [isReversing, setIsReversing] = useState(false);
+  const [reverseError, setReverseError] = useState<string | null>(null);
+  const reverseRunRef = useRef(0);
 
   const getAudioLabel = (url: string) => {
     try {
@@ -350,6 +357,15 @@ export function useAudioSource({
     if (mode && AUDIO_MODE_MAP[mode]) {
       setAudioMode(mode);
     }
+    const effectiveAudioMode = mode && AUDIO_MODE_MAP[mode] ? mode : audioMode;
+    // Reverse mode: what is loaded is the audio played backwards (made by the server), not this one.
+    if (target === 'source' && effectiveAudioMode === 'reverse' && !isReversedImport(url)) {
+      clearReferenceSlot();
+      clearSourceSlot();
+      void reverseIntoSource(url, title, meta);
+      return;
+    }
+    reverseRunRef.current += 1;
     const derivedTitle = title ? title.replace(/\.[^/.]+$/, '') : getAudioLabel(url);
     if (target === 'reference') {
       clearSourceSlot();
@@ -365,7 +381,6 @@ export function useAudioSource({
       setSourceDuration(0);
     }
     // Le taskType decoule du mode actif, plus d'un basculement implicite.
-    const effectiveAudioMode = mode && AUDIO_MODE_MAP[mode] ? mode : audioMode;
     const activeMode = AUDIO_MODE_MAP[effectiveAudioMode];
     setTaskType(activeMode.field === target ? activeMode.taskType : 'text2music');
     // A cover starts from the source's words and musical facts; the style stays the user's. Every way of loading the
@@ -378,9 +393,49 @@ export function useAudioSource({
   };
 
   // The source's details, found among the user's songs or imported audios by its audio.
+  const songOfAudio = (url: string) => createdSongs.find(s => s.audioUrl === url) ?? importedSongs.find(s => s.audioUrl === url);
   const prefillCoverFromSong = (url: string) => {
-    const song = createdSongs.find(s => s.audioUrl === url) ?? importedSongs.find(s => s.audioUrl === url);
+    const song = songOfAudio(url);
     if (song) applyCoverMeta(coverMetaFromSong(song));
+  };
+
+  // An import that is already a reversed copy ("Title (reversed)"): loaded as it is, not turned back.
+  const isReversedImport = (url: string) => {
+    const song = importedSongs.find(s => s.audioUrl === url);
+    return Boolean(song && song.title.trim().endsWith(`(${reversedSuffix})`));
+  };
+
+  // Reverse mode. The server makes the reversed copy (a new import, "Title (reversed)"), which becomes the source of a
+  // cover. The cover takes the words, key and tempo of the original song: played backwards it has none of its own.
+  const reverseIntoSource = async (url: string, title: string | undefined, meta: CoverMeta | undefined) => {
+    const run = ++reverseRunRef.current;
+    const originalMeta = meta ?? (songOfAudio(url) ? coverMetaFromSong(songOfAudio(url)!) : undefined);
+    const name = `${(title ? title.replace(/\.[^/.]+$/, '') : getAudioLabel(url))} (${reversedSuffix})`;
+    setReverseError(null);
+    if (!token) { setReverseError('Please sign in to reverse audio.'); return; }
+    setIsReversing(true);
+    try {
+      const response = await fetch('/api/reference-tracks/reverse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ audioUrl: url, filename: name }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.track?.audio_url) throw new Error(data.details || data.error || response.statusText);
+      setReferenceTracks(prev => [data.track, ...prev]);
+      onReferenceTracksChanged?.();
+      if (run !== reverseRunRef.current) return;
+      setSourceAudioUrl(data.track.audio_url);
+      setSourceAudioTitle(name);
+      setSourceTime(0);
+      setSourceDuration(0);
+      setTaskType(AUDIO_MODE_MAP.reverse.taskType);
+      if (originalMeta) applyCoverMeta(originalMeta);
+    } catch (err) {
+      if (run === reverseRunRef.current) setReverseError(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (run === reverseRunRef.current) setIsReversing(false);
+    }
   };
 
   const applyCoverMeta = (meta: CoverMeta) => {
@@ -431,6 +486,8 @@ export function useAudioSource({
   // valeurs empiriques d'un seul utilisateur, a affiner si besoin.
   const AUDIO_MODE_DEFAULTS: Partial<Record<AudioModeId, { strength: number; noise: number }>> = {
     cover: { strength: 0.15, noise: 0.12 },
+    // A cover of the audio played backwards: at 0.15 the lyrics are sung, at 0.4 three quarters of them were lost (one listening test).
+    reverse: { strength: 0.15, noise: 0.12 },
     inspiration: { strength: 0.40, noise: 0 },
   };
 
@@ -472,6 +529,12 @@ export function useAudioSource({
     if (currentUrl && next.field === 'source' && next.taskType === 'cover' && prev.taskType !== 'cover') {
       prefillCoverFromSong(currentUrl);
     }
+    // Switching to Reverse with an audio loaded: that audio is reversed and its copy takes its place.
+    if (currentUrl && id === 'reverse' && prev.id !== 'reverse' && !isReversedImport(currentUrl)) {
+      clearReferenceSlot();
+      clearSourceSlot();
+      void reverseIntoSource(currentUrl, currentTitle, undefined);
+    }
   };
 
   const toggleAudio = (target: 'reference' | 'source') => {
@@ -498,6 +561,9 @@ export function useAudioSource({
   const activeAudioInputRef = isReferenceTarget ? referenceInputRef : sourceInputRef;
 
   const clearActiveAudio = () => {
+    reverseRunRef.current += 1;
+    setIsReversing(false);
+    setReverseError(null);
     if (isReferenceTarget) clearReferenceSlot(); else { clearSourceSlot(); undoCoverMeta(); }
     setTaskType('text2music');
   };
@@ -574,6 +640,6 @@ export function useAudioSource({
     setReferenceDuration, setReferencePlaying, setReferenceTime, setShowAudioAddMenu, setShowAudioMenu,
     setShowAudioModal, setSourceDuration, setSourcePlaying, setSourceTime, showAudioAddMenu, showAudioMenu,
     showAudioModal, sourceAudioRef, sourceAudioTitle, sourceAudioUrl, sourceDuration, sourceInputRef, toggleAudio,
-    uploadError, uploadReferenceTrack, useReferenceTrack,
+    uploadError, uploadReferenceTrack, useReferenceTrack, isReversing, reverseError,
   };
 }

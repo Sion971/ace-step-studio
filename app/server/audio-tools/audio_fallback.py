@@ -226,6 +226,11 @@ def cmd_stretch(a):
     write(a.out, np.stack([phase_vocoder(x[:, c], r) for c in range(x.shape[1])], axis=1), rate)
 
 
+def cmd_reverse(a):
+    x, rate = read(a.input)
+    write(a.out, x[::-1].copy(), rate)
+
+
 def phase_vocoder(x, ratio, n_fft=2048, hs=512):
     """Plays the signal `ratio` times as fast without changing its pitch (phase vocoder)."""
     n = len(x)
@@ -287,12 +292,13 @@ def main():
     m.add_argument('--out', required=True); m.add_argument('--level', type=float, default=80)
     t = sub.add_parser('stretch'); t.add_argument('--input', required=True); t.add_argument('--out', required=True)
     t.add_argument('--ratio', type=float, required=True)
+    v = sub.add_parser('reverse'); v.add_argument('--input', required=True); v.add_argument('--out', required=True)
     l = sub.add_parser('loudnorm'); l.add_argument('--input', required=True); l.add_argument('--out', required=True)
     l.add_argument('--target-i', type=float, default=-14); l.add_argument('--target-tp', type=float, default=-1.0)
     for name, default in (('harmonics', 0), ('warmth', 0), ('tone', 0), ('glue', 0), ('width', 0)):
         l.add_argument('--' + name, type=float, default=default)
     a = p.parse_args()
-    {'mix': cmd_mix, 'stretch': cmd_stretch, 'loudnorm': cmd_loudnorm}[a.cmd](a)
+    {'mix': cmd_mix, 'stretch': cmd_stretch, 'reverse': cmd_reverse, 'loudnorm': cmd_loudnorm}[a.cmd](a)
 
 
 if __name__ == '__main__':

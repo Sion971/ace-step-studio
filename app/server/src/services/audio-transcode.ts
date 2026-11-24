@@ -134,3 +134,29 @@ export async function transcodeAudio(data: Buffer, inputName: string, format: Ex
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 }
+
+/**
+ * The file played backwards, as a FLAC (lossless, about half a WAV). The tags of the original are left out: its lyrics and title would
+ * describe a song this no longer is. Used by the "Reverse" mode of the Create tab, which then makes a cover of it.
+ */
+export async function reverseAudio(data: Buffer, inputName: string, deps: { ffmpeg: (args: string[]) => Promise<void>; python: (input: string, output: string) => Promise<void> } = { ffmpeg: run, python: (i, o) => runFallbackTool(['reverse', '--input', i, '--out', o]).then(() => undefined) }): Promise<Buffer> {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'studio-reverse-'));
+  try {
+    const input = path.join(dir, `in${path.extname(inputName).replace(/[^.\w]/g, '') || '.wav'}`);
+    const output = path.join(dir, 'out.flac');
+    await writeFile(input, data);
+    try {
+      await deps.ffmpeg(['-y', '-hide_banner', '-loglevel', 'error', '-i', input, '-vn', '-map_metadata', '-1', '-af', 'areverse', ...CODEC_ARGS.flac, output]);
+    } catch (ffmpegError) {
+      console.warn(`[audio] ffmpeg could not reverse (${oneLine(ffmpegError)}); using the engine's Python instead.`);
+      try {
+        await deps.python(input, output);
+      } catch (pythonError) {
+        throw new Error(`${oneLine(ffmpegError)} | ${oneLine(pythonError)}`);
+      }
+    }
+    return await readFile(output);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
