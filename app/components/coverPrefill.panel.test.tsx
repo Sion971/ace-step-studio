@@ -85,6 +85,28 @@ describe('Cover source loaded from the library or by drag', () => {
     expect(areas.some(v => v.includes('I will sing of the wonders'))).toBe(true);
   });
 
+  it('loads a song picked in the library window, with its lyrics', async () => {
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <CreatePanel onGenerate={() => {}} isGenerating={false} createdSongs={[SONG]} />
+        </I18nProvider>,
+      );
+    });
+    const buttons = () => Array.from(container.querySelectorAll('button'));
+    // Cover mode, then "Add", "From the library", tab "Created", "Use".
+    await act(async () => { buttons().find(b => b.title.startsWith(en.audioModeInspiration))!.click(); });
+    await act(async () => { buttons().find(b => b.textContent?.startsWith(en.audioModeCover))!.click(); });
+    await act(async () => { buttons().find(b => b.textContent?.trim() === en.addAudio)!.click(); });
+    await act(async () => { buttons().find(b => b.textContent?.trim() === en.fromLibrary)!.click(); });
+    await act(async () => { buttons().find(b => b.textContent?.trim() === en.createdTab)!.click(); });
+    expect(container.querySelector('.fixed.inset-0.z-\\[120\\]')).not.toBeNull();
+    await act(async () => { buttons().find(b => b.textContent?.trim() === en.useTrack)!.click(); });
+    const areas = Array.from(container.querySelectorAll('textarea')).map(a => a.value);
+    expect(areas.some(v => v.includes('Dans le vent du soir'))).toBe(true);
+    expect(container.querySelector('.fixed.inset-0.z-\\[120\\]')).toBeNull();
+  });
+
   it('fills the lyrics when an audio loaded in Inspiration is switched to Cover', async () => {
     await act(async () => {
       root.render(
