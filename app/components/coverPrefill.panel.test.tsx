@@ -304,5 +304,12 @@ describe('Cover source loaded from the library or by drag', () => {
     expect(Array.from(container.querySelectorAll('input')).some(i => i.value === 'Pas sur la route (0:30–1:15)')).toBe(true);
     expect(container.querySelector('[data-crop-options]')).toBeNull();
     expect(container.textContent).not.toContain(en.cropFirst);
+    // Once cut, the mode menu says Cover, the mode of what is loaded.
+    const modeButton = () => Array.from(container.querySelectorAll('button')).find(b => b.title.startsWith(en.audioModeCover) || b.title.startsWith(en.audioModeCrop))!;
+    expect(modeButton().title.startsWith(en.audioModeCover)).toBe(true);
+    // Crop chosen again: the part kept is shown to be cut in turn.
+    await act(async () => { modeButton().click(); });
+    await act(async () => { Array.from(container.querySelectorAll('button')).find(b => b.textContent?.startsWith(en.audioModeCrop))!.click(); });
+    expect(container.querySelector('[data-crop-options]')).not.toBeNull();
   });
 });

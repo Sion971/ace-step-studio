@@ -487,6 +487,9 @@ export function useAudioSource({
       }
       applyCoverMeta(adjusted);
       setCropDone(kind === 'crop');
+      // The part kept is now the source of a plain cover: the mode menu says so, rather than still "Crop" over the
+      // cover settings. Choosing Crop again cuts the part itself.
+      if (kind === 'crop') setAudioMode('cover');
       return true;
     } catch (err) {
       if (run === processRunRef.current) setProcessError({ kind, message: err instanceof Error ? err.message : String(err) });
@@ -581,6 +584,8 @@ export function useAudioSource({
     const prev = AUDIO_MODE_MAP[audioMode];
     setShowAudioMenu(false);
     setAudioMode(id);
+    // Crop chosen again with a part already cut: that part is shown to be cut in turn.
+    if (id === 'crop') setCropDone(false);
 
     const modeDefaults = AUDIO_MODE_DEFAULTS[id];
     if (modeDefaults) {
