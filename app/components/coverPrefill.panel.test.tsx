@@ -342,4 +342,20 @@ describe('Cover source loaded from the library or by drag', () => {
     expect(onGenerate).toHaveBeenCalled();
     expect(onGenerate.mock.calls[0][0]).toMatchObject({ taskType: 'repaint', sourceAudioUrl: '/audio/s1.mp3', repaintingStart: 174, repaintingEnd: 239 });
   });
+
+  it('Repaint: the song\'s lyrics, style and title come along, as the part redone is sung from them', async () => {
+    const song = { ...SONG, style: 'piano ballad, french pop' } as Song;
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <CreatePanel onGenerate={() => {}} isGenerating={false} createdSongs={[song]}
+            pendingAudioSelection={{ target: 'source', url: '/audio/s1.mp3', title: 'Pas sur la route', mode: 'repaint' }} />
+        </I18nProvider>,
+      );
+    });
+    const areas = Array.from(container.querySelectorAll('textarea')).map(a => a.value);
+    expect(areas.some(v => v.includes('Dans le vent du soir'))).toBe(true);
+    expect(areas).toContain('piano ballad, french pop');
+    expect(Array.from(container.querySelectorAll('input')).some(i => i.value === 'Pas sur la route')).toBe(true);
+  });
 });

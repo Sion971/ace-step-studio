@@ -428,7 +428,7 @@ export function useAudioSource({
       else prefillCoverFromSong(url);
     }
     // Extend: the song goes on, so it keeps its own words, style and musical facts.
-    if (target === 'source' && effectiveAudioMode === 'extend') prefillExtendFromSong(url, title, meta);
+    if (target === 'source' && isSameSongMode(effectiveAudioMode)) prefillSameSongFromSong(effectiveAudioMode, url, title, meta);
   };
 
   // A new import goes into the workspace open (the app files it there before listing it, so it does not show in
@@ -445,15 +445,17 @@ export function useAudioSource({
     if (song) applyCoverMeta(coverMetaFromSong(song));
   };
 
-  // Extend mode: what is made is the same song, longer. It takes the source's lyrics (to which the user adds what the
-  // continuation sings), its style (the new part must sound like the rest), its musical facts, and the title
-  // "Title (extended)".
-  const prefillExtendFromSong = (url: string, title?: string, meta?: CoverMeta) => {
+  // Extend and Repaint modes: what is made is the same song, longer or with a part redone. The engine sings the part
+  // redone from the lyrics of the whole song, so they are taken from the source (the user adds the continuation's
+  // lines at the end, or changes the lines of the section in place), with its style (the new part must sound like the
+  // rest) and its musical facts. Title: "Title (extended)" for Extend, the song's own for Repaint.
+  const prefillSameSongFromSong = (mode: 'extend' | 'repaint', url: string, title?: string, meta?: CoverMeta) => {
     const song = songOfAudio(url);
     const base = meta ?? (song ? coverMetaFromSong(song) : {});
     const name = (base.title || (title ? title.replace(/\.[^/.]+$/, '') : getAudioLabel(url))).trim();
-    applyCoverMeta({ ...base, title: `${name} (${extendedSuffix})`, style: song?.style?.trim() || undefined });
+    applyCoverMeta({ ...base, title: mode === 'extend' ? `${name} (${extendedSuffix})` : name, style: song?.style?.trim() || undefined });
   };
+  const isSameSongMode = (mode: AudioModeId): mode is 'extend' | 'repaint' => mode === 'extend' || mode === 'repaint';
 
   // An import that is already a copy of this kind ("Title (reversed)", "Title (×1,25)"): loaded as it is, not
   // processed again (which would turn a reversed copy back, or speed a copy up twice).
@@ -644,7 +646,7 @@ export function useAudioSource({
     if (currentUrl && next.field === 'source' && next.taskType === 'cover' && prev.taskType !== 'cover') {
       prefillCoverFromSong(currentUrl);
     }
-    if (currentUrl && id === 'extend' && prev.id !== 'extend') prefillExtendFromSong(currentUrl, currentTitle);
+    if (currentUrl && isSameSongMode(id) && prev.id !== id) prefillSameSongFromSong(id, currentUrl, currentTitle);
     // Switching to Reverse or Speed with an audio loaded: that audio is processed and its copy takes its place.
     const kind = processKindOf(id);
     if (currentUrl && kind && prev.id !== id && !isProcessedImport(currentUrl, kind)) {
