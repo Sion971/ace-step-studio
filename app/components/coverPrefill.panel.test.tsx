@@ -264,4 +264,45 @@ describe('Cover source loaded from the library or by drag', () => {
     expect(bodies[2]).toMatchObject({ audioUrl: '/audio/s1.mp3', factor: 0.9, keepPitch: false });
     expect(selects()).not.toContain('D minor');
   });
+
+  it('Crop: the whole song is shown to choose the part, which the server cuts into the source of the cover', async () => {
+    const bodies: any[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/reference-tracks/crop') {
+        bodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({ track: { id: 'c1', filename: 'x.flac', audio_url: '/audio/ref/c1.flac' } }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }));
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <CreatePanel onGenerate={() => {}} isGenerating={false} createdSongs={[SONG]}
+            pendingAudioSelection={{ target: 'source', url: '/audio/s1.mp3', title: 'Pas sur la route', mode: 'crop' }} />
+        </I18nProvider>,
+      );
+    });
+    // Loaded as it is (nothing cut yet), Create blocked until the part is cut.
+    expect(bodies).toHaveLength(0);
+    expect(container.textContent).toContain(en.cropFirst);
+    const cropButton = () => Array.from(container.querySelectorAll('[data-crop-options] button'))[0] as HTMLButtonElement | undefined;
+    expect(cropButton()?.disabled).toBe(true); // the whole song chosen: nothing to crop
+
+    const audio = Array.from(container.querySelectorAll('audio')).find(a => a.getAttribute('src') === '/audio/s1.mp3')!;
+    Object.defineProperty(audio, 'duration', { value: 179, configurable: true });
+    await act(async () => { audio.dispatchEvent(new Event('loadedmetadata')); });
+    const [startInput, endInput] = Array.from(container.querySelectorAll('input[type="number"]')) as HTMLInputElement[];
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+    await act(async () => { setValue.call(startInput, '30'); startInput.dispatchEvent(new Event('input', { bubbles: true })); });
+    await act(async () => { setValue.call(endInput, '75'); endInput.dispatchEvent(new Event('input', { bubbles: true })); });
+    expect(cropButton()!.disabled).toBe(false);
+    await act(async () => { cropButton()!.click(); });
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+
+    expect(bodies[0]).toEqual({ audioUrl: '/audio/s1.mp3', filename: 'Pas sur la route (0:30–1:15)', start: 30, end: 75 });
+    expect(Array.from(container.querySelectorAll('audio')).map(a => a.getAttribute('src'))).toContain('/audio/ref/c1.flac');
+    expect(Array.from(container.querySelectorAll('input')).some(i => i.value === 'Pas sur la route (0:30–1:15)')).toBe(true);
+    expect(container.querySelector('[data-crop-options]')).toBeNull();
+    expect(container.textContent).not.toContain(en.cropFirst);
+  });
 });

@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
-import { parseExportFormat, reverseAudio, speedAudio, transcodeAudio } from './audio-transcode.js';
+import { cropAudio, parseExportFormat, reverseAudio, speedAudio, transcodeAudio } from './audio-transcode.js';
 
 const hasFfmpeg = spawnSync('ffmpeg', ['-version']).status === 0;
 
@@ -175,5 +175,24 @@ describe('speedAudio', () => {
   it.skipIf(!hasFfmpeg)('really makes a 1 s file 0.8 s long at ×1.25', async () => {
     const out = await speedAudio(wav(1), 'a.wav', 1.25, true);
     expect(out.subarray(0, 4).toString('latin1')).toBe('fLaC');
+  });
+});
+
+describe('cropAudio', () => {
+  it('keeps the part asked, as a FLAC without the tags or the picture', async () => {
+    const ffmpeg = vi.fn(async (args: string[]) => { await writeFile(args[args.length - 1], Buffer.from('fLaC-crop')); });
+    expect((await cropAudio(Buffer.from('x'), 'a.mp3', 30, 75.5, { ffmpeg, python: vi.fn() })).toString()).toBe('fLaC-crop');
+    const args = ffmpeg.mock.calls[0][0];
+    expect(args).toEqual(expect.arrayContaining(['-vn', '-map_metadata', '-1']));
+    expect(args[args.indexOf('-af') + 1]).toBe('atrim=start=30.000:end=75.500,asetpts=PTS-STARTPTS');
+  });
+
+  it('refuses a part shorter than 1 s or before 0, and falls back on Python without ffmpeg', async () => {
+    await expect(cropAudio(Buffer.from('x'), 'a.wav', 10, 10.5, { ffmpeg: vi.fn(), python: vi.fn() })).rejects.toThrow(/at least 1 s/);
+    await expect(cropAudio(Buffer.from('x'), 'a.wav', -1, 5, { ffmpeg: vi.fn(), python: vi.fn() })).rejects.toThrow(/at least 1 s/);
+    const python = vi.fn(async (_i: string, o: string) => { await writeFile(o, Buffer.from('py')); });
+    const out = await cropAudio(Buffer.from('x'), 'a.wav', 1, 3, { ffmpeg: vi.fn(async () => { throw new Error('EPERM'); }), python });
+    expect(out.toString()).toBe('py');
+    expect(python).toHaveBeenCalledWith(expect.any(String), expect.any(String), 1, 3);
   });
 });

@@ -13,8 +13,11 @@ interface CoverFields { title: string; lyrics: string; bpm: number; keyScale: st
 type Setter<T> = (value: T) => void;
 
 /** The modes whose source is a copy made by the server first. */
-export type ProcessKind = 'reverse' | 'speed';
-const processKindOf = (mode: AudioModeId): ProcessKind | null => (mode === 'reverse' || mode === 'speed' ? mode : null);
+export type ProcessKind = 'reverse' | 'speed' | 'crop';
+// Reverse and Speed process the source as soon as it is loaded; Crop waits for the part to keep to be chosen.
+const processKindOf = (mode: AudioModeId): 'reverse' | 'speed' | null => (mode === 'reverse' || mode === 'speed' ? mode : null);
+
+const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
 /** The factors offered in Speed mode. */
 export const SPEED_FACTORS = [0.75, 0.9, 1.1, 1.25, 1.5];
@@ -121,6 +124,8 @@ export function useAudioSource({
   const [speedFactor, setSpeedFactor] = useState(1.25);
   const [speedKeepPitch, setSpeedKeepPitch] = useState(true);
   const speedOriginRef = useRef<{ url: string; title?: string; meta?: CoverMeta } | null>(null);
+  // Crop mode: the source loaded is the cut copy (the part kept), not yet the whole song to choose it in.
+  const [cropDone, setCropDone] = useState(false);
 
   const getAudioLabel = (url: string) => {
     try {
@@ -386,6 +391,7 @@ export function useAudioSource({
     }
     processRunRef.current += 1;
     speedOriginRef.current = null;
+    setCropDone(false);
     const derivedTitle = title ? title.replace(/\.[^/.]+$/, '') : getAudioLabel(url);
     if (target === 'reference') {
       clearSourceSlot();
@@ -442,28 +448,32 @@ export function useAudioSource({
   const processIntoSource = async (
     kind: ProcessKind, url: string, title: string | undefined, meta: CoverMeta | undefined,
     speed = { factor: speedFactor, keepPitch: speedKeepPitch },
-  ) => {
+    range?: { start: number; end: number },
+  ): Promise<boolean> => {
     const run = ++processRunRef.current;
     const original = meta ?? (songOfAudio(url) ? coverMetaFromSong(songOfAudio(url)!) : undefined);
     const base = title ? title.replace(/\.[^/.]+$/, '') : getAudioLabel(url);
-    const name = `${base} (${kind === 'reverse' ? reversedSuffix : speedLabel(speed.factor)})`;
+    const label = kind === 'reverse' ? reversedSuffix
+      : kind === 'speed' ? speedLabel(speed.factor)
+      : `${clock(range!.start)}–${clock(range!.end)}`;
+    const name = `${base} (${label})`;
     speedOriginRef.current = kind === 'speed' ? { url, title, meta } : null;
     setProcessError(null);
-    if (!token) { setProcessError({ kind, message: 'Please sign in.' }); return; }
+    if (!token) { setProcessError({ kind, message: 'Please sign in.' }); return false; }
     setProcessingKind(kind);
     try {
       const response = await fetch(`/api/reference-tracks/${kind}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(kind === 'reverse'
-          ? { audioUrl: url, filename: name }
-          : { audioUrl: url, filename: name, factor: speed.factor, keepPitch: speed.keepPitch }),
+        body: JSON.stringify(kind === 'reverse' ? { audioUrl: url, filename: name }
+          : kind === 'speed' ? { audioUrl: url, filename: name, factor: speed.factor, keepPitch: speed.keepPitch }
+          : { audioUrl: url, filename: name, start: range!.start, end: range!.end }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.track?.audio_url) throw new Error(data.details || data.error || response.statusText);
       setReferenceTracks(prev => [data.track, ...prev]);
       announceNewImport(data.track.id);
-      if (run !== processRunRef.current) return;
+      if (run !== processRunRef.current) return false;
       setSourceAudioUrl(data.track.audio_url);
       setSourceAudioTitle(name);
       setSourceTime(0);
@@ -476,8 +486,11 @@ export function useAudioSource({
         if (!speed.keepPitch) adjusted.keyScale = '';
       }
       applyCoverMeta(adjusted);
+      setCropDone(kind === 'crop');
+      return true;
     } catch (err) {
       if (run === processRunRef.current) setProcessError({ kind, message: err instanceof Error ? err.message : String(err) });
+      return false;
     } finally {
       if (run === processRunRef.current) setProcessingKind(null);
     }
@@ -493,6 +506,13 @@ export function useAudioSource({
       clearSourceSlot();
       void processIntoSource('speed', origin.url, origin.title, origin.meta, { factor, keepPitch });
     }
+  };
+
+  // Crop mode: the part of the source chosen (in seconds) is cut by the server; the copy, "Title (0:30–1:15)", takes
+  // its place and is the source of a cover. The whole song stays shown until the copy is there (or if it fails).
+  const cropSource = (start: number, end: number) => {
+    if (!sourceAudioUrl) return Promise.resolve(false);
+    return processIntoSource('crop', sourceAudioUrl, sourceAudioTitle || undefined, undefined, undefined, { start, end });
   };
 
   const applyCoverMeta = (meta: CoverMeta) => {
@@ -549,8 +569,9 @@ export function useAudioSource({
     cover: { strength: 0.15, noise: 0.12 },
     // A cover of the audio played backwards: at 0.15 the lyrics are sung, at 0.4 three quarters of them were lost (one listening test).
     reverse: { strength: 0.15, noise: 0.12 },
-    // A cover of the audio sped up or slowed down: the same values as Cover until a listening test says otherwise.
+    // A cover of the audio sped up or slowed down: 0.15 was the best in a listening test, 0.4 gave artefacts.
     speed: { strength: 0.15, noise: 0.12 },
+    crop: { strength: 0.15, noise: 0.12 },
     inspiration: { strength: 0.40, noise: 0 },
   };
 
@@ -627,6 +648,7 @@ export function useAudioSource({
   const clearActiveAudio = () => {
     processRunRef.current += 1;
     speedOriginRef.current = null;
+    setCropDone(false);
     setProcessingKind(null);
     setProcessError(null);
     if (isReferenceTarget) clearReferenceSlot(); else { clearSourceSlot(); undoCoverMeta(); }
@@ -706,6 +728,6 @@ export function useAudioSource({
     setShowAudioModal, setSourceDuration, setSourcePlaying, setSourceTime, showAudioAddMenu, showAudioMenu,
     showAudioModal, sourceAudioRef, sourceAudioTitle, sourceAudioUrl, sourceDuration, sourceInputRef, toggleAudio,
     uploadError, uploadReferenceTrack, useReferenceTrack, processingKind, processError,
-    speedFactor, speedKeepPitch, chooseSpeed,
+    speedFactor, speedKeepPitch, chooseSpeed, cropDone, cropSource,
   };
 }

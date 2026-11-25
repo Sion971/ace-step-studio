@@ -9,7 +9,7 @@ import { getStorageProvider } from '../services/storage/factory.js';
 import { withAnalysis } from '../services/track-analysis.js';
 import { findWhisperExecutable, transcribeWithWhisper } from '../services/whisper.js';
 import { coverKeyFor, extractEmbeddedCover } from '../services/audio-cover.js';
-import { reverseAudio, speedAudio } from '../services/audio-transcode.js';
+import { cropAudio, reverseAudio, speedAudio } from '../services/audio-transcode.js';
 import { localAudioFile } from '../services/local-audio.js';
 import { getAudioDuration } from '../services/audio-duration.js';
 
@@ -228,6 +228,17 @@ router.post('/speed', authMiddleware, (req: AuthenticatedRequest, res: Response)
   }
   const keepPitch = req.body?.keepPitch !== false;
   return importProcessedCopy(req, res, 'sped up or slowed down', (data, file) => speedAudio(data, file, factor, keepPitch));
+});
+
+// Crop: { start, end } in seconds, the part to keep (1 s at least).
+router.post('/crop', authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const start = Number(req.body?.start);
+  const end = Number(req.body?.end);
+  if (!(start >= 0 && end - start >= 1)) {
+    res.status(400).json({ error: 'The part to keep must start at 0 s or later and last at least 1 s' });
+    return;
+  }
+  return importProcessedCopy(req, res, 'cropped', (data, file) => cropAudio(data, file, start, end));
 });
 
 // Set the cover of an import from the cover window (an uploaded picture or one made by the AI).

@@ -189,3 +189,30 @@ export async function speedAudio(data: Buffer, inputName: string, factor: number
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 }
+
+/**
+ * The part of the file from `start` to `end` (seconds), as a FLAC without the original's tags. Used by the "Crop" mode of the Create
+ * tab, which makes a cover of it.
+ */
+export async function cropAudio(data: Buffer, inputName: string, start: number, end: number, deps: { ffmpeg: (args: string[]) => Promise<void>; python: (input: string, output: string, start: number, end: number) => Promise<void> } = { ffmpeg: run, python: (i, o, s, e) => runFallbackTool(['trim', '--input', i, '--out', o, '--start', String(s), '--end', String(e)]).then(() => undefined) }): Promise<Buffer> {
+  if (!(start >= 0 && end - start >= 1)) throw new Error('The part to keep must start at 0 s or later and last at least 1 s');
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'studio-crop-'));
+  try {
+    const input = path.join(dir, `in${path.extname(inputName).replace(/[^.\w]/g, '') || '.wav'}`);
+    const output = path.join(dir, 'out.flac');
+    await writeFile(input, data);
+    try {
+      await deps.ffmpeg(['-y', '-hide_banner', '-loglevel', 'error', '-i', input, '-vn', '-map_metadata', '-1', '-af', `atrim=start=${start.toFixed(3)}:end=${end.toFixed(3)},asetpts=PTS-STARTPTS`, ...CODEC_ARGS.flac, output]);
+    } catch (ffmpegError) {
+      console.warn(`[audio] ffmpeg could not crop (${oneLine(ffmpegError)}); using the engine's Python instead.`);
+      try {
+        await deps.python(input, output, start, end);
+      } catch (pythonError) {
+        throw new Error(`${oneLine(ffmpegError)} | ${oneLine(pythonError)}`);
+      }
+    }
+    return await readFile(output);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}

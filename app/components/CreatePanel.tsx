@@ -557,7 +557,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     setShowAudioModal, setSourceDuration, setSourcePlaying, setSourceTime, showAudioAddMenu, showAudioMenu,
     showAudioModal, sourceAudioRef, sourceAudioTitle, sourceAudioUrl, sourceDuration, sourceInputRef, toggleAudio,
     uploadError, uploadReferenceTrack, useReferenceTrack, processingKind, processError,
-    speedFactor, speedKeepPitch, chooseSpeed,
+    speedFactor, speedKeepPitch, chooseSpeed, cropDone, cropSource,
   } = useAudioSource({
     token, createdSongs, importedSongs, onReferenceTracksChanged, onImportCreated, pendingAudioSelection, onAudioSelectionApplied,
     setTaskType, setAudioCoverStrength, setCoverNoiseStrength, offerAnalysis, analysisAuto,
@@ -1102,6 +1102,18 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // A cover, a repaint or a track task keeps the source's length: the slider would have no effect.
   const durationLockedBySource = isDurationLockedBySource(taskType, !!sourceAudioUrl);
   const isRepaintMode = audioMode === 'repaint';
+  // Crop mode, whole song loaded: the part to keep is chosen on the waveform (the repaint region), then cut.
+  const isCropSelecting = audioMode === 'crop' && Boolean(sourceAudioUrl) && !cropDone;
+  const cropEnd = repaintingEnd < 0 ? sourceDuration : repaintingEnd;
+  const cropRegionUsable = sourceDuration > 0 && cropEnd - repaintingStart >= 1
+    && (repaintingStart > 0.05 || cropEnd < sourceDuration - 0.05);
+  const applyCrop = async () => {
+    if (!cropRegionUsable) return;
+    if (await cropSource(repaintingStart, cropEnd)) {
+      setRepaintingStart(0);
+      setRepaintingEnd(-1);
+    }
+  };
   // Lego, Extract, Complete : taches par piste, reservees aux modeles base purs.
   const isTrackMode = audioMode === 'lego' || audioMode === 'extract' || audioMode === 'complete';
   const isLegoMode = audioMode === 'lego';
@@ -1154,7 +1166,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // gresillement. Le mode reste utilisable, mais l'utilisateur doit savoir
   // qu'il ne fait pas un cover.
   const coverModeMissingSource =
-    (audioMode === 'cover' || audioMode === 'reverse' || audioMode === 'speed') && !sourceAudioUrl.trim();
+    (audioMode === 'cover' || audioMode === 'reverse' || audioMode === 'speed' || audioMode === 'crop') && !sourceAudioUrl.trim();
 
   // Regroupe les deux raisons qui doivent griser le bouton Creer. Les
   // messages restent distincts (l'un est une erreur bloquante de charge
@@ -1173,7 +1185,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     ? tf('errNothingToGenerate', 'Rien à envoyer au moteur : active OpenRouter pour développer la description, ou remplis Style ou Paroles.')
     : coverModeMissingSource
       ? tf('warnCoverNoSource', 'Sans audio chargé, Cover génère du texte-à-musique — dépose un fichier pour un vrai cover.')
-      : trackModeBlock;
+      : isCropSelecting
+        ? t('cropFirst')
+        : trackModeBlock;
 
   // Extrait du bloc JSX inline d'origine (bouton "Appliquer les reglages
   // LM") lors de l'extraction de LmSettings.tsx — logique metier, reste
@@ -1886,8 +1900,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                 activeAudioPlaying={activeAudioPlaying}
                 activeAudioElRef={activeAudioElRef}
                 isReferenceTarget={isReferenceTarget}
-                isRepaintMode={isRepaintMode || isLegoMode}
-                hideRepaintStrength={isLegoMode}
+                isRepaintMode={isRepaintMode || isLegoMode || isCropSelecting}
+                hideRepaintStrength={isLegoMode || isCropSelecting}
                 isTrackMode={isTrackMode}
                 isDraggingFile={isDraggingFile}
                 coverModeMissingSource={coverModeMissingSource}
@@ -1939,15 +1953,28 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                   </label>
                 </div>
               )}
+              {isCropSelecting && (
+                <div className="px-2 flex items-center gap-2 text-[11px]" data-crop-options>
+                  <button
+                    type="button"
+                    disabled={!cropRegionUsable || processingKind !== null}
+                    onClick={() => void applyCrop()}
+                    className="px-2 py-0.5 rounded-md border border-pink-500 text-pink-600 dark:text-pink-300 hover:bg-pink-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {t('cropApply')}
+                  </button>
+                  <span className="text-zinc-500">{t('cropHint')}</span>
+                </div>
+              )}
               {processingKind && (
                 <div className="px-2 flex items-center gap-2 text-[11px] text-zinc-500" data-reversing>
                   <Loader2 size={12} className="animate-spin" />
-                  {t(processingKind === 'speed' ? 'changingSpeed' : 'reversingAudio')}
+                  {t(processingKind === 'speed' ? 'changingSpeed' : processingKind === 'crop' ? 'croppingAudio' : 'reversingAudio')}
                 </div>
               )}
               {processError && !processingKind && (
                 <div className="px-2 text-[11px] text-rose-500">
-                  {t(processError.kind === 'speed' ? 'speedFailed' : 'reverseFailed')} {processError.message}
+                  {t(processError.kind === 'speed' ? 'speedFailed' : processError.kind === 'crop' ? 'cropFailed' : 'reverseFailed')} {processError.message}
                 </div>
               )}
 
@@ -2607,7 +2634,10 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             {tf('errNothingToGenerate', 'Rien à envoyer au moteur : active OpenRouter pour développer la description, ou remplis Style ou Paroles.')}
           </p>
         )}
-        {!descriptionCannotBeUsed && !coverModeMissingSource && trackModeBlock && (
+        {!descriptionCannotBeUsed && !coverModeMissingSource && isCropSelecting && (
+          <p className="text-[11px] text-amber-500 leading-snug">{t('cropFirst')}</p>
+        )}
+        {!descriptionCannotBeUsed && !coverModeMissingSource && !isCropSelecting && trackModeBlock && (
           <p className="text-[11px] text-amber-500 leading-snug">{trackModeBlock}</p>
         )}
         {!descriptionCannotBeUsed && coverModeMissingSource && (
