@@ -10,6 +10,8 @@ import { uploadToSong, type UploadTrackLike } from '../services/uploadSong';
 export interface CoverMeta {
   /** The title of the song to make: the original's for a cover, "Title (reversed)" for Reverse. */
   title?: string;
+  /** The style (caption): only Extend sets it, as the new part must sound like the rest of the song. */
+  style?: string;
   lyrics?: string;
   instrumental?: boolean;
   bpm?: number;

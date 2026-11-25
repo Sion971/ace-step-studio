@@ -49,7 +49,7 @@ import { AudioAnalysisDialog } from './AudioAnalysisDialog';
 import { isDurationLockedBySource, type CoverMeta } from './coverPrefill';
 import { isTrackTask, type AudioModeId } from './audioModes';
 import { KEY_SIGNATURES, TIME_SIGNATURES } from './musicalOptions';
-import { useAudioSource, SPEED_FACTORS } from './useAudioSource';
+import { useAudioSource, SPEED_FACTORS, EXTEND_CHOICES, EXTEND_OVERLAP } from './useAudioSource';
 
 
 interface CreatePanelProps {
@@ -557,13 +557,14 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     setShowAudioModal, setSourceDuration, setSourcePlaying, setSourceTime, showAudioAddMenu, showAudioMenu,
     showAudioModal, sourceAudioRef, sourceAudioTitle, sourceAudioUrl, sourceDuration, sourceInputRef, toggleAudio,
     uploadError, uploadReferenceTrack, useReferenceTrack, processingKind, processError,
-    speedFactor, speedKeepPitch, chooseSpeed, cropDone, cropSource,
+    speedFactor, speedKeepPitch, chooseSpeed, cropDone, cropSource, extendSeconds, setExtendSeconds,
   } = useAudioSource({
     token, createdSongs, importedSongs, onReferenceTracksChanged, onImportCreated, pendingAudioSelection, onAudioSelectionApplied,
     setTaskType, setAudioCoverStrength, setCoverNoiseStrength, offerAnalysis, analysisAuto,
     reversedSuffix: t('reversedSuffix'),
     speedLabel: (factor: number) => `×${factor.toLocaleString(language)}`,
-    title, setTitle, lyrics, setLyrics, bpm, setBpm, keyScale, setKeyScale, timeSignature, setTimeSignature,
+    extendedSuffix: t('extendedSuffix'),
+    title, setTitle, style, setStyle, lyrics, setLyrics, bpm, setBpm, keyScale, setKeyScale, timeSignature, setTimeSignature,
     vocalLanguage, setVocalLanguage, instrumental, setInstrumental,
   });
 
@@ -1102,6 +1103,10 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // A cover, a repaint or a track task keeps the source's length: the slider would have no effect.
   const durationLockedBySource = isDurationLockedBySource(taskType, !!sourceAudioUrl);
   const isRepaintMode = audioMode === 'repaint';
+  // Extend mode: a repaint that starts EXTEND_OVERLAP s before the end of the source and goes extendSeconds past it
+  // (the engine pads the source with silence and fills it).
+  const isExtendMode = audioMode === 'extend';
+  const extendWaitsForLength = isExtendMode && Boolean(sourceAudioUrl) && !(sourceDuration > 0);
   // Crop mode, whole song loaded: the part to keep is chosen on the waveform (the repaint region), then cut.
   const isCropSelecting = audioMode === 'crop' && Boolean(sourceAudioUrl) && !cropDone;
   const cropEnd = repaintingEnd < 0 ? sourceDuration : repaintingEnd;
@@ -1166,7 +1171,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // gresillement. Le mode reste utilisable, mais l'utilisateur doit savoir
   // qu'il ne fait pas un cover.
   const coverModeMissingSource =
-    (audioMode === 'cover' || audioMode === 'reverse' || audioMode === 'speed' || audioMode === 'crop') && !sourceAudioUrl.trim();
+    (audioMode === 'cover' || audioMode === 'reverse' || audioMode === 'speed' || audioMode === 'crop' || audioMode === 'extend') && !sourceAudioUrl.trim();
 
   // Regroupe les deux raisons qui doivent griser le bouton Creer. Les
   // messages restent distincts (l'un est une erreur bloquante de charge
@@ -1187,7 +1192,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       ? tf('warnCoverNoSource', 'Sans audio chargé, Cover génère du texte-à-musique — dépose un fichier pour un vrai cover.')
       : isCropSelecting
         ? t('cropFirst')
-        : trackModeBlock;
+        : extendWaitsForLength
+          ? t('durationFromSourcePending')
+          : trackModeBlock;
 
   // Extrait du bloc JSX inline d'origine (bouton "Appliquer les reglages
   // LM") lors de l'extraction de LmSettings.tsx — logique metier, reste
@@ -1578,8 +1585,10 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         // coverNoiseStrength ci-dessous. Champs visibles en permanence dans
         // RepaintSettings (contrairement a Force/Fidelite masques), donc
         // risque moindre, mais meme incoherence de fond.
-        repaintingStart: taskType === 'repaint' || taskType === 'lego' ? repaintingStart : undefined,
-        repaintingEnd: taskType === 'repaint' || taskType === 'lego' ? repaintingEnd : undefined,
+        repaintingStart: isExtendMode && taskType === 'repaint' ? Math.max(0, sourceDuration - EXTEND_OVERLAP)
+          : taskType === 'repaint' || taskType === 'lego' ? repaintingStart : undefined,
+        repaintingEnd: isExtendMode && taskType === 'repaint' ? sourceDuration + extendSeconds
+          : taskType === 'repaint' || taskType === 'lego' ? repaintingEnd : undefined,
         // L'instruction n'est plus un champ de l'interface : le serveur choisit celle qui convient a la tache (acestep.ts).
         instruction: undefined,
         // Non documentees pour Repaint (absentes de l'exemple de payload
@@ -1902,6 +1911,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                 isReferenceTarget={isReferenceTarget}
                 isRepaintMode={isRepaintMode || isLegoMode || isCropSelecting}
                 hideRepaintStrength={isLegoMode || isCropSelecting}
+                hideSettings={isExtendMode}
                 isTrackMode={isTrackMode}
                 isDraggingFile={isDraggingFile}
                 coverModeMissingSource={coverModeMissingSource}
@@ -1951,6 +1961,27 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                     />
                     {t('speedKeepPitch')}
                   </label>
+                </div>
+              )}
+              {isExtendMode && sourceAudioUrl && (
+                <div className="px-2 space-y-1 text-[11px]" data-extend-options>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-zinc-500 mr-1">{t('extendAdd')}</span>
+                    {EXTEND_CHOICES.map(seconds => (
+                      <button
+                        key={seconds}
+                        type="button"
+                        aria-pressed={extendSeconds === seconds}
+                        onClick={() => setExtendSeconds(seconds)}
+                        className={`px-2 py-0.5 rounded-md border transition-colors ${extendSeconds === seconds
+                          ? 'border-pink-500 bg-pink-500/15 text-pink-600 dark:text-pink-300'
+                          : 'border-zinc-300 dark:border-white/10 text-zinc-600 dark:text-zinc-400 hover:border-pink-400'}`}
+                      >
+                        +{seconds} s
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-zinc-500 leading-snug">{t('extendHint')}</p>
                 </div>
               )}
               {isCropSelecting && (
@@ -2246,7 +2277,12 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               <span className="font-medium text-zinc-600 dark:text-zinc-400">{t('duration')}</span>
               <span className="text-zinc-500">
                 {sourceDuration > 0
-                  ? t('durationFromSource').replace('{{time}}', formatTime(sourceDuration))
+                  ? isExtendMode
+                    ? t('durationExtended')
+                        .replace('{{time}}', formatTime(sourceDuration))
+                        .replace('{{added}}', String(extendSeconds))
+                        .replace('{{total}}', formatTime(sourceDuration + extendSeconds))
+                    : t('durationFromSource').replace('{{time}}', formatTime(sourceDuration))
                   : t('durationFromSourcePending')}
               </span>
             </div>

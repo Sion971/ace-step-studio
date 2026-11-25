@@ -312,4 +312,34 @@ describe('Cover source loaded from the library or by drag', () => {
     await act(async () => { Array.from(container.querySelectorAll('button')).find(b => b.textContent?.startsWith(en.audioModeCrop))!.click(); });
     expect(container.querySelector('[data-crop-options]')).not.toBeNull();
   });
+
+  it('Extend: the song keeps its words and style, and the repaint sent goes from 5 s before the end to the length added', async () => {
+    const onGenerate = vi.fn();
+    const song = { ...SONG, style: 'piano ballad, french pop' } as Song;
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <CreatePanel onGenerate={onGenerate} isGenerating={false} createdSongs={[song]}
+            pendingAudioSelection={{ target: 'source', url: '/audio/s1.mp3', title: 'Pas sur la route', mode: 'extend' }} />
+        </I18nProvider>,
+      );
+    });
+    expect(Array.from(container.querySelectorAll('input')).some(i => i.value === 'Pas sur la route (extended)')).toBe(true);
+    const areas = () => Array.from(container.querySelectorAll('textarea')).map(a => a.value);
+    expect(areas().some(v => v.includes('Dans le vent du soir'))).toBe(true);
+    expect(areas()).toContain('piano ballad, french pop');
+    expect(container.querySelector('[data-extend-options]')).not.toBeNull();
+
+    const audio = Array.from(container.querySelectorAll('audio')).find(a => a.getAttribute('src') === '/audio/s1.mp3')!;
+    Object.defineProperty(audio, 'duration', { value: 179, configurable: true });
+    await act(async () => { audio.dispatchEvent(new Event('loadedmetadata')); });
+    expect(container.querySelector('[data-testid="source-duration"]')!.textContent).toContain('2:59 + 30 s = 3:29');
+    await act(async () => { (Array.from(container.querySelectorAll('[data-extend-options] button')).find(b => b.textContent === '+60 s') as HTMLButtonElement).click(); });
+    expect(container.querySelector('[data-testid="source-duration"]')!.textContent).toContain('2:59 + 60 s = 3:59');
+
+    const create = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes(en.create) && !b.disabled) as HTMLButtonElement;
+    await act(async () => { create.click(); });
+    expect(onGenerate).toHaveBeenCalled();
+    expect(onGenerate.mock.calls[0][0]).toMatchObject({ taskType: 'repaint', sourceAudioUrl: '/audio/s1.mp3', repaintingStart: 174, repaintingEnd: 239 });
+  });
 });

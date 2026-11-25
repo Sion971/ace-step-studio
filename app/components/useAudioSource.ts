@@ -8,7 +8,7 @@ import type { LibraryTab, ReferenceTrack } from './AudioLibraryModal';
 import { coverMetaFromSong, type CoverMeta } from './coverPrefill';
 import { KEY_SIGNATURES, TIME_SIGNATURES } from './musicalOptions';
 
-interface CoverFields { title: string; lyrics: string; bpm: number; keyScale: string; timeSignature: string; vocalLanguage: string; instrumental: boolean }
+interface CoverFields { title: string; style: string; lyrics: string; bpm: number; keyScale: string; timeSignature: string; vocalLanguage: string; instrumental: boolean }
 
 type Setter<T> = (value: T) => void;
 
@@ -18,6 +18,11 @@ export type ProcessKind = 'reverse' | 'speed' | 'crop';
 const processKindOf = (mode: AudioModeId): 'reverse' | 'speed' | null => (mode === 'reverse' || mode === 'speed' ? mode : null);
 
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+
+/** Extend mode: the seconds that can be added, and how far before the end the new part starts, so that it follows
+ * on from what is heard rather than from silence. */
+export const EXTEND_CHOICES = [15, 30, 60];
+export const EXTEND_OVERLAP = 5;
 
 /** The factors offered in Speed mode. */
 export const SPEED_FACTORS = [0.75, 0.9, 1.1, 1.25, 1.5];
@@ -49,9 +54,13 @@ export interface UseAudioSourceOptions {
   reversedSuffix: string;
   /** How a speed factor is written in a title, e.g. "×1,25". */
   speedLabel: (factor: number) => string;
+  /** The word added to the title of an extended song: "Title (extended)". */
+  extendedSuffix: string;
   /** The fields a cover fills from its source (and gives back when the source is removed). */
   title: string;
   setTitle: Setter<string>;
+  style: string;
+  setStyle: (val: string | ((prev: string) => string)) => void;
   lyrics: string;
   setLyrics: (val: string | ((prev: string) => string)) => void;
   bpm: number;
@@ -68,8 +77,8 @@ export interface UseAudioSourceOptions {
 
 export function useAudioSource({
   token, createdSongs, importedSongs, onReferenceTracksChanged, onImportCreated, pendingAudioSelection, onAudioSelectionApplied,
-  setTaskType, setAudioCoverStrength, setCoverNoiseStrength, offerAnalysis, analysisAuto, reversedSuffix, speedLabel,
-  title, setTitle, lyrics, setLyrics, bpm, setBpm, keyScale, setKeyScale, timeSignature, setTimeSignature,
+  setTaskType, setAudioCoverStrength, setCoverNoiseStrength, offerAnalysis, analysisAuto, reversedSuffix, speedLabel, extendedSuffix,
+  title, setTitle, style, setStyle, lyrics, setLyrics, bpm, setBpm, keyScale, setKeyScale, timeSignature, setTimeSignature,
   vocalLanguage, setVocalLanguage, instrumental, setInstrumental,
 }: UseAudioSourceOptions) {
   const [referenceAudioUrl, setReferenceAudioUrl] = useState('');
@@ -124,6 +133,8 @@ export function useAudioSource({
   const [speedFactor, setSpeedFactor] = useState(1.25);
   const [speedKeepPitch, setSpeedKeepPitch] = useState(true);
   const speedOriginRef = useRef<{ url: string; title?: string; meta?: CoverMeta } | null>(null);
+  // Extend mode: how many seconds to add after the end of the source.
+  const [extendSeconds, setExtendSeconds] = useState(30);
   // Crop mode: the source loaded is the cut copy (the part kept), not yet the whole song to choose it in.
   const [cropDone, setCropDone] = useState(false);
 
@@ -416,6 +427,8 @@ export function useAudioSource({
       if (meta) applyCoverMeta(meta);
       else prefillCoverFromSong(url);
     }
+    // Extend: the song goes on, so it keeps its own words, style and musical facts.
+    if (target === 'source' && effectiveAudioMode === 'extend') prefillExtendFromSong(url, title, meta);
   };
 
   // A new import goes into the workspace open (the app files it there before listing it, so it does not show in
@@ -430,6 +443,16 @@ export function useAudioSource({
   const prefillCoverFromSong = (url: string) => {
     const song = songOfAudio(url);
     if (song) applyCoverMeta(coverMetaFromSong(song));
+  };
+
+  // Extend mode: what is made is the same song, longer. It takes the source's lyrics (to which the user adds what the
+  // continuation sings), its style (the new part must sound like the rest), its musical facts, and the title
+  // "Title (extended)".
+  const prefillExtendFromSong = (url: string, title?: string, meta?: CoverMeta) => {
+    const song = songOfAudio(url);
+    const base = meta ?? (song ? coverMetaFromSong(song) : {});
+    const name = (base.title || (title ? title.replace(/\.[^/.]+$/, '') : getAudioLabel(url))).trim();
+    applyCoverMeta({ ...base, title: `${name} (${extendedSuffix})`, style: song?.style?.trim() || undefined });
   };
 
   // An import that is already a copy of this kind ("Title (reversed)", "Title (×1,25)"): loaded as it is, not
@@ -519,9 +542,10 @@ export function useAudioSource({
   };
 
   const applyCoverMeta = (meta: CoverMeta) => {
-    const current: CoverFields = { title, lyrics, bpm, keyScale, timeSignature, vocalLanguage, instrumental };
+    const current: CoverFields = { title, style, lyrics, bpm, keyScale, timeSignature, vocalLanguage, instrumental };
     const after: CoverFields = { ...current };
     if (meta.title) after.title = meta.title;
+    if (meta.style) after.style = meta.style;
     if (meta.instrumental !== undefined) after.instrumental = meta.instrumental;
     if (meta.lyrics) after.lyrics = meta.lyrics;
     if (meta.bpm) after.bpm = meta.bpm;
@@ -532,6 +556,7 @@ export function useAudioSource({
     // Kept so that removing the source gives the fields back; a second source keeps the fields from before the first.
     coverUndoRef.current = { before: coverUndoRef.current?.before ?? current, after };
     setTitle(after.title);
+    if (after.style !== current.style) setStyle(after.style);
     setInstrumental(after.instrumental);
     if (after.lyrics !== current.lyrics) setLyrics(after.lyrics);
     setBpm(after.bpm);
@@ -547,6 +572,7 @@ export function useAudioSource({
     if (!undo) return;
     const { before, after } = undo;
     if (title === after.title) setTitle(before.title);
+    if (style === after.style && style !== before.style) setStyle(before.style);
     if (lyrics === after.lyrics && lyrics !== before.lyrics) setLyrics(before.lyrics);
     if (bpm === after.bpm) setBpm(before.bpm);
     if (keyScale === after.keyScale) setKeyScale(before.keyScale);
@@ -618,6 +644,7 @@ export function useAudioSource({
     if (currentUrl && next.field === 'source' && next.taskType === 'cover' && prev.taskType !== 'cover') {
       prefillCoverFromSong(currentUrl);
     }
+    if (currentUrl && id === 'extend' && prev.id !== 'extend') prefillExtendFromSong(currentUrl, currentTitle);
     // Switching to Reverse or Speed with an audio loaded: that audio is processed and its copy takes its place.
     const kind = processKindOf(id);
     if (currentUrl && kind && prev.id !== id && !isProcessedImport(currentUrl, kind)) {
@@ -733,6 +760,6 @@ export function useAudioSource({
     setShowAudioModal, setSourceDuration, setSourcePlaying, setSourceTime, showAudioAddMenu, showAudioMenu,
     showAudioModal, sourceAudioRef, sourceAudioTitle, sourceAudioUrl, sourceDuration, sourceInputRef, toggleAudio,
     uploadError, uploadReferenceTrack, useReferenceTrack, processingKind, processError,
-    speedFactor, speedKeepPitch, chooseSpeed, cropDone, cropSource,
+    speedFactor, speedKeepPitch, chooseSpeed, cropDone, cropSource, extendSeconds, setExtendSeconds,
   };
 }

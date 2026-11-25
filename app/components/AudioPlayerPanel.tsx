@@ -17,6 +17,8 @@ interface AudioPlayerPanelProps {
   hideRepaintStrength?: boolean;
   /** Lego, Extract, Complete : ni curseurs Reprise/Fidelite, qui ne servent qu'au cover. */
   isTrackMode?: boolean;
+  /** Neither the cover nor the repaint settings: the mode has its own (Extend). */
+  hideSettings?: boolean;
   isDraggingFile: boolean;
   coverModeMissingSource: boolean;
 
@@ -77,6 +79,7 @@ export const AudioPlayerPanel: React.FC<AudioPlayerPanelProps> = ({
   isRepaintMode,
   hideRepaintStrength = false,
   isTrackMode = false,
+  hideSettings = false,
   isDraggingFile,
   coverModeMissingSource,
   audioCoverStrength,
@@ -170,7 +173,7 @@ export const AudioPlayerPanel: React.FC<AudioPlayerPanelProps> = ({
                 masquer ici sans les neutraliser recreerait le bug
                 documente en TROUBLESHOOTING #23. Non documentes pour
                 Repaint, qui a son propre controle "Strength" plus bas. */}
-            {!isRepaintMode && !isTrackMode && (<>
+            {!hideSettings && !isRepaintMode && !isTrackMode && (<>
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 w-14">{tf('audioCoverStrength', 'Reprise')}</span>
