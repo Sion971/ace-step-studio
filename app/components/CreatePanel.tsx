@@ -32,7 +32,8 @@ import { generateApi, settingsApi } from '../services/api';
 import { applyLmSettings, lmOnDiskFrom } from '../services/lmSwitch';
 import { watchEngineLimits, pickMaxDuration } from '../services/engineLimits';
 import { fillTemplate } from '../utils/fillTemplate';
-import { MAIN_STYLES } from '../data/genres';
+import { ALL_STYLES } from '../data/genres';
+import { pickRandom } from '../utils/pickRandom';
 import { EditableSlider } from './EditableSlider';
 import { UseOpenRouterToggle } from './UseOpenRouterToggle';
 import { GenerationStatusPanel } from './GenerationStatusPanel';
@@ -130,16 +131,12 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     return !value || value === key ? fallback : value;
   }, [t]);
 
-  // Randomly select 6 music tags from MAIN_STYLES
-  const [musicTags, setMusicTags] = useState<string[]>(() => {
-    const shuffled = [...MAIN_STYLES].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 6);
-  });
+  // 6 style suggestions drawn fairly from all the styles (all_style.txt, 900-odd), not only the 105 main genres.
+  const [musicTags, setMusicTags] = useState<string[]>(() => pickRandom(ALL_STYLES, 6));
 
   // Function to refresh music tags
   const refreshMusicTags = useCallback(() => {
-    const shuffled = [...MAIN_STYLES].sort(() => Math.random() - 0.5);
-    setMusicTags(shuffled.slice(0, 6));
+    setMusicTags(pickRandom(ALL_STYLES, 6));
   }, []);
 
   // Mode
