@@ -85,6 +85,7 @@ import { parseServerDate } from './utils/serverDate';
 import { withFreshCover } from './utils/freshCover';
 import { coverMetaFromSong, coverSongFromImport, type CoverMeta } from './components/coverPrefill';
 import type { UploadTrackLike } from './services/uploadSong';
+import { sortByName } from './utils/sortByName';
 import type { AudioAnalysis } from './services/audioAnalysis';
 function AppContent() {
   // i18n
@@ -229,9 +230,10 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
   // = ligne anterieure a la migration, toujours traitee comme 'playlist',
   // jamais comme 'workspace' par defaut. Recalcule a chaque rendu — les
   // tableaux sont petits (playlists d'un seul utilisateur), pas besoin de
-  // useMemo ici.
-  const regularPlaylists = playlists.filter(p => p.kind !== 'workspace');
-  const workspaces = playlists.filter(p => p.kind === 'workspace');
+  // useMemo ici. Both lists are in alphabetical order (the library, the Studio's workspace picker, the "add to"
+  // windows), not in the order they were created.
+  const regularPlaylists = sortByName(playlists.filter(p => p.kind !== 'workspace'));
+  const workspaces = sortByName(playlists.filter(p => p.kind === 'workspace'));
   const [likedSongIds, setLikedSongIds] = useState<Set<string>>(new Set());
   const [referenceTracks, setReferenceTracks] = useState<ReferenceTrack[]>([]);
   // The imports as cover sources: the Create panel finds one by its audio and takes its analysed lyrics.
