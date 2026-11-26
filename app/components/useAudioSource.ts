@@ -24,12 +24,13 @@ const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.fl
 export const EXTEND_CHOICES = [15, 30, 60];
 export const EXTEND_OVERLAP = 5;
 
-/** Sample mode: the clip kept (3 to 30 s), the seconds that can follow it, and the overlap (shorter than Extend's,
- * so that the clip stays almost untouched). */
+/** Sample mode: the clip kept (3 to 30 s), the seconds that can follow it, and the overlap. 2 s was tried first, to
+ * leave the clip almost untouched, but what followed started like the beginning of a song; 5 s, as for Extend, gives
+ * the model enough of the clip's end to go on from it. */
 export const SAMPLE_MIN = 3;
 export const SAMPLE_MAX = 30;
 export const SAMPLE_CHOICES = [60, 90];
-export const SAMPLE_OVERLAP = 2;
+export const SAMPLE_OVERLAP = 5;
 
 /** The factors offered in Speed mode. */
 export const SPEED_FACTORS = [0.75, 0.9, 1.1, 1.25, 1.5];

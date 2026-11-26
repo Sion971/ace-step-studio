@@ -409,6 +409,6 @@ describe('Cover source loaded from the library or by drag', () => {
     await act(async () => { (Array.from(container.querySelectorAll('[data-sample-taken] button')).find(b => b.textContent === '+90 s') as HTMLButtonElement).click(); });
     const create = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes(en.create) && !b.disabled) as HTMLButtonElement;
     await act(async () => { create.click(); });
-    expect(onGenerate.mock.calls[0][0]).toMatchObject({ taskType: 'repaint', sourceAudioUrl: '/audio/ref/k1.flac', repaintingStart: 13, repaintingEnd: 105 });
+    expect(onGenerate.mock.calls[0][0]).toMatchObject({ taskType: 'repaint', sourceAudioUrl: '/audio/ref/k1.flac', repaintingStart: 10, repaintingEnd: 105 });
   });
 });
