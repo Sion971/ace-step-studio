@@ -160,6 +160,16 @@ function migrate(): void {
       added_at TEXT DEFAULT (datetime('now')),
       PRIMARY KEY (playlist_id, track_id)
     )`);
+    // "My styles": styles saved from the Style box or a song's details (routes/saved-styles.ts). The same text once per user.
+    db.exec(`CREATE TABLE IF NOT EXISTS saved_styles (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      style TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE (user_id, style)
+    )`);
     try { db.exec('ALTER TABLE songs ADD COLUMN dit_model TEXT'); } catch {}
     try { db.exec('ALTER TABLE songs ADD COLUMN lm_model TEXT'); } catch {}
     try { db.exec('ALTER TABLE songs ADD COLUMN lm_backend TEXT'); } catch {}

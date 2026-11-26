@@ -1255,3 +1255,25 @@ export const studioProjectsApi = {
     await api<{ success: boolean }>('/api/studio-projects/draft', { method: 'DELETE', token });
   },
 };
+
+// "My styles": styles saved from the Style box or a song's details, kept on the server per user (routes/saved-styles.ts).
+export interface SavedStyle {
+  id: string;
+  name: string;
+  style: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export const savedStylesApi = {
+  list: async (token: string): Promise<SavedStyle[]> =>
+    (await api<{ styles: SavedStyle[] }>('/api/saved-styles', { token })).styles,
+  /** The same text saved again is not doubled: it comes back with `existed: true`, moved to the top. */
+  save: (style: string, token: string, name?: string): Promise<{ style: SavedStyle; existed: boolean }> =>
+    api('/api/saved-styles', { method: 'POST', body: { style, name }, token }),
+  rename: async (id: string, name: string, token: string): Promise<SavedStyle> =>
+    (await api<{ style: SavedStyle }>(`/api/saved-styles/${id}`, { method: 'PATCH', body: { name }, token })).style,
+  remove: async (id: string, token: string): Promise<void> => {
+    await api<{ success: boolean }>(`/api/saved-styles/${id}`, { method: 'DELETE', token });
+  },
+};

@@ -15,6 +15,7 @@ import { AudioTransformPanel } from './AudioTransformPanel';
 import { AudioModeHeader } from './AudioModeHeader';
 import { AudioPlayerPanel } from './AudioPlayerPanel';
 import { AudioLibraryModal } from './AudioLibraryModal';
+import { SavedStylesButtons } from './SavedStylesButtons';
 import { VoiceRecorder } from './VoiceRecorder';
 import { LmSettings } from './LmSettings';
 import { ModelMenu } from './ModelMenu';
@@ -2228,6 +2229,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                       <Undo2 size={14} />
                     </button>
                   )}
+                  <SavedStylesButtons style={style} token={token} onPick={setStyle} />
                   <button
                     className="p-1.5 hover:bg-zinc-200 dark:hover:bg-white/10 rounded text-zinc-500 hover:text-black dark:hover:text-white transition-colors"
                     onClick={() => setStyle('')}

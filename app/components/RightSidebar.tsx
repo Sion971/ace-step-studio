@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Song } from '../types';
-import { Heart, Share2, Play, Pause, MoreHorizontal, X, Copy, Wand2, MoreVertical, Download, Repeat, Video, Music, Link as LinkIcon, Sparkles, Globe, Lock, Trash2, Edit3, Layers, ChevronDown, ClipboardCopy, ImagePlus, AudioLines } from 'lucide-react';
-import { songsApi } from '../services/api';
+import { Heart, Share2, Play, Pause, MoreHorizontal, X, Copy, Wand2, MoreVertical, Download, Repeat, Video, Music, Link as LinkIcon, Sparkles, Globe, Lock, Trash2, Edit3, Layers, ChevronDown, ClipboardCopy, ImagePlus, AudioLines, Bookmark, BookmarkCheck } from 'lucide-react';
+import { songsApi, savedStylesApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useI18n } from '../context/I18nContext';
 import { SongDropdownMenu } from './SongDropdownMenu';
@@ -41,6 +41,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
     const [shareModalOpen, setShareModalOpen] = useState(false);
     const [showStemModal, setShowStemModal] = useState(false);
     const [copiedStyle, setCopiedStyle] = useState(false);
+    const [savedStyle, setSavedStyle] = useState(false);
     const [copiedLyrics, setCopiedLyrics] = useState(false);
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [titleDraft, setTitleDraft] = useState('');
@@ -484,6 +485,29 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
                             <h2 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wide">{t('songDetails')}</h2>
+                            <div className="flex items-center gap-3">
+                            {/* "My styles": keep this song's style, to put it back in the Style box of the Create tab later. */}
+                            <button
+                                type="button"
+                                disabled={!token || !(song.style || (Array.isArray(song.tags) && song.tags.length > 0))}
+                                onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const text = song.style?.trim() || (Array.isArray(song.tags) ? song.tags.join(', ') : '');
+                                    if (!token || !text) return;
+                                    try {
+                                        await savedStylesApi.save(text, token, song.title || undefined);
+                                        setSavedStyle(true);
+                                        setTimeout(() => setSavedStyle(false), 2000);
+                                    } catch (error) {
+                                        console.error('Failed to save the style:', error);
+                                    }
+                                }}
+                                className={`relative z-10 flex items-center gap-1 text-[10px] font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${savedStyle ? 'text-green-500' : 'text-zinc-500 hover:text-black dark:hover:text-white'}`}
+                                title={t('saveStyle')}
+                                data-save-song-style
+                            >
+                                {savedStyle ? <BookmarkCheck size={12} /> : <Bookmark size={12} />} {savedStyle ? t('styleSavedShort') : t('saveStyleShort')}
+                            </button>
                             <button
                                 onClick={async (e) => {
                                     e.stopPropagation();
@@ -504,6 +528,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
                             >
                                 <Copy size={12} /> {copiedStyle ? t('copied') : t('copy')}
                             </button>
+                            </div>
                         </div>
                         <div
                             onClick={() => setTagsExpanded(!tagsExpanded)}

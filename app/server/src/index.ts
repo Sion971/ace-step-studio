@@ -40,6 +40,7 @@ import loudnormRoutes from './routes/loudnorm.js';
 import audioAnalysisRoutes from './routes/audio-analysis.js';
 import audioEditorRoutes from './routes/audio-editor.js';
 import studioProjectsRoutes from './routes/studio-projects.js';
+import savedStylesRoutes from './routes/saved-styles.js';
 import { pipelineManager } from './services/pipeline-manager.js';
 import { maybeOpenBrowser } from './services/open-browser.js';
 import { windowsBlockHint } from './services/windows-block-hint.js';
@@ -405,6 +406,7 @@ app.use('/api/loudnorm', loudnormRoutes);
 app.use('/api/audio-analysis', audioAnalysisRoutes);
 app.use('/api/audio-editor', audioEditorRoutes);
 app.use('/api/studio-projects', studioProjectsRoutes);
+app.use('/api/saved-styles', savedStylesRoutes);
 
 // GET /api/changelog — serve CHANGELOG.md as plain text
 app.get('/api/changelog', (_req, res) => {

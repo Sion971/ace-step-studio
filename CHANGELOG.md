@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-26
+
+### Added
+- **"My styles": save a style you like and use it again.** Two buttons in the header of the Style box: "Save this style" (bookmark) keeps the text of the box, and "My styles" opens a window with a search, the styles saved (name, text, how long ago), a click to put one back in the box, rename and delete. A song's details get a "Save" button next to "Copy", which keeps that song's style under its title. The styles are kept on the server, per user (table `saved_styles`, routes `/api/saved-styles`), so they survive a browser cleared or another computer; the same text saved twice is one style, moved back to the top. Unnamed, a style is named after its first 40 characters.
+
 ## 2026-11-23
 
 ### Added
