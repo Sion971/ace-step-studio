@@ -22,7 +22,7 @@ class _Host(GenerateMusicRequestMixin):
         self.text_encoder = object()
         self._vram_guard_reduce_batch = lambda bs, audio_duration=None: bs
         self.prepare_seeds = lambda bs, seed, use_random_seed: ([1] * bs, 1)
-        self.process_reference_audio = lambda _ref: torch.zeros(2, 100)
+        self.process_reference_audio = lambda _ref, **_kwargs: torch.zeros(2, 100)
         self.process_src_audio = lambda _src: torch.ones(2, 100)
         self.prepare_batch_data = lambda *args, **kwargs: (
             ["cap"], ["inst"], ["lyr"], ["en"], ["meta"]
@@ -64,7 +64,7 @@ class GenerateMusicRequestMixinTests(unittest.TestCase):
     def test_prepare_reference_and_source_audio_returns_error_for_invalid_reference(self):
         """Invalid reference audio should return a structured early error payload."""
         host = _Host()
-        host.process_reference_audio = lambda _ref: None
+        host.process_reference_audio = lambda _ref, **_kwargs: None
         _, _, error = host._prepare_reference_and_source_audio(
             reference_audio="bad.wav",
             src_audio=None,

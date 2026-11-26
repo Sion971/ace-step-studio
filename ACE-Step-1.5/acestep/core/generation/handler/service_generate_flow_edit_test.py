@@ -66,6 +66,36 @@ class FlowEditOverlayDispatchTests(unittest.TestCase):
         self.assertIs(enc_am, handler.prepared_enc_am)
         self.assertIs(ctx, handler.prepared_ctx)
 
+    def test_condition_for_downstream_prepared_while_model_is_loaded(self):
+        """Upstream #1331: with the DiT offloaded, the model leaves the GPU when its context closes.
+
+        ``prepare_condition`` must run inside that context, else its CUDA inputs meet a CPU model.
+        """
+        handler = FakeHandler()
+        state = {"loaded": False, "loaded_during_prepare": None}
+
+        from contextlib import contextmanager
+
+        @contextmanager
+        def tracking_context(name):
+            state["loaded"] = True
+            try:
+                yield
+            finally:
+                state["loaded"] = False
+
+        def prepare_condition(**kwargs):
+            state["loaded_during_prepare"] = state["loaded"]
+            return handler.prepared_enc_hs, handler.prepared_enc_am, handler.prepared_ctx
+
+        handler._load_model_context = tracking_context
+        handler.model.prepare_condition.side_effect = prepare_condition
+        dispatch_flow_edit_overlay(
+            handler, payload=make_payload(), generate_kwargs={"infer_steps": 4},
+            seed_param=None, flow_edit_ctx=make_flow_edit_ctx(),
+        )
+        self.assertTrue(state["loaded_during_prepare"])
+
     def test_missing_flowedit_method_raises(self):
         handler = FakeHandler(model_has_flowedit=False)
         with self.assertRaises(RuntimeError) as cm:

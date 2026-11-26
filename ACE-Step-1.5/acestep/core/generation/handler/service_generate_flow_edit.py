@@ -164,21 +164,25 @@ def dispatch_flow_edit_overlay(
                 dcw_enabled=generate_kwargs.get("dcw_enabled", False),
             )
 
-    # Return target-side encoder/context for downstream auto-LRC + scoring.
-    attn = torch.ones(bsz, seq, device=device, dtype=dtype)
-    enc_hs, enc_am, ctx = handler.model.prepare_condition(
-        text_hidden_states=payload["text_hidden_states"],
-        text_attention_mask=payload["text_attention_mask"],
-        lyric_hidden_states=payload["lyric_hidden_states"],
-        lyric_attention_mask=payload["lyric_attention_mask"],
-        refer_audio_acoustic_hidden_states_packed=payload["refer_audio_acoustic_hidden_states_packed"],
-        refer_audio_order_mask=payload["refer_audio_order_mask"],
-        hidden_states=ctx_input,
-        attention_mask=attn,
-        silence_latent=handler.silence_latent,
-        src_latents=ctx_input,
-        chunk_masks=payload["chunk_mask"],
-        is_covers=is_covers_arg,
-        precomputed_lm_hints_25Hz=precomputed_lm_hints_arg,
-    )
+            # Return target-side encoder/context for downstream auto-LRC + scoring.
+            # Kept inside the model context (upstream #1331): with the DiT offloaded to the CPU, the model has already
+            # left the GPU once the context closes, while these inputs are on CUDA, so the call failed with a device
+            # mismatch. Inside inference_mode too, so it records no autograd graph.
+            attn = torch.ones(bsz, seq, device=device, dtype=dtype)
+            enc_hs, enc_am, ctx = handler.model.prepare_condition(
+                text_hidden_states=payload["text_hidden_states"],
+                text_attention_mask=payload["text_attention_mask"],
+                lyric_hidden_states=payload["lyric_hidden_states"],
+                lyric_attention_mask=payload["lyric_attention_mask"],
+                refer_audio_acoustic_hidden_states_packed=payload["refer_audio_acoustic_hidden_states_packed"],
+                refer_audio_order_mask=payload["refer_audio_order_mask"],
+                hidden_states=ctx_input,
+                attention_mask=attn,
+                silence_latent=handler.silence_latent,
+                src_latents=ctx_input,
+                chunk_masks=payload["chunk_mask"],
+                is_covers=is_covers_arg,
+                precomputed_lm_hints_25Hz=precomputed_lm_hints_arg,
+            )
+
     return outputs, enc_hs, enc_am, ctx

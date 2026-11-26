@@ -61,6 +61,14 @@ class GenerateMusicMixin:
     orchestration flow.
     """
 
+    def _lora_device_check_needed(self) -> bool:
+        """A LoRA is in use and the decoder is meant to stay on the card (not offloaded to the CPU, upstream #1319)."""
+        return bool(
+            getattr(self, "lora_loaded", False)
+            and getattr(self, "use_lora", False)
+            and not getattr(self, "offload_dit_to_cpu", False)
+        )
+
     def _verify_decoder_device_dtype(self) -> None:
         """Ensure all decoder parameters are on ``self.device`` and ``self.dtype``.
 
@@ -316,7 +324,10 @@ class GenerateMusicMixin:
         # adapter weights on the wrong device, causing NaN in the diffusion
         # forward pass.  The check is cheap and prevents a hard-to-debug
         # generation failure.
-        if getattr(self, "lora_loaded", False) and getattr(self, "use_lora", False):
+        # Not when the DiT is offloaded to the CPU (upstream #1319): the decoder is meant to wait there, and the check
+        # would move all of it to the card before generation, outside the model context, defeating the offload (the
+        # context brings it back on its own).
+        if self._lora_device_check_needed():
             self._verify_decoder_device_dtype()
 
         logger.info("[generate_music] Starting generation...")
@@ -349,6 +360,7 @@ class GenerateMusicMixin:
                 actual_batch_size=actual_batch_size,
                 task_type=task_type,
                 flow_edit_morph=flow_edit_morph,
+                seed=actual_seed_list[0] if actual_seed_list else None,
             )
             if audio_error is not None:
                 return audio_error

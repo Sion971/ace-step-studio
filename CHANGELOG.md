@@ -2,6 +2,15 @@
 
 ## 2026-11-26
 
+### Fixed
+- **Engine: five fixes taken from upstream pull requests** that upstream has not merged (its main has had no commit since Aug 29, 2026; see the project note "Upstream Engine Pull Requests Review"):
+  - **#1331** — "Flow-edit (morph from the source)" with the DiT offloaded to the CPU failed with a device mismatch: the condition for auto-LRC and scoring was prepared after the model had left the card. It now runs inside the model context (and inside `inference_mode`).
+  - **#1302** — with the LM's thinking on, the language it detected replaced the one chosen (French, say). The detection now only fills a language left unset ("Auto" / unknown).
+  - **#1319** — with a LoRA in use and the DiT offloaded, the LoRA device check moved the whole decoder to the card before each generation, defeating the offload. It is skipped in that case.
+  - **#1283** (reference part) — the three 10 s slices of a reference audio were drawn without the seed, so Inspiration with the same seed varied. They now follow the generation's seed. (The LM part of that PR was already covered by our own seed fix.)
+  - **#1321** — `acestep_v15_pipeline.py` used `logger` without importing it (a NameError when the CUDA capability probe fails).
+  Tests: `upstream_ports_test.py`, plus new tests in `service_generate_flow_edit_test.py` and `io_audio_test.py`.
+
 ### Added
 - **"My styles": save a style you like and use it again.** Two buttons in the header of the Style box: "Save this style" (bookmark) keeps the text of the box, and "My styles" opens a window with a search, the styles saved (name, text, how long ago), a click to put one back in the box, rename and delete. A song's details get a "Save" button next to "Copy", which keeps that song's style under its title. The styles are kept on the server, per user (table `saved_styles`, routes `/api/saved-styles`), so they survive a browser cleared or another computer; the same text saved twice is one style, moved back to the top. Unnamed, a style is named after its first 40 characters.
 

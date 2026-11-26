@@ -13,6 +13,7 @@ import tempfile
 from typing import Optional, Union, List, Dict, Any, Tuple
 from dataclasses import dataclass, field, asdict
 from loguru import logger
+
 import torch
 
 
@@ -35,6 +36,16 @@ def _get_spaces_gpu_decorator(duration=180):
             logger.warning("spaces package not found, GPU decorator disabled")
             return lambda func: func
     return lambda func: func
+
+
+# A vocal language that names no language, which the LM's detection may fill in. "unknown" is the
+# GenerationParams default and the Studio's "Auto".
+_UNSET_VOCAL_LANGUAGES = frozenset({"", "unknown"})
+
+
+def _is_vocal_language_unset(vocal_language: Optional[str]) -> bool:
+    """True when no language was chosen, so the one the LM detects may be used (upstream #1302)."""
+    return not vocal_language or vocal_language.strip().lower() in _UNSET_VOCAL_LANGUAGES
 
 
 @dataclass
@@ -655,7 +666,17 @@ def generate_music(
             if params.use_cot_caption:
                 dit_input_caption = lm_generated_metadata.get("caption", dit_input_caption)
             if params.use_cot_language:
-                dit_input_vocal_language = lm_generated_metadata.get("vocal_language", dit_input_vocal_language)
+                # The language the LM detects only fills a language left unset (upstream #1302): a language chosen
+                # by the user (French, say) is kept, even when the LM thinks it hears another one.
+                if _is_vocal_language_unset(params.vocal_language):
+                    dit_input_vocal_language = lm_generated_metadata.get("vocal_language", dit_input_vocal_language)
+                else:
+                    detected = lm_generated_metadata.get("vocal_language")
+                    if detected and detected != dit_input_vocal_language:
+                        logger.info(
+                            f"[generate_music] Keeping the requested vocal_language '{dit_input_vocal_language}' "
+                            f"over the one the LM detected ('{detected}')"
+                        )
 
         # Repaint/cover/extract: no LM run, so conditioning must come from params (caption + lyrics from GUI).
         if params.task_type in ("repaint", "cover", "cover-nofsq", "extract"):

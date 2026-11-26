@@ -125,6 +125,18 @@ class IoAudioMixinTests(unittest.TestCase):
         )
         self.assertTrue(torch.equal(result, expected))
 
+    def test_process_reference_audio_same_seed_same_segments(self):
+        """Upstream #1283: with a seed, the three segments follow it, so the same seed takes the same slices."""
+        host = _Host()
+        base = torch.linspace(-1.0, 1.0, 1_800_000, dtype=torch.float32)
+        audio_np = torch.stack([base, -base], dim=0).T.numpy()
+        with patch("acestep.core.generation.handler.io_audio._read_audio_file", return_value=(audio_np, 48000)):
+            first = host.process_reference_audio("ref.wav", seed=1234)
+            again = host.process_reference_audio("ref.wav", seed=1234)
+            other = host.process_reference_audio("ref.wav", seed=99)
+        self.assertTrue(torch.equal(first, again))
+        self.assertFalse(torch.equal(first, other))
+
     def test_process_reference_audio_returns_none_on_load_error(self):
         """Reference audio processing should return None when loading fails."""
         host = _Host()
