@@ -45,9 +45,9 @@ export const AUDIO_MODES: AudioModeDef[] = [
   { id: 'mashup',      group: 'remix', field: 'source',    taskType: 'cover',
     labelKey: 'audioModeMashup', shortKey: 'audioModeMashup', descKey: 'audioModeMashupDesc',
     icon: Layers, available: false },
-  { id: 'sample',      group: 'remix', field: 'source',    taskType: 'cover',
+  { id: 'sample',      group: 'remix', field: 'source',    taskType: 'repaint',
     labelKey: 'audioModeSample', shortKey: 'audioModeSample', descKey: 'audioModeSampleDesc',
-    icon: Disc3, available: false },
+    icon: Disc3, available: true },
   // --- MODIFICATION ------------------------------------------------------
   { id: 'repaint',     group: 'edit',  field: 'source',    taskType: 'repaint',
     labelKey: 'audioModeRepaint', shortKey: 'audioModeRepaintShort', descKey: 'audioModeRepaintDesc',

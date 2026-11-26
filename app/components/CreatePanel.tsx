@@ -49,7 +49,7 @@ import { AudioAnalysisDialog } from './AudioAnalysisDialog';
 import { isDurationLockedBySource, type CoverMeta } from './coverPrefill';
 import { isTrackTask, type AudioModeId } from './audioModes';
 import { KEY_SIGNATURES, TIME_SIGNATURES } from './musicalOptions';
-import { useAudioSource, SPEED_FACTORS, EXTEND_CHOICES, EXTEND_OVERLAP } from './useAudioSource';
+import { useAudioSource, SPEED_FACTORS, EXTEND_CHOICES, EXTEND_OVERLAP, SAMPLE_CHOICES, SAMPLE_OVERLAP, SAMPLE_MIN, SAMPLE_MAX } from './useAudioSource';
 
 
 interface CreatePanelProps {
@@ -558,6 +558,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     showAudioModal, sourceAudioRef, sourceAudioTitle, sourceAudioUrl, sourceDuration, sourceInputRef, toggleAudio,
     uploadError, uploadReferenceTrack, useReferenceTrack, processingKind, processError,
     speedFactor, speedKeepPitch, chooseSpeed, cropDone, cropSource, extendSeconds, setExtendSeconds,
+    sampleSeconds, setSampleSeconds,
   } = useAudioSource({
     token, createdSongs, importedSongs, onReferenceTracksChanged, onImportCreated, pendingAudioSelection, onAudioSelectionApplied,
     setTaskType, setAudioCoverStrength, setCoverNoiseStrength, offerAnalysis, analysisAuto,
@@ -1106,15 +1107,26 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // Extend mode: a repaint that starts EXTEND_OVERLAP s before the end of the source and goes extendSeconds past it
   // (the engine pads the source with silence and fills it).
   const isExtendMode = audioMode === 'extend';
-  const extendWaitsForLength = isExtendMode && Boolean(sourceAudioUrl) && !(sourceDuration > 0);
+  // Sample mode: the clip is chosen on the whole song (like Crop), cut, then a new song is made after it, the clip
+  // left untouched (a repaint past its end, starting SAMPLE_OVERLAP s before it).
+  const isSampleMode = audioMode === 'sample';
+  const isSampleSelecting = isSampleMode && Boolean(sourceAudioUrl) && !cropDone;
+  const isSampleTaken = isSampleMode && Boolean(sourceAudioUrl) && cropDone;
+  // Extend, and Sample once the clip is taken: what is generated after the end of the source.
+  const outpaint = isExtendMode ? { overlap: EXTEND_OVERLAP, added: extendSeconds }
+    : isSampleTaken ? { overlap: SAMPLE_OVERLAP, added: sampleSeconds }
+    : null;
+  const extendWaitsForLength = outpaint !== null && Boolean(sourceAudioUrl) && !(sourceDuration > 0);
   // Crop mode, whole song loaded: the part to keep is chosen on the waveform (the repaint region), then cut.
   const isCropSelecting = audioMode === 'crop' && Boolean(sourceAudioUrl) && !cropDone;
+  const isRegionSelecting = isCropSelecting || isSampleSelecting;
   const cropEnd = repaintingEnd < 0 ? sourceDuration : repaintingEnd;
   const cropRegionUsable = sourceDuration > 0 && cropEnd - repaintingStart >= 1
     && (repaintingStart > 0.05 || cropEnd < sourceDuration - 0.05);
-  const applyCrop = async () => {
-    if (!cropRegionUsable) return;
-    if (await cropSource(repaintingStart, cropEnd)) {
+  const sampleRegionUsable = sourceDuration > 0 && cropEnd - repaintingStart >= SAMPLE_MIN && cropEnd - repaintingStart <= SAMPLE_MAX;
+  const applyCrop = async (kind: 'crop' | 'sample' = 'crop') => {
+    if (!(kind === 'crop' ? cropRegionUsable : sampleRegionUsable)) return;
+    if (await cropSource(repaintingStart, cropEnd, kind)) {
       setRepaintingStart(0);
       setRepaintingEnd(-1);
     }
@@ -1171,7 +1183,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
   // gresillement. Le mode reste utilisable, mais l'utilisateur doit savoir
   // qu'il ne fait pas un cover.
   const coverModeMissingSource =
-    (audioMode === 'cover' || audioMode === 'reverse' || audioMode === 'speed' || audioMode === 'crop' || audioMode === 'extend') && !sourceAudioUrl.trim();
+    (audioMode === 'cover' || audioMode === 'reverse' || audioMode === 'speed' || audioMode === 'crop' || audioMode === 'extend' || audioMode === 'sample') && !sourceAudioUrl.trim();
 
   // Regroupe les deux raisons qui doivent griser le bouton Creer. Les
   // messages restent distincts (l'un est une erreur bloquante de charge
@@ -1192,6 +1204,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       ? tf('warnCoverNoSource', 'Sans audio chargé, Cover génère du texte-à-musique — dépose un fichier pour un vrai cover.')
       : isCropSelecting
         ? t('cropFirst')
+        : isSampleSelecting
+          ? t('sampleFirst')
         : extendWaitsForLength
           ? t('durationFromSourcePending')
           : trackModeBlock;
@@ -1585,9 +1599,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         // coverNoiseStrength ci-dessous. Champs visibles en permanence dans
         // RepaintSettings (contrairement a Force/Fidelite masques), donc
         // risque moindre, mais meme incoherence de fond.
-        repaintingStart: isExtendMode && taskType === 'repaint' ? Math.max(0, sourceDuration - EXTEND_OVERLAP)
+        repaintingStart: outpaint && taskType === 'repaint' ? Math.max(0, sourceDuration - outpaint.overlap)
           : taskType === 'repaint' || taskType === 'lego' ? repaintingStart : undefined,
-        repaintingEnd: isExtendMode && taskType === 'repaint' ? sourceDuration + extendSeconds
+        repaintingEnd: outpaint && taskType === 'repaint' ? sourceDuration + outpaint.added
           : taskType === 'repaint' || taskType === 'lego' ? repaintingEnd : undefined,
         // L'instruction n'est plus un champ de l'interface : le serveur choisit celle qui convient a la tache (acestep.ts).
         instruction: undefined,
@@ -1909,9 +1923,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                 activeAudioPlaying={activeAudioPlaying}
                 activeAudioElRef={activeAudioElRef}
                 isReferenceTarget={isReferenceTarget}
-                isRepaintMode={isRepaintMode || isLegoMode || isCropSelecting}
-                hideRepaintStrength={isLegoMode || isCropSelecting}
-                hideSettings={isExtendMode}
+                isRepaintMode={isRepaintMode || isLegoMode || isRegionSelecting}
+                hideRepaintStrength={isLegoMode || isRegionSelecting}
+                hideSettings={outpaint !== null}
                 isTrackMode={isTrackMode}
                 isDraggingFile={isDraggingFile}
                 coverModeMissingSource={coverModeMissingSource}
@@ -1984,6 +1998,40 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
                   <p className="text-zinc-500 leading-snug">{t('extendHint')}</p>
                 </div>
               )}
+              {isSampleSelecting && (
+                <div className="px-2 flex items-center gap-2 text-[11px]" data-sample-options>
+                  <button
+                    type="button"
+                    disabled={!sampleRegionUsable || processingKind !== null}
+                    onClick={() => void applyCrop('sample')}
+                    className="px-2 py-0.5 rounded-md border border-pink-500 text-pink-600 dark:text-pink-300 hover:bg-pink-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {t('sampleApply')}
+                  </button>
+                  <span className="text-zinc-500">{t('sampleHint')}</span>
+                </div>
+              )}
+              {isSampleTaken && (
+                <div className="px-2 space-y-1 text-[11px]" data-sample-taken>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-zinc-500 mr-1">{t('sampleAdd')}</span>
+                    {SAMPLE_CHOICES.map(seconds => (
+                      <button
+                        key={seconds}
+                        type="button"
+                        aria-pressed={sampleSeconds === seconds}
+                        onClick={() => setSampleSeconds(seconds)}
+                        className={`px-2 py-0.5 rounded-md border transition-colors ${sampleSeconds === seconds
+                          ? 'border-pink-500 bg-pink-500/15 text-pink-600 dark:text-pink-300'
+                          : 'border-zinc-300 dark:border-white/10 text-zinc-600 dark:text-zinc-400 hover:border-pink-400'}`}
+                      >
+                        +{seconds} s
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-zinc-500 leading-snug">{t('sampleTakenHint')}</p>
+                </div>
+              )}
               {isCropSelecting && (
                 <div className="px-2 flex items-center gap-2 text-[11px]" data-crop-options>
                   <button
@@ -2000,12 +2048,12 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               {processingKind && (
                 <div className="px-2 flex items-center gap-2 text-[11px] text-zinc-500" data-reversing>
                   <Loader2 size={12} className="animate-spin" />
-                  {t(processingKind === 'speed' ? 'changingSpeed' : processingKind === 'crop' ? 'croppingAudio' : 'reversingAudio')}
+                  {t(processingKind === 'speed' ? 'changingSpeed' : processingKind === 'crop' || processingKind === 'sample' ? 'croppingAudio' : 'reversingAudio')}
                 </div>
               )}
               {processError && !processingKind && (
                 <div className="px-2 text-[11px] text-rose-500">
-                  {t(processError.kind === 'speed' ? 'speedFailed' : processError.kind === 'crop' ? 'cropFailed' : 'reverseFailed')} {processError.message}
+                  {t(processError.kind === 'speed' ? 'speedFailed' : processError.kind === 'crop' || processError.kind === 'sample' ? 'cropFailed' : 'reverseFailed')} {processError.message}
                 </div>
               )}
 
@@ -2277,11 +2325,11 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               <span className="font-medium text-zinc-600 dark:text-zinc-400">{t('duration')}</span>
               <span className="text-zinc-500">
                 {sourceDuration > 0
-                  ? isExtendMode
+                  ? outpaint
                     ? t('durationExtended')
                         .replace('{{time}}', formatTime(sourceDuration))
-                        .replace('{{added}}', String(extendSeconds))
-                        .replace('{{total}}', formatTime(sourceDuration + extendSeconds))
+                        .replace('{{added}}', String(outpaint.added))
+                        .replace('{{total}}', formatTime(sourceDuration + outpaint.added))
                     : t('durationFromSource').replace('{{time}}', formatTime(sourceDuration))
                   : t('durationFromSourcePending')}
               </span>
@@ -2670,10 +2718,10 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             {tf('errNothingToGenerate', 'Rien à envoyer au moteur : active OpenRouter pour développer la description, ou remplis Style ou Paroles.')}
           </p>
         )}
-        {!descriptionCannotBeUsed && !coverModeMissingSource && isCropSelecting && (
-          <p className="text-[11px] text-amber-500 leading-snug">{t('cropFirst')}</p>
+        {!descriptionCannotBeUsed && !coverModeMissingSource && isRegionSelecting && (
+          <p className="text-[11px] text-amber-500 leading-snug">{t(isSampleSelecting ? 'sampleFirst' : 'cropFirst')}</p>
         )}
-        {!descriptionCannotBeUsed && !coverModeMissingSource && !isCropSelecting && trackModeBlock && (
+        {!descriptionCannotBeUsed && !coverModeMissingSource && !isRegionSelecting && trackModeBlock && (
           <p className="text-[11px] text-amber-500 leading-snug">{trackModeBlock}</p>
         )}
         {!descriptionCannotBeUsed && coverModeMissingSource && (

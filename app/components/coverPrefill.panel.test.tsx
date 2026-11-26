@@ -358,4 +358,57 @@ describe('Cover source loaded from the library or by drag', () => {
     expect(areas).toContain('piano ballad, french pop');
     expect(Array.from(container.querySelectorAll('input')).some(i => i.value === 'Pas sur la route')).toBe(true);
   });
+
+  it('Sample: the clip taken opens a new song, untouched; tempo, key and style kept, not the words nor the title', async () => {
+    const bodies: any[] = [];
+    const onGenerate = vi.fn();
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/reference-tracks/crop') {
+        bodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({ track: { id: 'k1', filename: 'x.flac', audio_url: '/audio/ref/k1.flac' } }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }));
+    localStorage.setItem('ace-title', 'Mon titre');
+    const song = { ...SONG, style: 'piano ballad, french pop' } as Song;
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <CreatePanel onGenerate={onGenerate} isGenerating={false} createdSongs={[song]}
+            pendingAudioSelection={{ target: 'source', url: '/audio/s1.mp3', title: 'Pas sur la route', mode: 'sample' }} />
+        </I18nProvider>,
+      );
+    });
+    expect(container.textContent).toContain(en.sampleFirst);
+    const takeButton = () => container.querySelector('[data-sample-options] button') as HTMLButtonElement;
+    const audio = Array.from(container.querySelectorAll('audio')).find(a => a.getAttribute('src') === '/audio/s1.mp3')!;
+    Object.defineProperty(audio, 'duration', { value: 179, configurable: true });
+    await act(async () => { audio.dispatchEvent(new Event('loadedmetadata')); });
+    const [startInput, endInput] = Array.from(container.querySelectorAll('input[type="number"]')) as HTMLInputElement[];
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+    await act(async () => { setValue.call(startInput, '45'); startInput.dispatchEvent(new Event('input', { bubbles: true })); });
+    await act(async () => { setValue.call(endInput, '100'); endInput.dispatchEvent(new Event('input', { bubbles: true })); });
+    expect(takeButton().disabled).toBe(true); // 55 s: longer than a sample
+    await act(async () => { setValue.call(endInput, '60'); endInput.dispatchEvent(new Event('input', { bubbles: true })); });
+    expect(takeButton().disabled).toBe(false);
+    await act(async () => { takeButton().click(); });
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+
+    expect(bodies[0]).toEqual({ audioUrl: '/audio/s1.mp3', filename: 'Pas sur la route (sample 0:45–1:00)', start: 45, end: 60 });
+    expect(container.querySelector('[data-sample-taken]')).not.toBeNull();
+    const areas = Array.from(container.querySelectorAll('textarea')).map(a => a.value);
+    expect(areas).toContain('[Intro]\n\n');
+    expect(areas.some(v => v.includes('Dans le vent du soir'))).toBe(false);
+    expect(areas).toContain('piano ballad, french pop');
+    expect(Array.from(container.querySelectorAll('input')).some(i => i.value === 'Mon titre' || i.value.includes('Pas sur la route'))).toBe(false);
+
+    const clip = Array.from(container.querySelectorAll('audio')).find(a => a.getAttribute('src') === '/audio/ref/k1.flac')!;
+    Object.defineProperty(clip, 'duration', { value: 15, configurable: true });
+    await act(async () => { clip.dispatchEvent(new Event('loadedmetadata')); });
+    expect(container.querySelector('[data-testid="source-duration"]')!.textContent).toContain('0:15 + 60 s = 1:15');
+    await act(async () => { (Array.from(container.querySelectorAll('[data-sample-taken] button')).find(b => b.textContent === '+90 s') as HTMLButtonElement).click(); });
+    const create = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes(en.create) && !b.disabled) as HTMLButtonElement;
+    await act(async () => { create.click(); });
+    expect(onGenerate.mock.calls[0][0]).toMatchObject({ taskType: 'repaint', sourceAudioUrl: '/audio/ref/k1.flac', repaintingStart: 13, repaintingEnd: 105 });
+  });
 });

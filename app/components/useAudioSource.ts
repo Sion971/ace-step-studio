@@ -13,7 +13,7 @@ interface CoverFields { title: string; style: string; lyrics: string; bpm: numbe
 type Setter<T> = (value: T) => void;
 
 /** The modes whose source is a copy made by the server first. */
-export type ProcessKind = 'reverse' | 'speed' | 'crop';
+export type ProcessKind = 'reverse' | 'speed' | 'crop' | 'sample';
 // Reverse and Speed process the source as soon as it is loaded; Crop waits for the part to keep to be chosen.
 const processKindOf = (mode: AudioModeId): 'reverse' | 'speed' | null => (mode === 'reverse' || mode === 'speed' ? mode : null);
 
@@ -23,6 +23,13 @@ const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.fl
  * on from what is heard rather than from silence. */
 export const EXTEND_CHOICES = [15, 30, 60];
 export const EXTEND_OVERLAP = 5;
+
+/** Sample mode: the clip kept (3 to 30 s), the seconds that can follow it, and the overlap (shorter than Extend's,
+ * so that the clip stays almost untouched). */
+export const SAMPLE_MIN = 3;
+export const SAMPLE_MAX = 30;
+export const SAMPLE_CHOICES = [60, 90];
+export const SAMPLE_OVERLAP = 2;
 
 /** The factors offered in Speed mode. */
 export const SPEED_FACTORS = [0.75, 0.9, 1.1, 1.25, 1.5];
@@ -135,6 +142,8 @@ export function useAudioSource({
   const speedOriginRef = useRef<{ url: string; title?: string; meta?: CoverMeta } | null>(null);
   // Extend mode: how many seconds to add after the end of the source.
   const [extendSeconds, setExtendSeconds] = useState(30);
+  // Sample mode: how many seconds the new song goes on after the clip.
+  const [sampleSeconds, setSampleSeconds] = useState(60);
   // Crop mode: the source loaded is the cut copy (the part kept), not yet the whole song to choose it in.
   const [cropDone, setCropDone] = useState(false);
 
@@ -480,14 +489,15 @@ export function useAudioSource({
     const base = title ? title.replace(/\.[^/.]+$/, '') : getAudioLabel(url);
     const label = kind === 'reverse' ? reversedSuffix
       : kind === 'speed' ? speedLabel(speed.factor)
-      : `${clock(range!.start)}–${clock(range!.end)}`;
+      : `${kind === 'sample' ? 'sample ' : ''}${clock(range!.start)}–${clock(range!.end)}`;
     const name = `${base} (${label})`;
     speedOriginRef.current = kind === 'speed' ? { url, title, meta } : null;
     setProcessError(null);
     if (!token) { setProcessError({ kind, message: 'Please sign in.' }); return false; }
     setProcessingKind(kind);
     try {
-      const response = await fetch(`/api/reference-tracks/${kind}`, {
+      // A sample is cut like a crop; what differs is what is made of it.
+      const response = await fetch(`/api/reference-tracks/${kind === 'sample' ? 'crop' : kind}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(kind === 'reverse' ? { audioUrl: url, filename: name }
@@ -504,14 +514,20 @@ export function useAudioSource({
       setSourceTime(0);
       setSourceDuration(0);
       setTaskType(AUDIO_MODE_MAP[kind].taskType);
-      const adjusted: CoverMeta = { ...original, title: name };
+      // Sample: a new song opens on the clip, untouched. It keeps the original's tempo, key and language (the new part
+      // must fall right after the clip) and proposes its style; not its words nor its title, which are the new song's.
+      // "[Intro]" takes the time of the clip, as the engine spreads the lyrics over the whole length.
+      const adjusted: CoverMeta = kind === 'sample'
+        ? { bpm: original?.bpm, keyScale: original?.keyScale, timeSignature: original?.timeSignature, language: original?.language,
+            instrumental: false, title: '', lyrics: '[Intro]\n\n', style: songOfAudio(url)?.style?.trim() || undefined }
+        : { ...original, title: name };
       if (kind === 'speed') {
         if (original?.bpm) adjusted.bpm = Math.round(original.bpm * speed.factor);
         // Pitch following the speed: the key is no longer the original's, so it goes back to Auto.
         if (!speed.keepPitch) adjusted.keyScale = '';
       }
       applyCoverMeta(adjusted);
-      setCropDone(kind === 'crop');
+      setCropDone(kind === 'crop' || kind === 'sample');
       // The part kept is now the source of a plain cover: the mode menu says so, rather than still "Crop" over the
       // cover settings. Choosing Crop again cuts the part itself.
       if (kind === 'crop') setAudioMode('cover');
@@ -538,18 +554,18 @@ export function useAudioSource({
 
   // Crop mode: the part of the source chosen (in seconds) is cut by the server; the copy, "Title (0:30–1:15)", takes
   // its place and is the source of a cover. The whole song stays shown until the copy is there (or if it fails).
-  const cropSource = (start: number, end: number) => {
+  const cropSource = (start: number, end: number, kind: 'crop' | 'sample' = 'crop') => {
     if (!sourceAudioUrl) return Promise.resolve(false);
-    return processIntoSource('crop', sourceAudioUrl, sourceAudioTitle || undefined, undefined, undefined, { start, end });
+    return processIntoSource(kind, sourceAudioUrl, sourceAudioTitle || undefined, undefined, undefined, { start, end });
   };
 
   const applyCoverMeta = (meta: CoverMeta) => {
     const current: CoverFields = { title, style, lyrics, bpm, keyScale, timeSignature, vocalLanguage, instrumental };
     const after: CoverFields = { ...current };
-    if (meta.title) after.title = meta.title;
+    if (meta.title !== undefined) after.title = meta.title;
     if (meta.style) after.style = meta.style;
     if (meta.instrumental !== undefined) after.instrumental = meta.instrumental;
-    if (meta.lyrics) after.lyrics = meta.lyrics;
+    if (meta.lyrics !== undefined) after.lyrics = meta.lyrics;
     if (meta.bpm) after.bpm = meta.bpm;
     // '' is Auto: a copy whose key is no longer the original's sets it back explicitly.
     if (meta.keyScale !== undefined && KEY_SIGNATURES.includes(meta.keyScale)) after.keyScale = meta.keyScale;
@@ -613,7 +629,7 @@ export function useAudioSource({
     setShowAudioMenu(false);
     setAudioMode(id);
     // Crop chosen again with a part already cut: that part is shown to be cut in turn.
-    if (id === 'crop') setCropDone(false);
+    if (id === 'crop' || id === 'sample') setCropDone(false);
 
     const modeDefaults = AUDIO_MODE_DEFAULTS[id];
     if (modeDefaults) {
@@ -763,5 +779,6 @@ export function useAudioSource({
     showAudioModal, sourceAudioRef, sourceAudioTitle, sourceAudioUrl, sourceDuration, sourceInputRef, toggleAudio,
     uploadError, uploadReferenceTrack, useReferenceTrack, processingKind, processError,
     speedFactor, speedKeepPitch, chooseSpeed, cropDone, cropSource, extendSeconds, setExtendSeconds,
+    sampleSeconds, setSampleSeconds,
   };
 }
