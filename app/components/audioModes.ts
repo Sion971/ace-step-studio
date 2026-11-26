@@ -45,9 +45,11 @@ export const AUDIO_MODES: AudioModeDef[] = [
   { id: 'mashup',      group: 'remix', field: 'source',    taskType: 'cover',
     labelKey: 'audioModeMashup', shortKey: 'audioModeMashup', descKey: 'audioModeMashupDesc',
     icon: Layers, available: false },
+  // Sample: built and tested, but greyed out. In listening tests the join after the clip stayed unnatural, at 2 s and at 5 s
+  // of overlap; Crop then Inspiration gives the spirit of a clip more simply. The code (useAudioSource, CreatePanel) is kept.
   { id: 'sample',      group: 'remix', field: 'source',    taskType: 'repaint',
     labelKey: 'audioModeSample', shortKey: 'audioModeSample', descKey: 'audioModeSampleDesc',
-    icon: Disc3, available: true },
+    icon: Disc3, available: false },
   // --- MODIFICATION ------------------------------------------------------
   { id: 'repaint',     group: 'edit',  field: 'source',    taskType: 'repaint',
     labelKey: 'audioModeRepaint', shortKey: 'audioModeRepaintShort', descKey: 'audioModeRepaintDesc',
