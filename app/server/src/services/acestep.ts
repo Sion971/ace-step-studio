@@ -16,6 +16,7 @@ import { aiCover, waitForCoverBeforeGeneration } from './ai-cover.js';
 import { pipelineManager } from './pipeline-manager.js';
 import { isModelSwitching, waitForModelSwitch } from './model-switch.js';
 import { getGradioClient, resetGradioClient, isGradioAvailable, callInitServiceWrapper, fetchCurrentInitServiceValues, MAIN_MODEL_PATH_COMPONENT_ID } from './gradio-client.js';
+import { gradioAudioExtension } from './gradio-audio-ext.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -825,7 +826,7 @@ async function processGenerationViaGradio(
 
   for (const fileObj of audioFileObjects) {
     const origName = fileObj.orig_name || fileObj.path || '';
-    const ext = origName.includes('.flac') ? '.flac' : `.${audioFormat}`;
+    const ext = gradioAudioExtension(origName, audioFormat);
     const filename = `${jobId}_${audioUrls.length}${ext}`;
     const destPath = path.join(AUDIO_DIR, filename);
 
