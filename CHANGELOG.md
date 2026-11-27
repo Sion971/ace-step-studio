@@ -12,6 +12,7 @@
   - "A rap in Spanish" is now aligned with the chosen language.
   - "Spanish lead guitar" is no longer changed; "Spanish lead vocal" still is.
   - "Vocals are arranged in Japanese city pop style" is no longer changed: only a short list of words (are, entirely, mostly, sung, delivered…) may stand between the singing word and "in".
+  - Second review round: a quotation opened later in the line ("pour entendre 'oui'") no longer stops the lost n from being put back; "Vocals are predominantly in Spanish" is now aligned (predominantly, largely, chiefly and solely join the word list).
 
 ## 2026-11-26
 
