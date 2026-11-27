@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-27
+
+### Fixed
+- **French lyrics written by the language model: the lost "n'" is put back.** The 5Hz LM sometimes writes a line break in place of the lone "n" before an elided word, so "elle ferait n'importe quoi" came out as "elle ferait" then "'importe quoi" on the next line (seen on Linux and Windows, in 3 Inspirations out of 9). The tokenizer is not at fault (checked: the " n" token decodes as " n"), and neither is the CUDA graph of the LM (the break also comes without it). When the lyrics are French, a line break followed by an apostrophe and a vowel or h, right after a letter, becomes " n'" again: a French lyric line never starts with "'importe" or "'est". A missing "n" before a vowel ("Les" / "éons" for "Les néons") cannot be told from a real line break and is left as it is. Applies to Inspiration, to the formatting of lyrics and to audio understanding (`acestep/lyrics_repair.py`).
+- **Small-card mode: the lyric timestamp pass no longer runs the card out of memory.** The reserve left free on the card for the activations follows what the previous rounds measured. The pass that times the lyrics (auto-LRC, after each generation) keeps the attention weights of every layer, so it needs about twice the memory of a generation of the same length (0.65 against 0.32 GB for 2850 tokens); sized from the generation, it kept too many blocks on the card, PyTorch warned (`expandable_segments ... OOM`) and the card could run out of memory, after which the measured reserve was dropped for the rest of the session. The rounds that return attention weights are now measured apart: the first one uses the configured reserve, the next ones their own measurement.
+
 ## 2026-11-26
 
 ### Fixed

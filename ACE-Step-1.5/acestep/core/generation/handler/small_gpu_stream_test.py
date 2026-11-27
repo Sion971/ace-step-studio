@@ -887,6 +887,41 @@ class AutoReserveTests(unittest.TestCase):
         pool.observe((torch.zeros(1, 50, 4),), {})
         self.assertEqual(pool.act_tokens, 9)
 
+    def test_a_pass_returning_attentions_is_recognised(self):
+        h = torch.zeros(1, 9, 4)
+        self.assertTrue(sgs.wants_attentions((h, None, None, None, None, None, True), {}))
+        self.assertFalse(sgs.wants_attentions((h, None, None, None, None, None, False), {}))
+        self.assertFalse(sgs.wants_attentions((h,), {}))
+        self.assertTrue(sgs.wants_attentions((h,), {"output_attentions": True}))
+        self.assertFalse(sgs.wants_attentions((h,), {"output_attentions": None}))
+
+    def test_attention_passes_are_measured_apart_from_generations(self):
+        # Seen on the 8 GB card: a generation of 2850 tokens peaked at 0.32 GB, the lyric timestamp pass of the same
+        # length at 0.65 GB; sized from the generation, the timestamp pass ran out of memory.
+        _d, pool = self._pool()
+        pool._gpu_ready = False
+        h = torch.zeros(1, 2850, 4)
+        pool.observe((h, None, None, None, None, None, False), {})
+        self.assertFalse(pool.act_attn)
+        self._measure(pool, 2850, 0, int(0.32 * self.GB))
+        self.assertIn(2850, pool.act_needs)
+        pool.observe((h, None, None, None, None, None, True), {})   # the lyric timestamp pass
+        self.assertTrue(pool.act_attn)
+        self.assertEqual(pool.reserve_for(2850), (pool.reserve_bytes, None))  # no measurement of its kind yet
+        self._measure(pool, 2850, 0, int(0.65 * self.GB))
+        self.assertEqual(pool.act_needs_attn[2850], int(0.65 * self.GB))
+        self.assertEqual(pool.reserve_for(2850)[1], int(0.65 * self.GB))
+        pool.observe((h, None, None, None, None, None, False), {})  # the next generation keeps its own measurement
+        self.assertEqual(pool.reserve_for(2850)[1], int(0.32 * self.GB))
+
+    def test_running_out_of_memory_forgets_both_kinds_of_measurement(self):
+        _d, pool = self._pool()
+        pool.cuda = False
+        pool._gpu_ready, pool._act_trusted, pool._act_hurt = True, True, True
+        pool.act_needs, pool.act_needs_attn = {500: 1}, {500: 2}
+        pool.release_gpu()
+        self.assertEqual((pool.act_needs, pool.act_needs_attn), ({}, {}))
+
     @torch.no_grad()
     def test_a_real_run_records_the_length_and_that_a_block_ran(self):
         decoder, cfg = _tiny_decoder(4)

@@ -165,6 +165,19 @@ def tokens_of(args: tuple, kwargs: dict) -> Optional[int]:
     return None
 
 
+def wants_attentions(args: tuple, kwargs: dict) -> bool:
+    """True when a block call returns its attention weights (the lyric timestamp and score passes do).
+
+    Those passes keep the cross-attention weights of every layer, so their activations peak well above those of a
+    generation of the same length (measured: 0.65 against 0.32 GB for 2850 tokens). ``output_attentions`` is the 7th
+    positional argument of the DiT decoder layer (hidden_states, position_embeddings, temb, attention_mask,
+    position_ids, past_key_value, output_attentions, ...).
+    """
+    if "output_attentions" in kwargs:
+        return kwargs["output_attentions"] is True
+    return len(args) > 6 and args[6] is True
+
+
 def active_pool() -> Optional["StreamPool"]:
     """The pool of the streamed DiT, or None when the mode is not running."""
     return _ACTIVE_POOL
@@ -603,6 +616,10 @@ class StreamPool:
         self.reserve_auto = reserve_auto_from_env()
         self.act_tokens: Optional[int] = None   # batch x sequence length of the round being prepared
         self.act_needs: dict = {}
+        # Rounds that return the attention weights (lyric timestamps, lyric score) are measured apart: their peak is
+        # about twice a generation's for the same length, so a generation's measurement must not size their reserve.
+        self.act_attn = False                   # the round being prepared returns attention weights
+        self.act_needs_attn: dict = {}
         self._act_base: Optional[int] = None    # bytes allocated on the card when the blocks were placed
         self._act_ran = False                   # a block has run since the blocks were placed
         self._act_hurt = False                  # the card ran out of memory in this round
@@ -692,6 +709,11 @@ class StreamPool:
             tokens = tokens_of(args, kwargs)
             if tokens is not None:
                 self.act_tokens = tokens
+                self.act_attn = wants_attentions(args, kwargs)
+
+    def _needs(self) -> dict:
+        """Measurements that apply to the round being prepared (attention-returning rounds have their own)."""
+        return self.act_needs_attn if self.act_attn else self.act_needs
 
     def reserve_for(self, tokens: Optional[int]) -> tuple:
         """(bytes to leave free for the activations, measured need it came from or None) for a round of ``tokens`` tokens.
@@ -701,14 +723,15 @@ class StreamPool:
         (activations grow with the length, so it is an upper bound); a longer round scales the longest measurement
         (linearly when the attention needs no mask, with the square of the length otherwise) and adds a quarter.
         """
-        if not (self.reserve_auto and self.act_needs and tokens):
+        needs = self._needs()
+        if not (self.reserve_auto and needs and tokens):
             return self.reserve_bytes, None
-        longer = [t for t in self.act_needs if t >= tokens]
+        longer = [t for t in needs if t >= tokens]
         if longer:
-            need = self.act_needs[min(longer)]
+            need = needs[min(longer)]
         else:
-            ref = max(self.act_needs)
-            need = int(self.act_needs[ref] * (tokens / ref) ** (1 if self.mask_free else 2) * ACT_SAFETY)
+            ref = max(needs)
+            need = int(needs[ref] * (tokens / ref) ** (1 if self.mask_free else 2) * ACT_SAFETY)
         return max(ACT_MIN_RESERVE_BYTES, int(need * ACT_SAFETY) + ACT_MARGIN_BYTES), need
 
     def _record_activations(self) -> None:
@@ -723,10 +746,12 @@ class StreamPool:
             logger.debug("[small_gpu_stream] could not measure the activations: {}", exc)
             return
         tokens = self.act_tokens
-        self.act_needs[tokens] = max(need, self.act_needs.pop(tokens, 0))  # same length: keep the larger, latest last
-        while len(self.act_needs) > ACT_MEASURES_KEPT:
-            self.act_needs.pop(next(iter(self.act_needs)))
-        logger.info("[small_gpu_stream] {}: the activations peaked at {:.2f} GB for {} tokens.", self.label, need / 1024**3, tokens)
+        needs = self._needs()
+        needs[tokens] = max(need, needs.pop(tokens, 0))  # same length: keep the larger, latest last
+        while len(needs) > ACT_MEASURES_KEPT:
+            needs.pop(next(iter(needs)))
+        logger.info("[small_gpu_stream] {}: the activations peaked at {:.2f} GB for {} tokens{}.", self.label,
+                    need / 1024**3, tokens, " (pass returning the attention weights)" if self.act_attn else "")
 
     def _resident_target(self) -> int:
         """How many blocks to keep on the card for this round."""
@@ -870,6 +895,7 @@ class StreamPool:
             # the resident blocks the card allows, instead of keeping the halved number for the rest of the session.
             self.reserve_auto = False
             self.act_needs.clear()
+            self.act_needs_attn.clear()
             self.resident_cap = self.count
             self._logged_resident = -1
             logger.warning("[small_gpu_stream] {}: the measured reserve was too small; the configured reserve is used from now on.", self.label)
