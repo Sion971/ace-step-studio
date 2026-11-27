@@ -27,6 +27,7 @@ from acestep import lm_cuda_graph, lm_warmup
 from acestep.lm_step_profile import StepProfile
 from acestep.constrained_logits_processor import MetadataConstrainedLogitsProcessor
 from acestep.lyrics_repair import repair_lm_lyrics
+from acestep.caption_language import align_caption_language
 from acestep.constants import DEFAULT_LM_INSTRUCTION, DEFAULT_LM_UNDERSTAND_INSTRUCTION, DEFAULT_LM_INSPIRED_INSTRUCTION, DEFAULT_LM_REWRITE_INSTRUCTION, DURATION_MIN, DURATION_MAX
 from acestep.gpu_config import get_lm_gpu_memory_ratio, get_gpu_memory_gb, get_lm_model_size, get_global_gpu_config
 
@@ -2214,6 +2215,13 @@ class LLMHandler:
             self._extract_lyrics_from_output(output_text),
             metadata.get('language') or (user_metadata or {}).get('language'),
         )
+        # A language chosen by the user wins over the one the LM names for the singing in its caption.
+        chosen_language = (user_metadata or {}).get('language')
+        if chosen_language and metadata.get('caption'):
+            aligned = align_caption_language(metadata['caption'], chosen_language)
+            if aligned != metadata['caption']:
+                logger.info(f"Caption language aligned with the chosen language ({chosen_language}).")
+                metadata['caption'] = aligned
         if lyrics:
             metadata['lyrics'] = lyrics
         elif instrumental:
