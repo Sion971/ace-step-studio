@@ -40,6 +40,10 @@ REM
 REM     --help          Show this help.
 REM =============================================================================
 
+REM Variables already in the environment at launch (set ACESTEP_LM_CUDA_GRAPH=0 then run.bat) win over
+REM ACE-Step-1.5\.env: their names are noted here, before the script sets anything.
+set "STUDIO_LAUNCH_ENV=%TEMP%\ace-studio-launch-env-%RANDOM%%RANDOM%.txt"
+set > "%STUDIO_LAUNCH_ENV%" 2>nul
 set "SCRIPT_DIR=%~dp0"
 cd /d "%SCRIPT_DIR%"
 
@@ -239,14 +243,18 @@ if not exist "%PREPROCESSED_TENSORS_DIR%" mkdir "%PREPROCESSED_TENSORS_DIR%"
 if not exist "%DATASETS_UPLOADS_DIR%" mkdir "%DATASETS_UPLOADS_DIR%"
 
 REM === Engine .env file ==========================================================
-REM Loaded BEFORE command-line options - those must win.
+REM Loaded BEFORE command-line options - those must win. A variable already in the environment at launch
+REM also wins: the .env does not overwrite it.
 if exist "%SCRIPT_DIR%ACE-Step-1.5\.env" (
     echo Loading configuration from ACE-Step-1.5\.env...
     for /f "usebackq tokens=1,* delims==" %%a in ("%SCRIPT_DIR%ACE-Step-1.5\.env") do (
         set "line=%%a"
-        if not "!line:~0,1!"=="#" if not "!line!"=="" set "%%a=%%b"
+        if not "!line:~0,1!"=="#" if not "!line!"=="" (
+            findstr /b /i /l /c:"%%a=" "%STUDIO_LAUNCH_ENV%" >nul 2>&1 && (echo   ^(environment value kept: %%a^)) || set "%%a=%%b"
+        )
     )
 )
+if exist "%STUDIO_LAUNCH_ENV%" del "%STUDIO_LAUNCH_ENV%" >nul 2>&1
 
 REM Flux mode chosen at install time ^(or by --mode^): engine settings for a 4 to 8GB card. A value already set
 REM ^(environment or ACE-Step-1.5\.env^) wins.

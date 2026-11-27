@@ -34,6 +34,10 @@
 
 set -e
 
+# Variables d'environnement presentes au lancement (ex. ACESTEP_LM_CUDA_GRAPH=0 ./run.sh) : elles gagnent sur
+# ACE-Step-1.5/.env (voir l'etape 6). Relevees avant que le script n'exporte quoi que ce soit.
+STUDIO_LAUNCH_ENV=" $(compgen -e | tr '\n' ' ') "
+
 # --- Analyse des arguments ---------------------------------------------------
 NO_LM=false
 GRADIO_ONLY=false
@@ -243,12 +247,24 @@ mkdir -p "$PREPROCESSED_TENSORS_DIR" "$DATASETS_UPLOADS_DIR"
 
 
 # === 6. Fichier .env du moteur ===============================================
-# Chargé AVANT les options de ligne de commande : celles-ci doivent gagner.
+# Chargé AVANT les options de ligne de commande : celles-ci doivent gagner. Une variable deja presente dans
+# l'environnement au lancement (VAR=valeur ./run.sh) gagne aussi : sa valeur est gardee, le .env ne l'ecrase pas.
 if [ -f "$SCRIPT_DIR/ACE-Step-1.5/.env" ]; then
     echo "Chargement de la configuration depuis ACE-Step-1.5/.env..."
+    STUDIO_KEEP_ENV=""
+    for _name in $(sed -nE 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=.*/\2/p' "$SCRIPT_DIR/ACE-Step-1.5/.env"); do
+        case "$STUDIO_LAUNCH_ENV" in
+            *" $_name "*) STUDIO_KEEP_ENV="$STUDIO_KEEP_ENV$(declare -p "$_name")"$'\n' ;;
+        esac
+    done
     set -a
     source "$SCRIPT_DIR/ACE-Step-1.5/.env"
     set +a
+    if [ -n "$STUDIO_KEEP_ENV" ]; then
+        eval "$STUDIO_KEEP_ENV"
+        echo "  (valeurs de l'environnement gardees : $(printf '%s' "$STUDIO_KEEP_ENV" | sed -nE 's/^declare -[^ ]* ([A-Za-z_][A-Za-z0-9_]*)=.*/\1/p' | tr '\n' ' '))"
+    fi
+    unset STUDIO_KEEP_ENV _name
 fi
 
 # Mode flux choisi a l'installation (ou par --mode) : reglages du moteur pour une carte de 4 a 8 Go. Une valeur deja definie
