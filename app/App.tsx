@@ -53,7 +53,7 @@ function useResizablePanel(key: string, defaultWidth: number, min: number, max: 
   const handle = (
     <div
       onMouseDown={onMouseDown}
-      className="hidden md:flex w-1.5 flex-shrink-0 items-center justify-center cursor-col-resize group z-20 relative rounded-full bg-transparent hover:bg-pink-500/20 transition-colors"
+      className="hidden md:flex w-2.5 flex-shrink-0 items-center justify-center cursor-col-resize group z-20 relative rounded-full bg-transparent hover:bg-pink-500/20 transition-colors"
     >
       <div className="w-[3px] h-10 rounded-full bg-zinc-400/30 dark:bg-zinc-600/50 group-hover:bg-pink-500 transition-colors" />
     </div>
@@ -2316,7 +2316,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
             <div
               className={`
                 ${mobileShowList ? 'hidden md:block' : 'w-full'}
-                md:block flex-shrink-0 h-full bg-zinc-50 dark:bg-suno-panel relative z-10 transition-colors duration-300 md:rounded-xl md:overflow-hidden md:ring-1 ring-zinc-300/70 dark:ring-white/[0.07]
+                md:block flex-shrink-0 h-full bg-zinc-50 dark:bg-suno-panel relative z-10 transition-colors duration-300 md:rounded-[20px] md:overflow-hidden md:ring-1 ring-zinc-300/70 dark:ring-white/[0.07]
               `}
               style={{ width: window.innerWidth >= 768 ? leftPanel.width : undefined }}
             >
@@ -2376,7 +2376,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
             {/* Song List */}
             <div className={`
               ${!mobileShowList ? 'hidden md:flex' : 'flex'}
-              flex-1 flex-col h-full overflow-hidden bg-white dark:bg-suno-DEFAULT transition-colors duration-300 md:rounded-xl md:ring-1 ring-zinc-300/70 dark:ring-white/[0.07]
+              flex-1 flex-col h-full overflow-hidden bg-white dark:bg-suno-DEFAULT transition-colors duration-300 md:rounded-[20px] md:ring-1 ring-zinc-300/70 dark:ring-white/[0.07]
             `}>
               <SongList
                 songs={displayedSongs}
@@ -2424,7 +2424,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
               <>
               {rightPanel.handle}
               <div
-                className="hidden xl:block flex-shrink-0 h-full bg-zinc-50 dark:bg-suno-panel relative z-10 transition-colors duration-300 rounded-xl overflow-hidden ring-1 ring-zinc-300/70 dark:ring-white/[0.07]"
+                className="hidden xl:block flex-shrink-0 h-full bg-zinc-50 dark:bg-suno-panel relative z-10 transition-colors duration-300 rounded-[20px] overflow-hidden ring-1 ring-zinc-300/70 dark:ring-white/[0.07]"
                 style={{ width: rightPanel.width }}
               >
                 <RightSidebar
@@ -2470,8 +2470,8 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
           {t('connectingToServer') || 'Connecting to server...'}
         </div>
       )}
-      {/* The four panels (menu, create, workspace, song details) are rounded cards on a darker ground, 6 px apart. */}
-      <div className="flex-1 flex overflow-hidden md:p-1.5 md:gap-1.5 bg-zinc-200 dark:bg-black">
+      {/* The four panels (menu, create, workspace, song details) are rounded cards (20 px) on a darker ground, 10 px apart. */}
+      <div className="flex-1 flex overflow-hidden md:p-2.5 md:gap-2.5 bg-zinc-200 dark:bg-black">
         <Sidebar
           currentView={currentView}
           onNavigateHome={() => {
@@ -2507,7 +2507,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
           onToggle={() => setShowLeftSidebar(!showLeftSidebar)}
         />
 
-        <main className={`flex-1 flex overflow-hidden relative ${currentView === 'create' ? '' : 'md:rounded-xl md:ring-1 ring-zinc-300/70 dark:ring-white/[0.07]'}`}>
+        <main className={`flex-1 flex overflow-hidden relative ${currentView === 'create' ? '' : 'md:rounded-[20px] md:ring-1 ring-zinc-300/70 dark:ring-white/[0.07]'}`}>
           {renderContent()}
           {(studioOpened || currentView === 'studio') && (
             <div className={currentView === 'studio' ? 'contents' : 'hidden'} data-testid="studio-host">
