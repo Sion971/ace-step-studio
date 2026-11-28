@@ -550,6 +550,8 @@ export const SongList: React.FC<SongListProps> = ({
                         ))
                     )}
                 </div>
+                {/* Soft fade at the bottom edge while the list scrolls, over the width of the songs, like the one under the header. */}
+                <div aria-hidden="true" data-song-list-bottom-fade className="pointer-events-none sticky bottom-0 -mt-3.5 h-3.5 rounded-t-lg bg-gradient-to-t from-white dark:from-black to-transparent" />
             </div> {/* End container */}
         </div>
     );

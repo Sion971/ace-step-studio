@@ -44,6 +44,15 @@ describe('the header of the song list', () => {
     expect(fade.getAttribute('aria-hidden')).toBe('true');
   });
 
+  it('ends the list with the same soft fade at the bottom edge', () => {
+    render();
+    const fade = container.querySelector<HTMLElement>('[data-song-list-bottom-fade]')!;
+    expect(fade).not.toBeNull();
+    const classes = fade.className.split(/\s+/);
+    for (const c of ['sticky', 'bottom-0', 'pointer-events-none', 'from-white', 'dark:from-black']) expect(classes, c).toContain(c);
+    expect(fade.closest('.max-w-5xl')).not.toBeNull();
+  });
+
   it('holds the workspace breadcrumb and the search box, so both stay in view', () => {
     render({ activeWorkspaceName: 'Concerts', onBackToWorkspaces: vi.fn() });
     const header = container.querySelector<HTMLElement>('[data-song-list-header]')!;
