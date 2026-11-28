@@ -216,9 +216,9 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ token, onSongCreat
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-zinc-200 dark:border-white/5 bg-white dark:bg-suno-card text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:border-pink-500/40 hover:text-pink-500 transition-colors"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-zinc-200 dark:border-white/5 bg-white dark:bg-suno-card text-xs font-medium text-zinc-700 dark:text-zinc-200 hover:border-pink-500/40 hover:text-pink-500 transition-colors"
       >
-        <Mic size={16} />
+        <Mic size={13} />
         {tf('recordSong', 'Enregistrer')}
       </button>
 

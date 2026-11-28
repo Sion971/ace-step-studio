@@ -1775,7 +1775,10 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
           onLoadedMetadata={(e) => setSourceDuration(e.currentTarget.duration || 0)}
         />
 
-        {/* Header Row 1 - ACE-Step + Model Selection */}
+        {/* Header kept at the top while the panel scrolls: model, Simple / Custom, instrumental (Simple) and the
+            record button (Custom). Solid background, no backdrop blur: a blur would make it the containing block of
+            the recorder's fixed modal. The soft fade below it matches the width of the cards. */}
+        <div data-testid="create-sticky-header" className="sticky top-0 z-20 -mx-4 px-4 -mt-14 pt-14 md:-mt-4 md:pt-4 pb-3 bg-zinc-50 dark:bg-suno-panel space-y-4">
         <ModelMenu
           selectedModel={selectedModel}
           setSelectedModel={setSelectedModel}
@@ -1788,11 +1791,6 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
           lmBackend={lmBackend}
           lmEditingRef={lmEditingRef}
         />
-
-        {/* PANNEAU DE CRÉATION — mode unique depuis la suppression de
-            Simple / Personnalisé. Les deux modes construisaient des charges
-            utiles divergentes, source de plusieurs bugs (voir §12). */}
-          <div className="space-y-5">
             <CreateModeSwitch
               view={createView}
               onChange={changeCreateView}
@@ -1820,6 +1818,14 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             />
 
             </>)}
+        <div aria-hidden="true" className="pointer-events-none absolute top-full left-4 right-4 h-3.5 rounded-b-lg bg-gradient-to-b from-zinc-50 dark:from-suno-panel to-transparent" />
+        </div>
+
+        {/* PANNEAU DE CRÉATION — mode unique depuis la suppression de
+            Simple / Personnalisé. Les deux modes construisaient des charges
+            utiles divergentes, source de plusieurs bugs (voir §12). */}
+          <div className="space-y-5">
+
 
             {/* Song Description : en Simple toujours ; en Personnalise seulement si OpenRouter la developpe ou si elle contient deja du texte. */}
             {(simpleView || useOpenRouter || songDescription.trim()) && (

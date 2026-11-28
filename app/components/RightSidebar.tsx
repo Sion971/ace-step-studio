@@ -141,7 +141,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
         <div className="w-full h-full bg-zinc-50 dark:bg-suno-panel flex flex-col relative transition-colors duration-300">
 
             {/* Header */}
-            <div className="h-14 flex items-center justify-between px-4 border-b border-zinc-200 dark:border-white/5 flex-shrink-0 bg-zinc-50/50 dark:bg-suno-panel/50 backdrop-blur-md z-10">
+            <div className="relative h-14 flex items-center justify-between px-4 flex-shrink-0 bg-zinc-50/50 dark:bg-suno-panel/50 backdrop-blur-md z-10">
                 <span className="font-semibold text-sm text-zinc-900 dark:text-white">{t('songDetails')}</span>
                 <button
                     onClick={onClose}
@@ -149,6 +149,8 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
                 >
                     <X size={18} />
                 </button>
+                {/* Soft fade instead of a separator line, over the width of the content (20 px in from each side). */}
+                <div aria-hidden="true" className="pointer-events-none absolute top-full left-5 right-5 h-3.5 rounded-b-lg bg-gradient-to-b from-zinc-50 dark:from-suno-panel to-transparent" />
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar">
