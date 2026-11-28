@@ -158,7 +158,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
 
                     {/* Cover Art */}
                     <div
-                        className="group relative aspect-square w-full rounded-xl overflow-hidden shadow-2xl bg-zinc-200 dark:bg-zinc-800 ring-1 ring-black/5 dark:ring-white/10 cursor-pointer"
+                        className="group relative aspect-square w-full rounded-[14px] overflow-hidden shadow-2xl bg-zinc-200 dark:bg-zinc-800 ring-1 ring-black/5 dark:ring-white/10 cursor-pointer"
                         onClick={() => onPlay?.(song)}
                     >
                         {song.coverUrl ? (
@@ -593,7 +593,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
 
                         return (
                             <details className="group">
-                                <summary className="flex items-center justify-between cursor-pointer px-3 py-2 rounded-xl bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors">
+                                <summary className="flex items-center justify-between cursor-pointer px-3 py-2 rounded-[14px] bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors">
                                     <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
                                         {song.ditModel && (
                                             <span className="text-[11px] px-2 py-0.5 rounded bg-zinc-200 dark:bg-white/10 text-zinc-700 dark:text-zinc-300 font-medium">
@@ -653,7 +653,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
                                 a.click();
                                 URL.revokeObjectURL(url);
                             }}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-600 dark:text-zinc-400 text-xs font-medium transition-colors"
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-[14px] bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-600 dark:text-zinc-400 text-xs font-medium transition-colors"
                         >
                             <Download size={14} />
                             {t('downloadLrc') || 'Download LRC'}
@@ -688,7 +688,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
                                         setRealigning(false);
                                     }
                                 }}
-                                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-600 dark:text-zinc-400 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-wait"
+                                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-[14px] bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-600 dark:text-zinc-400 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-wait"
                             >
                                 <AudioLines size={14} className={realigning ? 'animate-pulse' : ''} />
                                 {realigning ? t('realignLyricsRunning') : t('realignLyrics')}
@@ -700,7 +700,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
                     )}
 
                     {/* Lyrics Section */}
-                    <div className="bg-white dark:bg-black/20 rounded-xl border border-zinc-200 dark:border-white/5 overflow-hidden">
+                    <div className="bg-white dark:bg-black/20 rounded-[14px] border border-zinc-200 dark:border-white/5 overflow-hidden">
                         <div className="px-4 py-3 border-b border-zinc-100 dark:border-white/5 flex items-center justify-between bg-zinc-50 dark:bg-white/5">
                             <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2 flex items-center justify-between">{t('lyricsSection')}</h3>
                             <button

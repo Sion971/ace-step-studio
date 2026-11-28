@@ -69,7 +69,7 @@ export const GuidanceSettings: React.FC<GuidanceSettingsProps> = ({
         type="button"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between px-4 py-3 bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 bg-white dark:bg-suno-card rounded-[14px] border border-zinc-200 dark:border-white/5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors"
       >
         <div className="flex items-center gap-2">
           <Sliders size={16} className="text-zinc-500" />
@@ -78,7 +78,7 @@ export const GuidanceSettings: React.FC<GuidanceSettingsProps> = ({
         <ChevronDown size={16} className={`text-zinc-500 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-      <div className="bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 p-4 space-y-4">
+      <div className="bg-white dark:bg-suno-card rounded-[14px] border border-zinc-200 dark:border-white/5 p-4 space-y-4">
       <div className="space-y-1">
         <p className="text-[11px] text-zinc-400 dark:text-zinc-500">{t('advancedCfgScheduling')}</p>
         {/* Presets */}

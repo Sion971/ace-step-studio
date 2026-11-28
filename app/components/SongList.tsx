@@ -463,6 +463,8 @@ export const SongList: React.FC<SongListProps> = ({
                             </div>
                         </div>
                     )}
+                    {/* Soft fade under the sticky header, over the width of the songs (24 px in from each side). */}
+                    <div aria-hidden="true" data-song-list-fade className="pointer-events-none absolute top-full left-6 right-6 h-3.5 rounded-b-lg bg-gradient-to-b from-white dark:from-black to-transparent" />
                 </div>
 
                 {/* List */}

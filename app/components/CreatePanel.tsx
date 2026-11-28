@@ -1829,7 +1829,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
 
             {/* Song Description : en Simple toujours ; en Personnalise seulement si OpenRouter la developpe ou si elle contient deja du texte. */}
             {(simpleView || useOpenRouter || songDescription.trim()) && (
-            <div className="bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 overflow-hidden">
+            <div className="bg-white dark:bg-suno-card rounded-[14px] border border-zinc-200 dark:border-white/5 overflow-hidden">
               <div className="px-3 py-2.5 flex items-center justify-between border-b border-zinc-100 dark:border-white/5 bg-zinc-50 dark:bg-white/5">
                 <span className="text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                   {t('describeYourSong')}
@@ -1897,7 +1897,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               onDrop={(e) => { e.stopPropagation(); handleDrop(e, audioTarget); e.currentTarget.classList.remove('ring-2', 'ring-zinc-400/50'); }}
               onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('ring-2', 'ring-zinc-400/50'); }}
               onDragLeave={(e) => { e.currentTarget.classList.remove('ring-2', 'ring-zinc-400/50'); }}
-              className="bg-white dark:bg-[#1a1a1f] rounded-xl border border-zinc-200 dark:border-white/5 transition-shadow relative"
+              className="bg-white dark:bg-[#1a1a1f] rounded-[14px] border border-zinc-200 dark:border-white/5 transition-shadow relative"
             >
               {/* En-tete : libelle + selecteur de mode — voir AudioModeHeader.tsx */}
               <AudioModeHeader
@@ -2108,7 +2108,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             {/* Lyrics Input */}
             <div
               ref={lyricsRef}
-              className="bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 overflow-hidden transition-colors group focus-within:border-zinc-400 dark:focus-within:border-white/20 relative flex flex-col"
+              className="bg-white dark:bg-suno-card rounded-[14px] border border-zinc-200 dark:border-white/5 overflow-hidden transition-colors group focus-within:border-zinc-400 dark:focus-within:border-white/20 relative flex flex-col"
               style={{ height: 'auto' }}
             >
               <div className="flex items-center justify-between px-3 py-2.5 bg-zinc-50 dark:bg-white/5 border-b border-zinc-100 dark:border-white/5 flex-shrink-0">
@@ -2210,7 +2210,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               </div>
 
             {/* Style Input */}
-            <div className="bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 overflow-hidden transition-colors group focus-within:border-zinc-400 dark:focus-within:border-white/20">
+            <div className="bg-white dark:bg-suno-card rounded-[14px] border border-zinc-200 dark:border-white/5 overflow-hidden transition-colors group focus-within:border-zinc-400 dark:focus-within:border-white/20">
               <div className="flex items-center justify-between px-3 py-2.5 bg-zinc-50 dark:bg-white/5 border-b border-zinc-100 dark:border-white/5">
                 <div>
                   <div className="flex items-center gap-2">
@@ -2304,7 +2304,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             />
 
             {/* Title Input */}
-            <div className="bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 overflow-hidden">
+            <div className="bg-white dark:bg-suno-card rounded-[14px] border border-zinc-200 dark:border-white/5 overflow-hidden">
               <div className="px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 border-b border-zinc-100 dark:border-white/5 bg-zinc-50 dark:bg-white/5">
                 {t('title')}
               </div>
@@ -2319,7 +2319,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
           </div>
 
         {/* Quick Settings */}
-        <div className="bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 p-4 space-y-4">
+        <div className="bg-white dark:bg-suno-card rounded-[14px] border border-zinc-200 dark:border-white/5 p-4 space-y-4">
           <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide flex items-center gap-2">
             <Sliders size={14} />
             {t('quickSettings')}
@@ -2421,7 +2421,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         {/* ADVANCED SETTINGS */}
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className="w-full flex items-center justify-between px-4 py-3 bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors"
+          className="w-full flex items-center justify-between px-4 py-3 bg-white dark:bg-suno-card rounded-[14px] border border-zinc-200 dark:border-white/5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors"
         >
           <div className="flex items-center gap-2">
             <Settings2 size={16} className="text-zinc-500" />
@@ -2431,7 +2431,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         </button>
 
         {showAdvanced && (
-          <div className="bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 p-4 space-y-4">
+          <div className="bg-white dark:bg-suno-card rounded-[14px] border border-zinc-200 dark:border-white/5 p-4 space-y-4">
             {/* Load Parameters from JSON */}
             <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-zinc-300 dark:border-white/15 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-white/5 cursor-pointer transition-colors">
               <Upload size={14} />
@@ -2740,7 +2740,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
         <button
           onClick={handleGenerate}
           title={blockGenerateReason ?? undefined}
-          className={`w-full h-12 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] bg-gradient-to-r from-orange-500 to-pink-600 text-white shadow-lg ${
+          className={`w-full h-12 rounded-[14px] font-bold text-base flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] bg-gradient-to-r from-orange-500 to-pink-600 text-white shadow-lg ${
             blockGenerateReason ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110'
           }`}
           disabled={!isAuthenticated || activeJobCount >= 10 || Boolean(blockGenerateReason)}

@@ -4,6 +4,10 @@
 
 ### Changed
 - **The four panels have rounded corners.** The left menu, the create panel, the workspace (song list) and the song details panel are now cards with 20 px corners, 10 px apart, on a darker ground (black in dark mode, light gray in light mode), each outlined by a faint hairline. The resize handles became those 10 px gaps: transparent at rest, a pink line on hover as before. The other pages (library, studio, search…) get the same rounded frame. Phones keep the full-width layout.
+- **Finishing the panel design.** Soft fades replace the separator lines: above the Create button, under the song details title and under the workspace header (search box), each over the width of the cards. The top of the create panel (model, Simple / Custom, instrumental or the record button) stays in place while the panel scrolls, with the same fade below it. The record button shrinks to the size of the instrumental option, which now sits on its axis, so the header ends at the same height in both modes. Cards inside the panels get 14 px corners (12 before) to go with the 20 px panels.
+
+### Removed
+- `SUB_STYLES` and its `SubStyle` type in `data/genres.ts`: unused since the style chips draw from all the styles.
 
 ### Fixed
 - **French lyrics written by the language model: the lost "n'" is put back.** The 5Hz LM sometimes writes a line break in place of the lone "n" before an elided word, so "elle ferait n'importe quoi" came out as "elle ferait" then "'importe quoi" on the next line (seen on Linux and Windows, in 3 Inspirations out of 9). The tokenizer is not at fault (checked: the " n" token decodes as " n"), and neither is the CUDA graph of the LM (the break also comes without it). When the lyrics are French, a line break followed by an apostrophe and a vowel or h, right after a letter, becomes " n'" again: a French lyric line never starts with "'importe" or "'est". A missing "n" before a vowel ("Les" / "éons" for "Les néons") cannot be told from a real line break and is left as it is. Applies to Inspiration, to the formatting of lyrics and to audio understanding (`acestep/lyrics_repair.py`).

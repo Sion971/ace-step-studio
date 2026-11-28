@@ -71,7 +71,7 @@ export const CreateModeSwitch: React.FC<Props> = ({ view, onChange, hidden, inst
   );
   return (
     <div className="space-y-4">
-      <div role="tablist" className="flex gap-1 p-1 rounded-xl bg-zinc-100 dark:bg-white/5">
+      <div role="tablist" className="flex gap-1 p-1 rounded-[14px] bg-zinc-100 dark:bg-white/5">
         {btn('simple', t('simple'))}
         {btn('custom', t('custom'))}
       </div>

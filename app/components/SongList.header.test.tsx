@@ -34,6 +34,16 @@ describe('the header of the song list', () => {
     for (const c of ['sticky', '-top-6', 'z-20', 'bg-white', 'dark:bg-black']) expect(classes, c).toContain(c);
   });
 
+  it('ends with a soft fade instead of a line, over the width of the songs', () => {
+    render();
+    const header = container.querySelector<HTMLElement>('[data-song-list-header]')!;
+    const fade = header.querySelector<HTMLElement>('[data-song-list-fade]')!;
+    expect(fade).not.toBeNull();
+    const classes = fade.className.split(/\s+/);
+    for (const c of ['absolute', 'top-full', 'left-6', 'right-6', 'pointer-events-none', 'from-white', 'dark:from-black']) expect(classes, c).toContain(c);
+    expect(fade.getAttribute('aria-hidden')).toBe('true');
+  });
+
   it('holds the workspace breadcrumb and the search box, so both stay in view', () => {
     render({ activeWorkspaceName: 'Concerts', onBackToWorkspaces: vi.fn() });
     const header = container.querySelector<HTMLElement>('[data-song-list-header]')!;

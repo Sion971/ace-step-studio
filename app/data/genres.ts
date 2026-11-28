@@ -17,15 +17,6 @@ export const ALL_STYLES = allStyleText
 // Backward-compatible alias
 export const GENRE_KEYS = MAIN_STYLES;
 
-// Sub-styles: all styles minus the main genres
-const mainStylesLower = new Set(MAIN_STYLES.map(s => s.toLowerCase().trim()));
-
-export const SUB_STYLES = ALL_STYLES.filter(style => {
-  const styleLower = style.toLowerCase().trim();
-  return !mainStylesLower.has(styleLower);
-});
-
 // Type definitions
 export type MainStyle = typeof MAIN_STYLES[number];
 export type AllStyle = typeof ALL_STYLES[number];
-export type SubStyle = typeof SUB_STYLES[number];

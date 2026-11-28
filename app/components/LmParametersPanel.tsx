@@ -72,7 +72,7 @@ export const LmParametersPanel: React.FC<LmParametersPanelProps> = ({
       </button>
 
       {showLmParams && (
-        <div className="bg-white dark:bg-suno-card rounded-xl border border-zinc-200 dark:border-white/5 p-4 space-y-4">
+        <div className="bg-white dark:bg-suno-card rounded-[14px] border border-zinc-200 dark:border-white/5 p-4 space-y-4">
           {/* LM Temperature */}
           <EditableSlider
             label={t('lmTemperature')}
