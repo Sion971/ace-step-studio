@@ -35,6 +35,7 @@ import { watchEngineLimits, pickMaxDuration } from '../services/engineLimits';
 import { fillTemplate } from '../utils/fillTemplate';
 import { ALL_STYLES } from '../data/genres';
 import { pickRandom } from '../utils/pickRandom';
+import { styleWithVocalGender } from '../utils/vocalGender';
 import { EditableSlider } from './EditableSlider';
 import { UseOpenRouterToggle } from './UseOpenRouterToggle';
 import { GenerationStatusPanel } from './GenerationStatusPanel';
@@ -1492,12 +1493,9 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     // Langue : le choix de l'utilisateur, sinon (Auto) celle dans laquelle le LM local a ecrit les paroles.
     const effLanguage = effectiveLanguage(vocalLanguage, d?.language);
 
-    const styleWithGender = (() => {
-      if (!vocalGender) return effStyle;
-      const genderHint = vocalGender === 'male' ? 'Male vocals' : 'Female vocals';
-      const trimmed = effStyle.trim();
-      return trimmed ? `${trimmed}\n${genderHint}` : genderHint;
-    })();
+    // Genre de la voix : une voix principale de l'autre genre nommee dans le style est basculee, et la ligne
+    // « Male/Female vocals » n'est ajoutee que si le style ne nomme pas deja ce genre (voir utils/vocalGender.ts).
+    const styleWithGender = styleWithVocalGender(effStyle, vocalGender);
 
 // Le moteur ignore le drapeau `instrumental` de la charge utile : seul le
     // contenu du champ paroles est interprété. On force donc le marqueur qu'il

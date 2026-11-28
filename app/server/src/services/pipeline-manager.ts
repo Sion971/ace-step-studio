@@ -333,6 +333,17 @@ class PipelineManager {
     this.stopHealthCheck();
     const failureLimit = this.healthFailureLimit();
     let consecutiveFailures = 0;
+    const intervalSec = Math.round(config.pipeline.healthCheckInterval / 1000);
+    // The language model decodes in the engine's event loop (~25 s on a GPU), so a few missed probes during a
+    // generation are normal: nothing is printed for the first 30 s, then a "busy" line every minute until the limit.
+    const quietProbes = Math.min(failureLimit, Math.max(1, Math.ceil(30_000 / config.pipeline.healthCheckInterval)));
+    const report = (why: string) => {
+      if (consecutiveFailures < quietProbes || (consecutiveFailures - quietProbes) % 6 !== 0) return;
+      console.warn(
+        `[Pipeline] Engine busy or unreachable for ${consecutiveFailures * intervalSec} s (${why}, `
+        + `restart after ${failureLimit * intervalSec} s)`,
+      );
+    };
 
     this.healthCheckTimer = setInterval(async () => {
       if (this.state !== 'ready' || this.isSwitchingModel) return;
@@ -345,21 +356,17 @@ class PipelineManager {
         );
         clearTimeout(timer);
         if (res.ok || res.status < 500) {
-          if (consecutiveFailures > 0) {
-            console.log(`[Pipeline] Health check recovered after ${consecutiveFailures} failed probe(s)`);
+          if (consecutiveFailures >= quietProbes) {
+            console.log(`[Pipeline] Engine answering again after ${consecutiveFailures * intervalSec} s`);
           }
           consecutiveFailures = 0;
         } else {
           consecutiveFailures++;
-          if (consecutiveFailures === 1 || consecutiveFailures % 6 === 0) {
-            console.warn(`[Pipeline] Health check failed: HTTP ${res.status} (${consecutiveFailures}/${failureLimit})`);
-          }
+          report(`HTTP ${res.status}`);
         }
       } catch {
         consecutiveFailures++;
-        if (consecutiveFailures === 1 || consecutiveFailures % 6 === 0) {
-          console.warn(`[Pipeline] Health check failed: no response (${consecutiveFailures}/${failureLimit}) - the engine may just be busy`);
-        }
+        report('no response');
       }
 
       // Act only after a long enough silence: a busy engine (language model, CPU) is not a zombie

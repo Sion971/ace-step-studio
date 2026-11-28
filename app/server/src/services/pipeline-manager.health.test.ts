@@ -76,4 +76,27 @@ describe('pipelineManager health check', () => {
     await vi.advanceTimersByTimeAsync(300_000);
     expect(manager.handleUnhealthy).not.toHaveBeenCalled();
   });
+
+  it('says nothing during the first 30 s of silence (a language model decoding), then reports a busy engine', async () => {
+    await load();
+    let calls = 0;
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => {
+      calls++;
+      if (calls <= 2) throw new Error('timeout');
+      return { ok: true, status: 200 };
+    }));
+    manager.startHealthCheck();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(console.warn).not.toHaveBeenCalled();
+    expect(console.log).not.toHaveBeenCalled();
+
+    manager.stopHealthCheck();
+    silentEngine();
+    manager.startHealthCheck();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    expect(String((console.warn as any).mock.calls[0][0])).toContain('busy or unreachable for 30 s (no response, restart after 120 s)');
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(console.warn).toHaveBeenCalledTimes(2);
+  });
 });
