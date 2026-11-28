@@ -9,6 +9,8 @@ import { generateUUID } from '../db/sqlite.js';
 import { config } from '../config/index.js';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { blockWhileTraining } from '../middleware/training-busy.js';
+import { wantsFavoriteStyle } from '../services/empty-style.js';
+import { favoriteStyleText } from './saved-styles.js';
 import { getGradioClient } from '../services/gradio-client.js';
 import { LISTED_DIT_MODELS, LISTED_LM_MODELS, downloadArgs, downloadPlan, isDownloadableModel, isLmModel } from '../services/model-downloads.js';
 import {
@@ -551,6 +553,17 @@ router.post('/', authMiddleware, blockWhileTraining, async (req: AuthenticatedRe
       loraLoaded,
       workspaceId: typeof workspaceId === 'string' && workspaceId ? workspaceId : undefined,
     };
+
+    // Style box left empty, no language model to write the description, no track task: the user's favorite style
+    // (the star in "My styles") rather than the "pop music" the engine call would fall back to. Written into the
+    // params, so the song keeps the style it was really made with.
+    if (wantsFavoriteStyle(params)) {
+      const favorite = await favoriteStyleText(req.user!.id);
+      if (favorite) {
+        params.style = favorite;
+        console.log('[Generate] Style empty: the favorite style is used');
+      }
+    }
 
     // Create job record in database
     const localJobId = generateUUID();

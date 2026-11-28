@@ -9,7 +9,8 @@ import { config } from '../config/index.js';
 import { getAudioDuration } from './audio-duration.js';
 import { estimateDurationFromLyrics } from './lyrics-duration.js';
 import { describeGenerationArgs } from './generation-log.js';
-import { buildTrackInstruction, isTrackTask, trackCaptionFallback, validateTrackTask } from './track-tasks.js';
+import { buildTrackInstruction, isTrackTask, validateTrackTask } from './track-tasks.js';
+import { captionFor } from './empty-style.js';
 import { clampLevel, mixSkipReason, mixStemWithSource, shouldMix } from './track-mix.js';
 import { classifyGenerationFailure, friendlyTimeoutMessage, friendlyCudaRestartMessage, CudaFailureTracker } from './generation-errors.js';
 import { aiCover, waitForCoverBeforeGeneration } from './ai-cover.js';
@@ -147,7 +148,7 @@ export async function prepareAudioFile(audioUrl: string | undefined): Promise<un
  * gr.State params (is_format_caption, batch states) are handled by Gradio automatically.
  */
 async function buildGradioArgs(params: GenerationParams): Promise<Record<string, unknown>> {
-  const caption = params.style || trackCaptionFallback(params.taskType, params.trackName, params.completeTrackClasses) || 'pop music';
+  const caption = captionFor(params);
   const prompt = params.customMode ? caption : (params.songDescription || caption);
   const lyrics = params.instrumental ? '' : (params.lyrics || '');
   const isThinking = params.thinking ?? false;
@@ -744,7 +745,7 @@ async function processGenerationViaGradio(
   } catch {}
   console.log(describeGenerationArgs(args, loraSnapshot));
 
-  const caption = params.style || trackCaptionFallback(params.taskType, params.trackName, params.completeTrackClasses) || 'pop music';
+  const caption = captionFor(params);
   const prompt = params.customMode ? caption : (params.songDescription || caption);
 
   job.stage = 'generating';

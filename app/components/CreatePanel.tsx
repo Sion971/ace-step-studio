@@ -15,7 +15,8 @@ import { AudioTransformPanel } from './AudioTransformPanel';
 import { AudioModeHeader } from './AudioModeHeader';
 import { AudioPlayerPanel } from './AudioPlayerPanel';
 import { AudioLibraryModal } from './AudioLibraryModal';
-import { SavedStylesButtons } from './SavedStylesButtons';
+import { SavedStylesButtons, useFavoriteStyle } from './SavedStylesButtons';
+import { emptyStyleUse } from '../utils/emptyStyle';
 import { VoiceRecorder } from './VoiceRecorder';
 import { LmSettings } from './LmSettings';
 import { ModelMenu } from './ModelMenu';
@@ -1571,7 +1572,8 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
             lyrics: instrumental ? '' : effLyrics,
           }),
         } : { ai: false },
-        enhance,
+        // Like thinking: without a language model loaded, Enhance does nothing (and the server would count on it).
+        enhance: !activeLmModel ? false : enhance,
         audioFormat,
         inferMethod,
         lmBackend,
@@ -1733,6 +1735,18 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
     getLrc: () => setGetLrc(!getLrc),
   };
   const handleCotDebugToggle = (key: keyof CotDebugTogglesValues) => cotDebugSetters[key]();
+
+
+  // Style box left empty: say in grey what the generation will really use (see utils/emptyStyle.ts).
+  const favoriteStyle = useFavoriteStyle(token);
+  const emptyStylePlaceholder = (() => {
+    switch (emptyStyleUse({ taskType, lmLoaded: !!activeLmModel, thinking, enhance, useCotCaption, hasFavorite: !!favoriteStyle })) {
+      case 'lm': return t('styleEmptyLm');
+      case 'favorite': return t('styleEmptyFavorite').replace('{name}', favoriteStyle?.name ?? '');
+      case 'default': return t('styleEmptyDefault');
+      default: return t('stylePlaceholder');
+    }
+  })();
 
   return (
     <div
@@ -2272,7 +2286,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
               <textarea
                 value={style}
                 onChange={(e) => setStyle(e.target.value)}
-                placeholder={t('stylePlaceholder')}
+                placeholder={emptyStylePlaceholder}
                 className="w-full h-20 bg-transparent p-3 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none resize-none"
               />
               <div className="px-3 pb-3 space-y-3">

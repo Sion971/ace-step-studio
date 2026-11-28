@@ -170,6 +170,8 @@ function migrate(): void {
       updated_at TEXT DEFAULT (datetime('now')),
       UNIQUE (user_id, style)
     )`);
+    // The favorite style (one per user, at most), used when the Style box is left empty.
+    try { db.exec('ALTER TABLE saved_styles ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0'); } catch {}
     try { db.exec('ALTER TABLE songs ADD COLUMN dit_model TEXT'); } catch {}
     try { db.exec('ALTER TABLE songs ADD COLUMN lm_model TEXT'); } catch {}
     try { db.exec('ALTER TABLE songs ADD COLUMN lm_backend TEXT'); } catch {}

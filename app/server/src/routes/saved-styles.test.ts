@@ -19,12 +19,18 @@ vi.mock('../middleware/auth.js', () => ({
 let clock = 0;
 const rows: (SavedStyle & { user_id: string })[] = [];
 const store: SavedStylesStore = {
-  async list(u) { return rows.filter(r => r.user_id === u).sort((a, b) => b.updated_at.localeCompare(a.updated_at)); },
+  async list(u) { return rows.filter(r => r.user_id === u).sort((a, b) => Number(b.favorite) - Number(a.favorite) || b.updated_at.localeCompare(a.updated_at)); },
   async findByStyle(u, style) { return rows.find(r => r.user_id === u && r.style === style) ?? null; },
-  async insert(u, row) { const t = String(++clock).padStart(6, '0'); const r = { ...row, user_id: u, created_at: t, updated_at: t }; rows.push(r); return r; },
+  async insert(u, row) { const t = String(++clock).padStart(6, '0'); const r = { ...row, user_id: u, created_at: t, updated_at: t, favorite: false }; rows.push(r); return r; },
   async touch(u, id, name) { const r = rows.find(x => x.id === id && x.user_id === u); if (!r) return null; r.updated_at = String(++clock).padStart(6, '0'); if (name) r.name = name; return r; },
   async rename(u, id, name) { const r = rows.find(x => x.id === id && x.user_id === u); if (!r) return null; r.name = name; return r; },
   async remove(u, id) { const i = rows.findIndex(x => x.id === id && x.user_id === u); if (i < 0) return false; rows.splice(i, 1); return true; },
+  async setFavorite(u, id, on) {
+    const r = rows.find(x => x.id === id && x.user_id === u); if (!r) return null;
+    if (on) for (const x of rows) if (x.user_id === u) x.favorite = false;
+    r.favorite = on; return r;
+  },
+  async favorite(u) { return rows.find(x => x.user_id === u && x.favorite) ?? null; },
 };
 
 let server: http.Server;
@@ -86,5 +92,27 @@ describe('/api/saved-styles', () => {
     expect((await save('u1', { style: '   ' })).status).toBe(400);
     const s = (await (await save('u1', { style: 'jazz' })).json()).style;
     expect((await fetch(`${base}/${s.id}`, { method: 'PATCH', headers: as('u1'), body: JSON.stringify({ name: ' ' }) })).status).toBe(400);
+  });
+
+  it('keeps one favorite per user, first in the list, and gives its text to a generation with an empty style', async () => {
+    const { favoriteStyleText } = await import('./saved-styles.js');
+    const a = (await (await save('u7', { style: 'synthwave, 80s' })).json()).style;
+    const b = (await (await save('u7', { style: 'piano ballad' })).json()).style;
+    expect(await favoriteStyleText('u7', store)).toBeNull();
+
+    const star = (id: string, favorite: boolean, user = 'u7') =>
+      fetch(`${base}/${id}/favorite`, { method: 'PUT', headers: as(user), body: JSON.stringify({ favorite }) });
+    expect((await (await star(a.id, true)).json()).style.favorite).toBe(true);
+    let list = (await (await fetch(base, { headers: as('u7') })).json()).styles;
+    expect(list.map((s: any) => [s.id, s.favorite])).toEqual([[a.id, true], [b.id, false]]); // first despite being older
+    expect(await favoriteStyleText('u7', store)).toBe('synthwave, 80s');
+
+    await star(b.id, true); // the star moves
+    list = (await (await fetch(base, { headers: as('u7') })).json()).styles;
+    expect(list.filter((s: any) => s.favorite).map((s: any) => s.id)).toEqual([b.id]);
+
+    expect((await star(b.id, true, 'u8')).status).toBe(404); // not someone else's
+    await star(b.id, false);
+    expect(await favoriteStyleText('u7', store)).toBeNull();
   });
 });

@@ -6,6 +6,9 @@
 //
 // The same text saved twice is one style: saving it again moves it back to the top of the list (and renames it if a
 // name is given).
+//
+// One style may be the favorite (a star in the window). It comes first in the list, and a generation whose Style box is
+// empty uses it (see routes/generate.ts) instead of the server's "pop music".
 
 import { Router, Response } from 'express';
 import { randomUUID } from 'crypto';
@@ -17,6 +20,7 @@ export interface SavedStyle {
   style: string;
   created_at: string;
   updated_at: string;
+  favorite: boolean;
 }
 
 /** Where the styles are kept: the database by default, something else in the tests. */
@@ -27,6 +31,9 @@ export interface SavedStylesStore {
   touch(userId: string, id: string, name?: string): Promise<SavedStyle | null>;
   rename(userId: string, id: string, name: string): Promise<SavedStyle | null>;
   remove(userId: string, id: string): Promise<boolean>;
+  /** Makes this style the favorite (the others lose their star), or takes its star away. */
+  setFavorite(userId: string, id: string, favorite: boolean): Promise<SavedStyle | null>;
+  favorite(userId: string): Promise<SavedStyle | null>;
 }
 
 export const MAX_STYLE = 2000;
@@ -50,46 +57,74 @@ export function nameFor(rawName: unknown, style: string): string {
 // The pool turns $1, $2... into "?" in the order they appear, not by number: in every query below they appear in order.
 // Times to the millisecond, so that a style saved again in the same second still moves to the top.
 const NOW = "strftime('%Y-%m-%d %H:%M:%f', 'now')";
+const COLUMNS = 'id, name, style, created_at, updated_at, is_favorite AS favorite';
+
+/** SQLite gives 0 / 1. */
+const row = (r: any): SavedStyle | null => (r ? { ...r, favorite: !!r.favorite } : null);
 
 // The database, imported when first used (so that the tests, which give their own store, never open it).
 const sqlStore: SavedStylesStore = {
   async list(userId) {
     const { pool } = await import('../db/pool.js');
-    return (await pool.query('SELECT id, name, style, created_at, updated_at FROM saved_styles WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC', [userId])).rows;
+    return (await pool.query(`SELECT ${COLUMNS} FROM saved_styles WHERE user_id = $1 ORDER BY is_favorite DESC, updated_at DESC, created_at DESC`, [userId])).rows.map(row) as SavedStyle[];
   },
   async findByStyle(userId, style) {
     const { pool } = await import('../db/pool.js');
-    return (await pool.query('SELECT id, name, style, created_at, updated_at FROM saved_styles WHERE user_id = $1 AND style = $2', [userId, style])).rows[0] ?? null;
+    return row((await pool.query(`SELECT ${COLUMNS} FROM saved_styles WHERE user_id = $1 AND style = $2`, [userId, style])).rows[0]);
   },
-  async insert(userId, row) {
+  async insert(userId, r) {
     const { pool } = await import('../db/pool.js');
-    return (await pool.query(
+    return row((await pool.query(
       `INSERT INTO saved_styles (id, user_id, name, style, created_at, updated_at)
        VALUES ($1, $2, $3, $4, ${NOW}, ${NOW})
-       RETURNING id, name, style, created_at, updated_at`,
-      [row.id, userId, row.name, row.style],
-    )).rows[0];
+       RETURNING ${COLUMNS}`,
+      [r.id, userId, r.name, r.style],
+    )).rows[0])!;
   },
   async touch(userId, id, name) {
     const { pool } = await import('../db/pool.js');
-    return (await pool.query(
+    return row((await pool.query(
       `UPDATE saved_styles SET updated_at = ${NOW}, name = COALESCE($1, name)
-       WHERE id = $2 AND user_id = $3 RETURNING id, name, style, created_at, updated_at`,
+       WHERE id = $2 AND user_id = $3 RETURNING ${COLUMNS}`,
       [name ?? null, id, userId],
-    )).rows[0] ?? null;
+    )).rows[0]);
   },
   async rename(userId, id, name) {
     const { pool } = await import('../db/pool.js');
-    return (await pool.query(
-      'UPDATE saved_styles SET name = $1 WHERE id = $2 AND user_id = $3 RETURNING id, name, style, created_at, updated_at',
+    return row((await pool.query(
+      `UPDATE saved_styles SET name = $1 WHERE id = $2 AND user_id = $3 RETURNING ${COLUMNS}`,
       [name, id, userId],
-    )).rows[0] ?? null;
+    )).rows[0]);
   },
   async remove(userId, id) {
     const { pool } = await import('../db/pool.js');
     return (await pool.query('DELETE FROM saved_styles WHERE id = $1 AND user_id = $2', [id, userId])).rowCount > 0;
   },
+  async setFavorite(userId, id, favorite) {
+    const { pool } = await import('../db/pool.js');
+    const own = (await pool.query('SELECT id FROM saved_styles WHERE id = $1 AND user_id = $2', [id, userId])).rows[0];
+    if (!own) return null;
+    if (favorite) await pool.query('UPDATE saved_styles SET is_favorite = 0 WHERE user_id = $1 AND id != $2', [userId, id]);
+    return row((await pool.query(
+      `UPDATE saved_styles SET is_favorite = $1 WHERE id = $2 AND user_id = $3 RETURNING ${COLUMNS}`,
+      [favorite ? 1 : 0, id, userId],
+    )).rows[0]);
+  },
+  async favorite(userId) {
+    const { pool } = await import('../db/pool.js');
+    return row((await pool.query(`SELECT ${COLUMNS} FROM saved_styles WHERE user_id = $1 AND is_favorite = 1 LIMIT 1`, [userId])).rows[0]);
+  },
 };
+
+/** The user's favorite style text, or null (none, or the database cannot be read: the generation goes on without it). */
+export async function favoriteStyleText(userId: string, store: SavedStylesStore = sqlStore): Promise<string | null> {
+  try {
+    return (await store.favorite(userId))?.style || null;
+  } catch (error) {
+    console.warn('[saved-styles] favorite style not read:', error);
+    return null;
+  }
+}
 
 export function createSavedStylesRouter(store: SavedStylesStore = sqlStore): Router {
   const router = Router();
@@ -142,6 +177,21 @@ export function createSavedStylesRouter(store: SavedStylesStore = sqlStore): Rou
     } catch (error) {
       console.error('Rename style error:', error);
       res.status(500).json({ error: 'Failed to rename the style' });
+    }
+  });
+
+  // { favorite: boolean }: this style becomes the favorite (the previous one loses its star), or loses its star.
+  router.put('/:id/favorite', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const updated = await store.setFavorite(req.user!.id, req.params.id, req.body?.favorite !== false);
+      if (!updated) {
+        res.status(404).json({ error: 'Style not found' });
+        return;
+      }
+      res.json({ style: updated });
+    } catch (error) {
+      console.error('Favorite style error:', error);
+      res.status(500).json({ error: 'Failed to change the favorite style' });
     }
   });
 

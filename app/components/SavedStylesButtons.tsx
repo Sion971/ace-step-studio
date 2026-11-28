@@ -1,9 +1,12 @@
 // "My styles" in the header of the Style box: save the style written there (bookmark), and a window listing the styles
 // saved, to search, put one back in the box, rename or delete it. The styles are kept on the server per user
 // (savedStylesApi); the same text saved twice is one style, moved back to the top.
+//
+// The star makes a style the favorite (one at most, first in the list): a generation whose Style box is empty uses it
+// (see the server's routes/generate.ts). The Style box shows it in grey through useFavoriteStyle.
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bookmark, BookmarkCheck, Library, Loader2, Music2, Pencil, Search, Trash2 } from 'lucide-react';
+import { Bookmark, BookmarkCheck, ChevronDown, ChevronUp, Library, Loader2, Pencil, Search, Star, Trash2 } from 'lucide-react';
 import { savedStylesApi, type SavedStyle } from '../services/api';
 import { useI18n } from '../context/I18nContext';
 
@@ -12,6 +15,30 @@ interface SavedStylesButtonsProps {
   token: string | null;
   onPick: (style: string) => void;
 }
+
+/** Sent when the favorite changes (detail: the favorite style, or null), so the Style box can follow it. */
+export const FAVORITE_STYLE_EVENT = 'saved-styles:favorite';
+/** Past this length a style is folded to two lines, with a button to show it all. */
+export const FOLD_FROM = 120;
+
+/** The favorite style of the signed-in user (null if none), kept up to date when a star is moved. */
+export function useFavoriteStyle(token: string | null): SavedStyle | null {
+  const [favorite, setFavorite] = useState<SavedStyle | null>(null);
+  useEffect(() => {
+    if (!token) { setFavorite(null); return; }
+    let alive = true;
+    savedStylesApi.list(token)
+      .then(list => { if (alive) setFavorite(list.find(s => s.favorite) ?? null); })
+      .catch(() => { /* no favorite shown: the server still applies it */ });
+    const onChange = (e: Event) => setFavorite((e as CustomEvent<SavedStyle | null>).detail ?? null);
+    window.addEventListener(FAVORITE_STYLE_EVENT, onChange);
+    return () => { alive = false; window.removeEventListener(FAVORITE_STYLE_EVENT, onChange); };
+  }, [token]);
+  return favorite;
+}
+
+/** The favorite first, then the most recent: the server's order. */
+const favoriteFirst = (list: SavedStyle[]) => [...list].sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite));
 
 /** "2 days ago", in the language of the Studio. The server writes UTC times as "YYYY-MM-DD HH:MM:SS(.sss)". */
 export function timeAgo(utc: string, language: string, now = Date.now()): string {
@@ -33,6 +60,7 @@ export const SavedStylesButtons: React.FC<SavedStylesButtonsProps> = ({ style, t
   const [justSaved, setJustSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const [unfolded, setUnfolded] = useState<Set<string>>(new Set());
   const [position, setPosition] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
   const libraryButtonRef = useRef<HTMLButtonElement>(null);
   const windowRef = useRef<HTMLDivElement>(null);
@@ -88,11 +116,25 @@ export const SavedStylesButtons: React.FC<SavedStylesButtonsProps> = ({ style, t
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
   }, [open]);
 
+  const toggleFavorite = async (target: SavedStyle) => {
+    if (!token) return;
+    try {
+      setError(null);
+      const updated = await savedStylesApi.setFavorite(target.id, !target.favorite, token);
+      setStyles(prev => favoriteFirst((prev ?? []).map(s => (s.id === updated.id ? updated : { ...s, favorite: updated.favorite ? false : s.favorite }))));
+      window.dispatchEvent(new CustomEvent(FAVORITE_STYLE_EVENT, { detail: updated.favorite ? updated : null }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const remove = async (id: string) => {
     if (!token) return;
     try {
       await savedStylesApi.remove(id, token);
+      const wasFavorite = (styles ?? []).some(s => s.id === id && s.favorite);
       setStyles(prev => (prev ?? []).filter(s => s.id !== id));
+      if (wasFavorite) window.dispatchEvent(new CustomEvent(FAVORITE_STYLE_EVENT, { detail: null }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -168,8 +210,18 @@ export const SavedStylesButtons: React.FC<SavedStylesButtonsProps> = ({ style, t
             ) : shown.length === 0 ? (
               <p className="text-center text-sm text-zinc-500 py-6">{styles.length === 0 ? t('noSavedStyles') : t('noStyleMatch')}</p>
             ) : shown.map(s => (
-              <div key={s.id} className="group/style flex items-start gap-2 rounded-lg px-2 py-2 hover:bg-zinc-100 dark:hover:bg-white/5" data-saved-style>
-                <Music2 size={14} className="mt-1 text-zinc-400 shrink-0" />
+              <div key={s.id} className={`group/style flex items-start gap-2 rounded-lg px-2 py-2 ${s.favorite ? 'bg-pink-500/[0.08] hover:bg-pink-500/[0.12]' : 'hover:bg-zinc-100 dark:hover:bg-white/5'}`} data-saved-style>
+                <button
+                  type="button"
+                  className={`${iconButton} -ml-1 shrink-0 ${s.favorite ? 'text-pink-500' : 'text-zinc-400 hover:text-pink-500'}`}
+                  title={s.favorite ? t('favoriteStyle') : t('makeFavoriteStyle')}
+                  aria-label={s.favorite ? t('favoriteStyle') : t('makeFavoriteStyle')}
+                  aria-pressed={!!s.favorite}
+                  onClick={() => void toggleFavorite(s)}
+                  data-saved-style-favorite
+                >
+                  <Star size={13} fill={s.favorite ? 'currentColor' : 'none'} />
+                </button>
                 <div className="min-w-0 flex-1">
                   {renaming?.id === s.id ? (
                     <input
@@ -181,16 +233,35 @@ export const SavedStylesButtons: React.FC<SavedStylesButtonsProps> = ({ style, t
                       className="w-full rounded bg-zinc-100 dark:bg-white/10 px-1 text-sm font-semibold text-zinc-900 dark:text-white focus:outline-none"
                     />
                   ) : (
-                    <button
-                      type="button"
-                      className="block w-full text-left"
-                      title={t('useStyle')}
-                      onClick={() => { onPick(s.style); setOpen(false); }}
-                    >
-                      <span className="block truncate text-sm font-semibold text-zinc-900 dark:text-white">{s.name}</span>
-                      <span className="block text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">{s.style}</span>
-                      <span className="block text-[10px] text-zinc-400 mt-0.5">{timeAgo(s.updated_at, language)}</span>
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className="block w-full text-left"
+                        title={t('useStyle')}
+                        onClick={() => { onPick(s.style); setOpen(false); }}
+                      >
+                        <span className="flex items-baseline gap-1.5 text-sm font-semibold text-zinc-900 dark:text-white">
+                          <span className="truncate">{s.name}</span>
+                          {s.favorite && <span className="shrink-0 text-[11px] font-normal text-pink-500">· {t('favoriteBadge')}</span>}
+                        </span>
+                        {/* line-clamp sets its own display: no "block" here, it would undo the fold */}
+                        <span className={`text-xs text-zinc-500 dark:text-zinc-400 ${unfolded.has(s.id) ? 'block whitespace-pre-line' : 'line-clamp-2'}`} data-saved-style-text>{s.style}</span>
+                      </button>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-zinc-400">{timeAgo(s.updated_at, language)}</span>
+                        {s.style.length > FOLD_FROM && (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-0.5 text-[10px] text-zinc-500 hover:text-pink-500"
+                            onClick={() => setUnfolded(prev => { const next = new Set(prev); if (next.has(s.id)) next.delete(s.id); else next.add(s.id); return next; })}
+                            aria-expanded={unfolded.has(s.id)}
+                            data-saved-style-fold
+                          >
+                            {unfolded.has(s.id) ? <><ChevronUp size={10} />{t('showLessStyle')}</> : <><ChevronDown size={10} />{t('showMoreStyle')}</>}
+                          </button>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
                 <div className="flex flex-col gap-0.5 opacity-60 group-hover/style:opacity-100">

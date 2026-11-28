@@ -1263,6 +1263,8 @@ export interface SavedStyle {
   style: string;
   created_at: string;
   updated_at: string;
+  /** The favorite style (one at most), used when the Style box is left empty. */
+  favorite?: boolean;
 }
 
 export const savedStylesApi = {
@@ -1276,4 +1278,7 @@ export const savedStylesApi = {
   remove: async (id: string, token: string): Promise<void> => {
     await api<{ success: boolean }>(`/api/saved-styles/${id}`, { method: 'DELETE', token });
   },
+  /** Star (the previous favorite loses its star) or unstar a style. */
+  setFavorite: async (id: string, favorite: boolean, token: string): Promise<SavedStyle> =>
+    (await api<{ style: SavedStyle }>(`/api/saved-styles/${id}/favorite`, { method: 'PUT', body: { favorite }, token })).style,
 };
