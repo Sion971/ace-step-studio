@@ -153,6 +153,10 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ song, onClose, onOpe
                 <div aria-hidden="true" className="pointer-events-none absolute top-full left-5 right-5 h-3.5 rounded-b-lg bg-gradient-to-b from-zinc-50 dark:from-suno-panel to-transparent" />
             </div>
 
+            {/* Soft fade on the bottom edge of the panel, over the width of the content (20 px in from each side), like the
+                one under the title. It sits on the panel, outside the scrolling area, so its padding cannot lift it. */}
+            <div aria-hidden="true" data-song-details-bottom-fade className="pointer-events-none absolute bottom-0 left-5 right-5 h-3.5 z-10 rounded-t-lg bg-gradient-to-t from-zinc-50 dark:from-suno-panel to-transparent" />
+
             <div className="flex-1 overflow-y-auto custom-scrollbar">
                 <div className="p-5 pb-24 lg:pb-32 space-y-6">
 
