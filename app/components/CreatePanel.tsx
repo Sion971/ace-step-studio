@@ -2696,7 +2696,7 @@ export const CreatePanel: React.FC<CreatePanelProps> = ({
       )}
 
       {/* Footer Create Button */}
-      <div className="p-4 mt-auto sticky bottom-0 bg-zinc-50/95 dark:bg-suno-panel/95 backdrop-blur-sm z-10 border-t border-zinc-200 dark:border-white/5 space-y-3">
+      <div className="p-4 mt-auto sticky bottom-0 bg-zinc-50/95 dark:bg-suno-panel/95 backdrop-blur-sm z-10 space-y-3">
         {preflightFailed && (
           <p className="text-[11px] text-amber-500 leading-snug">
             {tf('warnPreflightFailed', 'OpenRouter n\'a pas répondu (clé refusée ou service indisponible) : le morceau a été généré sans paroles. Vérifie ta clé dans les réglages avancés.')}
