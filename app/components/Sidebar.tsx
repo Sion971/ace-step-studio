@@ -4,12 +4,9 @@ import { View } from '../types';
 import { useI18n } from '../context/I18nContext';
 import type { TranslationKey } from '../i18n/translations';
 import { llmStorage } from '../services/llm/storage';
-// Meme fichier que le favicon de l'onglet (voir app/favicon.svg) — une
-// seule source de verite pour le logo, plutot que de maintenir deux
-// representations separees (cette div CSS+icone, et le SVG reel) qui
-// risqueraient de diverger sans qu'on s'en apercoive, comme ce fut le cas
-// avant ce correctif.
-import faviconUrl from '../favicon.svg';
+// Le logo est dessine par AnimatedLogo, avec le meme trace que le favicon de l'onglet (app/favicon.svg) ;
+// AnimatedLogo.test.tsx verifie que les deux restent identiques.
+import { AnimatedLogo } from './AnimatedLogo';
 import { aiCoverStorage } from '../services/cover/settings';
 
 interface SidebarProps {
@@ -20,6 +17,8 @@ interface SidebarProps {
   // 'create'. Sidebar n'a pas besoin de savoir COMMENT on y revient (nom
   // d'utilisateur, route), juste de declencher l'action au clic.
   onNavigateHome?: () => void;
+  // Une generation en cours : le logo rejoue son animation en boucle.
+  isGenerating?: boolean;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   user?: { username: string; isAdmin?: boolean; avatar_url?: string } | null;
@@ -259,6 +258,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentView,
   onNavigate,
   onNavigateHome,
+  isGenerating = false,
   theme,
   onToggleTheme,
   user,
@@ -290,11 +290,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="px-3 mb-8 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div
-            className="w-10 h-10 rounded-xl overflow-hidden cursor-pointer shadow-lg hover:scale-105 transition-transform flex-shrink-0"
+            className="w-10 h-10 rounded-xl overflow-hidden cursor-pointer shadow-lg flex-shrink-0"
             onClick={() => (onNavigateHome ? onNavigateHome() : onNavigate('create'))}
             title={t('aceStepUI')}
           >
-            <img src={faviconUrl} alt="" className="w-full h-full object-cover" />
+            {/* Joue au lancement, au survol, et en boucle pendant une generation (sans zoom). */}
+            <AnimatedLogo size={40} loop={isGenerating} replayOnHover className="block w-full h-full" />
           </div>
           {isOpen && (
             <span className="text-sm font-bold text-zinc-900 dark:text-white whitespace-nowrap">ACE Step 1.5 XL</span>

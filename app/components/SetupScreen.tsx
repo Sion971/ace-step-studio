@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock, Cpu, HardDrive, Loader2 } from 'lucide-react';
+import { AnimatedLogo } from './AnimatedLogo';
 import { useI18n } from '../context/I18nContext';
 import type { TranslationKey } from '../i18n/translations';
 import {
@@ -42,7 +43,8 @@ function RowIcon({ state }: { state: RowView['state'] }) {
 function HeaderIcon({ mode }: { mode: ScreenMode }) {
   if (mode === 'ready') return <CheckCircle2 className="h-8 w-8 text-emerald-400" aria-hidden="true" />;
   if (mode === 'error') return <AlertTriangle className="h-8 w-8 text-red-400" aria-hidden="true" />;
-  return <Loader2 className="h-8 w-8 animate-spin text-pink-400" aria-hidden="true" />;
+  // Downloading or loading: the Studio logo, large, drawing itself again and again while the engine starts.
+  return <AnimatedLogo size={64} loop className="flex-shrink-0 rounded-[18px]" />;
 }
 
 /**
@@ -132,7 +134,7 @@ export function SetupScreen() {
       data-testid="setup-screen"
     >
       <div className="my-auto w-full max-w-2xl rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl">
-        <div className="flex items-start gap-4" role="status" aria-live="polite">
+        <div className="flex items-center gap-4" role="status" aria-live="polite">
           <HeaderIcon mode={mode} />
           <div className="min-w-0">
             <h1 id="setup-title" className="text-xl font-semibold">

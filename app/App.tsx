@@ -2474,6 +2474,7 @@ const createTempSongForClick = useCallback((descriptionPreview: string, ditModel
       <div className="flex-1 flex overflow-hidden md:p-2.5 md:gap-2.5 bg-zinc-200 dark:bg-black">
         <Sidebar
           currentView={currentView}
+          isGenerating={isGenerating || songs.some(s => s.isGenerating)}
           onNavigateHome={() => {
             if (user?.username) {
               handleNavigateToProfile(user.username);
