@@ -70,14 +70,16 @@ export const CreateModeSwitch: React.FC<Props> = ({ view, onChange, hidden, inst
     </button>
   );
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       <div role="tablist" className="flex gap-1 p-1 rounded-xl bg-zinc-100 dark:bg-white/5">
         {btn('simple', t('simple'))}
         {btn('custom', t('custom'))}
       </div>
       {view === 'simple' && (
         <div className="space-y-1.5">
-          <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 cursor-pointer">
+          {/* Same box as the record button of Custom (px-2.5 py-1, 1 px border, 16 px below the tabs): the option sits on
+              its axis and the sticky header ends at the same height in both modes. */}
+          <label className="flex w-fit items-center gap-1.5 px-2.5 py-1 border border-transparent text-xs text-zinc-600 dark:text-zinc-400 cursor-pointer">
             <input type="checkbox" data-testid="create-simple-instrumental" checked={instrumental} onChange={(e) => onInstrumentalChange(e.target.checked)} />
             {t('instrumental')}
           </label>
