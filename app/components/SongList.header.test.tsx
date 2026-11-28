@@ -49,7 +49,7 @@ describe('the header of the song list', () => {
     const fade = container.querySelector<HTMLElement>('[data-song-list-bottom-fade]')!;
     expect(fade).not.toBeNull();
     const classes = fade.className.split(/\s+/);
-    for (const c of ['sticky', 'bottom-0', 'pointer-events-none', 'from-white', 'dark:from-black']) expect(classes, c).toContain(c);
+    for (const c of ['sticky', '-bottom-32', 'pointer-events-none', 'from-white', 'dark:from-black']) expect(classes, c).toContain(c);
     expect(fade.closest('.max-w-5xl')).not.toBeNull();
   });
 
